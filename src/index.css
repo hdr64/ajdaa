@@ -18,6 +18,9 @@
 
 @layer base {
 
+  /* ========================================================
+     THEME 1: CLASSIC (Original Corporate Emerald Teal & Slate)
+     ======================================================== */
   :root,
   html.light,
   [data-theme="light"] {
@@ -69,88 +72,92 @@
     --bg-radial-1: color-mix(in srgb, var(--accent) 6%, transparent);
     --bg-radial-2: color-mix(in srgb, var(--gold) 4%, transparent);
     --bg-radial-3: color-mix(in srgb, var(--accent-dark) 6%, transparent);
-
-    /* AJDA PRIME (PDF LUXURY ARCHITECTURAL IDENTITY) */
-    html.light[data-theme-variant="prime"],
-    [data-theme="light"][data-theme-variant="prime"],
-    :root[data-theme-variant="prime"] {
-      --accent: #9d7945;
-      --accent-light: #bc9963;
-      --accent-dark: #7c5c2d;
-      --gold: #b89047;
-      --gold-light: #d6b372;
-      --canvas: #fbf9f4;
-      --canvas-dark: #f2ece0;
-      --surface: #ffffff;
-      --surface-hover: #f7f4ec;
-      --muted-border: #d8cdb8;
-      --neutral-text: #3a3734;
-      --heading: #0c1822;
-      --success: #059669;
-      --brand-btn-text: #ffffff;
-      --glass-card-bg: linear-gradient(180deg,
-          rgba(255, 255, 255, 0.96),
-          rgba(251, 249, 244, 0.85));
-      --glass-border: rgba(184, 144, 71, 0.28);
-      --glass-shadow: 0 16px 36px -12px rgba(26, 20, 10, 0.08);
-      --bg-radial-1: color-mix(in srgb, var(--accent) 7%, transparent);
-      --bg-radial-2: color-mix(in srgb, var(--gold) 5%, transparent);
-      --bg-radial-3: color-mix(in srgb, var(--accent-light) 5%, transparent);
-    }
-
-    html.dark[data-theme-variant="prime"],
-    [data-theme="dark"][data-theme-variant="prime"] {
-      --accent: #c5a880;
-      --accent-light: #dfc191;
-      --accent-dark: #9b7c53;
-      --gold: #d4af37;
-      --gold-light: #f3dfb0;
-      --canvas: #061219;
-      --canvas-dark: #030a0e;
-      --surface: #0d212b;
-      --surface-hover: #132f3d;
-      --muted-border: #234559;
-      --neutral-text: #cad8df;
-      --heading: #ffffff;
-      --success: #3bd79b;
-      --brand-btn-text: #061219;
-      --glass-card-bg: linear-gradient(180deg,
-          rgba(13, 33, 43, 0.85),
-          rgba(8, 20, 27, 0.7));
-      --glass-border: rgba(197, 168, 128, 0.22);
-      --glass-shadow: 0 20px 45px -25px rgba(0, 0, 0, 0.85);
-      --bg-radial-1: color-mix(in srgb, #c5a880 12%, transparent);
-      --bg-radial-2: color-mix(in srgb, #16465e 20%, transparent);
-      --bg-radial-3: color-mix(in srgb, #c5a880 8%, transparent);
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      background-color: var(--canvas);
-      background-image:
-        radial-gradient(55% 40% at 18% 12%, var(--bg-radial-1), transparent 70%),
-        radial-gradient(45% 38% at 85% 55%, var(--bg-radial-2), transparent 70%),
-        radial-gradient(70% 45% at 50% 108%, var(--bg-radial-3), transparent 70%);
-      background-attachment: fixed;
-      color: var(--neutral-text);
-      font-family: 'Cairo', sans-serif;
-      overflow-x: hidden;
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-
-    ::selection {
-      background: color-mix(in srgb, var(--accent) 35%, transparent);
-      color: var(--heading);
-    }
-
-    :focus-visible {
-      outline: 2px solid var(--accent-light);
-      outline-offset: 3px;
-    }
   }
+
+  /* ========================================================
+     THEME 2: AJDA PRIME (Screenshot & PDF "Gold with Dark Blue")
+     ======================================================== */
+  html.light[data-theme-variant="prime"],
+  [data-theme="light"][data-theme-variant="prime"],
+  :root[data-theme-variant="prime"] {
+    --accent: #b38238;
+    --accent-light: #d4a352;
+    --accent-dark: #8b6224;
+    --gold: #b38238;
+    --gold-light: #d4a352;
+    --canvas: #fbf9f4;
+    --canvas-dark: #f2ece0;
+    --surface: #ffffff;
+    --surface-hover: #f7f3e8;
+    --muted-border: #ded4c0;
+    --neutral-text: #2b3848;
+    --heading: #040d1a;
+    --success: #059669;
+    --brand-btn-text: #ffffff;
+    --glass-card-bg: linear-gradient(180deg,
+        rgba(255, 255, 255, 0.98),
+        rgba(251, 249, 244, 0.9));
+    --glass-border: rgba(179, 130, 56, 0.32);
+    --glass-shadow: 0 16px 36px -12px rgba(4, 13, 26, 0.09);
+    --bg-radial-1: color-mix(in srgb, var(--gold) 7%, transparent);
+    --bg-radial-2: color-mix(in srgb, #07152b 5%, transparent);
+    --bg-radial-3: color-mix(in srgb, var(--accent-light) 5%, transparent);
+  }
+
+  /* Signature Ultra-Luxury Dark Royal Blue & Radiant Gold */
+  html.dark[data-theme-variant="prime"],
+  [data-theme="dark"][data-theme-variant="prime"] {
+    --accent: #c6a25d;
+    --accent-light: #e5c378;
+    --accent-dark: #9e7b36;
+    --gold: #d4af37;
+    --gold-light: #f7e5b5;
+    --canvas: #030a16;
+    --canvas-dark: #02060e;
+    --surface: #07152b;
+    --surface-hover: #0d2242;
+    --muted-border: #1a355b;
+    --neutral-text: #c4d4e7;
+    --heading: #ffffff;
+    --success: #3bd79b;
+    --brand-btn-text: #030a16;
+    --glass-card-bg: linear-gradient(180deg,
+        rgba(8, 23, 46, 0.9),
+        rgba(4, 13, 27, 0.96));
+    --glass-border: rgba(198, 162, 93, 0.28);
+    --glass-shadow: 0 24px 50px -20px rgba(0, 5, 16, 0.95), 0 0 25px -10px rgba(212, 175, 55, 0.15);
+    --bg-radial-1: color-mix(in srgb, #d4af37 14%, transparent);
+    --bg-radial-2: color-mix(in srgb, #0f3a70 32%, transparent);
+    --bg-radial-3: color-mix(in srgb, #38bdf8 8%, transparent);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--canvas);
+    background-image:
+      radial-gradient(55% 40% at 18% 12%, var(--bg-radial-1), transparent 70%),
+      radial-gradient(45% 38% at 85% 55%, var(--bg-radial-2), transparent 70%),
+      radial-gradient(70% 45% at 50% 108%, var(--bg-radial-3), transparent 70%);
+    background-attachment: fixed;
+    color: var(--neutral-text);
+    font-family: 'Cairo', sans-serif;
+    overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+    color: var(--heading);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-light);
+    outline-offset: 3px;
+  }
+}
 
   @layer utilities {
     .navbar-logo {
@@ -279,6 +286,99 @@
           color-mix(in srgb, var(--heading) 22%, transparent),
           transparent);
       pointer-events: none;
+    }
+
+    /* ========================================================
+       AJDA PRIME (Gold & Dark Blue) LUXURY OVERRIDES
+       ======================================================== */
+    [data-theme-variant="prime"] .brand-gradient-text {
+      background: linear-gradient(120deg,
+          #fcedc7 0%,
+          #ffffff 22%,
+          #e5c378 45%,
+          #c6a25d 72%,
+          #9e7b36 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-size: 220% auto;
+      animation: shimmer 4.5s ease-in-out infinite;
+    }
+
+    [data-theme-variant="prime"] .brand-fill {
+      background: linear-gradient(135deg,
+          #f3e0b5,
+          #c6a25d 50%,
+          #9e7b36);
+      color: #030a16;
+      font-weight: 800;
+    }
+
+    [data-theme-variant="prime"] .brand-btn-primary {
+      background: linear-gradient(135deg,
+          #faebcb 0%,
+          #d4af37 40%,
+          #c6a25d 70%,
+          #9a7836 100%);
+      background-size: 200% auto;
+      color: #030a16;
+      font-weight: 800;
+      border: 1px solid rgba(250, 235, 203, 0.45);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        0 10px 28px -8px rgba(198, 162, 93, 0.65);
+    }
+
+    [data-theme-variant="prime"] .brand-btn-primary:hover {
+      filter: brightness(1.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.7),
+        0 16px 36px -8px rgba(212, 175, 55, 0.85);
+    }
+
+    [data-theme-variant="prime"] .brand-btn-secondary {
+      border: 1px solid rgba(198, 162, 93, 0.5);
+      background:
+        linear-gradient(color-mix(in srgb, var(--surface) 92%, transparent),
+          color-mix(in srgb, var(--surface) 92%, transparent)) padding-box,
+        linear-gradient(135deg, #faebcb, #9a7836) border-box;
+      color: #d4af37;
+      box-shadow: inset 0 1px 0 rgba(212, 175, 55, 0.2);
+    }
+
+    [data-theme-variant="prime"] .brand-btn-secondary:hover {
+      border-color: #d4af37;
+      color: #ffffff;
+      box-shadow: 0 10px 28px -10px rgba(198, 162, 93, 0.55);
+    }
+
+    [data-theme-variant="prime"] .brand-badge {
+      background: color-mix(in srgb, #c6a25d 14%, transparent);
+      border: 1px solid color-mix(in srgb, #d4af37 40%, transparent);
+      color: #d4af37;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 18px -4px rgba(212, 175, 55, 0.28);
+    }
+
+    [data-theme-variant="prime"] .glass-card {
+      border-color: rgba(198, 162, 93, 0.25);
+    }
+
+    [data-theme-variant="prime"] .glass-card:hover {
+      border-color: rgba(198, 162, 93, 0.65);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        0 24px 55px -20px rgba(0, 5, 16, 0.98),
+        0 0 28px -8px rgba(212, 175, 55, 0.3);
+    }
+
+    [data-theme-variant="prime"] .hero-grid {
+      background-image:
+        linear-gradient(to right,
+          rgba(198, 162, 93, 0.09) 1px,
+          transparent 1px),
+        linear-gradient(to bottom,
+          rgba(198, 162, 93, 0.09) 1px,
+          transparent 1px);
+      background-size: 52px 52px;
     }
 
     .brand-glow {
@@ -929,4 +1029,3 @@
       animation: none !important;
     }
   }
-}

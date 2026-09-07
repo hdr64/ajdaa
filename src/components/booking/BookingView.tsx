@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import type { Property, BookingFormData } from '../../types/property';
-import { properties } from '../../data/properties';
+import { properties, getPropertyDisplay } from '../../data/properties';
 import { PropertyCard } from '../common/PropertyCard';
-import { CheckCircle2, ArrowRight, Clock, Video, UserCheck, MapPin, Sparkles } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ArrowLeft, Clock, Video, UserCheck, MapPin, Sparkles } from 'lucide-react';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface BookingViewProps {
   selectedProperty: Property | null;
@@ -10,17 +11,22 @@ interface BookingViewProps {
   onSuccessToast: (msg: string) => void;
 }
 
-const TIME_SLOTS = ['10:00 صباحاً', '02:00 ظهراً', '05:00 مساءً', '08:00 مساءً'];
-
 export const BookingView: React.FC<BookingViewProps> = ({
   selectedProperty,
   onSelectProperty,
   onSuccessToast,
 }) => {
+  const { language, isRTL } = useLanguage();
+  const isAr = language === 'ar';
+
+  const timeSlots = isAr
+    ? ['10:00 صباحاً', '02:00 ظهراً', '05:00 مساءً', '08:00 مساءً']
+    : ['10:00 AM', '02:00 PM', '05:00 PM', '08:00 PM'];
+
   const [step, setStep] = useState<number>(selectedProperty ? 2 : 1);
   const [filter, setFilter] = useState<string>('all');
   const [visitMode, setVisitMode] = useState<'in_person' | 'virtual'>('in_person');
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('05:00 مساءً');
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>(timeSlots[2]);
   const [formData, setFormData] = useState<BookingFormData>({
     name: '',
     phone: '',
@@ -32,12 +38,44 @@ export const BookingView: React.FC<BookingViewProps> = ({
 
   const filtered = filter === 'all' ? properties : properties.filter((p) => p.type === filter);
 
+  const selectedDisplay = selectedProperty ? getPropertyDisplay(selectedProperty, language) : null;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone) return;
     setStep(3);
-    onSuccessToast('تم تأكيد موعد حجز المعاينة بنجاح!');
+    onSuccessToast(
+      isAr
+        ? 'تم تأكيد موعد حجز المعاينة بنجاح!'
+        : 'Viewing appointment confirmed successfully!'
+    );
   };
+
+  const steps = isAr
+    ? [
+        { num: 1, label: 'اختيار العقار' },
+        { num: 2, label: 'تفاصيل الموعد' },
+        { num: 3, label: 'تأكيد الحجز' },
+      ]
+    : [
+        { num: 1, label: 'Select Property' },
+        { num: 2, label: 'Schedule Details' },
+        { num: 3, label: 'Confirmation' },
+      ];
+
+  const filterOptions = isAr
+    ? [
+        { key: 'all', label: 'الكل' },
+        { key: 'logistics', label: 'مستودعات لوجستية' },
+        { key: 'commercial', label: 'محلات ومجمعات تجارية' },
+        { key: 'office', label: 'مكاتب ومباني إدارية' },
+      ]
+    : [
+        { key: 'all', label: 'All' },
+        { key: 'logistics', label: 'Logistics Warehouses' },
+        { key: 'commercial', label: 'Commercial & Retail' },
+        { key: 'office', label: 'Office Buildings' },
+      ];
 
   return (
     <div className="pt-32 pb-24 max-w-6xl mx-auto px-6">
@@ -45,16 +83,21 @@ export const BookingView: React.FC<BookingViewProps> = ({
       <div className="text-center mb-12">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full mb-4">
           <Sparkles className="w-3.5 h-3.5 text-accent-light" />
-          خدمة حجز المعاينة
+          {isAr ? 'خدمة حجز المعاينة' : 'Viewing Booking Service'}
         </span>
         <h1
           className="text-3xl md:text-5xl font-black mb-3 stagger-anim"
           style={{ animationDelay: '80ms' }}
         >
-          حجز موعد <span className="brand-gradient-text">معاينة العقار</span>
+          {isAr ? 'حجز موعد ' : 'Book a '}
+          <span className="brand-gradient-text">
+            {isAr ? 'معاينة العقار' : 'Property Viewing'}
+          </span>
         </h1>
         <p className="text-neutral-text/60 text-sm max-w-md mx-auto stagger-anim leading-relaxed" style={{ animationDelay: '160ms' }}>
-          حدد العقار المناسب لك واختر موعد المعاينة الحضورية أو الجولة الافتراضية
+          {isAr
+            ? 'حدد العقار المناسب لك واختر موعد المعاينة الحضورية أو الجولة الافتراضية'
+            : 'Select your preferred property and schedule an in-person viewing or a 3D virtual tour'}
         </p>
       </div>
 
@@ -63,11 +106,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
         className="flex items-center justify-center gap-4 mb-16 max-w-md mx-auto stagger-anim"
         style={{ animationDelay: '240ms' }}
       >
-        {[
-          { num: 1, label: 'اختيار العقار' },
-          { num: 2, label: 'تفاصيل الموعد' },
-          { num: 3, label: 'تأكيد الحجز' },
-        ].map((item) => (
+        {steps.map((item) => (
           <React.Fragment key={item.num}>
             <div className="flex flex-col items-center gap-2">
               <div
@@ -103,12 +142,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
         {step === 1 && (
           <div>
             <div className="flex justify-center gap-2 mb-8 flex-wrap">
-              {[
-                { key: 'all', label: 'الكل' },
-                { key: 'logistics', label: 'مستودعات لوجستية' },
-                { key: 'commercial', label: 'محلات ومجمعات تجارية' },
-                { key: 'office', label: 'مكاتب ومباني إدارية' },
-              ].map(({ key: type, label }) => (
+              {filterOptions.map(({ key: type, label }) => (
                 <button
                   key={type}
                   onClick={() => setFilter(type)}
@@ -152,19 +186,19 @@ export const BookingView: React.FC<BookingViewProps> = ({
                 <div className="flex items-center gap-4">
                   <img
                     src={selectedProperty.image}
-                    alt={selectedProperty.title}
+                    alt={selectedDisplay?.title || selectedProperty.title}
                     className="w-24 h-20 object-cover rounded-2xl border border-muted-border/30"
                   />
                   <div>
                     <div className="flex items-center gap-2 text-xs text-neutral-text/60 mb-1">
                       <MapPin className="w-3.5 h-3.5 text-accent" />
-                      {selectedProperty.city} · {selectedProperty.typeAr}
+                      {selectedDisplay?.city} · {selectedDisplay?.type}
                     </div>
                     <h3 className="font-extrabold text-base text-heading">
-                      {selectedProperty.title}
+                      {selectedDisplay?.title}
                     </h3>
                     <div className="text-sm font-black brand-gradient-text mt-1">
-                      {selectedProperty.status || selectedProperty.badge || 'متاح للاستثمار والتأجير'}
+                      {selectedDisplay?.status || selectedDisplay?.badge || (isAr ? 'متاح للاستثمار والتأجير' : 'Available for Investment & Leasing')}
                     </div>
                   </div>
                 </div>
@@ -173,7 +207,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
                   onClick={() => setStep(1)}
                   className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl shrink-0 cursor-pointer"
                 >
-                  تغيير العقار
+                  {isAr ? 'تغيير العقار' : 'Change Property'}
                 </button>
               </div>
             )}
@@ -186,7 +220,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
               {/* Visit Type Picker */}
               <div>
                 <label className="block text-xs font-bold text-neutral-text/70 mb-3">
-                  طريقة المعاينة المطلوبة
+                  {isAr ? 'طريقة المعاينة المطلوبة' : 'Preferred Viewing Mode'}
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div
@@ -201,8 +235,12 @@ export const BookingView: React.FC<BookingViewProps> = ({
                       <UserCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <div className="text-xs font-black text-heading">حضور شخصي للموقع</div>
-                      <div className="text-[10px] text-neutral-text/50">لقاء مستشار عقاري في موقع العقار</div>
+                      <div className="text-xs font-black text-heading">
+                        {isAr ? 'حضور شخصي للموقع' : 'In-Person Site Visit'}
+                      </div>
+                      <div className="text-[10px] text-neutral-text/50">
+                        {isAr ? 'لقاء مستشار عقاري في موقع العقار' : 'Meet an advisor at the site'}
+                      </div>
                     </div>
                   </div>
 
@@ -218,8 +256,12 @@ export const BookingView: React.FC<BookingViewProps> = ({
                       <Video className="w-5 h-5" />
                     </div>
                     <div>
-                      <div className="text-xs font-black text-heading">جولة افتراضية 3D</div>
-                      <div className="text-[10px] text-neutral-text/50">بث مباشر وافتراضي مع المستشار</div>
+                      <div className="text-xs font-black text-heading">
+                        {isAr ? 'جولة افتراضية 3D' : '3D Virtual Tour'}
+                      </div>
+                      <div className="text-[10px] text-neutral-text/50">
+                        {isAr ? 'بث مباشر وافتراضي مع المستشار' : 'Live interactive tour with an advisor'}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -229,10 +271,10 @@ export const BookingView: React.FC<BookingViewProps> = ({
               <div>
                 <label className="block text-xs font-bold text-neutral-text/70 mb-3 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-accent" />
-                  الفترة الزمنية المفضلة
+                  {isAr ? 'الفترة الزمنية المفضلة' : 'Preferred Time Slot'}
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {TIME_SLOTS.map((slot) => (
+                  {timeSlots.map((slot) => (
                     <button
                       type="button"
                       key={slot}
@@ -253,21 +295,21 @@ export const BookingView: React.FC<BookingViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-neutral-text/70 mb-2">
-                    الاسم الكامل *
+                    {isAr ? 'الاسم الكامل *' : 'Full Name *'}
                   </label>
                   <input
                     required
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="مثال: عبدالملك السالم"
+                    placeholder={isAr ? 'مثال: عبدالملك السالم' : 'e.g. Abdulmalik Al-Salem'}
                     className="w-full bg-canvas border border-muted-border/40 text-neutral-text rounded-xl px-4 py-3 text-sm outline-none focus:border-accent"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-neutral-text/70 mb-2">
-                    رقم الجوال *
+                    {isAr ? 'رقم الجوال *' : 'Phone Number *'}
                   </label>
                   <input
                     required
@@ -284,7 +326,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-neutral-text/70 mb-2">
-                    تاريخ المعاينة
+                    {isAr ? 'تاريخ المعاينة' : 'Viewing Date'}
                   </label>
                   <input
                     type="date"
@@ -296,7 +338,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-neutral-text/70 mb-2">
-                    البريد الإلكتروني (اختياري)
+                    {isAr ? 'البريد الإلكتروني (اختياري)' : 'Email Address (Optional)'}
                   </label>
                   <input
                     dir="ltr"
@@ -311,13 +353,13 @@ export const BookingView: React.FC<BookingViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-neutral-text/70 mb-2">
-                  ملاحظات أو طلبات خاصة (اختياري)
+                  {isAr ? 'ملاحظات أو طلبات خاصة (اختياري)' : 'Notes or Special Requests (Optional)'}
                 </label>
                 <textarea
                   rows={3}
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="أي معلومات إضافية ترغب في مشاركتها..."
+                  placeholder={isAr ? 'أي معلومات إضافية ترغب في مشاركتها...' : 'Any additional details or questions...'}
                   className="w-full bg-canvas border border-muted-border/40 text-neutral-text rounded-xl p-4 text-sm outline-none focus:border-accent resize-none"
                 />
               </div>
@@ -328,15 +370,15 @@ export const BookingView: React.FC<BookingViewProps> = ({
                   onClick={() => setStep(1)}
                   className="brand-btn-secondary font-bold text-xs px-6 py-3 rounded-full cursor-pointer"
                 >
-                  الرجوع
+                  {isAr ? 'الرجوع' : 'Back'}
                 </button>
 
                 <button
                   type="submit"
                   className="brand-btn-primary font-black text-sm px-8 py-3.5 rounded-full hover:scale-105 transition cursor-pointer shadow-lg shadow-accent/30 inline-flex items-center gap-2"
                 >
-                  تأكيد موعد المعاينة
-                  <ArrowRight className="w-4 h-4" />
+                  {isAr ? 'تأكيد موعد المعاينة' : 'Confirm Viewing Appointment'}
+                  {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                 </button>
               </div>
             </form>
@@ -350,32 +392,42 @@ export const BookingView: React.FC<BookingViewProps> = ({
               <CheckCircle2 className="w-10 h-10 text-success" />
             </div>
 
-            <h2 className="text-2xl font-black text-heading mb-2">تم تأكيد طلب المعاينة بنجاح!</h2>
+            <h2 className="text-2xl font-black text-heading mb-2">
+              {isAr ? 'تم تأكيد طلب المعاينة بنجاح!' : 'Viewing Request Submitted Successfully!'}
+            </h2>
             <p className="text-xs text-neutral-text/60 max-w-sm mx-auto mb-8 leading-relaxed">
-              سيتواصل معك المستشار العقاري المخصص لتأكيد الموعد وإرسال تفاصيل اللقاء أو التغطية.
+              {isAr
+                ? 'سيتواصل معك المستشار العقاري المخصص لتأكيد الموعد وإرسال تفاصيل اللقاء أو التغطية.'
+                : 'Our dedicated real estate consultant will contact you promptly to confirm the appointment details.'}
             </p>
 
-            <div className="bg-surface/60 rounded-2xl p-5 border border-muted-border/30 text-right space-y-3 mb-8 text-xs">
+            <div className="bg-surface/60 rounded-2xl p-5 border border-muted-border/30 text-start space-y-3 mb-8 text-xs">
               <div className="flex justify-between border-b border-muted-border/20 pb-2">
-                <span className="text-neutral-text/50">العقار:</span>
-                <span className="font-bold text-heading">{selectedProperty?.title || 'عقار مختار'}</span>
+                <span className="text-neutral-text/50">{isAr ? 'العقار:' : 'Property:'}</span>
+                <span className="font-bold text-heading">{selectedDisplay?.title || (isAr ? 'عقار مختار' : 'Selected Property')}</span>
               </div>
               <div className="flex justify-between border-b border-muted-border/20 pb-2">
-                <span className="text-neutral-text/50">الاسم:</span>
+                <span className="text-neutral-text/50">{isAr ? 'الاسم:' : 'Name:'}</span>
                 <span className="font-bold text-heading">{formData.name}</span>
               </div>
               <div className="flex justify-between border-b border-muted-border/20 pb-2">
-                <span className="text-neutral-text/50">رقم الجوال:</span>
+                <span className="text-neutral-text/50">{isAr ? 'رقم الجوال:' : 'Phone:'}</span>
                 <span className="font-bold text-heading" dir="ltr">{formData.phone}</span>
               </div>
               <div className="flex justify-between border-b border-muted-border/20 pb-2">
-                <span className="text-neutral-text/50">نوع المعاينة:</span>
+                <span className="text-neutral-text/50">{isAr ? 'نوع المعاينة:' : 'Viewing Mode:'}</span>
                 <span className="font-bold text-accent">
-                  {visitMode === 'in_person' ? 'حضور شخصي' : 'جولة افتراضية 3D'}
+                  {visitMode === 'in_person'
+                    ? isAr
+                      ? 'حضور شخصي'
+                      : 'In-Person'
+                    : isAr
+                    ? 'جولة افتراضية 3D'
+                    : '3D Virtual Tour'}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-text/50">التاريخ والوقت:</span>
+                <span className="text-neutral-text/50">{isAr ? 'التاريخ والوقت:' : 'Date & Time:'}</span>
                 <span className="font-bold text-gold">{formData.date} - {selectedTimeSlot}</span>
               </div>
             </div>
@@ -384,7 +436,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
               onClick={() => setStep(1)}
               className="brand-btn-primary font-extrabold text-xs px-8 py-3.5 rounded-full cursor-pointer"
             >
-              حجز معاينة جديدة
+              {isAr ? 'حجز معاينة جديدة' : 'Book Another Viewing'}
             </button>
           </div>
         )}

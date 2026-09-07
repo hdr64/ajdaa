@@ -52,7 +52,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       if (currentVariant === 'prime') {
-        metaThemeColor.setAttribute('content', mode === 'dark' ? '#07151d' : '#fbf9f5');
+        metaThemeColor.setAttribute('content', mode === 'dark' ? '#030a16' : '#fbf9f4');
       } else {
         metaThemeColor.setAttribute('content', mode === 'dark' ? '#0d1620' : '#f6f8fa');
       }
@@ -91,6 +91,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // Ignore error
     }
+    // When activating Prime, ensure user immediately sees the dark blue & gold signature look
+    if (newVariant === 'prime' && theme !== 'dark') {
+      setTheme('dark');
+    }
   };
 
   const toggleVariant = () => {
@@ -100,6 +104,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem(VARIANT_STORAGE_KEY, next);
       } catch {
         // Ignore error
+      }
+      if (next === 'prime' && theme !== 'dark') {
+        setTheme('dark');
       }
       return next;
     });

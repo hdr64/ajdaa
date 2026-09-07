@@ -67,7 +67,7 @@ export const properties: Property[] = [
     priceType: 'استثمار',
     priceTypeEn: 'Investment',
     status: 'محجوز بالكامل',
-    statusEn: 'Fully Leased',
+    statusEn: 'Fully Booked',
     area: 4600,
     bathrooms: 6,
     units: 'مجمع محلات ومعارض تجارية',
@@ -77,9 +77,9 @@ export const properties: Property[] = [
     image: alehsa,
     gallery: [alehsa, alehsa2, alehsa3, alehsa4, alehsa5],
     badge: 'محجوز بالكامل',
-    badgeEn: 'Fully Leased',
+    badgeEn: 'Fully Booked',
     description: 'مشروع الأحساء التجاري التابع لشركة أجدى العقارية، مجمع تجاري متكامل يضم محلات ومعارض تجارية عصرية بتصميم معماري فخم يدمج الأصالة بالحداثة، مع واجهات زجاجية واسعة وإضاءات ديكورية استثنائية (محجوز بالكامل).',
-    descriptionEn: 'Al Ahsa commercial complex by Ajda Real Estate, combining authentic heritage architecture with wide contemporary glass storefronts and decorative lighting (Fully Leased).',
+    descriptionEn: 'Al Ahsa commercial complex by Ajda Real Estate, combining authentic heritage architecture with wide contemporary glass storefronts and decorative lighting (Fully Booked).',
     features: [
       'تصميم معماري وتراثي عصري فاخر',
       'واجهات زجاجية مزدوجة واسعة للمحلات',
@@ -311,13 +311,13 @@ export const getPropertyDisplay = (prop: Property, language: 'ar' | 'en'): Prope
   const features = isAr ? (prop.features || []) : (prop.featuresEn || prop.features || []);
 
   const status = isBooked
-    ? (isAr ? 'محجوز بالكامل' : 'Fully Leased')
+    ? (isAr ? 'محجوز بالكامل' : 'Fully Booked')
     : isAr
     ? prop.status || prop.badge || 'متاح للتأجير والاستثمار'
     : prop.statusEn || prop.badgeEn || 'Available for Lease & Investment';
 
   const badge = isBooked
-    ? (isAr ? 'محجوز بالكامل' : 'Fully Leased')
+    ? (isAr ? 'محجوز بالكامل' : 'Fully Booked')
     : isAr
     ? prop.badge || prop.priceType
     : prop.badgeEn || prop.priceTypeEn || prop.priceType;

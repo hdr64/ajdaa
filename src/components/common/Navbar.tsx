@@ -98,8 +98,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
           </div>
 
           {/* Desktop Right CTA */}
-          <div className="hidden md:flex items-center gap-3">
-            {/* <ThemeVariantToggle /> */}
+          <div className="hidden md:flex items-center gap-2.5 lg:gap-3">
+            <ThemeVariantToggle />
             <LanguageToggle />
             <ThemeToggle />
             {/* <a

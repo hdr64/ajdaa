@@ -152,7 +152,10 @@ export function App() {
 
 
               <Reveal direction="up">
-                <ProjectsSection onExplore={() => navigateTo('works')} />
+                <ProjectsSection
+                  onExplore={() => navigateTo('works')}
+                  onQuickView={handleQuickView}
+                />
               </Reveal>
 
               <Reveal direction="up">
