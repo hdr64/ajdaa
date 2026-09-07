@@ -127,8 +127,8 @@ export function App() {
               </Reveal>
 
 
-              <section className="py-20 max-w-7xl mx-auto px-6 ">
-                <div className="flex items-center justify-between mb-12">
+              <section className="py-14 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-12">
                   <Reveal direction="right">
                     <div>
                       <span className="text-xs text-accent-light font-semibold brand-badge px-3 py-1 rounded-full">

@@ -39,7 +39,7 @@ const NumberCounter: React.FC<CounterProps> = ({ target, active }) => {
 
 const stats = [
   { target: 500, label: 'عقار متاح', icon: Building2 },
-  { target: 1200, label: 'عميل راضي', icon: Smile },
+  { target: 1200, label: 'عميل ومستثمر', icon: Smile },
   { target: 15, label: 'سنة خبرة', icon: Award },
   { target: 8, label: 'مدن سعودية', icon: Map },
 ];
@@ -48,18 +48,19 @@ export const StatsSection: React.FC = () => {
   const { ref, isVisible } = useIntersection<HTMLDivElement>({ threshold: 0.2 });
 
   return (
-    <section ref={ref} className="relative py-20 max-w-7xl mx-auto px-6">
-      <div className="text-center mb-12">
-        <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full">
+    <section ref={ref} className="relative py-14 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="text-center mb-8 sm:mb-12">
+        <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-3.5 py-1.5 rounded-full">
           <TrendingUp className="w-3.5 h-3.5 text-accent-light" />
           أرقامنا
         </span>
-        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black mt-6">
+        <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black mt-3 sm:mt-5">
           نتائج <span className="brand-gradient-text">تتحدث عنا</span>
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* 2x2 grid on mobile for compact, elegant viewport experience without huge scroll depth */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {stats.map((stat, idx) => {
           const Icon = stat.icon;
           return (
@@ -72,15 +73,15 @@ export const StatsSection: React.FC = () => {
                 transform: isVisible ? 'translate3d(0, 0, 0)' : 'translate3d(0, 20px, 0)',
                 opacity: isVisible ? 1 : 0,
               }}
-              className="gpu-layer glass-card group rounded-3xl p-8 text-center hover:-translate-y-2"
+              className="gpu-layer glass-card group rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-center hover:-translate-y-2"
             >
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-accent/25 via-accent/10 to-transparent border border-accent/30 flex items-center justify-center text-accent mb-5 transition-all duration-500 group-hover:bg-accent group-hover:text-canvas group-hover:scale-110 group-hover:rotate-6">
-                <Icon className="w-5 h-5" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-xl sm:rounded-2xl bg-gradient-to-br from-accent/25 via-accent/10 to-transparent border border-accent/30 flex items-center justify-center text-accent mb-3 sm:mb-5 transition-all duration-500 group-hover:bg-accent group-hover:text-canvas group-hover:scale-110">
+                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div className="text-4xl md:text-5xl font-black brand-gradient-text tracking-tight mb-2">
+              <div className="text-2xl sm:text-4xl md:text-5xl font-black brand-gradient-text tracking-tight mb-1 sm:mb-2">
                 <NumberCounter target={stat.target} active={isVisible} />+
               </div>
-              <div className="text-xs md:text-sm text-neutral-text/70 font-medium">
+              <div className="text-xs sm:text-sm text-neutral-text/75 font-semibold">
                 {stat.label}
               </div>
             </div>
