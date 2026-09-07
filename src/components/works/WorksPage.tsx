@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Building2,
-  Building,
   Search,
   MapPin,
   Tag,
@@ -11,7 +9,6 @@ import {
   RotateCcw,
   LayoutGrid,
   List,
-  Home,
   Briefcase,
   Warehouse,
   Store,
@@ -57,9 +54,6 @@ const typeLabels: Record<PropertyType, string> = {
   logistics: 'مستودعات ومخازن',
   commercial: 'محلات ومجمعات تجارية',
   office: 'مكاتب ومباني إدارية',
-  villa: 'فلل فاخرة',
-  apartment: 'شقق سكنية',
-  house: 'بيوت',
 };
 
 type CategoryKey = 'all' | PropertyType;
@@ -77,9 +71,6 @@ const categoryIcons: Record<CategoryKey, React.ComponentType<{ className?: strin
   logistics: Warehouse,
   commercial: Store,
   office: Briefcase,
-  villa: Home,
-  apartment: Building2,
-  house: Building,
 };
 
 const specChip =
@@ -137,23 +128,14 @@ export const WorksPage: React.FC<WorksPageProps> = ({
 }) => {
   const [ready, setReady] = useState(false);
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<CategoryKey>(
-    initialFilters?.type && initialFilters.type !== 'الكل'
-      ? (initialFilters.type === 'مستودعات' || initialFilters.type === 'مستودعات ومشاريع لوجستية' || initialFilters.type === 'logistics'
-          ? 'logistics'
-          : initialFilters.type === 'محلات' || initialFilters.type === 'محلات ومجمعات تجارية' || initialFilters.type === 'commercial'
-          ? 'commercial'
-          : initialFilters.type === 'مكاتب' || initialFilters.type === 'مكاتب تجارية' || initialFilters.type === 'office'
-          ? 'office'
-          : initialFilters.type === 'فلل' || initialFilters.type === 'villa'
-          ? 'villa'
-          : initialFilters.type === 'شقق' || initialFilters.type === 'apartment'
-          ? 'apartment'
-          : initialFilters.type === 'بيوت' || initialFilters.type === 'house'
-          ? 'house'
-          : 'all')
-      : 'all'
-  );
+  const [category, setCategory] = useState<CategoryKey>(() => {
+    if (!initialFilters?.type || initialFilters.type === 'الكل') return 'all';
+    const t = initialFilters.type;
+    if (t.includes('مستودع') || t.includes('لوجست') || t === 'logistics') return 'logistics';
+    if (t.includes('محل') || t.includes('تجار') || t === 'commercial') return 'commercial';
+    if (t.includes('مكتب') || t.includes('مبان') || t.includes('إدار') || t === 'office') return 'office';
+    return 'all';
+  });
   const [city, setCity] = useState<string>(
     initialFilters?.city && initialFilters.city !== 'الكل' ? initialFilters.city : 'all'
   );
@@ -187,7 +169,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         acc.all += 1;
         return acc;
       },
-      { all: 0, logistics: 0, commercial: 0, office: 0, villa: 0, apartment: 0, house: 0 },
+      { all: 0, logistics: 0, commercial: 0, office: 0 },
     );
     return [
       { key: 'all', label: 'الكل', count: counts.all },

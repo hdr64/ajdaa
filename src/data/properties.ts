@@ -1,6 +1,6 @@
 import type { Property } from '../types/property';
 
-// New projects from src/assets/ajda1
+// Real logistics & commercial projects from src/assets/ajda1
 import almansoria from '../assets/ajda1/almansoria.webp';
 import alehsa from '../assets/ajda1/alehsa.webp';
 import alehsa2 from '../assets/ajda1/alehsa2.webp';
@@ -11,7 +11,7 @@ import alkher from '../assets/ajda1/alkher.webp';
 import alkher2 from '../assets/ajda1/alkher2.webp';
 import vera from '../assets/ajda1/vera.webp';
 
-// Existing commercial & office projects
+// Real commercial & office projects from src/assets/ajda
 import festa1 from '../assets/ajda/festa/festa1.webp';
 import festa2 from '../assets/ajda/festa/festa2.webp';
 import festa3 from '../assets/ajda/festa/festa3.webp';
@@ -20,240 +20,257 @@ import prime2 from '../assets/ajda/prime/prime2.webp';
 import line1 from '../assets/ajda/line/line1.webp';
 import line2 from '../assets/ajda/line/line2.webp';
 
-// Residential assets
-import img2 from '../assets/imgs/2.webp';
-import img3 from '../assets/imgs/3.webp';
-import img4 from '../assets/imgs/4.webp';
-import img5 from '../assets/imgs/5.webp';
-import img6 from '../assets/imgs/6.webp';
-import img7 from '../assets/imgs/7.webp';
-import img8 from '../assets/imgs/8.webp';
-import img9 from '../assets/imgs/9.webp';
-import img10 from '../assets/imgs/10.webp';
-import img11 from '../assets/imgs/11.webp';
-import imgA1 from '../assets/imgs/a1.webp';
-
 export const properties: Property[] = [
   {
     id: 201,
     type: 'logistics',
     typeAr: 'مستودعات ومخازن لوجستية',
+    typeEn: 'Warehouses & Logistics Hub',
     title: 'مستودعات المنصورية اللوجستية · Al Mansoria Warehouses',
+    titleEn: 'Al Mansoria Logistics Warehouses',
     priceType: 'إيجار',
+    priceTypeEn: 'Lease',
     status: 'متاح للتأجير والاستثمار',
+    statusEn: 'Available for Lease & Investment',
     area: 18500,
-    rooms: 0,
     bathrooms: 4,
     units: 'مستودعات ومخازن كبرى',
+    unitsEn: 'Major Logistics Warehouses',
     city: 'الرياض',
+    cityEn: 'Riyadh',
     image: almansoria,
     gallery: [almansoria],
     badge: 'مشروع لوجستي رئيسي',
-    description: 'مشروع مستودعات المنصورية اللوجستية الحديثة لشركة أجدا للتطوير والاستثمار في مدينة الرياض. صُمم بأعلى معايير التخزين والمخازن وسلاسل الإمداد العالمية، مع ساحات شحن وتفريغ هيدروليكية ومواقف شاحنات متكاملة وأنظمة إطفاء وسلامة ذكية.',
+    badgeEn: 'Key Logistics Hub',
+    description: 'مشروع مستودعات المنصورية اللوجستية الحديثة لشركة أجدى للتطوير والاستثمار في مدينة الرياض. صُمم بأعلى معايير التخزين والمخازن وسلاسل الإمداد العالمية، مع ساحات شحن وتفريغ هيدروليكية ومواقف شاحنات متكاملة وأنظمة إطفاء وسلامة ذكية.',
+    descriptionEn: 'Al Mansoria modern logistics warehousing hub in Riyadh, developed to top international storage standards with hydraulic loading bays, dedicated heavy vehicle logistics yards, and 24/7 smart safety systems.',
     features: [
-      'سقف مرتفع ومساحات تخزين ضخمة',
+      'سقف مرتفع وسعات تخزين ضخمة',
       'أرصفة شحن وتفريغ هيدروليكية',
       'أنظمة إطفاء وأمن معتمدة 24/7',
       'مواقف مخصصة للشاحنات وتريلات النقل'
+    ],
+    featuresEn: [
+      'High clear ceiling & expansive storage volume',
+      'Hydraulic cargo loading & unloading docks',
+      '24/7 certified fire suppression & surveillance',
+      'Designated truck maneuvering & trailer yards'
     ]
   },
   {
     id: 202,
     type: 'commercial',
     typeAr: 'محلات ومجمع تجاري',
+    typeEn: 'Commercial & Retail Complex',
     title: 'مشروع الأحساء التجاري · Al Ahsa Commercial Project',
+    titleEn: 'Al Ahsa Commercial Complex',
     priceType: 'استثمار',
+    priceTypeEn: 'Investment',
     status: 'محجوز بالكامل',
+    statusEn: 'Fully Booked',
     area: 4600,
-    rooms: 0,
     bathrooms: 6,
     units: 'مجمع محلات ومعارض تجارية',
+    unitsEn: 'Integrated Retail Complex',
     city: 'الأحساء',
+    cityEn: 'Al Ahsa',
     image: alehsa,
     gallery: [alehsa, alehsa2, alehsa3, alehsa4, alehsa5],
     badge: 'محجوز بالكامل',
-    description: 'مشروع الأحساء التجاري التابع لشركة أجدا العقارية، مجمع تجاري متكامل يضم محلات ومعارض تجارية عصرية بتصميم معماري فخم يدمج الأصالة بالحداثة، مع واجهات زجاجية واسعة وإضاءات ديكورية استثنائية (محجوز بالكامل).',
+    badgeEn: 'Fully Booked',
+    description: 'مشروع الأحساء التجاري التابع لشركة أجدى العقارية، مجمع تجاري متكامل يضم محلات ومعارض تجارية عصرية بتصميم معماري فخم يدمج الأصالة بالحداثة، مع واجهات زجاجية واسعة وإضاءات ديكورية استثنائية (محجوز بالكامل).',
+    descriptionEn: 'Al Ahsa commercial complex by Ajda Real Estate, combining authentic heritage architecture with wide contemporary glass storefronts and decorative lighting (Fully Booked).',
     features: [
       'تصميم معماري وتراثي عصري فاخر',
       'واجهات زجاجية مزدوجة واسعة للمحلات',
       'إضاءات ليلية استثنائية متناسقة',
       'مواقف سيارات واسعة ومهيأة للزوار'
+    ],
+    featuresEn: [
+      'Luxury heritage & modern architectural design',
+      'Double-glazed expansive commercial storefronts',
+      'Decorative nighttime illumination schemes',
+      'Spacious dedicated visitor parking bays'
     ]
   },
   {
     id: 203,
     type: 'commercial',
     typeAr: 'محلات تجارية',
-    title: 'مجمع محلات أجدا لوكس · Ajda Lux Commercial Shops',
+    typeEn: 'Retail Commercial Shops',
+    title: 'مجمع محلات أجدى لوكس · Ajda Lux Commercial Shops',
+    titleEn: 'Ajda Lux Commercial Shops',
     priceType: 'إيجار',
+    priceTypeEn: 'Lease',
     status: 'متاح للتأجير والاستثمار',
+    statusEn: 'Available for Lease & Investment',
     area: 2800,
-    rooms: 0,
     bathrooms: 4,
     units: 'محلات وصالات تجارية راقية',
+    unitsEn: 'Luxury Commercial Showrooms',
     city: 'الرياض',
+    cityEn: 'Riyadh',
     image: alkher2,
     gallery: [alkher2, alkher],
     badge: 'محلات تجارية فاخرة',
-    description: 'مجمع محلات أجدا لوكس التجاري بتصميم مودرن متطور في مدينة الرياض، يضم سلسلة محلات تجارية راقية وصالات عرض على واجهة رئيسية حيوية، مجهزة بأحدث التشطيبات ومواقف أمامية مخصصة للعملاء.',
+    badgeEn: 'Luxury Commercial Retail',
+    description: 'مجمع محلات أجدى لوكس التجاري بتصميم مودرن متطور في مدينة الرياض، يضم سلسلة محلات تجارية راقية وصالات عرض على واجهة رئيسية حيوية، مجهزة بأحدث التشطيبات ومواقف أمامية مخصصة للعملاء.',
+    descriptionEn: 'Ajda Lux commercial retail complex featuring contemporary styling along a vibrant Riyadh arterial corridor, complete with outdoor terraces and front customer parking.',
     features: [
       'واجهات عرض زجاجية مزدوجة',
       'تراسات وجلسات خارجية راقية',
       'مواقف خاصة لعملاء المحلات',
       'موقع تجاري نشط وحيوي'
+    ],
+    featuresEn: [
+      'Double-glazed retail display facades',
+      'Outdoor terraces and customer seating',
+      'Dedicated visitor parking bays',
+      'Prime high-traffic commercial location'
     ]
   },
   {
     id: 204,
     type: 'commercial',
     typeAr: 'معارض ومحلات تجارية',
-    title: 'معارض وصالات أجدا التجارية (طريق رئيسي)',
+    typeEn: 'Showrooms & Commercial Stores',
+    title: 'معارض وصالات أجدى فيرا (طريق رئيسي)',
+    titleEn: 'Ajda Vera Commercial Showrooms',
     priceType: 'إيجار',
+    priceTypeEn: 'Lease',
     status: 'متاح للتأجير',
+    statusEn: 'Available for Lease',
     area: 3800,
-    rooms: 0,
     bathrooms: 4,
     units: 'صالات ومعارض تجارية كبرى',
+    unitsEn: 'Major Commercial Showrooms',
     city: 'الرياض',
+    cityEn: 'Riyadh',
     image: vera,
     gallery: [vera],
     badge: 'معارض تجارية كبرى',
-    description: 'صالات ومعارض تجارية كبرى مجهزة للعلامات التجارية والشركات الرائدة (بجوار المنيع)، تتميز بمساحات عرض فسيحة وارتفاعات مناسبة ومواقف منظمة على محور تجاري رئيسي.',
+    badgeEn: 'Major Commercial Showrooms',
+    description: 'صالات ومعارض أجدى التجارية على محور حيوي رئيسي، توفر مساحات مفتوحة وواجهات زجاجية مزدوجة مع أسقف عالية ومواقف سيارات واسعة تناسب كبرى العلامات التجارية والشركات.',
+    descriptionEn: 'High-visibility corporate showrooms on a prime commercial thoroughfare, providing expansive open floor plates, high ceilings, and separate rear loading logistics.',
     features: [
-      'واجهات زجاجية ممتدة على الشارع التجاري',
       'مواقف سيارات منظمة أمامية',
       'سقف مرتفع ومساحات عرض مفتوحة',
-      'موقع استراتيجي بحيويته العالية'
+      'موقع استراتيجي بحيويته العالية',
+      'مداخل شحن وتحميل مستقلة'
+    ],
+    featuresEn: [
+      'Front organized customer parking',
+      'High ceilings & column-free display spaces',
+      'Strategic arterial highway location',
+      'Independent rear cargo loading access'
     ]
   },
   {
-    id: 101,
+    id: 205,
     type: 'office',
     typeAr: 'مبنى تجاري وإداري',
-    title: 'أجدا فيستا · Ajda Vista (مبنى تجاري متعدد المكاتب)',
+    typeEn: 'Commercial & Office Hub',
+    title: 'أجدى فيستا · Ajda Vista (مبنى تجاري متعدد المكاتب)',
+    titleEn: 'Ajda Vista Business Building',
     priceType: 'إيجار',
+    priceTypeEn: 'Lease',
     status: 'متاح للتأجير والاستثمار',
-    area: 680,
-    rooms: 12,
+    statusEn: 'Available for Lease & Investment',
+    area: 5400,
     bathrooms: 8,
     units: 'مبنى تجاري وإداري',
+    unitsEn: 'Multi-Tenant Commercial & Office Hub',
     city: 'الرياض',
+    cityEn: 'Riyadh',
     image: festa1,
     gallery: [festa1, festa2, festa3],
     badge: 'مشروع إداري رئيسي',
-    description: 'مشروع أجدا فيستا التجاري والإداري، مبنى متطور متعدد المكاتب والأقسام التجارية على أعلى معايير التصميم المعماري الذكي.',
+    badgeEn: 'Flagship Corporate Hub',
+    description: 'مشروع أجدى فيستا التجاري والإداري، مبنى متطور متعدد المكاتب والأقسام التجارية على أعلى معايير التصميم المعماري الذكي، مع واجهات عصرية ومواقف خاصة وخدمات صيانة شاملة.',
+    descriptionEn: 'Ajda Vista multi-tenant corporate center developed according to smart building benchmarks with thermal-insulated facades, executive entrances, and facility management.',
     features: [
       'مكاتب تجارية متعددة المساحات',
-      'واجهات زجاجية عصرية',
-      'مواقف خاصة وأنظمة أمنية'
+      'واجهات زجاجية عصرية عازلة',
+      'مواقف خاصة وأنظمة أمنية 24/7',
+      'أنظمة تكييف وتحكم ذكية'
+    ],
+    featuresEn: [
+      'Flexible multi-size office suites',
+      'Sound- and heat-insulated glass facades',
+      'Dedicated parking & 24/7 access control',
+      'Smart central HVAC and building controls'
     ]
   },
   {
-    id: 102,
+    id: 206,
     type: 'office',
     typeAr: 'مركز أعمال',
-    title: 'أجدا برايم · Ajda Prime (مكاتب تنفيذية)',
+    typeEn: 'Executive Business Center',
+    title: 'أجدى برايم · Ajda Prime (مكاتب تنفيذية)',
+    titleEn: 'Ajda Prime Executive Center',
     priceType: 'بيع',
+    priceTypeEn: 'Sale / Investment',
     status: 'جاهز للاستخدام',
-    area: 850,
-    rooms: 15,
+    statusEn: 'Ready for Occupancy',
+    area: 7200,
     bathrooms: 10,
     units: 'مبنى إداري تنفيذي',
-    city: 'جدة',
+    unitsEn: 'Executive Corporate Building',
+    city: 'الرياض',
+    cityEn: 'Riyadh',
     image: prime1,
     gallery: [prime1, prime2],
     badge: 'مركز تنفيذي',
-    description: 'مشروع أجدا برايم التجاري، مركز أعمال تنفيذي يضم مساحات إدارية ومكاتب فاخرة مجهزة بأحدث التقنيات وأنظمة التحكم الأمني الذكي.',
+    badgeEn: 'Executive Corporate Hub',
+    description: 'مشروع أجدى برايم التجاري، مركز أعمال تنفيذي يضم مساحات إدارية ومكاتب فاخرة مجهزة بأحدث التقنيات وأنظمة التحكم الأمني الذكي وبيئة عمل مؤسسية متكاملة.',
+    descriptionEn: 'Ajda Prime executive business center housing luxury corporate offices equipped with cutting-edge smart environmental controls and enterprise-grade infrastructure.',
     features: [
-      'مقر استراتيجي للشركات',
-      'أنظمة تحكم وأمن ذكية',
-      'قاعات اجتماعات تنفيذية'
+      'مقر استراتيجي للشركات والجهات الكبرى',
+      'أنظمة تحكم وأمن ذكية 24/7',
+      'قاعات اجتماعات تنفيذية مجهزة بالكامل',
+      'مواقف بدروم ومصاعد سريعة'
+    ],
+    featuresEn: [
+      'Strategic corporate headquarters address',
+      '24/7 smart security & automated access',
+      'Fully fitted executive conference suites',
+      'High-speed smart elevators & basement parking'
     ]
   },
   {
-    id: 103,
+    id: 207,
     type: 'office',
     typeAr: 'مجمع مكاتب',
-    title: 'أجدا لاين · Ajda Line (مكاتب إدارية استراتيجية)',
+    typeEn: 'Corporate Office Complex',
+    title: 'أجدى لاين · Ajda Line (مكاتب إدارية استراتيجية)',
+    titleEn: 'Ajda Line Office Complex',
     priceType: 'إيجار',
+    priceTypeEn: 'Lease',
     status: 'متاح للتأجير',
-    area: 540,
-    rooms: 9,
+    statusEn: 'Available for Lease',
+    area: 4200,
     bathrooms: 6,
     units: 'مجمع مكاتب وأقسام',
+    unitsEn: 'Office Suites & Commercial Sections',
     city: 'الرياض',
+    cityEn: 'Riyadh',
     image: line1,
     gallery: [line1, line2],
     badge: 'موقع استراتيجي',
-    description: 'مشروع أجدا لاين التجاري والإداري بموقع حيوي متميز يوفر بيئة عمل استثمارية مرخصة ومكتملة الخدمات للمؤسسات كبرى.',
+    badgeEn: 'Strategic Arterial Address',
+    description: 'مشروع أجدى لاين التجاري والإداري بموقع حيوي متميز يوفر بيئة عمل استثمارية مرخصة ومكتملة الخدمات للمؤسسات والشركات.',
+    descriptionEn: 'Ajda Line office and commercial development offering licensed, fully serviced corporate environments for enterprises and growing commercial ventures.',
     features: [
-      'مواقع تجارية حيوية',
-      'تصميم معماري مستدام',
-      'خدمات إدارة ممتلكات متكاملة'
+      'مواقع تجارية حيوية وسهولة وصول',
+      'تصميم معماري مستدام ومرن للتقسيم',
+      'خدمات إدارة ممتلكات وأمن متكاملة',
+      'بنية تحتية رقمية وشبكات ألياف ضوئية'
+    ],
+    featuresEn: [
+      'Vibrant commercial corridor with easy access',
+      'Sustainable and modular interior planning',
+      'Integrated property management & surveillance',
+      'High-speed fiber-optic digital backbone'
     ]
-  },
-  {
-    id: 1,
-    type: 'villa',
-    typeAr: 'فيلا',
-    title: 'فيلا فاخرة في حي العليا',
-    priceType: 'بيع',
-    status: 'متاح للشراء',
-    area: 520,
-    rooms: 7,
-    bathrooms: 6,
-    city: 'الرياض',
-    image: img2,
-    gallery: [img2, img5, img6, imgA1],
-    badge: 'مشروع فاخر',
-    description: 'فيلا مودرن بتصميم مميز في أرقى أحياء العليا، تشمل مسبحاً خاصاً وحديقة واسعة ونظام منزل ذكي سمارت هوم.'
-  },
-  {
-    id: 2,
-    type: 'apartment',
-    typeAr: 'شقة',
-    title: 'شقة فندقية فاخرة بإطلالة بحرية',
-    priceType: 'بيع',
-    status: 'متاح للشراء',
-    area: 180,
-    rooms: 3,
-    bathrooms: 2,
-    city: 'جدة',
-    image: img3,
-    gallery: [img3, img7, img11, img4],
-    badge: 'إطلالة شاطئية',
-    description: 'شقة فندقية مؤثثة بالكامل بأفخم الديكورات الإيطالية، تقع في برج سكني فاخر مع خدمات استقبال وصيانة 24/7.'
-  },
-  {
-    id: 3,
-    type: 'office',
-    typeAr: 'مكتب',
-    title: 'مكتب تجاري ذكي بمركز الأعمال',
-    priceType: 'إيجار',
-    status: 'متاح للتأجير',
-    area: 250,
-    rooms: 4,
-    bathrooms: 2,
-    city: 'الرياض',
-    image: img4,
-    gallery: [img4, img8, img9, img3],
-    badge: 'مقر استراتيجي',
-    description: 'مساحة مكتبية جاهزة على طريق الملك فهد، مصممة بطابع عصري ومجهزة بإنترنت ألياف بصرية ومواقف خاصة.'
-  },
-  {
-    id: 4,
-    type: 'villa',
-    typeAr: 'فيلا',
-    title: 'فيلا بحرية في أبحر الشمالية',
-    priceType: 'بيع',
-    status: 'متاح للشراء',
-    area: 480,
-    rooms: 6,
-    bathrooms: 5,
-    city: 'جدة',
-    image: img6,
-    gallery: [img6, img2, img10, img5],
-    badge: 'عقار شاطئي',
-    description: 'تصميم ساحلي ذكي يمنحك تجربة سكنية استثنائية بالقرب من كورنيش أبحر الشمالية مع إمكانية التخصيص.'
   }
 ];

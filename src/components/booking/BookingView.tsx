@@ -103,7 +103,12 @@ export const BookingView: React.FC<BookingViewProps> = ({
         {step === 1 && (
           <div>
             <div className="flex justify-center gap-2 mb-8 flex-wrap">
-              {['all', 'villa', 'apartment', 'office', 'house'].map((type) => (
+              {[
+                { key: 'all', label: 'الكل' },
+                { key: 'logistics', label: 'مستودعات لوجستية' },
+                { key: 'commercial', label: 'محلات ومجمعات تجارية' },
+                { key: 'office', label: 'مكاتب ومباني إدارية' },
+              ].map(({ key: type, label }) => (
                 <button
                   key={type}
                   onClick={() => setFilter(type)}
@@ -113,15 +118,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
                       : 'border-muted-border/40 text-neutral-text/70 hover:border-accent hover:text-heading'
                   }`}
                 >
-                  {type === 'all'
-                    ? 'الكل'
-                    : type === 'villa'
-                    ? 'فلل'
-                    : type === 'apartment'
-                    ? 'شقق'
-                    : type === 'office'
-                    ? 'مكاتب'
-                    : 'بيوت'}
+                  {label}
                 </button>
               ))}
             </div>

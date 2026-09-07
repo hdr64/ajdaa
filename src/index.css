@@ -103,6 +103,18 @@
 }
 
 @layer utilities {
+  .navbar-logo {
+    filter: brightness(0);
+    opacity: 0.88;
+    transition: all 0.3s ease;
+  }
+
+  html.dark .navbar-logo,
+  [data-theme="dark"] .navbar-logo {
+    filter: brightness(0) invert(1);
+    opacity: 1;
+  }
+
   .brand-gradient-text {
     background: linear-gradient(
       120deg,

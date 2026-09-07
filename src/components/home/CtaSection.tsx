@@ -1,5 +1,5 @@
 import React from 'react';
-import ctaBg from '../../assets/imgs/5.webp';
+// import ctaBg from '../../assets/imgs/5.webp';
 
 interface CtaSectionProps {
   onBook: () => void;
@@ -10,11 +10,11 @@ export const CtaSection: React.FC<CtaSectionProps> = ({ onBook, onContact }) => 
   return (
     <section className="relative py-14 sm:py-24 overflow-hidden my-8 sm:my-12 border-y border-muted-border/20">
       <div className="absolute inset-0 z-0">
-        <img
+        {/* <img
           src={ctaBg}
           alt="عقارات المملكة"
           className="w-full h-full object-cover opacity-15"
-        />
+        /> */}
         <div className="absolute inset-0 bg-gradient-to-r from-canvas via-canvas/80 to-canvas" />
       </div>
 

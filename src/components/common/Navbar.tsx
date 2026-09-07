@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Phone, CalendarCheck, MessageSquare, Briefcase, Home, ArrowLeft } from 'lucide-react';
+import { Menu, X, Phone, CalendarCheck, MessageSquare, Briefcase, Home, ArrowLeft, ArrowRight } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { LanguageToggle } from './LanguageToggle';
+import { useLanguage } from '../../hooks/useLanguage';
 import ajdaLogo from '../../assets/Ajda-MainLogo-English-Digital-RGB.png';
 
 interface NavbarProps {
@@ -8,16 +10,17 @@ interface NavbarProps {
   onNavigate: (page: 'home' | 'works' | 'booking' | 'contact') => void;
 }
 
-const NAV_ITEMS = [
-  { id: 'home', label: 'الرئيسية', icon: Home },
-  { id: 'works', label: 'أعمالنا والعقارات', icon: Briefcase },
-  { id: 'booking', label: 'الحجز والمعاينة', icon: CalendarCheck },
-  { id: 'contact', label: 'تواصل معنا', icon: MessageSquare },
-] as const;
-
 export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { t, isRTL } = useLanguage();
+
+  const NAV_ITEMS = [
+    { id: 'home', label: t.nav.home, icon: Home },
+    { id: 'works', label: t.nav.works, icon: Briefcase },
+    { id: 'booking', label: t.nav.booking, icon: CalendarCheck },
+    { id: 'contact', label: t.nav.contact, icon: MessageSquare },
+  ] as const;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
@@ -38,6 +41,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
     setMobileMenuOpen(false);
   };
 
+  const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
+
   return (
     <>
       <nav
@@ -48,26 +53,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-          {/* Logo with Ajda Official Brand Asset */}
+          {/* Logo - Only the company logo image, turned white in dark mode */}
           <div
             onClick={() => handleNav('home')}
-            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer select-none group"
+            className="flex items-center cursor-pointer select-none group py-1"
           >
-            <div className="h-9 sm:h-11 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
-              <img
-                src={ajdaLogo}
-                alt="أجدا العقارية · Ajda"
-                className="h-8 sm:h-10 w-auto object-contain drop-shadow-md"
-              />
-            </div>
-            <div>
-              <span className="text-lg sm:text-xl font-black brand-gradient-text tracking-wide block leading-tight">
-                أجـدا
-              </span>
-              <span className="text-[9px] sm:text-[10px] text-neutral-text/60 tracking-[0.2em] block font-bold">
-                العقارية · Ajda
-              </span>
-            </div>
+            <img
+              src={ajdaLogo}
+              alt="Ajda Real Estate"
+              className="h-9 sm:h-11 w-auto object-contain transition-all duration-300 group-hover:scale-105 navbar-logo drop-shadow-sm"
+            />
+            {/* Arabic text removed/commented out as requested:
+            <span className="text-lg font-black brand-gradient-text">أجـدا العقارية</span>
+            */}
           </div>
 
           {/* Desktop Nav Links */}
@@ -91,14 +89,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
           </div>
 
           {/* Desktop Right CTA */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2.5">
+            <LanguageToggle />
             <ThemeToggle />
             <a
-              href="tel:+966550484326"
+              href="tel:+966580484528"
               className="flex items-center gap-2 text-xs text-neutral-text/75 hover:text-accent font-semibold transition-colors px-1"
             >
               <Phone className="w-4 h-4 text-accent" />
-              <span dir="ltr">+966 55 048 4326</span>
+              <span dir="ltr">+966 58 048 4528</span>
             </a>
             <button
               onClick={() => handleNav('booking')}
@@ -106,17 +105,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
                 currentPage !== 'booking' ? 'booking-pulse' : ''
               }`}
             >
-              احجز الآن
+              {t.nav.bookNow}
             </button>
           </div>
 
-          {/* Mobile Right Controls: ThemeToggle + Hamburger */}
-          <div className="md:hidden flex items-center gap-2">
+          {/* Mobile Right Controls: Language + Theme + Hamburger */}
+          <div className="md:hidden flex items-center gap-1.5">
+            <LanguageToggle />
             <ThemeToggle />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2.5 rounded-xl bg-surface/75 border border-muted-border/30 text-heading hover:text-accent active:scale-95 transition-all cursor-pointer z-50"
-              aria-label="القائمة"
+              aria-label={t.nav.menu}
             >
               <div className={`transition-transform duration-300 ${mobileMenuOpen ? 'rotate-90' : 'rotate-0'}`}>
                 {mobileMenuOpen ? <X className="w-5 h-5 text-accent" /> : <Menu className="w-5 h-5" />}
@@ -132,13 +132,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
           {/* Ambient Light Orb */}
           <div className="brand-glow z-0 w-72 h-72 top-1/4 left-1/2 -translate-x-1/2 opacity-30 pointer-events-none" />
 
-          {/* Brand Header inside drawer */}
-          <div className="relative z-10 flex items-center gap-3 mb-6 pb-4 border-b border-muted-border/30">
-            <img src={ajdaLogo} alt="أجدا" className="h-9 w-auto object-contain" />
-            <div>
-              <span className="text-base font-black brand-gradient-text block leading-tight">أجـدا العقارية</span>
-              <span className="text-[10px] text-neutral-text/60 font-bold">الريادة في التطوير العقاري واللوجستي</span>
-            </div>
+          {/* Brand Header inside drawer - White in dark mode */}
+          <div className="relative z-10 flex items-center justify-between mb-6 pb-4 border-b border-muted-border/30">
+            <img
+              src={ajdaLogo}
+              alt="Ajda Real Estate"
+              className="h-9 w-auto object-contain navbar-logo"
+            />
           </div>
 
           {/* Navigation Links */}
@@ -151,9 +151,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
                   key={item.id}
                   onClick={() => handleNav(item.id)}
                   style={{ animationDelay: `${(idx + 1) * 70}ms` }}
-                  className={`mobile-nav-item w-full flex items-center justify-between p-3.5 rounded-2xl border text-right transition-all duration-300 cursor-pointer ${
+                  className={`mobile-nav-item w-full flex items-center justify-between p-3.5 rounded-2xl border ${isRTL ? 'text-right' : 'text-left'} transition-all duration-300 cursor-pointer ${
                     active
-                      ? 'bg-accent/15 border-accent text-heading font-black shadow-lg shadow-accent/20 translate-x-1'
+                      ? 'bg-accent/15 border-accent text-heading font-black shadow-lg shadow-accent/20'
                       : 'bg-surface/40 border-muted-border/30 text-neutral-text/80 font-bold hover:bg-surface/70 hover:border-accent/40'
                   }`}
                 >
@@ -168,7 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
                     <span className="text-base">{item.label}</span>
                   </div>
 
-                  <ArrowLeft className={`w-4 h-4 transition ${active ? 'text-accent' : 'opacity-40'}`} />
+                  <ArrowIcon className={`w-4 h-4 transition ${active ? 'text-accent' : 'opacity-40'}`} />
                 </button>
               );
             })}
@@ -179,12 +179,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
             className="relative z-10 mobile-nav-item max-w-sm mx-auto w-full pt-4 border-t border-muted-border/30 flex flex-col gap-2.5 mt-auto"
             style={{ animationDelay: '350ms' }}
           >
+            <LanguageToggle variant="mobile" />
+
             <a
-              href="tel:+966550484326"
+              href="tel:+966580484528"
               className="w-full brand-btn-secondary font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2"
             >
               <Phone className="w-4 h-4 text-accent" />
-              <span dir="ltr">+966 55 048 4326</span>
+              <span dir="ltr">+966 58 048 4528</span>
             </a>
 
             <button
@@ -192,7 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
               className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-xl shadow-accent/25"
             >
               <CalendarCheck className="w-4 h-4 text-[var(--brand-btn-text)]" />
-              احجز موعد معاينة الآن
+              {t.nav.bookNow}
             </button>
           </div>
         </div>

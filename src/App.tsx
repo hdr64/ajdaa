@@ -10,6 +10,7 @@ import { StatsSection } from './components/home/StatsSection';
 import { Testimonials } from './components/home/Testimonials';
 import { CtaSection } from './components/home/CtaSection';
 import { ProjectsSection } from './components/home/ProjectsSection';
+import { VideoSection } from './components/home/VideoSection';
 import { AboutSection } from './components/home/AboutSection';
 import { ContactPage } from './components/contact/ContactPage';
 import { PropertyCard } from './components/common/PropertyCard';
@@ -18,7 +19,8 @@ import { WorksPage } from './components/works/WorksPage';
 import { BookingView } from './components/booking/BookingView';
 import { Reveal } from './components/common/Reveal';
 import { ThemeProvider } from './context/ThemeProvider';
-import { CheckCircle2, Phone, Mail, MapPin, Building2, Clock, Send, ArrowUp, ChevronLeft } from 'lucide-react';
+import { useLanguage } from './hooks/useLanguage';
+import { CheckCircle2, Phone, Mail, MapPin, Building2, Clock, Send, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const SOCIALS: { label: string; path: string }[] = [
   {
@@ -45,6 +47,7 @@ const TRANSITION_EXIT_MS = 400;
 const TRANSITION_ENTER_MS = 650;
 
 export function App() {
+  const { t, isRTL } = useLanguage();
   const [currentPage, setCurrentPage] = useState<PageKey>('home');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedModalProperty, setSelectedModalProperty] = useState<Property | null>(null);
@@ -103,7 +106,7 @@ export function App() {
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newsletterEmail.trim()) {
-      showToast('تم الاشتراك في النشرة البريدية بنجاح! 📩');
+      showToast(t.footer.newsletterSuccess);
       setNewsletterEmail('');
     }
   };
@@ -126,25 +129,25 @@ export function App() {
                 <AboutSection />
               </Reveal>
 
-
               <section className="py-14 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-12">
-                  <Reveal direction="right">
+                  <Reveal direction={isRTL ? 'right' : 'left'}>
                     <div>
                       <span className="text-xs text-accent-light font-semibold brand-badge px-3 py-1 rounded-full">
-                        مشاريع مختارة
+                        {t.works.badge}
                       </span>
                       <h2 className="text-3xl sm:text-4xl font-black mt-2 text-heading">
-                        أحدث <span className="brand-gradient-text">المشاريع اللوجستية والتجارية</span>
+                        {t.works.title}{' '}
+                        <span className="brand-gradient-text">{t.works.titleHighlight}</span>
                       </h2>
                     </div>
                   </Reveal>
-                  <Reveal direction="left">
+                  <Reveal direction={isRTL ? 'left' : 'right'}>
                     <button
                       onClick={() => navigateTo('works')}
                       className="brand-btn-secondary text-xs font-bold px-5 py-2.5 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
                     >
-                      عرض جميع المشاريع
+                      {t.works.allProjects}
                     </button>
                   </Reveal>
                 </div>
@@ -176,6 +179,10 @@ export function App() {
 
               <Reveal direction="up">
                 <ProjectsSection onExplore={() => navigateTo('works')} />
+              </Reveal>
+
+              <Reveal direction="up">
+                <VideoSection />
               </Reveal>
 
               <Reveal direction="up">
@@ -238,12 +245,12 @@ export function App() {
                   <Building2 className="w-5 h-5 text-[var(--brand-btn-text)]" />
                 </div>
                 <div>
-                  <span className="text-xl font-black brand-gradient-text block leading-tight">أجـدا العقارية</span>
-                  <span className="text-[10px] text-neutral-text/50 font-bold tracking-widest">Ajda Real Estate</span>
+                  <span className="text-xl font-black brand-gradient-text block leading-tight">{t.nav.brandName}</span>
+                  <span className="text-[10px] text-neutral-text/50 font-bold tracking-widest">{t.nav.brandSub}</span>
                 </div>
               </div>
               <p className="text-xs text-neutral-text/70 leading-relaxed mb-6">
-                في "أجدا العقارية" نمزج بين الرؤية الاستراتيجية والتصميم الذكي لنبتكر مشاريع ترتقي بجودة الحياة وتحقق قيمة استثمارية مستدامة.
+                {t.footer.brandDesc}
               </p>
               <div className="flex items-center gap-2.5">
                 {SOCIALS.map((social) => (
@@ -263,64 +270,70 @@ export function App() {
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-heading mb-5">روابط سريعة</h4>
+              <h4 className="text-sm font-bold text-heading mb-5">{t.footer.quickLinks}</h4>
               <div className="flex flex-col gap-3 text-xs text-neutral-text/70">
                 {[
-                  { label: 'الرئيسية', page: 'home' as const },
-                  { label: 'أعمالنا والعقارات', page: 'works' as const },
-                  { label: 'حجز معاينة', page: 'booking' as const },
-                  { label: 'تواصل معنا', page: 'contact' as const },
-                ].map((link) => (
-                  <button
-                    key={link.page}
-                    onClick={() => navigateTo(link.page)}
-                    className="flex items-center gap-1.5 text-right hover:text-accent transition cursor-pointer group font-semibold"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 text-accent/70 group-hover:-translate-x-1 transition-transform duration-300" />
-                    {link.label}
-                  </button>
-                ))}
+                  { label: t.footer.navHome, page: 'home' as const },
+                  { label: t.footer.navWorks, page: 'works' as const },
+                  { label: t.footer.navBooking, page: 'booking' as const },
+                  { label: t.footer.navContact, page: 'contact' as const },
+                ].map((link) => {
+                  const Chevron = isRTL ? ChevronLeft : ChevronRight;
+                  return (
+                    <button
+                      key={link.page}
+                      onClick={() => navigateTo(link.page)}
+                      className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+                    >
+                      <Chevron className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
+                      {link.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-heading mb-5">خدماتنا ومشاريعنا</h4>
+              <h4 className="text-sm font-bold text-heading mb-5">{t.footer.servicesTitle}</h4>
               <div className="flex flex-col gap-3 text-xs text-neutral-text/70">
-                {['المشاريع اللوجستية والمستودعات', 'المحلات والمجمعات التجارية', 'المكاتب والمباني الإدارية', 'التطوير والاستثمار العقاري', 'الاستشارات وإدارة الأملاك'].map((service) => (
-                  <button
-                    key={service}
-                    onClick={() => navigateTo('works')}
-                    className="flex items-center gap-1.5 text-right hover:text-accent transition cursor-pointer group font-semibold"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 text-accent/70 group-hover:-translate-x-1 transition-transform duration-300" />
-                    {service}
-                  </button>
-                ))}
+                {t.footer.services.map((service) => {
+                  const Chevron = isRTL ? ChevronLeft : ChevronRight;
+                  return (
+                    <button
+                      key={service}
+                      onClick={() => navigateTo('works')}
+                      className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+                    >
+                      <Chevron className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
+                      {service}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-heading mb-5">تواصل معنا</h4>
+              <h4 className="text-sm font-bold text-heading mb-5">{t.footer.contactTitle}</h4>
               <div className="space-y-3 text-xs text-neutral-text/70 mb-6">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-accent shrink-0" />
-                  <span>الرياض، طريق الملك فهد</span>
+                  <span>{t.footer.address}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-accent shrink-0" />
-                  <span dir="ltr">+966 55 048 4326</span>
+                  <span dir="ltr">+966 58 048 4528</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-accent shrink-0" />
-                  <span dir="ltr">info@daraloj.com</span>
+                  <span dir="ltr">info@ajdaa.sa</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-accent shrink-0" />
-                  <span>السبت – الخميس، 9ص – 6م</span>
+                  <span>{t.footer.hours}</span>
                 </div>
               </div>
 
-              <h4 className="text-sm font-bold text-heading mb-3">النشرة البريدية</h4>
+              <h4 className="text-sm font-bold text-heading mb-3">{t.footer.newsletterTitle}</h4>
               <form
                 onSubmit={handleNewsletterSubmit}
                 className="flex items-center gap-2 bg-surface/80 border border-muted-border/40 rounded-xl p-1.5 focus-within:border-accent transition shadow-sm"
@@ -330,8 +343,8 @@ export function App() {
                   required
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder="أدخل بريدك الإلكتروني"
-                  aria-label="البريد الإلكتروني"
+                  placeholder={t.footer.newsletterPlaceholder}
+                  aria-label={t.footer.newsletterTitle}
                   className="flex-1 bg-transparent text-xs text-neutral-text placeholder:text-neutral-text/50 px-2 outline-none min-w-0"
                 />
                 <button type="submit" className="brand-btn-primary w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer shrink-0 hover:scale-105 transition">
@@ -343,14 +356,14 @@ export function App() {
         </Reveal>
 
         <div className="relative max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-[11px] text-neutral-text/40 border-t border-muted-border/10 pt-6">
-          <p>© 2026 أجدا العقارية (Ajda Real Estate). جميع الحقوق محفوظة.</p>
+          <p>© 2026 {t.nav.brandName} ({t.nav.brandSub}). {t.footer.rights}</p>
           <div className="flex items-center gap-4">
-            <p>صُمم بـ ❤️ في المملكة العربية السعودية</p>
+            <p>{t.footer.madeIn}</p>
             <button
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              aria-label="العودة للأعلى"
+              aria-label={t.footer.backToTop}
               className="w-9 h-9 rounded-xl border border-muted-border/30 flex items-center justify-center text-neutral-text/60 hover:text-accent hover:border-accent/80 hover:bg-accent/15 transition cursor-pointer booking-pulse"
-              title="العودة للأعلى"
+              title={t.footer.backToTop}
             >
               <ArrowUp className="w-4 h-4" />
             </button>

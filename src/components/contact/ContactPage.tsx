@@ -18,8 +18,8 @@ const initialForm: FormState = { name: '', phone: '', email: '', subject: 'اس�
 
 const contactItems = [
   { icon: MapPin, label: 'العنوان', value: 'الرياض، طريق الملك فهد', dir: 'rtl' as const },
-  { icon: Phone, label: 'الهاتف', value: '+966 55 048 4326', dir: 'ltr' as const },
-  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajda.com.sa', dir: 'ltr' as const },
+  { icon: Phone, label: 'الهاتف', value: '+966 58 048 4528', dir: 'ltr' as const },
+  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajdaa.sa', dir: 'ltr' as const },
   { icon: Clock, label: 'ساعات العمل', value: 'السبت – الخميس، 9ص – 6م', dir: 'rtl' as const },
 ];
 
