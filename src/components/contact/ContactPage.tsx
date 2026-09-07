@@ -18,8 +18,15 @@ const initialForm: FormState = { name: '', phone: '', email: '', subject: 'اس�
 
 const contactItems = [
   { icon: MapPin, label: 'العنوان', value: 'الرياض، طريق الملك فهد', dir: 'rtl' as const },
-  { icon: Phone, label: 'الهاتف', value: '+966 58 048 4528', dir: 'ltr' as const },
-  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajdaa.sa', dir: 'ltr' as const },
+  {
+    icon: Phone,
+    label: 'واتساب والمحادثة المباشرة',
+    value: '+966 50 053 9520',
+    dir: 'ltr' as const,
+    href: 'https://wa.me/966500539520',
+    isExternal: true,
+  },
+  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajdaa.sa', dir: 'ltr' as const, href: 'mailto:info@ajdaa.sa' },
   { icon: Clock, label: 'ساعات العمل', value: 'السبت – الخميس، 9ص – 6م', dir: 'rtl' as const },
 ];
 
@@ -119,15 +126,35 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
             <div className="flex flex-col gap-4 mb-8">
               {contactItems.map((item) => {
                 const Icon = item.icon;
-                return (
-                  <div key={item.label} className="flex items-center gap-4 group">
+                const Content = (
+                  <>
                     <div className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-accent/25 via-accent/10 to-transparent border border-accent/30 flex items-center justify-center text-accent transition-all duration-300 group-hover:bg-accent group-hover:text-canvas group-hover:scale-105">
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
                       <div className="text-[11px] text-neutral-text/50 mb-0.5">{item.label}</div>
-                      <div dir={item.dir} className="text-sm font-bold text-heading truncate">{item.value}</div>
+                      <div dir={item.dir} className="text-sm font-bold text-heading truncate group-hover:text-accent transition-colors">{item.value}</div>
                     </div>
+                  </>
+                );
+
+                if (item.href) {
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      target={item.isExternal ? '_blank' : undefined}
+                      rel={item.isExternal ? 'noopener noreferrer' : undefined}
+                      className="flex items-center gap-4 group transition-transform hover:translate-x-1"
+                    >
+                      {Content}
+                    </a>
+                  );
+                }
+
+                return (
+                  <div key={item.label} className="flex items-center gap-4 group">
+                    {Content}
                   </div>
                 );
               })}

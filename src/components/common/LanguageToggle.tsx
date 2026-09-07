@@ -35,13 +35,11 @@ export const LanguageToggle: React.FC<LanguageToggleProps> = ({ variant = 'navba
     <button
       type="button"
       onClick={toggleLanguage}
-      className="relative group p-2.5 rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-center bg-surface/90 border-muted-border/40 hover:border-accent/60 hover:bg-surface-hover text-accent shadow-sm dark:bg-surface/50 dark:border-muted-border/30 dark:hover:border-accent/50 dark:hover:bg-surface-hover/80 active:scale-95 select-none"
+      className="w-10 h-10 relative group rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 bg-surface/90 border-muted-border/40 hover:border-accent/60 hover:bg-surface-hover text-accent shadow-xs active:scale-95 select-none"
       title={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
       aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
     >
-      <div className="relative w-5 h-5 flex items-center justify-center">
-        <Globe className="w-5 h-5 text-accent group-hover:rotate-45 transition-transform duration-300" />
-      </div>
+      <Globe className="w-5 h-5 text-accent group-hover:rotate-45 transition-transform duration-300" />
       <span className="absolute -bottom-1 -right-1 text-[8px] font-black px-1 rounded bg-accent text-white shadow-xs leading-tight pointer-events-none">
         {language === 'ar' ? 'EN' : 'عربي'}
       </span>

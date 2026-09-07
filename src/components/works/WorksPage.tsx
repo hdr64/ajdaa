@@ -18,12 +18,14 @@ import {
   BedDouble,
   Bath,
   ArrowLeft,
+  ArrowRight,
   ChevronDown,
   ShieldCheck,
 } from 'lucide-react';
-import { properties } from '../../data/properties';
+import { properties, getPropertyDisplay } from '../../data/properties';
 import type { Property, PropertyType, PriceType } from '../../types/property';
 import { PropertyCard } from '../common/PropertyCard';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface WorksPageProps {
   onSelect: (prop: Property) => void;
@@ -50,21 +52,20 @@ const preloadImages = (): Promise<void> => {
   return Promise.all(tasks).then(() => undefined);
 };
 
-const typeLabels: Record<PropertyType, string> = {
+const typeLabelsAr: Record<PropertyType, string> = {
   logistics: 'مستودعات ومخازن',
   commercial: 'محلات ومجمعات تجارية',
   office: 'مكاتب ومباني إدارية',
 };
 
+const typeLabelsEn: Record<PropertyType, string> = {
+  logistics: 'Warehouses & Logistics',
+  commercial: 'Commercial & Retail',
+  office: 'Offices & Corporate',
+};
+
 type CategoryKey = 'all' | PropertyType;
 type SortKey = 'default' | 'area-desc' | 'area-asc' | 'rooms-desc';
-
-const sortOptions: { key: SortKey; label: string }[] = [
-  { key: 'default', label: 'الترتيب الافتراضي' },
-  { key: 'area-desc', label: 'المساحة: الأكبر أولاً' },
-  { key: 'area-asc', label: 'المساحة: الأصغر أولاً' },
-  { key: 'rooms-desc', label: 'عدد الوحدات / الغرف' },
-];
 
 const categoryIcons: Record<CategoryKey, React.ComponentType<{ className?: string }>> = {
   all: LayoutGrid,
@@ -102,20 +103,24 @@ const SkeletonGrid: React.FC = () => (
   </div>
 );
 
-const EmptyState: React.FC<{ onReset: () => void }> = ({ onReset }) => (
+const EmptyState: React.FC<{ onReset: () => void; isAr: boolean }> = ({ onReset, isAr }) => (
   <div className="glass-card rounded-3xl p-14 text-center">
     <div className="w-16 h-16 mx-auto rounded-2xl bg-accent/10 border border-accent/25 flex items-center justify-center text-accent mb-6">
       <SearchX className="w-8 h-8" />
     </div>
-    <h3 className="text-xl font-black mb-3">لا توجد نتائج مطابقة للبحث</h3>
+    <h3 className="text-xl font-black mb-3">
+      {isAr ? 'لا توجد نتائج مطابقة للبحث' : 'No properties match your criteria'}
+    </h3>
     <p className="text-sm text-neutral-text/60 mb-7 leading-relaxed max-w-sm mx-auto">
-      جرّب تعديل الكلمات الدالة أو إعادة تعيين الفلاتر للعثور على العقار المناسب
+      {isAr
+        ? 'جرّب تعديل الكلمات الدالة أو إعادة تعيين الفلاتر للعثور على العقار المناسب'
+        : 'Try adjusting search terms or resetting filters to discover available properties.'}
     </p>
     <button
       onClick={onReset}
       className="brand-btn-primary font-bold text-xs px-6 py-3 rounded-full cursor-pointer"
     >
-      إعادة تعيين الفلاتر
+      {isAr ? 'إعادة تعيين الفلاتر' : 'Reset Filters'}
     </button>
   </div>
 );
@@ -126,18 +131,21 @@ export const WorksPage: React.FC<WorksPageProps> = ({
   onFavToast,
   initialFilters,
 }) => {
+  const { language } = useLanguage();
+  const isAr = language === 'ar';
+
   const [ready, setReady] = useState(false);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<CategoryKey>(() => {
-    if (!initialFilters?.type || initialFilters.type === 'الكل') return 'all';
-    const t = initialFilters.type;
+    if (!initialFilters?.type || initialFilters.type === 'الكل' || initialFilters.type === 'all') return 'all';
+    const t = initialFilters.type.toLowerCase();
     if (t.includes('مستودع') || t.includes('لوجست') || t === 'logistics') return 'logistics';
     if (t.includes('محل') || t.includes('تجار') || t === 'commercial') return 'commercial';
     if (t.includes('مكتب') || t.includes('مبان') || t.includes('إدار') || t === 'office') return 'office';
     return 'all';
   });
   const [city, setCity] = useState<string>(
-    initialFilters?.city && initialFilters.city !== 'الكل' ? initialFilters.city : 'all'
+    initialFilters?.city && initialFilters.city !== 'الكل' && initialFilters.city !== 'all' ? initialFilters.city : 'all'
   );
   const [priceType, setPriceType] = useState<'all' | PriceType>(
     initialFilters?.priceType && initialFilters.priceType !== 'all'
@@ -171,33 +179,60 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       },
       { all: 0, logistics: 0, commercial: 0, office: 0 },
     );
+    const labels = isAr ? typeLabelsAr : typeLabelsEn;
     return [
-      { key: 'all', label: 'الكل', count: counts.all },
-      ...(Object.keys(typeLabels) as PropertyType[]).map((t) => ({
+      { key: 'all', label: isAr ? 'الكل' : 'All', count: counts.all },
+      ...(Object.keys(typeLabelsAr) as PropertyType[]).map((t) => ({
         key: t as CategoryKey,
-        label: typeLabels[t],
+        label: labels[t],
         count: counts[t] || 0,
       })),
     ];
-  }, []);
+  }, [isAr]);
 
   const cities = useMemo(
-    () => Array.from(new Set(properties.map((p) => p.city))).sort(),
-    [],
+    () => Array.from(new Set(properties.map((p) => (isAr ? p.city : p.cityEn || p.city)))).sort(),
+    [isAr],
   );
 
   const featured = useMemo(
     () => properties.find((p) => p.badge?.includes('رئيسي')) || properties[0],
     [],
   );
+  const featuredDisplay = useMemo(
+    () => getPropertyDisplay(featured, language),
+    [featured, language],
+  );
 
   const filtered = useMemo(() => {
-    const q = query.trim();
+    const q = query.trim().toLowerCase();
     let list = properties.filter((p) => {
       if (category !== 'all' && p.type !== category) return false;
-      if (city !== 'all' && p.city !== city) return false;
+      if (city !== 'all') {
+        const cAr = p.city.toLowerCase();
+        const cEn = (p.cityEn || '').toLowerCase();
+        const curCity = city.toLowerCase();
+        if (cAr !== curCity && cEn !== curCity) return false;
+      }
       if (priceType !== 'all' && p.priceType !== priceType) return false;
-      if (q && !(p.title.includes(q) || p.city.includes(q) || p.typeAr.includes(q))) return false;
+      if (q) {
+        const tAr = p.title.toLowerCase();
+        const tEn = (p.titleEn || '').toLowerCase();
+        const cAr = p.city.toLowerCase();
+        const cEn = (p.cityEn || '').toLowerCase();
+        const tpAr = p.typeAr.toLowerCase();
+        const tpEn = (p.typeEn || '').toLowerCase();
+        if (
+          !tAr.includes(q) &&
+          !tEn.includes(q) &&
+          !cAr.includes(q) &&
+          !cEn.includes(q) &&
+          !tpAr.includes(q) &&
+          !tpEn.includes(q)
+        ) {
+          return false;
+        }
+      }
       return true;
     });
 
@@ -223,12 +258,14 @@ export const WorksPage: React.FC<WorksPageProps> = ({
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
     if (query.trim()) chips.push({ key: 'q', label: `"${query.trim()}"`, onRemove: () => setQuery('') });
-    if (category !== 'all')
-      chips.push({ key: 'cat', label: typeLabels[category], onRemove: () => setCategory('all') });
+    if (category !== 'all') {
+      const labels = isAr ? typeLabelsAr : typeLabelsEn;
+      chips.push({ key: 'cat', label: labels[category], onRemove: () => setCategory('all') });
+    }
     if (city !== 'all') chips.push({ key: 'city', label: city, onRemove: () => setCity('all') });
     if (priceType !== 'all') chips.push({ key: 'pt', label: priceType, onRemove: () => setPriceType('all') });
     return chips;
-  }, [query, category, city, priceType]);
+  }, [query, category, city, priceType, isAr]);
 
   const resetFilters = () => {
     setQuery('');
@@ -237,6 +274,14 @@ export const WorksPage: React.FC<WorksPageProps> = ({
     setPriceType('all');
     setSort('default');
   };
+
+  const sortOptions = useMemo(() => [
+    { key: 'default' as SortKey, label: isAr ? 'الترتيب الافتراضي' : 'Default Sorting' },
+    { key: 'area-desc' as SortKey, label: isAr ? 'المساحة: الأكبر أولاً' : 'Area: Largest First' },
+    { key: 'area-asc' as SortKey, label: isAr ? 'المساحة: الأصغر أولاً' : 'Area: Smallest First' },
+    { key: 'rooms-desc' as SortKey, label: isAr ? 'عدد الوحدات / الغرف' : 'Units / Rooms' },
+  ], [isAr]);
+
 
   const filterKey = `${query}|${category}|${city}|${priceType}|${sort}`;
   const selectShell = 'field-shell w-full text-sm';
@@ -250,10 +295,10 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       >
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-accent" />
-          <span>خيارات البحث وتصفية العقارات</span>
+          <span>{isAr ? 'خيارات البحث وتصفية العقارات' : 'Search & Filter Options'}</span>
           {hasActiveFilters && (
             <span className="brand-badge text-[10px] px-2 py-0.5 rounded-full font-bold">
-              فلاتر نشطة
+              {isAr ? 'فلاتر نشطة' : 'Active Filters'}
             </span>
           )}
         </div>
@@ -273,7 +318,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 mb-5">
           <span className="flex items-center gap-1.5 text-xs text-neutral-text/50 font-semibold ml-2">
             <SlidersHorizontal className="w-3.5 h-3.5 text-accent" />
-            الفئات:
+            {isAr ? 'الفئات:' : 'Categories:'}
           </span>
           {categories.map((cat) => {
             const Icon = categoryIcons[cat.key];
@@ -313,7 +358,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ابحث بالاسم أو المدينة..."
+              placeholder={isAr ? 'ابحث بالاسم أو المدينة...' : 'Search by title or city...'}
               className="w-full min-w-0 bg-transparent text-sm text-heading outline-none placeholder:text-neutral-text/40"
             />
             {query && (
@@ -330,7 +375,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               onChange={(e) => setCity(e.target.value)}
               className="field-select"
             >
-              <option value="all">كل المدن</option>
+              <option value="all">{isAr ? 'كل المدن' : 'All Cities'}</option>
               {cities.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -346,10 +391,10 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               onChange={(e) => setPriceType(e.target.value as 'all' | PriceType)}
               className="field-select"
             >
-              <option value="all">كل العقود والفرص</option>
-              <option value="إيجار">تأجير واستثمار</option>
-              <option value="بيع">بيع وتملك</option>
-              <option value="استثمار">فرص استثمارية</option>
+              <option value="all">{isAr ? 'كل العقود والفرص' : 'All Contract Types'}</option>
+              <option value="إيجار">{isAr ? 'تأجير واستثمار' : 'Lease & Investment'}</option>
+              <option value="بيع">{isAr ? 'بيع وتملك' : 'Sale & Ownership'}</option>
+              <option value="استثمار">{isAr ? 'فرص استثمارية' : 'Investment'}</option>
             </select>
           </div>
 
@@ -387,7 +432,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               <div className="relative order-1 md:order-2 h-64 md:h-auto overflow-hidden img-shine">
                 <img
                   src={featured.image}
-                  alt={featured.title}
+                  alt={featuredDisplay.title}
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-l from-canvas/90 via-canvas/20 to-transparent" />
@@ -396,45 +441,45 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               <div className="relative order-2 md:order-1 p-8 md:p-10 flex flex-col justify-center">
                 <span className="flex items-center gap-1.5 w-fit text-[11px] font-bold px-3.5 py-1.5 rounded-full bg-gold/15 border border-gold/40 text-gold-light mb-4">
                   <Sparkles className="w-3.5 h-3.5 text-gold" />
-                  المشروع الاستراتيجي المميز
+                  {isAr ? 'المشروع الاستراتيجي المميز' : 'Featured Flagship Hub'}
                 </span>
 
                 <h3 className="text-2xl md:text-3xl font-black text-heading mb-3 leading-snug group-hover:text-accent transition-colors">
-                  {featured.title}
+                  {featuredDisplay.title}
                 </h3>
                 <p className="text-xs text-neutral-text/60 mb-6 flex items-center gap-1.5 font-medium">
                   <MapPin className="w-3.5 h-3.5 text-accent" />
-                  {featured.city} · {featured.typeAr} · {featured.priceType}
+                  {featuredDisplay.city} · {featuredDisplay.type} · {featuredDisplay.badge}
                 </p>
 
                 <div className="flex flex-wrap gap-2.5 mb-7">
                   <span className={specChip}>
-                    <Maximize2 className="w-3 h-3 text-accent" /> {featured.area.toLocaleString('en-US')} م²
+                    <Maximize2 className="w-3 h-3 text-accent" /> {featured.area.toLocaleString(isAr ? 'ar-SA' : 'en-US')} {isAr ? 'م²' : 'm²'}
                   </span>
                   {featured.rooms && featured.rooms > 0 ? (
                     <>
                       <span className={specChip}>
-                        <BedDouble className="w-3 h-3 text-accent" /> {featured.rooms} غرف
+                        <BedDouble className="w-3 h-3 text-accent" /> {featured.rooms} {isAr ? 'غرف' : 'Rooms'}
                       </span>
                       <span className={specChip}>
-                        <Bath className="w-3 h-3 text-accent" /> {featured.bathrooms} حمام
+                        <Bath className="w-3 h-3 text-accent" /> {featured.bathrooms} {isAr ? 'حمام' : 'Baths'}
                       </span>
                     </>
                   ) : (
                     <>
                       <span className={specChip}>
-                        <Warehouse className="w-3 h-3 text-accent" /> {featured.units || 'سعات تخزين كبرى'}
+                        <Warehouse className="w-3 h-3 text-accent" /> {featuredDisplay.units || (isAr ? 'سعات تخزين كبرى' : 'High-Capacity Storage')}
                       </span>
                       <span className={specChip}>
-                        <ShieldCheck className="w-3 h-3 text-accent" /> معتمد ومجهز
+                        <ShieldCheck className="w-3 h-3 text-accent" /> {isAr ? 'معتمد ومجهز' : 'Certified & Equipped'}
                       </span>
                     </>
                   )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-5">
-                  <div className="text-2xl font-black brand-gradient-text">
-                    {featured.status || featured.badge || 'متاح للاستثمار والتأجير'}
+                  <div className={`text-2xl font-black ${featuredDisplay.isBooked ? 'text-amber-400' : 'brand-gradient-text'}`}>
+                    {featuredDisplay.status}
                   </div>
                   <button
                     onClick={(e) => {
@@ -443,8 +488,10 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                     }}
                     className="brand-btn-primary font-extrabold text-xs px-7 py-3 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
                   >
-                    حجز معاينة / استفسار
-                    <ArrowLeft className="w-3.5 h-3.5" />
+                    {featuredDisplay.isBooked
+                      ? isAr ? 'طلب استفسار' : 'Inquire Now'
+                      : isAr ? 'حجز معاينة / استفسار' : 'Book Inspection / Inquire'}
+                    {isAr ? <ArrowLeft className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
@@ -459,11 +506,11 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         style={{ animationDelay: '260ms' }}
       >
         <div className="text-xs text-neutral-text/60 font-semibold">
-          عرض{' '}
+          {isAr ? 'عرض' : 'Showing'}{' '}
           <span className="font-black text-accent text-sm">
             {filtered.length}
           </span>{' '}
-          من أصل <span className="font-black text-heading">{properties.length}</span> عقارات
+          {isAr ? 'من أصل' : 'of'} <span className="font-black text-heading">{properties.length}</span> {isAr ? 'عقارات' : 'properties'}
         </div>
 
         <div className="flex items-center gap-3">
@@ -485,7 +532,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                 className="flex items-center gap-1.5 text-xs font-bold text-accent hover:text-accent-light transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                إعادة التعيين
+                {isAr ? 'إعادة التعيين' : 'Reset'}
               </button>
             )}
           </div>
@@ -499,7 +546,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                   ? 'bg-accent text-[var(--brand-btn-text)] shadow'
                   : 'text-neutral-text/50 hover:text-heading'
               }`}
-              title="عرض الشبكة"
+              title={isAr ? 'عرض الشبكة' : 'Grid View'}
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -510,7 +557,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                   ? 'bg-accent text-[var(--brand-btn-text)] shadow'
                   : 'text-neutral-text/50 hover:text-heading'
               }`}
-              title="عرض القائمة"
+              title={isAr ? 'عرض القائمة' : 'List View'}
             >
               <List className="w-4 h-4" />
             </button>
@@ -522,7 +569,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       {!ready ? (
         <SkeletonGrid />
       ) : filtered.length === 0 ? (
-        <EmptyState onReset={resetFilters} />
+        <EmptyState onReset={resetFilters} isAr={isAr} />
       ) : viewMode === 'grid' ? (
         <div key={filterKey} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((prop, idx) => (
@@ -543,114 +590,124 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       ) : (
         /* List Mode Layout */
         <div key={filterKey} className="flex flex-col gap-4">
-          {filtered.map((prop) => (
-            <div
-              key={prop.id}
-              onClick={() => onQuickView?.(prop)}
-              className="glass-card rounded-2xl p-4 flex flex-col md:flex-row items-center gap-6 group hover:-translate-y-1 transition duration-300 cursor-pointer border border-muted-border/30 hover:border-accent/50"
-            >
-              <div className="relative w-full md:w-64 h-48 rounded-xl overflow-hidden shrink-0">
-                <img
-                  src={prop.image}
-                  alt={prop.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <span
-                  className={`absolute top-3 right-3 text-[11px] font-extrabold px-3 py-1 rounded-full ${
-                    prop.status === 'محجوز بالكامل' || prop.badge === 'محجوز بالكامل'
-                      ? 'bg-amber-500 text-black font-black'
-                      : prop.type === 'logistics'
-                      ? 'bg-blue-600 text-white font-bold'
-                      : prop.type === 'commercial'
-                      ? 'bg-emerald-600 text-white font-bold'
-                      : prop.priceType === 'بيع'
-                      ? 'brand-fill'
-                      : 'bg-success text-canvas font-black'
-                  }`}
-                >
-                  {prop.status === 'محجوز بالكامل' ? 'محجوز بالكامل' : prop.badge || prop.priceType}
-                </span>
-              </div>
-
-              <div className="flex-1 w-full flex flex-col justify-between h-full">
-                <div>
-                  <div className="flex items-center justify-between text-xs text-neutral-text/60 mb-2">
-                    <span className="flex items-center gap-1 font-medium">
-                      <MapPin className="w-3.5 h-3.5 text-accent" /> {prop.city}
-                    </span>
-                    <span className="brand-badge text-accent-light px-2.5 py-0.5 rounded-full font-bold">
-                      {prop.typeAr}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-lg text-heading group-hover:text-accent transition mb-3">
-                    {prop.title}
-                  </h3>
-
-                  <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-text/70 mb-4">
-                    <span className="flex items-center gap-1">
-                      <Maximize2 className="w-3.5 h-3.5 text-accent" /> {prop.area.toLocaleString('en-US')} م²
-                    </span>
-                    {prop.rooms && prop.rooms > 0 ? (
-                      <>
-                        <span className="flex items-center gap-1">
-                          <BedDouble className="w-3.5 h-3.5 text-accent" /> {prop.rooms} غرف نوم
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Bath className="w-3.5 h-3.5 text-accent" /> {prop.bathrooms} دورات مياه
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex items-center gap-1 font-semibold text-heading">
-                          {prop.units || prop.typeAr}
-                        </span>
-                        <span className="flex items-center gap-1 text-accent font-semibold">
-                          جاهز ومجهز
-                        </span>
-                      </>
-                    )}
-                  </div>
+          {filtered.map((prop) => {
+            const display = getPropertyDisplay(prop, language);
+            return (
+              <div
+                key={prop.id}
+                onClick={() => onQuickView?.(prop)}
+                className="glass-card rounded-2xl p-4 flex flex-col md:flex-row items-center gap-6 group hover:-translate-y-1 transition duration-300 cursor-pointer border border-muted-border/30 hover:border-accent/50"
+              >
+                <div className="relative w-full md:w-64 h-48 rounded-xl overflow-hidden shrink-0">
+                  <img
+                    src={prop.image}
+                    alt={display.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <span
+                    className={`absolute top-3 right-3 text-[11px] font-extrabold px-3 py-1 rounded-full ${
+                      display.isBooked
+                        ? 'bg-amber-500 text-black font-black'
+                        : prop.type === 'logistics'
+                        ? 'bg-blue-600 text-white font-bold'
+                        : prop.type === 'commercial'
+                        ? 'bg-emerald-600 text-white font-bold'
+                        : prop.priceType === 'بيع'
+                        ? 'brand-fill'
+                        : 'bg-success text-canvas font-black'
+                    }`}
+                  >
+                    {display.badge}
+                  </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-muted-border/20">
+                <div className="flex-1 w-full flex flex-col justify-between h-full">
                   <div>
-                    <span className="text-[10px] text-neutral-text/50 block">حالة المشروع</span>
-                    <span className={`text-base font-black ${
-                      prop.status === 'محجوز بالكامل' || prop.badge === 'محجوز بالكامل'
-                        ? 'text-amber-400'
-                        : 'brand-gradient-text'
-                    }`}>
-                      {prop.status || prop.badge || 'متاح للاستثمار'}
-                    </span>
+                    <div className="flex items-center justify-between text-xs text-neutral-text/60 mb-2">
+                      <span className="flex items-center gap-1 font-medium">
+                        <MapPin className="w-3.5 h-3.5 text-accent" /> {display.city}
+                      </span>
+                      <span className="brand-badge text-accent-light px-2.5 py-0.5 rounded-full font-bold">
+                        {display.type}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-lg text-heading group-hover:text-accent transition mb-3">
+                      {display.title}
+                    </h3>
+
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-text/70 mb-4">
+                      <span className="flex items-center gap-1">
+                        <Maximize2 className="w-3.5 h-3.5 text-accent" /> {prop.area.toLocaleString(isAr ? 'ar-SA' : 'en-US')} {isAr ? 'م²' : 'm²'}
+                      </span>
+                      {prop.rooms && prop.rooms > 0 ? (
+                        <>
+                          <span className="flex items-center gap-1">
+                            <BedDouble className="w-3.5 h-3.5 text-accent" /> {prop.rooms} {isAr ? 'غرف نوم' : 'Bedrooms'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Bath className="w-3.5 h-3.5 text-accent" /> {prop.bathrooms} {isAr ? 'دورات مياه' : 'Bathrooms'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex items-center gap-1 font-semibold text-heading">
+                            {display.units}
+                          </span>
+                          <span className="flex items-center gap-1 text-accent font-semibold">
+                            {isAr ? 'جاهز ومجهز' : 'Ready & Fitted'}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onQuickView?.(prop);
-                      }}
-                      className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl"
-                    >
-                      التفاصيل
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelect(prop);
-                      }}
-                      className="brand-btn-primary text-xs font-bold px-5 py-2.5 rounded-xl"
-                    >
-                      احجز الآن
-                    </button>
+                  <div className="flex items-center justify-between pt-3 border-t border-muted-border/20">
+                    <div>
+                      <span className="text-[10px] text-neutral-text/50 block">
+                        {isAr ? 'حالة المشروع' : 'Project Status'}
+                      </span>
+                      <span
+                        className={`text-base font-black ${
+                          display.isBooked
+                            ? 'text-amber-400'
+                            : 'brand-gradient-text'
+                        }`}
+                      >
+                        {display.status}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onQuickView?.(prop);
+                        }}
+                        className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl cursor-pointer"
+                      >
+                        {isAr ? 'التفاصيل' : 'Details'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelect(prop);
+                        }}
+                        className="brand-btn-primary text-xs font-bold px-5 py-2.5 rounded-xl cursor-pointer"
+                      >
+                        {display.isBooked
+                          ? isAr ? 'طلب استفسار' : 'Inquire'
+                          : isAr ? 'احجز الآن' : 'Book Now'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 };
+

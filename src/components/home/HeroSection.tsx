@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarCheck, Sparkles } from 'lucide-react';
 import { HeroScene } from './HeroScene';
 import { useLanguage } from '../../hooks/useLanguage';
-import heroImage from '../../assets/imgs/bg.webp';
+import heroImage from '../../assets/imgs/a1.webp';
 
 interface HeroSectionProps {
   onExplore: (filters?: { city?: string; type?: string; priceType?: string }) => void;
@@ -70,8 +70,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
       </div>
 
       {/* Subtle Gradient Overlay - Reduced for Clear City Skyline */}
-      <div className="absolute inset-0 z-1 bg-gradient-to-t from-canvas via-canvas/40 to-transparent pointer-events-none" />
-      <div className="absolute inset-0 z-1 bg-gradient-to-r from-canvas/30 via-canvas/10 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 z-1 bg-linear-to-t from-canvas via-canvas/30 mask-linear-to-transparent pointer-events-none" />
+      <div className="absolute inset-0 z-1 bg-linear-to-l from-canvas/30 via-canvas/10 to-transparent pointer-events-none" />
       <div className="hero-grid absolute inset-0 z-1 opacity-10 sm:opacity-15 pointer-events-none" />
 
       {/* Lightweight Ambient Glow Scene */}

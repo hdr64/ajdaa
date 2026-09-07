@@ -9,7 +9,7 @@ export const translations = {
       booking: 'الحجز والمعاينة',
       contact: 'تواصل معنا',
       bookNow: 'احجز الآن',
-      phone: '+966 58 048 4528',
+      phone: '+966 50 053 9520',
       menu: 'القائمة',
       close: 'إغلاق',
       langToggleText: 'English',
@@ -137,28 +137,11 @@ export const translations = {
       explore: 'استعراض',
       photos: 'صور',
     },
-    testimonials: {
-      badge: 'آراء عملائنا',
-      title: 'ماذا يقول',
-      titleHighlight: 'عملاؤنا',
-      ratingText: 'تقييم من أكثر من 1200 عميل',
-      items: [
-        {
-          name: 'سلطان القحطاني',
-          city: 'الرياض',
-          text: 'استأجرنا مساحة تخزين في مستودعات المنصورية اللوجستية، التجهيزات وسهولة دخول وتفريغ الشاحنات الهيدروليكية كانت فارقة في سلاسل إمدادنا.',
-        },
-        {
-          name: 'فهد الشمري',
-          city: 'الأحساء',
-          text: 'موقع مشروع الأحساء التجاري استثنائي جداً، التصميم المعماري الفخم والواجهات الزجاجية تمنح العلامات التجارية حضوراً باهراً.',
-        },
-        {
-          name: 'عبدالعزيز السديري',
-          city: 'الرياض',
-          text: 'مجمع محلات أجدى لوكس التجاري صُمم بأعلى درجات الفخامة، تجربة استثمارية ممتازة وتنسيق احترافي في إدارة المساحات التجارية.',
-        },
-      ],
+    clients: {
+      badge: 'شركاء النجاح',
+      title: 'نخبة من كبرى',
+      titleHighlight: 'العلامات التجارية والشركات',
+      desc: 'نفخر بالثقة المتبادلة مع كبرى الشركات والمجموعات التجارية التي اختارت مشاريع أجدا العقارية كوجهة لأعمالها واستثماراتها.',
     },
     cta: {
       title: 'جاهز لإيجار أو',
@@ -184,7 +167,7 @@ export const translations = {
       ],
       contactTitle: 'تواصل معنا',
       address: 'الرياض، طريق الملك فهد',
-      phone: '+966 58 048 4528',
+      phone: '+966 50 053 9520',
       email: 'info@ajdaa.sa',
       hours: 'السبت – الخميس، 9ص – 6م',
       newsletterTitle: 'النشرة البريدية',
@@ -318,7 +301,7 @@ export const translations = {
       booking: 'Inspection & Booking',
       contact: 'Contact Us',
       bookNow: 'Book Now',
-      phone: '+966 58 048 4528',
+      phone: '+966 50 053 9520',
       menu: 'Menu',
       close: 'Close',
       langToggleText: 'العربية',
@@ -446,28 +429,11 @@ export const translations = {
       explore: 'Explore',
       photos: 'photos',
     },
-    testimonials: {
-      badge: 'Client Feedback',
-      title: 'What Our',
-      titleHighlight: 'Clients Say',
-      ratingText: 'Rated 4.9 by over 1,200 satisfied clients',
-      items: [
-        {
-          name: 'Sultan Al-Qahtani',
-          city: 'Riyadh',
-          text: 'We leased storage space at Al Mansoria Logistics Warehouses; the hydraulic dock facilities and seamless heavy truck access transformed our supply chain efficiency.',
-        },
-        {
-          name: 'Fahad Al-Shammary',
-          city: 'Al Ahsa',
-          text: 'The location of Al Ahsa Commercial Project is extraordinary. The luxury architecture and wide glass storefronts provide brands with unmatched prestige.',
-        },
-        {
-          name: 'Abdulaziz Al-Sudairy',
-          city: 'Riyadh',
-          text: 'Ajda Lux commercial shops are built with top craftsmanship. Outstanding investment experience and highly professional property management.',
-        },
-      ],
+    clients: {
+      badge: 'Success Partners',
+      title: 'Trusted by Leading',
+      titleHighlight: 'Brands & Enterprises',
+      desc: 'We take pride in the mutual trust with major corporations and commercial groups that chose Ajda Real Estate developments for their premier operations.',
     },
     cta: {
       title: 'Ready to Lease or',
@@ -493,7 +459,7 @@ export const translations = {
       ],
       contactTitle: 'Contact Us',
       address: 'Riyadh, King Fahd Road',
-      phone: '+966 58 048 4528',
+      phone: '+966 50 053 9520',
       email: 'info@ajdaa.sa',
       hours: 'Sat – Thu, 9:00 AM – 6:00 PM',
       newsletterTitle: 'Newsletter',

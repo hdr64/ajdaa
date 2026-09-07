@@ -68,10 +68,10 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', varian
     <button
       type="button"
       onClick={toggleTheme}
-      className={`relative group p-2.5 rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-center ${
+      className={`w-10 h-10 relative group rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0 ${
         isDark
-          ? 'bg-surface/50 border-muted-border/30 hover:border-amber-400/50 hover:bg-surface-hover/80 text-amber-300 shadow-sm'
-          : 'bg-surface/90 border-muted-border/40 hover:border-accent/60 hover:bg-surface-hover text-accent shadow-sm'
+          ? 'bg-surface/50 border-muted-border/30 hover:border-amber-400/50 hover:bg-surface-hover/80 text-amber-300 shadow-xs'
+          : 'bg-surface/90 border-muted-border/40 hover:border-accent/60 hover:bg-surface-hover text-accent shadow-xs'
       } ${className}`}
       title={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
       aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}

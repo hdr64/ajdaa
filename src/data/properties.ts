@@ -25,8 +25,8 @@ export const properties: Property[] = [
     id: 201,
     type: 'logistics',
     typeAr: 'مستودعات ومخازن لوجستية',
-    typeEn: 'Warehouses & Logistics Hub',
-    title: 'مستودعات المنصورية اللوجستية · Al Mansoria Warehouses',
+    typeEn: 'Logistics Warehouses & Storage',
+    title: 'مستودعات المنصورية اللوجستية',
     titleEn: 'Al Mansoria Logistics Warehouses',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -61,13 +61,13 @@ export const properties: Property[] = [
     id: 202,
     type: 'commercial',
     typeAr: 'محلات ومجمع تجاري',
-    typeEn: 'Commercial & Retail Complex',
-    title: 'مشروع الأحساء التجاري · Al Ahsa Commercial Project',
+    typeEn: 'Commercial Strip & Complex',
+    title: 'مشروع الأحساء التجاري',
     titleEn: 'Al Ahsa Commercial Complex',
     priceType: 'استثمار',
     priceTypeEn: 'Investment',
     status: 'محجوز بالكامل',
-    statusEn: 'Fully Booked',
+    statusEn: 'Fully Leased',
     area: 4600,
     bathrooms: 6,
     units: 'مجمع محلات ومعارض تجارية',
@@ -77,9 +77,9 @@ export const properties: Property[] = [
     image: alehsa,
     gallery: [alehsa, alehsa2, alehsa3, alehsa4, alehsa5],
     badge: 'محجوز بالكامل',
-    badgeEn: 'Fully Booked',
+    badgeEn: 'Fully Leased',
     description: 'مشروع الأحساء التجاري التابع لشركة أجدى العقارية، مجمع تجاري متكامل يضم محلات ومعارض تجارية عصرية بتصميم معماري فخم يدمج الأصالة بالحداثة، مع واجهات زجاجية واسعة وإضاءات ديكورية استثنائية (محجوز بالكامل).',
-    descriptionEn: 'Al Ahsa commercial complex by Ajda Real Estate, combining authentic heritage architecture with wide contemporary glass storefronts and decorative lighting (Fully Booked).',
+    descriptionEn: 'Al Ahsa commercial complex by Ajda Real Estate, combining authentic heritage architecture with wide contemporary glass storefronts and decorative lighting (Fully Leased).',
     features: [
       'تصميم معماري وتراثي عصري فاخر',
       'واجهات زجاجية مزدوجة واسعة للمحلات',
@@ -96,9 +96,9 @@ export const properties: Property[] = [
   {
     id: 203,
     type: 'commercial',
-    typeAr: 'محلات تجارية',
-    typeEn: 'Retail Commercial Shops',
-    title: 'مجمع محلات أجدى لوكس · Ajda Lux Commercial Shops',
+    typeAr: 'محلات تجارية فاخرة',
+    typeEn: 'Luxury Commercial Shops',
+    title: 'مجمع محلات أجدى لوكس',
     titleEn: 'Ajda Lux Commercial Shops',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -133,8 +133,8 @@ export const properties: Property[] = [
     id: 204,
     type: 'commercial',
     typeAr: 'معارض ومحلات تجارية',
-    typeEn: 'Showrooms & Commercial Stores',
-    title: 'معارض وصالات أجدى فيرا (طريق رئيسي)',
+    typeEn: 'Commercial Showrooms',
+    title: 'معارض وصالات أجدى فيرا',
     titleEn: 'Ajda Vera Commercial Showrooms',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -170,7 +170,7 @@ export const properties: Property[] = [
     type: 'office',
     typeAr: 'مبنى تجاري وإداري',
     typeEn: 'Commercial & Office Hub',
-    title: 'أجدى فيستا · Ajda Vista (مبنى تجاري متعدد المكاتب)',
+    title: 'مبنى أجدى فيستا التجاري والإداري',
     titleEn: 'Ajda Vista Business Building',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -204,9 +204,9 @@ export const properties: Property[] = [
   {
     id: 206,
     type: 'office',
-    typeAr: 'مركز أعمال',
+    typeAr: 'مكاتب تنفيذية ومركز أعمال',
     typeEn: 'Executive Business Center',
-    title: 'أجدى برايم · Ajda Prime (مكاتب تنفيذية)',
+    title: 'مركز أجدى برايم للأعمال',
     titleEn: 'Ajda Prime Executive Center',
     priceType: 'بيع',
     priceTypeEn: 'Sale / Investment',
@@ -240,10 +240,10 @@ export const properties: Property[] = [
   {
     id: 207,
     type: 'office',
-    typeAr: 'مجمع مكاتب',
-    typeEn: 'Corporate Office Complex',
-    title: 'أجدى لاين · Ajda Line (مكاتب إدارية استراتيجية)',
-    titleEn: 'Ajda Line Office Complex',
+    typeAr: 'مكاتب إدارية استراتيجية',
+    typeEn: 'Strategic Corporate Offices',
+    title: 'مجمع أجدى لاين الإداري',
+    titleEn: 'Ajda Line Corporate Complex',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
     status: 'متاح للتأجير',
@@ -274,3 +274,64 @@ export const properties: Property[] = [
     ]
   }
 ];
+
+export const isPropertyBooked = (prop?: Property | null): boolean => {
+  if (!prop) return false;
+  return (
+    prop.status === 'محجوز بالكامل' ||
+    prop.badge === 'محجوز بالكامل' ||
+    prop.statusEn === 'Fully Booked' ||
+    prop.statusEn === 'Fully Leased' ||
+    prop.badgeEn === 'Fully Booked' ||
+    prop.badgeEn === 'Fully Leased'
+  );
+};
+
+export interface PropertyDisplayData {
+  isBooked: boolean;
+  title: string;
+  city: string;
+  type: string;
+  units: string;
+  status: string;
+  badge: string;
+  description: string;
+  features: string[];
+}
+
+export const getPropertyDisplay = (prop: Property, language: 'ar' | 'en'): PropertyDisplayData => {
+  const isAr = language === 'ar';
+  const isBooked = isPropertyBooked(prop);
+
+  const title = isAr ? prop.title : prop.titleEn || prop.title;
+  const city = isAr ? prop.city : prop.cityEn || prop.city;
+  const type = isAr ? prop.typeAr : prop.typeEn || prop.typeAr;
+  const units = isAr ? (prop.units || prop.typeAr) : (prop.unitsEn || prop.typeEn || prop.typeAr);
+  const description = isAr ? (prop.description || '') : (prop.descriptionEn || prop.description || '');
+  const features = isAr ? (prop.features || []) : (prop.featuresEn || prop.features || []);
+
+  const status = isBooked
+    ? (isAr ? 'محجوز بالكامل' : 'Fully Leased')
+    : isAr
+    ? prop.status || prop.badge || 'متاح للتأجير والاستثمار'
+    : prop.statusEn || prop.badgeEn || 'Available for Lease & Investment';
+
+  const badge = isBooked
+    ? (isAr ? 'محجوز بالكامل' : 'Fully Leased')
+    : isAr
+    ? prop.badge || prop.priceType
+    : prop.badgeEn || prop.priceTypeEn || prop.priceType;
+
+  return {
+    isBooked,
+    title,
+    city,
+    type,
+    units,
+    status,
+    badge,
+    description,
+    features,
+  };
+};
+

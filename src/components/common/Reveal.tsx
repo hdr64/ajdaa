@@ -14,9 +14,9 @@ export const Reveal: React.FC<RevealProps> = ({
   direction = 'up',
   className = '',
 }) => {
-  const { ref, isVisible } = useIntersection<HTMLDivElement>({ 
+  const { ref, isVisible } = useIntersection<HTMLDivElement>({
     threshold: 0.1,
-    rootMargin: '0px 0px -40px 0px' 
+    rootMargin: '0px 0px -40px 0px'
   });
 
   const getInitialTransform = () => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ThemeContext, STORAGE_KEY, type ThemeMode } from './themeContextDef';
+import { ThemeContext, STORAGE_KEY, VARIANT_STORAGE_KEY, type ThemeMode, type ThemeVariant } from './themeContextDef';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
@@ -16,7 +16,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'light';
   });
 
-  const applyTheme = (mode: ThemeMode) => {
+  const [variant, setVariantState] = useState<ThemeVariant>(() => {
+    if (typeof window === 'undefined') return 'classic';
+    try {
+      const saved = localStorage.getItem(VARIANT_STORAGE_KEY) as ThemeVariant | null;
+      if (saved === 'classic' || saved === 'prime') {
+        return saved;
+      }
+    } catch {
+      // Ignore localStorage access errors
+    }
+    return 'classic';
+  });
+
+  const applyTheme = (mode: ThemeMode, currentVariant: ThemeVariant) => {
     const root = document.documentElement;
     if (mode === 'dark') {
       root.classList.remove('light');
@@ -30,15 +43,25 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.style.colorScheme = 'light';
     }
 
+    if (currentVariant === 'prime') {
+      root.setAttribute('data-theme-variant', 'prime');
+    } else {
+      root.removeAttribute('data-theme-variant');
+    }
+
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', mode === 'dark' ? '#0d1620' : '#f6f8fa');
+      if (currentVariant === 'prime') {
+        metaThemeColor.setAttribute('content', mode === 'dark' ? '#07151d' : '#fbf9f5');
+      } else {
+        metaThemeColor.setAttribute('content', mode === 'dark' ? '#0d1620' : '#f6f8fa');
+      }
     }
   };
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme(theme, variant);
+  }, [theme, variant]);
 
   const setTheme = (mode: ThemeMode) => {
     setThemeState(mode);
@@ -61,8 +84,29 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const setVariant = (newVariant: ThemeVariant) => {
+    setVariantState(newVariant);
+    try {
+      localStorage.setItem(VARIANT_STORAGE_KEY, newVariant);
+    } catch {
+      // Ignore error
+    }
+  };
+
+  const toggleVariant = () => {
+    setVariantState((prev) => {
+      const next = prev === 'classic' ? 'prime' : 'classic';
+      try {
+        localStorage.setItem(VARIANT_STORAGE_KEY, next);
+      } catch {
+        // Ignore error
+      }
+      return next;
+    });
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, variant, toggleTheme, setTheme, toggleVariant, setVariant }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -16,12 +16,15 @@ import {
   Building2,
   Check,
   ArrowLeft,
+  ArrowRight,
   ChevronRight,
   ChevronLeft,
   Images,
   Warehouse,
   Store,
 } from 'lucide-react';
+import { useLanguage } from '../../hooks/useLanguage';
+import { getPropertyDisplay } from '../../data/properties';
 
 interface PropertyModalProps {
   property: Property | null;
@@ -31,12 +34,12 @@ interface PropertyModalProps {
 }
 
 const AMENITIES = [
-  { icon: Sparkles, name: 'تشطيب سوبر ديلوكس' },
-  { icon: ShieldCheck, name: 'نظام أمني سمارت 24/7' },
-  { icon: Building2, name: 'موقف سيارات مظلل وخاص' },
-  { icon: CheckCircle2, name: 'تكييف مركزي دكت' },
-  { icon: Sparkles, name: 'حديقة وجلسة خارجية عصرية' },
-  { icon: ShieldCheck, name: 'ضمانات هيكلية وشاملة' },
+  { icon: Sparkles, nameAr: 'تشطيب سوبر ديلوكس', nameEn: 'Super Deluxe Finishing' },
+  { icon: ShieldCheck, nameAr: 'نظام أمني سمارت 24/7', nameEn: '24/7 Smart Security System' },
+  { icon: Building2, nameAr: 'موقف سيارات مظلل وخاص', nameEn: 'Dedicated Shaded Parking' },
+  { icon: CheckCircle2, nameAr: 'تكييف مركزي دكت', nameEn: 'Central Ducted AC' },
+  { icon: Sparkles, nameAr: 'حديقة وجلسة خارجية عصرية', nameEn: 'Modern Outdoor Landscaping' },
+  { icon: ShieldCheck, nameAr: 'ضمانات هيكلية وشاملة', nameEn: 'Comprehensive Structural Warranties' },
 ];
 
 export const PropertyModal: React.FC<PropertyModalProps> = ({
@@ -45,17 +48,21 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
   onBook,
   onToast,
 }) => {
+  const { language } = useLanguage();
+  const isAr = language === 'ar';
+
   const [isFav, setIsFav] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  const isBooked = property?.status === 'محجوز بالكامل' || property?.badge === 'محجوز بالكامل';
+  const display = property ? getPropertyDisplay(property, language) : null;
 
-  const images = property?.gallery && property.gallery.length > 0
-    ? property.gallery
-    : property
-    ? [property.image]
-    : [];
+  const images =
+    property?.gallery && property.gallery.length > 0
+      ? property.gallery
+      : property
+      ? [property.image]
+      : [];
 
   useEffect(() => {
     setActiveImageIndex(0);
@@ -64,8 +71,12 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') handleNextImage();
-      if (e.key === 'ArrowLeft') handlePrevImage();
+      if (e.key === 'ArrowRight') {
+        isAr ? handlePrevImage() : handleNextImage();
+      }
+      if (e.key === 'ArrowLeft') {
+        isAr ? handleNextImage() : handlePrevImage();
+      }
     };
     if (property) {
       document.body.style.overflow = 'hidden';
@@ -75,9 +86,9 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [property, activeImageIndex, images.length]);
+  }, [property, activeImageIndex, images.length, isAr]);
 
-  if (!property) return null;
+  if (!property || !display) return null;
 
   const handleNextImage = () => {
     if (images.length <= 1) return;
@@ -90,15 +101,23 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
   };
 
   const handleShare = () => {
-    navigator.clipboard.writeText?.(window.location.href);
+    navigator.clipboard?.writeText?.(window.location.href);
     setCopied(true);
-    onToast('تم نسخ رابط العقار إلى الحافظة!');
+    onToast(isAr ? 'تم نسخ رابط العقار إلى الحافظة!' : 'Property link copied to clipboard!');
     setTimeout(() => setCopied(false), 2500);
   };
 
   const handleToggleFav = () => {
     setIsFav((v) => !v);
-    onToast(!isFav ? 'تم إدراج العقار في المفضلة ❤️' : 'تمت إزالة العقار من المفضلة');
+    onToast(
+      !isFav
+        ? isAr
+          ? 'تم إدراج العقار في المفضلة ❤️'
+          : 'Added to favorites ❤️'
+        : isAr
+        ? 'تمت إزالة العقار من المفضلة'
+        : 'Removed from favorites',
+    );
   };
 
   return (
@@ -119,11 +138,11 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-muted-border/30 bg-surface/50 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <span className="brand-badge text-xs font-bold px-3 py-1 rounded-full">
-              أجدا · {property.typeAr}
+              {isAr ? `أجدا · ${display.type}` : `Ajda · ${display.type}`}
             </span>
             <span
               className={`text-xs font-extrabold px-3 py-1 rounded-full ${
-                isBooked
+                display.isBooked
                   ? 'bg-amber-500 text-black font-black'
                   : property.type === 'logistics'
                   ? 'bg-blue-600 text-white font-bold'
@@ -134,7 +153,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                   : 'bg-success text-white font-black'
               }`}
             >
-              {isBooked ? 'محجوز بالكامل' : property.badge || property.priceType}
+              {display.badge}
             </span>
           </div>
 
@@ -142,7 +161,8 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             <button
               onClick={handleToggleFav}
               className="w-9 h-9 rounded-full bg-surface-hover/80 border border-muted-border/40 flex items-center justify-center hover:border-accent transition cursor-pointer"
-              title="المفضلة"
+              title={isAr ? 'المفضلة' : 'Favorite'}
+              aria-label={isAr ? 'المفضلة' : 'Favorite'}
             >
               <Heart
                 className={`w-4 h-4 transition ${
@@ -153,7 +173,8 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             <button
               onClick={handleShare}
               className="w-9 h-9 rounded-full bg-surface-hover/80 border border-muted-border/40 flex items-center justify-center hover:border-accent transition cursor-pointer"
-              title="مشاركة العقار"
+              title={isAr ? 'مشاركة العقار' : 'Share Property'}
+              aria-label={isAr ? 'مشاركة العقار' : 'Share Property'}
             >
               {copied ? (
                 <Check className="w-4 h-4 text-accent" />
@@ -164,7 +185,8 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             <button
               onClick={onClose}
               className="w-9 h-9 rounded-full bg-surface-hover/80 border border-muted-border/40 flex items-center justify-center hover:border-accent text-neutral-text hover:text-heading transition cursor-pointer"
-              title="إغلاق"
+              title={isAr ? 'إغلاق' : 'Close'}
+              aria-label={isAr ? 'إغلاق' : 'Close'}
             >
               <X className="w-5 h-5" />
             </button>
@@ -177,7 +199,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
           <div className="relative h-72 sm:h-96 rounded-2xl overflow-hidden group bg-canvas">
             <img
               src={images[activeImageIndex] || property.image}
-              alt={property.title}
+              alt={display.title}
               className="w-full h-full object-cover transition-transform duration-500 ease-out"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-canvas/95 via-canvas/20 to-transparent pointer-events-none" />
@@ -188,16 +210,16 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                 <button
                   onClick={handlePrevImage}
                   className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-canvas/80 backdrop-blur-md border border-muted-border/40 flex items-center justify-center text-heading hover:bg-accent hover:text-[var(--brand-btn-text)] transition cursor-pointer z-10"
-                  aria-label="الصورة السابقة"
+                  aria-label={isAr ? 'الصورة السابقة' : 'Previous photo'}
                 >
-                  <ChevronRight className="w-5 h-5" />
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handleNextImage}
                   className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-canvas/80 backdrop-blur-md border border-muted-border/40 flex items-center justify-center text-heading hover:bg-accent hover:text-[var(--brand-btn-text)] transition cursor-pointer z-10"
-                  aria-label="الصورة التالية"
+                  aria-label={isAr ? 'الصورة التالية' : 'Next photo'}
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <ChevronRight className="w-5 h-5" />
                 </button>
               </>
             )}
@@ -206,28 +228,32 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             <div className="absolute top-4 left-4 z-10 bg-canvas/80 backdrop-blur-md border border-muted-border/40 px-3 py-1 rounded-full text-[11px] font-bold text-neutral-text flex items-center gap-1.5">
               <Images className="w-3.5 h-3.5 text-accent" />
               <span>
-                صورة {activeImageIndex + 1} من {images.length}
+                {isAr
+                  ? `صورة ${activeImageIndex + 1} من ${images.length}`
+                  : `Photo ${activeImageIndex + 1} of ${images.length}`}
               </span>
             </div>
 
             <div className="absolute bottom-4 right-4 left-4 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 z-10">
               <div>
-                <div className="flex items-center gap-1.5 text-xs text-accent-light mb-1">
+                <div className="flex items-center gap-1.5 text-xs text-accent-light mb-1 font-bold">
                   <MapPin className="w-4 h-4 text-accent" />
-                  <span>{property.city}</span>
+                  <span>{display.city}</span>
                 </div>
                 <h2 className="text-xl sm:text-3xl font-black text-heading leading-tight">
-                  {property.title}
+                  {display.title}
                 </h2>
               </div>
-              <div className="bg-canvas/90 backdrop-blur-md border border-accent/40 px-5 py-2.5 rounded-2xl text-left">
-                <span className="text-[10px] text-neutral-text/50 block">حالة المشروع</span>
-                <span className={`text-base sm:text-xl font-black ${
-                  isBooked
-                    ? 'text-amber-400'
-                    : 'brand-gradient-text'
-                }`}>
-                  {property.status || property.badge || 'متاح للاستثمار'}
+              <div className="bg-canvas/90 backdrop-blur-md border border-accent/40 px-5 py-2.5 rounded-2xl text-start">
+                <span className="text-[10px] text-neutral-text/50 block font-medium">
+                  {isAr ? 'حالة المشروع' : 'Project Status'}
+                </span>
+                <span
+                  className={`text-base sm:text-xl font-black ${
+                    display.isBooked ? 'text-amber-400' : 'brand-gradient-text'
+                  }`}
+                >
+                  {display.status}
                 </span>
               </div>
             </div>
@@ -256,19 +282,27 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="glass-card rounded-2xl p-4 text-center">
               <Maximize2 className="w-5 h-5 text-accent mx-auto mb-2" />
-              <div className="text-xs text-neutral-text/50">المساحة الإجمالية</div>
-              <div className="text-base font-extrabold text-heading mt-0.5">{property.area.toLocaleString('en-US')} م²</div>
+              <div className="text-xs text-neutral-text/50">
+                {isAr ? 'المساحة الإجمالية' : 'Total Area'}
+              </div>
+              <div className="text-base font-extrabold text-heading mt-0.5">
+                {property.area.toLocaleString(isAr ? 'ar-SA' : 'en-US')} {isAr ? 'م²' : 'm²'}
+              </div>
             </div>
             {property.rooms && property.rooms > 0 ? (
               <>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <BedDouble className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">غرف ومكاتب</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'غرف ومكاتب' : 'Rooms & Offices'}
+                  </div>
                   <div className="text-base font-extrabold text-heading mt-0.5">{property.rooms}</div>
                 </div>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <Bath className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">دورات المياه</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'دورات المياه' : 'Restrooms'}
+                  </div>
                   <div className="text-base font-extrabold text-heading mt-0.5">{property.bathrooms}</div>
                 </div>
               </>
@@ -276,46 +310,72 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
               <>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <Warehouse className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">تصنيف المشروع</div>
-                  <div className="text-sm font-extrabold text-heading mt-0.5">مستودعات ومخازن</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'تصنيف المشروع' : 'Classification'}
+                  </div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">
+                    {isAr ? 'مستودعات ومخازن' : 'Warehouses & Storage'}
+                  </div>
                 </div>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <ShieldCheck className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">بوابات الشحن</div>
-                  <div className="text-sm font-extrabold text-heading mt-0.5">شحن هيدروليكي</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'بوابات الشحن' : 'Loading Access'}
+                  </div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">
+                    {isAr ? 'شحن هيدروليكي' : 'Hydraulic Docks'}
+                  </div>
                 </div>
               </>
             ) : property.type === 'commercial' ? (
               <>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <Store className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">تصنيف المشروع</div>
-                  <div className="text-sm font-extrabold text-heading mt-0.5">محلات ومعارض</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'تصنيف المشروع' : 'Classification'}
+                  </div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">
+                    {isAr ? 'محلات ومعارض' : 'Retail & Showrooms'}
+                  </div>
                 </div>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <Building2 className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">الواجهات</div>
-                  <div className="text-sm font-extrabold text-heading mt-0.5">واجهات زجاجية</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'الواجهات' : 'Facades'}
+                  </div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">
+                    {isAr ? 'واجهات زجاجية' : 'Glass Facades'}
+                  </div>
                 </div>
               </>
             ) : (
               <>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <Building2 className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">تصنيف المشروع</div>
-                  <div className="text-sm font-extrabold text-heading mt-0.5">{property.typeAr}</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'تصنيف المشروع' : 'Classification'}
+                  </div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">{display.type}</div>
                 </div>
                 <div className="glass-card rounded-2xl p-4 text-center">
                   <ShieldCheck className="w-5 h-5 text-accent mx-auto mb-2" />
-                  <div className="text-xs text-neutral-text/50">الترخيص</div>
-                  <div className="text-sm font-extrabold text-heading mt-0.5">معتمد بالكامل</div>
+                  <div className="text-xs text-neutral-text/50">
+                    {isAr ? 'الترخيص' : 'Licensing'}
+                  </div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">
+                    {isAr ? 'معتمد بالكامل' : 'Fully Approved'}
+                  </div>
                 </div>
               </>
             )}
             <div className="glass-card rounded-2xl p-4 text-center">
               <Calendar className="w-5 h-5 text-accent mx-auto mb-2" />
-              <div className="text-xs text-neutral-text/50">تطوير أجدا</div>
-              <div className="text-base font-extrabold text-heading mt-0.5">حديث / مكتمل</div>
+              <div className="text-xs text-neutral-text/50">
+                {isAr ? 'تطوير أجدا' : 'Ajda Development'}
+              </div>
+              <div className="text-base font-extrabold text-heading mt-0.5">
+                {isAr ? 'حديث / مكتمل' : 'Modern / Completed'}
+              </div>
             </div>
           </div>
 
@@ -323,20 +383,26 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
           <div>
             <h3 className="text-base font-bold text-heading mb-3 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-accent" />
-              تفاصيل ومميزات مشروع أجدا العقارية
+              {isAr
+                ? 'تفاصيل ومميزات مشروع أجدا العقارية'
+                : 'Project Details & Ajda Real Estate Highlights'}
             </h3>
             <p className="text-sm text-neutral-text/80 leading-relaxed bg-surface/40 p-5 rounded-2xl border border-muted-border/20">
-              {property.description ||
-                `يتميز هذا المشروع من شركة أجدا للتطوير والاستثمار العقاري بموقع استراتيجي فريد في قلب مدينة ${property.city}، بتصميم وتنفيذ على أعلى معايير الجودة والاستدامة.`}
+              {display.description ||
+                (isAr
+                  ? `يتميز هذا المشروع من شركة أجدا للتطوير والاستثمار العقاري بموقع استراتيجي فريد في قلب مدينة ${display.city}، بتصميم وتنفيذ على أعلى معايير الجودة والاستدامة.`
+                  : `This flagship development by Ajda Real Estate occupies a premier strategic address in ${display.city}, designed and executed according to the highest global quality standards.`)}
             </p>
           </div>
 
-          {/* Project Features Highlights if available */}
-          {property.features && property.features.length > 0 && (
+          {/* Project Features Highlights */}
+          {display.features && display.features.length > 0 && (
             <div>
-              <h3 className="text-base font-bold text-heading mb-3">أهم مميزات المشروع</h3>
+              <h3 className="text-base font-bold text-heading mb-3">
+                {isAr ? 'أهم مميزات المشروع' : 'Key Project Highlights'}
+              </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {property.features.map((feat, fIdx) => (
+                {display.features.map((feat, fIdx) => (
                   <div
                     key={fIdx}
                     className="flex items-center gap-3 p-3.5 rounded-xl bg-accent/10 border border-accent/20 text-xs font-bold text-heading"
@@ -351,7 +417,9 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
 
           {/* Amenities Grid */}
           <div>
-            <h3 className="text-base font-bold text-heading mb-3">المرافق والضمانات المشمولة</h3>
+            <h3 className="text-base font-bold text-heading mb-3">
+              {isAr ? 'المرافق والضمانات المشمولة' : 'Included Amenities & Warranties'}
+            </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {AMENITIES.map((item, idx) => {
                 const Icon = item.icon;
@@ -361,7 +429,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                     className="flex items-center gap-3 p-3 rounded-xl bg-surface/50 border border-muted-border/20 text-xs text-neutral-text/80"
                   >
                     <Icon className="w-4 h-4 text-accent shrink-0" />
-                    <span>{item.name}</span>
+                    <span>{isAr ? item.nameAr : item.nameEn}</span>
                   </div>
                 );
               })}
@@ -373,13 +441,13 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
         <div className="p-4 sm:p-6 border-t border-muted-border/30 bg-surface/60 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <a
-              href="https://wa.me/966550484326"
+              href="https://wa.me/966500539520"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 sm:flex-none brand-btn-secondary px-5 py-3 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none brand-btn-secondary px-5 py-3 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 hover:text-emerald-500 transition-colors"
             >
               <PhoneCall className="w-4 h-4 text-accent" />
-              استشارة عبر واتساب
+              {isAr ? 'استشارة عبر واتساب' : 'WhatsApp Consultation'}
             </a>
           </div>
 
@@ -390,8 +458,14 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             }}
             className="w-full sm:w-auto brand-btn-primary px-8 py-3.5 rounded-xl text-sm font-extrabold inline-flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
           >
-            {isBooked ? 'طلب استفسار عن المشروع' : 'احجز معاينة هذا المشروع'}
-            <ArrowLeft className="w-4 h-4" />
+            {display.isBooked
+              ? isAr
+                ? 'طلب استفسار عن المشروع'
+                : 'Inquire About Project'
+              : isAr
+              ? 'احجز معاينة هذا المشروع'
+              : 'Book Inspection Visit'}
+            {isAr ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
           </button>
         </div>
       </div>
