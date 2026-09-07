@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, KeyRound, Building, Layers, Sparkles, ArrowLeft } from 'lucide-react';
+import { Warehouse, Store, Building, TrendingUp, Sparkles, ArrowLeft } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 
 interface ServicesSectionProps {
@@ -7,10 +7,26 @@ interface ServicesSectionProps {
 }
 
 const services = [
-  { icon: Home, title: 'بيع الفلل', desc: 'فلل فاخرة في أرقى المواقع بتصاميم عصرية ومساحات واسعة تلبي ذوقك' },
-  { icon: KeyRound, title: 'تأجير العقارات', desc: 'عقارات للإيجار بأسعار تنافسية وعقود مرنة تناسب احتياجاتك' },
-  { icon: Building, title: 'المكاتب التجارية', desc: 'مكاتب ومساحات عمل احترافية في مواقع استراتيجية للأعمال' },
-  { icon: Layers, title: 'الشقق السكنية', desc: 'شقق راقية بمرافق متكاملة وخدمات فندقية عالية المستوى' },
+  {
+    icon: Warehouse,
+    title: 'المشاريع اللوجستية والمستودعات',
+    desc: 'مستودعات ومخازن حديثة بمواصفات تخزين عالمية، ساحات شحن وتفريغ مجهزة لدعم سلاسل الإمداد والتجارة',
+  },
+  {
+    icon: Store,
+    title: 'المحلات والمجمعات التجارية',
+    desc: 'محلات وصالات عرض تجارية في مواقع استراتيجية حيوية، بتصاميم عصرية تناسب مختلف الأنشطة الاستثمارية',
+  },
+  {
+    icon: Building,
+    title: 'المباني والمكاتب الإدارية',
+    desc: 'مراكز أعمال ومساحات إدارية فاخرة مجهزة بأحدث التقنيات الذكية لبيئة عمل مؤسسية متكاملة',
+  },
+  {
+    icon: TrendingUp,
+    title: 'التطوير والاستثمار العقاري',
+    desc: 'حلول استثمارية مستدامة وتطوير أصول عقارية تحقق عوائد مجزية وشراكات استراتيجية رائدة',
+  },
 ];
 
 export const ServicesSection: React.FC<ServicesSectionProps> = ({ onExplore }) => {
@@ -22,13 +38,13 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onExplore }) =
       <div className="relative text-center mb-16">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full">
           <Sparkles className="w-3.5 h-3.5 text-accent-light" />
-          خدماتنا المميزة
+          تخصصاتنا وخدماتنا
         </span>
         <h2 className="text-3xl md:text-4xl lg:text-5xl font-black mt-6">
-          حلول عقارية <span className="brand-gradient-text">متكاملة</span>
+          حلول عقارية <span className="brand-gradient-text">لوجستية وتجارية متكاملة</span>
         </h2>
-        <p className="text-sm md:text-base text-neutral-text/60 max-w-xl mx-auto mt-4 leading-relaxed">
-          من الفلل الفاخرة إلى المكاتب التجارية، نرافقك في كل خطوة من البحث وحتى الإغلاق
+        <p className="text-sm md:text-base text-neutral-text/70 max-w-2xl mx-auto mt-4 leading-relaxed font-medium">
+          من المستودعات اللوجستية والمخازن إلى المحلات والمجمعات التجارية والمكاتب الإدارية، نبني مشاريع تحقق أعلى قيمة استثمارية مستدامة.
         </p>
         <div aria-hidden className="w-24 h-1 mx-auto mt-7 rounded-full bg-gradient-to-l from-transparent via-accent to-transparent" />
       </div>

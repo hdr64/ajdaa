@@ -127,15 +127,15 @@ export function App() {
               </Reveal>
 
 
-              <section className="py-20 max-w-7xl mx-auto px-6">
+              <section className="py-20 max-w-7xl mx-auto px-6 ">
                 <div className="flex items-center justify-between mb-12">
                   <Reveal direction="right">
                     <div>
                       <span className="text-xs text-accent-light font-semibold brand-badge px-3 py-1 rounded-full">
-                        عقارات مختارة
+                        مشاريع مختارة
                       </span>
                       <h2 className="text-3xl sm:text-4xl font-black mt-2 text-heading">
-                        أحدث <span className="brand-gradient-text">العقارات الفاخرة</span>
+                        أحدث <span className="brand-gradient-text">المشاريع اللوجستية والتجارية</span>
                       </h2>
                     </div>
                   </Reveal>
@@ -144,7 +144,7 @@ export function App() {
                       onClick={() => navigateTo('works')}
                       className="brand-btn-secondary text-xs font-bold px-5 py-2.5 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
                     >
-                      عرض جميع العقارات
+                      عرض جميع المشاريع
                     </button>
                   </Reveal>
                 </div>
@@ -284,12 +284,12 @@ export function App() {
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-heading mb-5">خدماتنا العقارية</h4>
+              <h4 className="text-sm font-bold text-heading mb-5">خدماتنا ومشاريعنا</h4>
               <div className="flex flex-col gap-3 text-xs text-neutral-text/70">
-                {['بيع الفلل الفاخرة', 'تأجير العقارات السكنية', 'المكاتب والمساحات التجارية', 'الشقق السكنية الفندقية', 'الاستشارات والتقييم العقاري'].map((service) => (
+                {['المشاريع اللوجستية والمستودعات', 'المحلات والمجمعات التجارية', 'المكاتب والمباني الإدارية', 'التطوير والاستثمار العقاري', 'الاستشارات وإدارة الأملاك'].map((service) => (
                   <button
                     key={service}
-                    onClick={() => navigateTo('home')}
+                    onClick={() => navigateTo('works')}
                     className="flex items-center gap-1.5 text-right hover:text-accent transition cursor-pointer group font-semibold"
                   >
                     <ChevronLeft className="w-3.5 h-3.5 text-accent/70 group-hover:-translate-x-1 transition-transform duration-300" />
@@ -304,11 +304,11 @@ export function App() {
               <div className="space-y-3 text-xs text-neutral-text/70 mb-6">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-accent shrink-0" />
-                  <span>الرياض، حي العليا، طريق الملك فهد</span>
+                  <span>الرياض، طريق الملك فهد</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-accent shrink-0" />
-                  <span dir="ltr">+966 50 000 0000</span>
+                  <span dir="ltr">+966 55 048 4326</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-accent shrink-0" />

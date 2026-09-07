@@ -19,6 +19,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Images,
+  Warehouse,
+  Store,
 } from 'lucide-react';
 
 interface PropertyModalProps {
@@ -46,6 +48,8 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
   const [isFav, setIsFav] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  const isBooked = property?.status === 'محجوز بالكامل' || property?.badge === 'محجوز بالكامل';
 
   const images = property?.gallery && property.gallery.length > 0
     ? property.gallery
@@ -119,12 +123,18 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             </span>
             <span
               className={`text-xs font-extrabold px-3 py-1 rounded-full ${
-                property.priceType === 'بيع'
+                isBooked
+                  ? 'bg-amber-500 text-black font-black'
+                  : property.type === 'logistics'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : property.type === 'commercial'
+                  ? 'bg-emerald-600 text-white font-bold'
+                  : property.priceType === 'بيع'
                   ? 'brand-fill'
                   : 'bg-success text-white font-black'
               }`}
             >
-              {property.priceType === 'بيع' ? 'للبيع' : 'للإيجار'}
+              {isBooked ? 'محجوز بالكامل' : property.badge || property.priceType}
             </span>
           </div>
 
@@ -211,9 +221,13 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                 </h2>
               </div>
               <div className="bg-canvas/90 backdrop-blur-md border border-accent/40 px-5 py-2.5 rounded-2xl text-left">
-                <span className="text-[10px] text-neutral-text/50 block">السعر المطلوب</span>
-                <span className="text-lg sm:text-2xl font-black brand-gradient-text">
-                  {property.priceLabel}
+                <span className="text-[10px] text-neutral-text/50 block">حالة المشروع</span>
+                <span className={`text-base sm:text-xl font-black ${
+                  isBooked
+                    ? 'text-amber-400'
+                    : 'brand-gradient-text'
+                }`}>
+                  {property.status || property.badge || 'متاح للاستثمار'}
                 </span>
               </div>
             </div>
@@ -243,22 +257,65 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             <div className="glass-card rounded-2xl p-4 text-center">
               <Maximize2 className="w-5 h-5 text-accent mx-auto mb-2" />
               <div className="text-xs text-neutral-text/50">المساحة الإجمالية</div>
-              <div className="text-base font-extrabold text-heading mt-0.5">{property.area} م²</div>
+              <div className="text-base font-extrabold text-heading mt-0.5">{property.area.toLocaleString('en-US')} م²</div>
             </div>
-            <div className="glass-card rounded-2xl p-4 text-center">
-              <BedDouble className="w-5 h-5 text-accent mx-auto mb-2" />
-              <div className="text-xs text-neutral-text/50">غرف النوم</div>
-              <div className="text-base font-extrabold text-heading mt-0.5">{property.rooms} غرف</div>
-            </div>
-            <div className="glass-card rounded-2xl p-4 text-center">
-              <Bath className="w-5 h-5 text-accent mx-auto mb-2" />
-              <div className="text-xs text-neutral-text/50">دورات المياه</div>
-              <div className="text-base font-extrabold text-heading mt-0.5">{property.bathrooms} حمامات</div>
-            </div>
+            {property.rooms && property.rooms > 0 ? (
+              <>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <BedDouble className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">غرف ومكاتب</div>
+                  <div className="text-base font-extrabold text-heading mt-0.5">{property.rooms}</div>
+                </div>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <Bath className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">دورات المياه</div>
+                  <div className="text-base font-extrabold text-heading mt-0.5">{property.bathrooms}</div>
+                </div>
+              </>
+            ) : property.type === 'logistics' ? (
+              <>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <Warehouse className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">تصنيف المشروع</div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">مستودعات ومخازن</div>
+                </div>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <ShieldCheck className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">بوابات الشحن</div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">شحن هيدروليكي</div>
+                </div>
+              </>
+            ) : property.type === 'commercial' ? (
+              <>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <Store className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">تصنيف المشروع</div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">محلات ومعارض</div>
+                </div>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <Building2 className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">الواجهات</div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">واجهات زجاجية</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <Building2 className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">تصنيف المشروع</div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">{property.typeAr}</div>
+                </div>
+                <div className="glass-card rounded-2xl p-4 text-center">
+                  <ShieldCheck className="w-5 h-5 text-accent mx-auto mb-2" />
+                  <div className="text-xs text-neutral-text/50">الترخيص</div>
+                  <div className="text-sm font-extrabold text-heading mt-0.5">معتمد بالكامل</div>
+                </div>
+              </>
+            )}
             <div className="glass-card rounded-2xl p-4 text-center">
               <Calendar className="w-5 h-5 text-accent mx-auto mb-2" />
               <div className="text-xs text-neutral-text/50">تطوير أجدا</div>
-              <div className="text-base font-extrabold text-heading mt-0.5">2024 / حديث</div>
+              <div className="text-base font-extrabold text-heading mt-0.5">حديث / مكتمل</div>
             </div>
           </div>
 
@@ -270,9 +327,27 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             </h3>
             <p className="text-sm text-neutral-text/80 leading-relaxed bg-surface/40 p-5 rounded-2xl border border-muted-border/20">
               {property.description ||
-                `يتميز هذا المشروع من أجدا العقارية بموقع استراتيجي فريد في قلب مدينة ${property.city}، بتصميم معماري عصري يجمع بين الاستدامة والرفاهية. صُمم ليلبي تطلعات الأسر والمستثمرين على حد سواء.`}
+                `يتميز هذا المشروع من شركة أجدا للتطوير والاستثمار العقاري بموقع استراتيجي فريد في قلب مدينة ${property.city}، بتصميم وتنفيذ على أعلى معايير الجودة والاستدامة.`}
             </p>
           </div>
+
+          {/* Project Features Highlights if available */}
+          {property.features && property.features.length > 0 && (
+            <div>
+              <h3 className="text-base font-bold text-heading mb-3">أهم مميزات المشروع</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {property.features.map((feat, fIdx) => (
+                  <div
+                    key={fIdx}
+                    className="flex items-center gap-3 p-3.5 rounded-xl bg-accent/10 border border-accent/20 text-xs font-bold text-heading"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Amenities Grid */}
           <div>
@@ -298,13 +373,13 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
         <div className="p-4 sm:p-6 border-t border-muted-border/30 bg-surface/60 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <a
-              href="https://wa.me/966500000000"
+              href="https://wa.me/966550484326"
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 sm:flex-none brand-btn-secondary px-5 py-3 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2"
             >
               <PhoneCall className="w-4 h-4 text-accent" />
-              استشارة مع مستشار أجدا
+              استشارة عبر واتساب
             </a>
           </div>
 
@@ -315,7 +390,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             }}
             className="w-full sm:w-auto brand-btn-primary px-8 py-3.5 rounded-xl text-sm font-extrabold inline-flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
           >
-            احجز معاينة هذا العقار
+            {isBooked ? 'طلب استفسار عن المشروع' : 'احجز معاينة هذا المشروع'}
             <ArrowLeft className="w-4 h-4" />
           </button>
         </div>

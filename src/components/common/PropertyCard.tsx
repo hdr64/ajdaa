@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Property } from '../../types/property';
-import { MapPin, Maximize2, BedDouble, Bath, Heart, Eye, ArrowLeft, Images } from 'lucide-react';
+import { MapPin, Maximize2, BedDouble, Bath, Heart, Eye, ArrowLeft, Images, Warehouse, Store, Building2 } from 'lucide-react';
 
 interface PropertyCardProps {
   property: Property;
@@ -22,11 +22,12 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     const nextState = !fav;
     setFav(nextState);
     if (onFavToast) {
-      onFavToast(nextState ? 'تمت إضافة العقار للمفضلة ❤️' : 'تمت إزالة العقار من المفضلة');
+      onFavToast(nextState ? 'تمت إضافة المشروع للمفضلة ❤️' : 'تمت إزالة المشروع من المفضلة');
     }
   };
 
   const galleryCount = property.gallery?.length || 1;
+  const isBooked = property.status === 'محجوز بالكامل' || property.badge === 'محجوز بالكامل';
 
   return (
     <div
@@ -46,12 +47,18 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         <div className="absolute top-3.5 inset-x-3.5 flex items-center justify-between z-[3]">
           <span
             className={`text-[11px] font-extrabold px-3 py-1 rounded-full backdrop-blur-md shadow-md ${
-              property.priceType === 'بيع'
+              isBooked
+                ? 'bg-amber-500 text-black font-black'
+                : property.type === 'logistics'
+                ? 'bg-blue-600 text-white font-bold'
+                : property.type === 'commercial'
+                ? 'bg-emerald-600 text-white font-bold'
+                : property.priceType === 'بيع'
                 ? 'brand-fill'
                 : 'bg-success text-canvas font-black'
             }`}
           >
-            {property.priceType}
+            {isBooked ? 'محجوز بالكامل' : property.badge || property.priceType}
           </span>
 
           <div className="flex items-center gap-2">
@@ -103,22 +110,57 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
 
           <div className="flex items-center justify-between text-xs text-neutral-text/70 mb-4 border-y border-muted-border/20 py-2.5">
             <span className="flex items-center gap-1.5 font-semibold">
-              <Maximize2 className="w-3.5 h-3.5 text-accent" /> {property.area} م²
+              <Maximize2 className="w-3.5 h-3.5 text-accent" /> {property.area.toLocaleString('en-US')} م²
             </span>
-            <span className="flex items-center gap-1.5 font-semibold">
-              <BedDouble className="w-3.5 h-3.5 text-accent" /> {property.rooms} غرف
-            </span>
-            <span className="flex items-center gap-1.5 font-semibold">
-              <Bath className="w-3.5 h-3.5 text-accent" /> {property.bathrooms} حمام
-            </span>
+            {property.rooms && property.rooms > 0 ? (
+              <>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <BedDouble className="w-3.5 h-3.5 text-accent" /> {property.rooms} غرف
+                </span>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <Bath className="w-3.5 h-3.5 text-accent" /> {property.bathrooms} حمام
+                </span>
+              </>
+            ) : property.type === 'logistics' ? (
+              <>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <Warehouse className="w-3.5 h-3.5 text-accent" /> سعات تخزين كبرى
+                </span>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  بوابات شحن
+                </span>
+              </>
+            ) : property.type === 'commercial' ? (
+              <>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <Store className="w-3.5 h-3.5 text-accent" /> واجهات زجاجية
+                </span>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  مواقف للزوار
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <Building2 className="w-3.5 h-3.5 text-accent" /> مشروع استراتيجي
+                </span>
+                <span className="flex items-center gap-1.5 font-semibold">
+                  موقع حيوي
+                </span>
+              </>
+            )}
           </div>
         </div>
 
         <div className="flex items-center justify-between pt-1">
           <div>
-            <div className="text-[10px] text-neutral-text/50 font-medium">السعر المطلوب</div>
-            <div className="text-sm font-black text-accent group-hover:brand-gradient-text transition-colors">
-              {property.priceLabel}
+            <div className="text-[10px] text-neutral-text/50 font-medium">حالة المشروع</div>
+            <div className={`text-xs sm:text-sm font-black transition-colors ${
+              isBooked
+                ? 'text-amber-400 font-bold'
+                : 'text-accent group-hover:brand-gradient-text'
+            }`}>
+              {property.status || property.badge || 'متاح للاستثمار'}
             </div>
           </div>
 
@@ -129,7 +171,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             }}
             className="brand-btn-primary font-extrabold text-xs px-4 py-2.5 rounded-xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
           >
-            حجز معاينة
+            {isBooked ? 'طلب استفسار' : 'حجز معاينة'}
             <ArrowLeft className="w-3.5 h-3.5" />
           </button>
         </div>

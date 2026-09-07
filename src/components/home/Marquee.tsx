@@ -1,6 +1,6 @@
 import React from 'react';
 
-const cities = ['الرياض', 'جدة', 'الدمام', 'مكة المكرمة', 'المدينة المنورة', 'الخبر', 'أبها', 'تبوك', 'نجران'];
+const cities = ['الرياض', 'الأحساء', 'جدة', 'الدمام', 'مكة المكرمة', 'المدينة المنورة', 'الخبر', 'أبها', 'تبوك'];
 
 export const Marquee: React.FC = () => {
   const list = [...cities, ...cities, ...cities];

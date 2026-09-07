@@ -167,7 +167,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
                       {selectedProperty.title}
                     </h3>
                     <div className="text-sm font-black brand-gradient-text mt-1">
-                      {selectedProperty.priceLabel}
+                      {selectedProperty.status || selectedProperty.badge || 'متاح للاستثمار والتأجير'}
                     </div>
                   </div>
                 </div>

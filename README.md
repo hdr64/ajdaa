@@ -35,3 +35,14 @@ See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rule
 # ajda-website
 # ajda
 # ajda-website
+
+
+remove any prices the company do not want to show any prices
+add the new projects images in src\assets\ajda1
+اهم المشاريع للشركة هي المحلات والمشاريع اللوجستية مثل المخازن والمستودعات
+
+امثله
+مستودعات المنصوريه almansoria
+مدينة الرياض
+
+مشروع الاحساء ( محجوز بالكامل ) alehsa

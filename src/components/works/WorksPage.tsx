@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Building2,
+  Building,
   Search,
   MapPin,
   Tag,
@@ -13,6 +14,7 @@ import {
   Home,
   Briefcase,
   Warehouse,
+  Store,
   Sparkles,
   X,
   Maximize2,
@@ -20,6 +22,7 @@ import {
   Bath,
   ArrowLeft,
   ChevronDown,
+  ShieldCheck,
 } from 'lucide-react';
 import { properties } from '../../data/properties';
 import type { Property, PropertyType, PriceType } from '../../types/property';
@@ -51,29 +54,32 @@ const preloadImages = (): Promise<void> => {
 };
 
 const typeLabels: Record<PropertyType, string> = {
-  villa: 'فيلا',
-  apartment: 'شقة',
-  office: 'مكتب',
-  house: 'بيت',
+  logistics: 'مستودعات ومخازن',
+  commercial: 'محلات ومجمعات تجارية',
+  office: 'مكاتب ومباني إدارية',
+  villa: 'فلل فاخرة',
+  apartment: 'شقق سكنية',
+  house: 'بيوت',
 };
 
 type CategoryKey = 'all' | PropertyType;
-type SortKey = 'default' | 'price-asc' | 'price-desc' | 'area-desc' | 'rooms-desc';
+type SortKey = 'default' | 'area-desc' | 'area-asc' | 'rooms-desc';
 
 const sortOptions: { key: SortKey; label: string }[] = [
-  { key: 'default', label: 'الأحدث' },
-  { key: 'price-asc', label: 'السعر: من الأقل' },
-  { key: 'price-desc', label: 'السعر: من الأعلى' },
-  { key: 'area-desc', label: 'المساحة: الأكبر' },
-  { key: 'rooms-desc', label: 'عدد الغرف' },
+  { key: 'default', label: 'الترتيب الافتراضي' },
+  { key: 'area-desc', label: 'المساحة: الأكبر أولاً' },
+  { key: 'area-asc', label: 'المساحة: الأصغر أولاً' },
+  { key: 'rooms-desc', label: 'عدد الوحدات / الغرف' },
 ];
 
 const categoryIcons: Record<CategoryKey, React.ComponentType<{ className?: string }>> = {
   all: LayoutGrid,
+  logistics: Warehouse,
+  commercial: Store,
+  office: Briefcase,
   villa: Home,
   apartment: Building2,
-  office: Briefcase,
-  house: Warehouse,
+  house: Building,
 };
 
 const specChip =
@@ -133,13 +139,17 @@ export const WorksPage: React.FC<WorksPageProps> = ({
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<CategoryKey>(
     initialFilters?.type && initialFilters.type !== 'الكل'
-      ? (initialFilters.type === 'فلل'
-          ? 'villa'
-          : initialFilters.type === 'شقق'
-          ? 'apartment'
-          : initialFilters.type === 'مكاتب'
+      ? (initialFilters.type === 'مستودعات' || initialFilters.type === 'مستودعات ومشاريع لوجستية' || initialFilters.type === 'logistics'
+          ? 'logistics'
+          : initialFilters.type === 'محلات' || initialFilters.type === 'محلات ومجمعات تجارية' || initialFilters.type === 'commercial'
+          ? 'commercial'
+          : initialFilters.type === 'مكاتب' || initialFilters.type === 'مكاتب تجارية' || initialFilters.type === 'office'
           ? 'office'
-          : initialFilters.type === 'بيوت'
+          : initialFilters.type === 'فلل' || initialFilters.type === 'villa'
+          ? 'villa'
+          : initialFilters.type === 'شقق' || initialFilters.type === 'apartment'
+          ? 'apartment'
+          : initialFilters.type === 'بيوت' || initialFilters.type === 'house'
           ? 'house'
           : 'all')
       : 'all'
@@ -177,14 +187,14 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         acc.all += 1;
         return acc;
       },
-      { all: 0, villa: 0, apartment: 0, office: 0, house: 0 },
+      { all: 0, logistics: 0, commercial: 0, office: 0, villa: 0, apartment: 0, house: 0 },
     );
     return [
       { key: 'all', label: 'الكل', count: counts.all },
       ...(Object.keys(typeLabels) as PropertyType[]).map((t) => ({
         key: t as CategoryKey,
         label: typeLabels[t],
-        count: counts[t],
+        count: counts[t] || 0,
       })),
     ];
   }, []);
@@ -195,7 +205,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
   );
 
   const featured = useMemo(
-    () => properties.reduce((a, b) => (b.price > a.price ? b : a)),
+    () => properties.find((p) => p.badge?.includes('رئيسي')) || properties[0],
     [],
   );
 
@@ -210,17 +220,14 @@ export const WorksPage: React.FC<WorksPageProps> = ({
     });
 
     switch (sort) {
-      case 'price-asc':
-        list = [...list].sort((a, b) => a.price - b.price);
-        break;
-      case 'price-desc':
-        list = [...list].sort((a, b) => b.price - a.price);
-        break;
       case 'area-desc':
         list = [...list].sort((a, b) => b.area - a.area);
         break;
+      case 'area-asc':
+        list = [...list].sort((a, b) => a.area - b.area);
+        break;
       case 'rooms-desc':
-        list = [...list].sort((a, b) => b.rooms - a.rooms);
+        list = [...list].sort((a, b) => (b.rooms ?? 0) - (a.rooms ?? 0));
         break;
       default:
         break;
@@ -357,9 +364,10 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               onChange={(e) => setPriceType(e.target.value as 'all' | PriceType)}
               className="field-select"
             >
-              <option value="all">بيع وإيجار</option>
-              <option value="بيع">بيع فقط</option>
-              <option value="إيجار">إيجار فقط</option>
+              <option value="all">كل العقود والفرص</option>
+              <option value="إيجار">تأجير واستثمار</option>
+              <option value="بيع">بيع وتملك</option>
+              <option value="استثمار">فرص استثمارية</option>
             </select>
           </div>
 
@@ -406,7 +414,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               <div className="relative order-2 md:order-1 p-8 md:p-10 flex flex-col justify-center">
                 <span className="flex items-center gap-1.5 w-fit text-[11px] font-bold px-3.5 py-1.5 rounded-full bg-gold/15 border border-gold/40 text-gold-light mb-4">
                   <Sparkles className="w-3.5 h-3.5 text-gold" />
-                  عقار الأسبوع المميز
+                  المشروع الاستراتيجي المميز
                 </span>
 
                 <h3 className="text-2xl md:text-3xl font-black text-heading mb-3 leading-snug group-hover:text-accent transition-colors">
@@ -419,18 +427,33 @@ export const WorksPage: React.FC<WorksPageProps> = ({
 
                 <div className="flex flex-wrap gap-2.5 mb-7">
                   <span className={specChip}>
-                    <Maximize2 className="w-3 h-3 text-accent" /> {featured.area} م²
+                    <Maximize2 className="w-3 h-3 text-accent" /> {featured.area.toLocaleString('en-US')} م²
                   </span>
-                  <span className={specChip}>
-                    <BedDouble className="w-3 h-3 text-accent" /> {featured.rooms} غرف
-                  </span>
-                  <span className={specChip}>
-                    <Bath className="w-3 h-3 text-accent" /> {featured.bathrooms} حمام
-                  </span>
+                  {featured.rooms && featured.rooms > 0 ? (
+                    <>
+                      <span className={specChip}>
+                        <BedDouble className="w-3 h-3 text-accent" /> {featured.rooms} غرف
+                      </span>
+                      <span className={specChip}>
+                        <Bath className="w-3 h-3 text-accent" /> {featured.bathrooms} حمام
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className={specChip}>
+                        <Warehouse className="w-3 h-3 text-accent" /> {featured.units || 'سعات تخزين كبرى'}
+                      </span>
+                      <span className={specChip}>
+                        <ShieldCheck className="w-3 h-3 text-accent" /> معتمد ومجهز
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-5">
-                  <div className="text-3xl font-black brand-gradient-text">{featured.priceLabel}</div>
+                  <div className="text-2xl font-black brand-gradient-text">
+                    {featured.status || featured.badge || 'متاح للاستثمار والتأجير'}
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -438,7 +461,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                     }}
                     className="brand-btn-primary font-extrabold text-xs px-7 py-3 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
                   >
-                    احجز الآن
+                    حجز معاينة / استفسار
                     <ArrowLeft className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -552,10 +575,18 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                 />
                 <span
                   className={`absolute top-3 right-3 text-[11px] font-extrabold px-3 py-1 rounded-full ${
-                    prop.priceType === 'بيع' ? 'brand-fill' : 'bg-success text-canvas font-black'
+                    prop.status === 'محجوز بالكامل' || prop.badge === 'محجوز بالكامل'
+                      ? 'bg-amber-500 text-black font-black'
+                      : prop.type === 'logistics'
+                      ? 'bg-blue-600 text-white font-bold'
+                      : prop.type === 'commercial'
+                      ? 'bg-emerald-600 text-white font-bold'
+                      : prop.priceType === 'بيع'
+                      ? 'brand-fill'
+                      : 'bg-success text-canvas font-black'
                   }`}
                 >
-                  {prop.priceType}
+                  {prop.status === 'محجوز بالكامل' ? 'محجوز بالكامل' : prop.badge || prop.priceType}
                 </span>
               </div>
 
@@ -576,22 +607,39 @@ export const WorksPage: React.FC<WorksPageProps> = ({
 
                   <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-text/70 mb-4">
                     <span className="flex items-center gap-1">
-                      <Maximize2 className="w-3.5 h-3.5 text-accent" /> {prop.area} م²
+                      <Maximize2 className="w-3.5 h-3.5 text-accent" /> {prop.area.toLocaleString('en-US')} م²
                     </span>
-                    <span className="flex items-center gap-1">
-                      <BedDouble className="w-3.5 h-3.5 text-accent" /> {prop.rooms} غرف نوم
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Bath className="w-3.5 h-3.5 text-accent" /> {prop.bathrooms} دورات مياه
-                    </span>
+                    {prop.rooms && prop.rooms > 0 ? (
+                      <>
+                        <span className="flex items-center gap-1">
+                          <BedDouble className="w-3.5 h-3.5 text-accent" /> {prop.rooms} غرف نوم
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Bath className="w-3.5 h-3.5 text-accent" /> {prop.bathrooms} دورات مياه
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-1 font-semibold text-heading">
+                          {prop.units || prop.typeAr}
+                        </span>
+                        <span className="flex items-center gap-1 text-accent font-semibold">
+                          جاهز ومجهز
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t border-muted-border/20">
                   <div>
-                    <span className="text-[10px] text-neutral-text/50 block">السعر المطلوب</span>
-                    <span className="text-base font-black brand-gradient-text">
-                      {prop.priceLabel}
+                    <span className="text-[10px] text-neutral-text/50 block">حالة المشروع</span>
+                    <span className={`text-base font-black ${
+                      prop.status === 'محجوز بالكامل' || prop.badge === 'محجوز بالكامل'
+                        ? 'text-amber-400'
+                        : 'brand-gradient-text'
+                    }`}>
+                      {prop.status || prop.badge || 'متاح للاستثمار'}
                     </span>
                   </div>
 

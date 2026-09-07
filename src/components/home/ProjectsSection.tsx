@@ -1,13 +1,14 @@
 import React from 'react';
-import { Building2, MapPin, CheckCircle2, ArrowLeft, TrendingUp, Layers } from 'lucide-react';
+import { Warehouse, Store, MapPin, CheckCircle2, ArrowLeft, TrendingUp, Layers } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
-import festa1 from '../../assets/ajda/festa/festa1.webp';
-import festa2 from '../../assets/ajda/festa/festa2.webp';
-import festa3 from '../../assets/ajda/festa/festa3.webp';
-import prime1 from '../../assets/ajda/prime/prime1.webp';
-import prime2 from '../../assets/ajda/prime/prime2.webp';
-import line1 from '../../assets/ajda/line/line1.webp';
-import line2 from '../../assets/ajda/line/line2.webp';
+import almansoria from '../../assets/ajda1/almansoria.webp';
+import alehsa from '../../assets/ajda1/alehsa.webp';
+import alehsa2 from '../../assets/ajda1/alehsa2.webp';
+import alehsa3 from '../../assets/ajda1/alehsa3.webp';
+import alehsa4 from '../../assets/ajda1/alehsa4.webp';
+import alehsa5 from '../../assets/ajda1/alehsa5.webp';
+import alkher from '../../assets/ajda1/alkher.webp';
+import alkher2 from '../../assets/ajda1/alkher2.webp';
 
 interface ProjectsSectionProps {
   onExplore?: () => void;
@@ -16,36 +17,36 @@ interface ProjectsSectionProps {
 const PROJECTS = [
   {
     id: 1,
-    title: 'أجدا فيستا · Ajda Vista',
-    subtitle: 'مجمع تجاري وإداري متكامل متعدد المكاتب والأقسام بتصاميم استراتيجية ومساحات واسعة',
-    city: 'الرياض · طريق الملك فهد',
-    status: 'متاح للإيجار والاستثمار',
-    units: 'مبنى تجاري متعدد الأقسام',
-    image: festa1,
-    gallery: [festa1, festa2, festa3],
-    features: ['مكاتب تجارية متعددة المساحات', 'واجهات زجاجية عصرية', 'مواقف خاصة وأنظمة أمنية'],
+    title: 'مستودعات المنصورية اللوجستية · Al Mansoria',
+    subtitle: 'مشروع لوجستي متكامل يضم مستودعات ومخازن وسلاسل إمداد بمواصفات تخزين عالمية وساحات شحن هيدروليكية',
+    city: 'مدينة الرياض · حي المنصورية',
+    status: 'متاح للتأجير والاستثمار',
+    units: 'مستودعات ومخازن كبرى',
+    image: almansoria,
+    gallery: [almansoria],
+    features: ['سقف مرتفع وسعات تخزين واسعة', 'أرصفة شحن وتفريغ هيدروليكية', 'أنظمة إطفاء وأمن متطورة 24/7'],
   },
   {
     id: 2,
-    title: 'أجدا برايم · Ajda Prime',
-    subtitle: 'مركز أعمال تنفيذي عصري يضم مساحات إدارية ومكاتب فاخرة مجهزة بأحدث التقنيات',
-    city: 'جدة · حي الشاطئ',
-    status: 'جاهز للاستخدام والتسليم',
-    units: 'مبنى إداري تنفيذي',
-    image: prime1,
-    gallery: [prime1, prime2],
-    features: ['مقر استراتيجي للشركات', 'أنظمة تحكم وأمن ذكية', 'قاعات اجتماعات تنفيذية'],
+    title: 'مشروع الأحساء التجاري · Al Ahsa Commercial',
+    subtitle: 'مجمع تجاري ومحلات استثمارية فاخرة في موقع استراتيجي حيوي بواجهات زجاجية وتصاميم معمارية راقية',
+    city: 'مدينة الأحساء · موقع استراتيجي حيوي',
+    status: 'محجوز بالكامل',
+    units: 'مجمع محلات تجارية متكامل',
+    image: alehsa,
+    gallery: [alehsa, alehsa2, alehsa3, alehsa4, alehsa5],
+    features: ['تصميم معماري وتراثي عصري فاخر', 'واجهات زجاجية مزدوجة للمحلات', 'مواقف سيارات واسعة ومهيأة للزوار'],
   },
   {
     id: 3,
-    title: 'أجدا لاين · Ajda Line',
-    subtitle: 'مشروع تجاري وإداري بموقع حيوي متميز يوفر بيئة عمل استثمارية مرخصة ومكتملة',
-    city: 'الرياض · شمال طريق الملك سلمان',
-    status: 'قيد البيع والاستثمار',
-    units: 'مجمع مكاتب وأقسام',
-    image: line1,
-    gallery: [line1, line2],
-    features: ['مواقع تجارية حيوية', 'تصميم معماري مستدام', 'خدمات إدارة ممتلكات متكاملة'],
+    title: 'مجمع محلات أجدا لوكس · Ajda Lux Shops',
+    subtitle: 'سلسلة صالات ومحلات تجارية راقية بتصميم مودرن عصري مع تراسات خارجية ومواقف زوار مخصصة',
+    city: 'مدينة الرياض · محور تجاري رئيسي',
+    status: 'متاح للتأجير والاستثمار',
+    units: 'محلات ومعارض تجارية فاخرة',
+    image: alkher2,
+    gallery: [alkher2, alkher],
+    features: ['واجهات عرض زجاجية مزدوجة', 'تراسات وجلسات خارجية راقية', 'مواقف خاصة لعملاء المحلات'],
   },
 ];
 
@@ -55,14 +56,14 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore }) =
       {/* Section Header */}
       <div className="relative text-center mb-16">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full mb-3">
-          <Building2 className="w-3.5 h-3.5 text-gold" />
-          مشاريع أجدا العقارية الرئيسية
+          <Warehouse className="w-3.5 h-3.5 text-gold" />
+          المشاريع اللوجستية والمحلات التجارية
         </span>
         <h2 className="text-3xl md:text-4xl lg:text-5xl font-black mt-3">
-          المشاريع التجارية والأبنية الإدارية <span className="brand-gradient-text">لأجدا العقارية</span>
+          أهم المشاريع اللوجستية والمحلات التجارية <span className="brand-gradient-text">لأجدا العقارية</span>
         </h2>
         <p className="text-sm md:text-base text-neutral-text/80 max-w-2xl mx-auto mt-4 leading-relaxed font-medium">
-          مباني تجارية وإدارية متعددة المكاتب والأقسام صُممت لتلبي تطلعات كبرى الشركات والمستثمرين في المملكة.
+          مستودعات ومخازن لوجستية متطورة ومجمعات محلات تجارية استراتيجية صُممت لخدمة قطاع الأعمال وسلاسل الإمداد في المملكة.
         </p>
       </div>
 
@@ -79,7 +80,13 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore }) =
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/20 to-transparent" />
 
-                <span className="absolute top-4 right-4 text-xs font-black px-3.5 py-1.5 rounded-full brand-fill shadow-lg">
+                <span
+                  className={`absolute top-4 right-4 text-xs font-black px-3.5 py-1.5 rounded-full shadow-lg ${
+                    project.status === 'محجوز بالكامل'
+                      ? 'bg-amber-500 text-black font-black'
+                      : 'brand-fill'
+                  }`}
+                >
                   {project.status}
                 </span>
 
@@ -123,7 +130,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore }) =
                     onClick={onExplore}
                     className="brand-btn-primary text-xs font-extrabold px-5 py-2.5 rounded-xl inline-flex items-center gap-1.5 hover:scale-105 transition cursor-pointer"
                   >
-                    استعرض العقارات
+                    استعرض المشاريع
                     <ArrowLeft className="w-3.5 h-3.5" />
                   </button>
                 </div>

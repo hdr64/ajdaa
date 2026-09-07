@@ -17,19 +17,25 @@ interface FormState {
 const initialForm: FormState = { name: '', phone: '', email: '', subject: 'استفسار عام', message: '' };
 
 const contactItems = [
-  { icon: MapPin, label: 'العنوان', value: 'الرياض، حي العليا، طريق الملك فهد', dir: 'rtl' as const },
-  { icon: Phone, label: 'الهاتف', value: '+966 50 000 0000', dir: 'ltr' as const },
-  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@daraloj.com', dir: 'ltr' as const },
+  { icon: MapPin, label: 'العنوان', value: 'الرياض، طريق الملك فهد', dir: 'rtl' as const },
+  { icon: Phone, label: 'الهاتف', value: '+966 55 048 4326', dir: 'ltr' as const },
+  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajda.com.sa', dir: 'ltr' as const },
   { icon: Clock, label: 'ساعات العمل', value: 'السبت – الخميس، 9ص – 6م', dir: 'rtl' as const },
 ];
 
 const highlights = [
   { icon: Zap, text: 'رد سريع خلال 24 ساعة' },
   { icon: ShieldCheck, text: 'خصوصية وأمان لبياناتك' },
-  { icon: Headphones, text: 'دعم متواصل بعد الشراء' },
+  { icon: Headphones, text: 'دعم استشاري واستثماري مستمر' },
 ];
 
-const subjects = ['استفسار عام', 'عرض عقار', 'خدمات التمويل', 'طلب تقييم عقار', 'شكوى أو اقتراح'];
+const subjects = [
+  'استفسار عام',
+  'حجز / استفسار عن مستودع لوجستي',
+  'حجز / استفسار عن محل أو معرض تجاري',
+  'استفسار عن مكاتب إدارية',
+  'فرص استثمار وشراكات'
+];
 
 interface FieldProps {
   label: string;

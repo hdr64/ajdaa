@@ -7,8 +7,8 @@ interface HeroSectionProps {
   onBook: () => void;
 }
 
-const CITIES = ['الكل', 'الرياض', 'جدة', 'الدمام', 'مكة المكرمة', 'المدينة المنورة', 'الخبر'];
-const TYPES = ['الكل', 'فلل', 'شقق', 'مكاتب', 'بيوت'];
+const CITIES = ['الكل', 'الرياض', 'الأحساء', 'جدة', 'الدمام', 'الخبر'];
+const TYPES = ['الكل', 'مستودعات ومشاريع لوجستية', 'محلات ومجمعات تجارية', 'مكاتب ومباني إدارية', 'فلل سكنية'];
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) => {
   const sectionRef = useRef<HTMLElement>(null);
@@ -18,7 +18,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
   // Search state
   const [selectedCity, setSelectedCity] = useState('الكل');
   const [selectedType, setSelectedType] = useState('الكل');
-  const [selectedPriceType, setSelectedPriceType] = useState<'all' | 'بيع' | 'إيجار'>('all');
+  const [selectedPriceType, setSelectedPriceType] = useState<'all' | 'بيع' | 'إيجار' | 'استثمار'>('all');
 
   useEffect(() => {
     setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -94,7 +94,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
             style={{ animationDelay: '150ms' }}
           >
             <Sparkles className="w-4 h-4 text-gold" />
-            <span className="text-neutral-text">أجدا العقارية · Ajda Real Estate</span>
+            <span className="text-neutral-text">أجدا العقارية · ريادة المشاريع اللوجستية والتجارية</span>
           </div>
 
           {/* Headline provided by User */}
@@ -122,7 +122,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
             className="text-neutral-text/85 text-base sm:text-lg max-w-2xl mt-6 leading-relaxed hero-reveal font-medium"
             style={{ animationDelay: '650ms' }}
           >
-            في “أجدا العقارية” نمزج بين الرؤية الاستراتيجية والتصميم الذكي لنبتكر مشاريع ترتقي بجودة الحياة وتحقق قيمة استثمارية مستدامة.
+            في “أجدا العقارية” نمزج بين الرؤية الاستراتيجية والتنفيذ المتقن لنبتكر أضخم المشاريع اللوجستية كالمستودعات والمخازن، والمحلات والمجمعات التجارية، والأبنية الإدارية.
           </p>
 
           {/* CTAs */}
@@ -134,7 +134,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
               onClick={() => onExplore()}
               className="brand-btn-primary font-black px-8 py-4 rounded-2xl inline-flex items-center gap-2.5 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer shadow-xl shadow-accent/25"
             >
-              استعرض عقارات أجدا
+              استعرض مشاريع أجدا
               <ArrowLeft className="w-5 h-5" />
             </button>
             <button
@@ -152,11 +152,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
           <div className="glass-card rounded-3xl p-5 relative overflow-hidden border border-accent/30 shadow-2xl shadow-black/25 backdrop-blur-xl">
             <div className="search-shine" aria-hidden="true" />
 
-            {/* Price Type Tabs */}
+            {/* Opportunity Type Tabs */}
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-muted-border/20">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-neutral-text/60 ml-2">نوع العقد:</span>
-                {(['all', 'بيع', 'إيجار'] as const).map((mode) => (
+                <span className="text-xs font-bold text-neutral-text/60 ml-2">نوع الفرصة:</span>
+                {(['all', 'إيجار', 'استثمار', 'بيع'] as const).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setSelectedPriceType(mode)}
@@ -166,14 +166,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
                         : 'bg-surface/50 text-neutral-text/70 hover:text-heading hover:bg-surface-hover'
                     }`}
                   >
-                    {mode === 'all' ? 'الكل' : mode}
+                    {mode === 'all' ? 'الكل' : mode === 'إيجار' ? 'تأجير' : mode === 'استثمار' ? 'استثمار' : 'بيع'}
                   </button>
                 ))}
               </div>
 
               <div className="hidden sm:flex items-center gap-1.5 text-xs text-gold font-bold">
                 <ShieldCheck className="w-4 h-4" />
-                مشاريع مرخصة ومضمونة
+                مشاريع معتمدة ومضمونة
               </div>
             </div>
 
