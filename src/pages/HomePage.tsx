@@ -6,32 +6,25 @@ import { Marquee } from '../components/home/Marquee';
 import { AboutSection } from '../components/home/AboutSection';
 import { ServicesSection } from '../components/home/ServicesSection';
 import { ProcessSection } from '../components/home/ProcessSection';
-import { StatsSection } from '../components/home/StatsSection';
 import { ProjectsSection } from '../components/home/ProjectsSection';
 import { VideoSection } from '../components/home/VideoSection';
 import { ClientsSection } from '../components/home/ClientsSection';
 import { CtaSection } from '../components/home/CtaSection';
-import { PropertyCard } from '../components/common/PropertyCard';
 import { Reveal } from '../components/common/Reveal';
-import { useLanguage } from '../hooks/useLanguage';
 
 interface HomePageProps {
   onExploreHero: (filters?: { city?: string; type?: string; priceType?: string }) => void;
   onNavigate: (page: 'home' | 'works' | 'booking' | 'contact') => void;
-  onSelectProperty: (prop: Property) => void;
+  onSelectProperty?: (prop: Property) => void;
   onQuickView: (prop: Property) => void;
-  onShowToast: (msg: string) => void;
+  onShowToast?: (msg: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   onExploreHero,
   onNavigate,
-  onSelectProperty,
   onQuickView,
-  onShowToast,
 }) => {
-
-
   return (
     <>
       <HeroSection
@@ -45,8 +38,6 @@ export const HomePage: React.FC<HomePageProps> = ({
         <AboutSection />
       </Reveal>
 
-
-
       <Reveal direction="up">
         <ServicesSection onExplore={() => onNavigate('works')} />
       </Reveal>
@@ -54,8 +45,6 @@ export const HomePage: React.FC<HomePageProps> = ({
       <Reveal direction="up">
         <ProcessSection />
       </Reveal>
-
-      {/* <StatsSection /> */}
 
       <Reveal direction="up">
         <ProjectsSection

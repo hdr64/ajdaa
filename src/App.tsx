@@ -45,18 +45,27 @@ export function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [transition, setTransition] = useState<'idle' | 'out' | 'in'>('idle');
   const transitioningRef = useRef(false);
+  const scrollPositionsRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
     if (!window.history.state?.page) {
       const initialPage = getPageFromPath(window.location.pathname);
-      window.history.replaceState({ page: initialPage }, '', getPathForPage(initialPage));
+      window.history.replaceState({ page: initialPage, scrollY: window.scrollY }, '', getPathForPage(initialPage));
     }
 
     const handlePopState = (event: PopStateEvent) => {
       const pageFromState = (event.state?.page as PageKey) || getPageFromPath(window.location.pathname);
+      const targetScrollY = event.state?.scrollY ?? scrollPositionsRef.current[pageFromState] ?? 0;
+
       runTransition(() => {
         setCurrentPage(pageFromState);
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: targetScrollY, behavior: 'auto' });
+        });
       });
     };
 
@@ -90,10 +99,15 @@ export function App() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
+    const currentScrollY = window.scrollY;
+    scrollPositionsRef.current[currentPage] = currentScrollY;
+    window.history.replaceState({ page: currentPage, scrollY: currentScrollY }, '', getPathForPage(currentPage));
+
     runTransition(() => {
       setCurrentPage(page);
       if (pushHistory) {
-        window.history.pushState({ page }, '', getPathForPage(page));
+        window.history.pushState({ page, scrollY: 0 }, '', getPathForPage(page));
       }
       window.scrollTo({ top: 0, behavior: 'auto' });
     });
