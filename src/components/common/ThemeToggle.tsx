@@ -4,12 +4,30 @@ import { useTheme } from '../../hooks/useTheme';
 
 interface ThemeToggleProps {
   className?: string;
-  variant?: 'navbar' | 'mobile';
+  variant?: 'navbar' | 'mobile' | 'compact';
 }
 
 export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', variant = 'navbar' }) => {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
+
+  if (variant === 'compact') {
+    return (
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className={`w-9 h-9 rounded-xl flex items-center justify-center text-heading hover:text-accent hover:bg-surface-hover active:scale-95 transition-all cursor-pointer ${className}`}
+        title={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
+        aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
+      >
+        {isDark ? (
+          <Sun className="w-4 h-4 text-amber-300" />
+        ) : (
+          <Moon className="w-4 h-4 text-accent" />
+        )}
+      </button>
+    );
+  }
 
   if (variant === 'mobile') {
     return (

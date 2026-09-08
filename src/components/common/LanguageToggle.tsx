@@ -3,11 +3,28 @@ import { Globe } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 
 interface LanguageToggleProps {
-  variant?: 'navbar' | 'mobile';
+  variant?: 'navbar' | 'mobile' | 'compact';
 }
 
 export const LanguageToggle: React.FC<LanguageToggleProps> = ({ variant = 'navbar' }) => {
   const { language, toggleLanguage } = useLanguage();
+
+  if (variant === 'compact') {
+    return (
+      <button
+        type="button"
+        onClick={toggleLanguage}
+        className="w-9 h-9 relative rounded-xl flex items-center justify-center text-heading hover:text-accent hover:bg-surface-hover active:scale-95 transition-all cursor-pointer select-none"
+        title={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
+        aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
+      >
+        <Globe className="w-4 h-4 text-accent" />
+        <span className="absolute bottom-0.5 end-0.5 text-[7px] font-black px-1 py-0.2 rounded bg-accent text-white leading-tight pointer-events-none">
+          {language === 'ar' ? 'EN' : 'ع'}
+        </span>
+      </button>
+    );
+  }
 
   if (variant === 'mobile') {
     return (

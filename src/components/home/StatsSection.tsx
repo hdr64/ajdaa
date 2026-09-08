@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Building2, Smile, Award, Map, TrendingUp } from 'lucide-react';
 import { useIntersection } from '../../hooks/useIntersection';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface CounterProps {
   target: number;
@@ -38,24 +39,34 @@ const NumberCounter: React.FC<CounterProps> = ({ target, active }) => {
 };
 
 const stats = [
-  { target: 500, label: 'عقار متاح', icon: Building2 },
-  { target: 1200, label: 'عميل ومستثمر', icon: Smile },
-  { target: 15, label: 'سنة خبرة', icon: Award },
-  { target: 8, label: 'مدن سعودية', icon: Map },
+  { target: 500, labelAr: 'عقار متاح', labelEn: 'Available Properties', icon: Building2 },
+  { target: 1200, labelAr: 'عميل ومستثمر', labelEn: 'Clients & Investors', icon: Smile },
+  { target: 15, labelAr: 'سنة خبرة', labelEn: 'Years Experience', icon: Award },
+  { target: 8, labelAr: 'مدن سعودية', labelEn: 'Saudi Cities', icon: Map },
 ];
 
 export const StatsSection: React.FC = () => {
   const { ref, isVisible } = useIntersection<HTMLDivElement>({ threshold: 0.2 });
+  const { language } = useLanguage();
+  const isAr = language === 'ar';
 
   return (
     <section ref={ref} className="relative py-14 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
       <div className="text-center mb-8 sm:mb-12">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-3.5 py-1.5 rounded-full">
           <TrendingUp className="w-3.5 h-3.5 text-accent-light" />
-          أرقامنا
+          {isAr ? 'أرقامنا' : 'Our Numbers'}
         </span>
         <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black mt-3 sm:mt-5">
-          نتائج <span className="brand-gradient-text">تتحدث عنا</span>
+          {isAr ? (
+            <>
+              نتائج <span className="brand-gradient-text">تتحدث عنا</span>
+            </>
+          ) : (
+            <>
+              Results That <span className="brand-gradient-text">Speak for Us</span>
+            </>
+          )}
         </h2>
       </div>
 
@@ -82,7 +93,7 @@ export const StatsSection: React.FC = () => {
                 <NumberCounter target={stat.target} active={isVisible} />+
               </div>
               <div className="text-xs sm:text-sm text-neutral-text/75 font-semibold">
-                {stat.label}
+                {isAr ? stat.labelAr : stat.labelEn}
               </div>
             </div>
           );
