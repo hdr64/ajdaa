@@ -49,11 +49,11 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
       <div className="relative text-center mb-8 sm:mb-12">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-3.5 py-1.5 rounded-full mb-3">
           <Building2 className="w-3.5 h-3.5 text-gold" />
-          {isAr ? 'محفظة مشاريع أجدى العقارية' : 'Ajda Real Estate Portfolio'}
+          {isAr ? 'محفظة مشاريع أجدا العقارية' : 'Ajda Real Estate Portfolio'}
         </span>
         <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black mt-2 sm:mt-3 leading-tight text-heading">
           {isAr ? 'المشاريع الاستثمارية والإدارية ' : 'Investment & Corporate Developments '}
-          <span className="brand-gradient-text">{isAr ? 'لأجدى العقارية' : 'by Ajda Real Estate'}</span>
+          <span className="brand-gradient-text">{isAr ? 'لأجدا العقارية' : 'by Ajda Real Estate'}</span>
         </h2>
         <p className="text-xs sm:text-base text-neutral-text/80 max-w-2xl mx-auto mt-3 sm:mt-4 leading-relaxed font-medium">
           {isAr

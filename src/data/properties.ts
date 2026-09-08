@@ -42,7 +42,7 @@ export const properties: Property[] = [
     gallery: [almansoria],
     badge: 'مشروع لوجستي رئيسي',
     badgeEn: 'Key Logistics Hub',
-    description: 'مشروع مستودعات المنصورية اللوجستية الحديثة لشركة أجدى للتطوير والاستثمار في مدينة الرياض. صُمم بأعلى معايير التخزين والمخازن وسلاسل الإمداد العالمية، مع ساحات شحن وتفريغ هيدروليكية ومواقف شاحنات متكاملة وأنظمة إطفاء وسلامة ذكية.',
+    description: 'مشروع مستودعات المنصورية اللوجستية الحديثة لشركة أجدا للتطوير والاستثمار في مدينة الرياض. صُمم بأعلى معايير التخزين والمخازن وسلاسل الإمداد العالمية، مع ساحات شحن وتفريغ هيدروليكية ومواقف شاحنات متكاملة وأنظمة إطفاء وسلامة ذكية.',
     descriptionEn: 'Al Mansoria modern logistics warehousing hub in Riyadh, developed to top international storage standards with hydraulic loading bays, dedicated heavy vehicle logistics yards, and 24/7 smart safety systems.',
     features: [
       'سقف مرتفع وسعات تخزين ضخمة',
@@ -78,7 +78,7 @@ export const properties: Property[] = [
     gallery: [alehsa, alehsa2, alehsa3, alehsa4, alehsa5],
     badge: 'محجوز بالكامل',
     badgeEn: 'Fully Booked',
-    description: 'مشروع الأحساء التجاري التابع لشركة أجدى العقارية، مجمع تجاري متكامل يضم محلات ومعارض تجارية عصرية بتصميم معماري فخم يدمج الأصالة بالحداثة، مع واجهات زجاجية واسعة وإضاءات ديكورية استثنائية (محجوز بالكامل).',
+    description: 'مشروع الأحساء التجاري التابع لشركة أجدا العقارية، مجمع تجاري متكامل يضم محلات ومعارض تجارية عصرية بتصميم معماري فخم يدمج الأصالة بالحداثة، مع واجهات زجاجية واسعة وإضاءات ديكورية استثنائية (محجوز بالكامل).',
     descriptionEn: 'Al Ahsa commercial complex by Ajda Real Estate, combining authentic heritage architecture with wide contemporary glass storefronts and decorative lighting (Fully Booked).',
     features: [
       'تصميم معماري وتراثي عصري فاخر',
@@ -98,7 +98,7 @@ export const properties: Property[] = [
     type: 'commercial',
     typeAr: 'محلات تجارية فاخرة',
     typeEn: 'Luxury Commercial Shops',
-    title: 'مجمع محلات أجدى لوكس',
+    title: 'مجمع محلات أجدا لوكس',
     titleEn: 'Ajda Lux Commercial Shops',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -114,7 +114,7 @@ export const properties: Property[] = [
     gallery: [alkher2, alkher],
     badge: 'محلات تجارية فاخرة',
     badgeEn: 'Luxury Commercial Retail',
-    description: 'مجمع محلات أجدى لوكس التجاري بتصميم مودرن متطور في مدينة الرياض، يضم سلسلة محلات تجارية راقية وصالات عرض على واجهة رئيسية حيوية، مجهزة بأحدث التشطيبات ومواقف أمامية مخصصة للعملاء.',
+    description: 'مجمع محلات أجدا لوكس التجاري بتصميم مودرن متطور في مدينة الرياض، يضم سلسلة محلات تجارية راقية وصالات عرض على واجهة رئيسية حيوية، مجهزة بأحدث التشطيبات ومواقف أمامية مخصصة للعملاء.',
     descriptionEn: 'Ajda Lux commercial retail complex featuring contemporary styling along a vibrant Riyadh arterial corridor, complete with outdoor terraces and front customer parking.',
     features: [
       'واجهات عرض زجاجية مزدوجة',
@@ -134,7 +134,7 @@ export const properties: Property[] = [
     type: 'commercial',
     typeAr: 'معارض ومحلات تجارية',
     typeEn: 'Commercial Showrooms',
-    title: 'معارض وصالات أجدى فيرا',
+    title: 'معارض وصالات أجدا فيرا',
     titleEn: 'Ajda Vera Commercial Showrooms',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -150,7 +150,7 @@ export const properties: Property[] = [
     gallery: [vera],
     badge: 'معارض تجارية كبرى',
     badgeEn: 'Major Commercial Showrooms',
-    description: 'صالات ومعارض أجدى التجارية على محور حيوي رئيسي، توفر مساحات مفتوحة وواجهات زجاجية مزدوجة مع أسقف عالية ومواقف سيارات واسعة تناسب كبرى العلامات التجارية والشركات.',
+    description: 'صالات ومعارض أجدا التجارية على محور حيوي رئيسي، توفر مساحات مفتوحة وواجهات زجاجية مزدوجة مع أسقف عالية ومواقف سيارات واسعة تناسب كبرى العلامات التجارية والشركات.',
     descriptionEn: 'High-visibility corporate showrooms on a prime commercial thoroughfare, providing expansive open floor plates, high ceilings, and separate rear loading logistics.',
     features: [
       'مواقف سيارات منظمة أمامية',
@@ -170,7 +170,7 @@ export const properties: Property[] = [
     type: 'office',
     typeAr: 'مبنى تجاري وإداري',
     typeEn: 'Commercial & Office Hub',
-    title: 'مبنى أجدى فيستا التجاري والإداري',
+    title: 'مبنى أجدا فيستا التجاري والإداري',
     titleEn: 'Ajda Vista Business Building',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -186,7 +186,7 @@ export const properties: Property[] = [
     gallery: [festa1, festa2, festa3],
     badge: 'مشروع إداري رئيسي',
     badgeEn: 'Flagship Corporate Hub',
-    description: 'مشروع أجدى فيستا التجاري والإداري، مبنى متطور متعدد المكاتب والأقسام التجارية على أعلى معايير التصميم المعماري الذكي، مع واجهات عصرية ومواقف خاصة وخدمات صيانة شاملة.',
+    description: 'مشروع أجدا فيستا التجاري والإداري، مبنى متطور متعدد المكاتب والأقسام التجارية على أعلى معايير التصميم المعماري الذكي، مع واجهات عصرية ومواقف خاصة وخدمات صيانة شاملة.',
     descriptionEn: 'Ajda Vista multi-tenant corporate center developed according to smart building benchmarks with thermal-insulated facades, executive entrances, and facility management.',
     features: [
       'مكاتب تجارية متعددة المساحات',
@@ -206,7 +206,7 @@ export const properties: Property[] = [
     type: 'office',
     typeAr: 'مكاتب تنفيذية ومركز أعمال',
     typeEn: 'Executive Business Center',
-    title: 'مركز أجدى برايم للأعمال',
+    title: 'مركز أجدا برايم للأعمال',
     titleEn: 'Ajda Prime Executive Center',
     priceType: 'بيع',
     priceTypeEn: 'Sale / Investment',
@@ -222,7 +222,7 @@ export const properties: Property[] = [
     gallery: [prime1, prime2],
     badge: 'مركز تنفيذي',
     badgeEn: 'Executive Corporate Hub',
-    description: 'مشروع أجدى برايم التجاري، مركز أعمال تنفيذي يضم مساحات إدارية ومكاتب فاخرة مجهزة بأحدث التقنيات وأنظمة التحكم الأمني الذكي وبيئة عمل مؤسسية متكاملة.',
+    description: 'مشروع أجدا برايم التجاري، مركز أعمال تنفيذي يضم مساحات إدارية ومكاتب فاخرة مجهزة بأحدث التقنيات وأنظمة التحكم الأمني الذكي وبيئة عمل مؤسسية متكاملة.',
     descriptionEn: 'Ajda Prime executive business center housing luxury corporate offices equipped with cutting-edge smart environmental controls and enterprise-grade infrastructure.',
     features: [
       'مقر استراتيجي للشركات والجهات الكبرى',
@@ -242,7 +242,7 @@ export const properties: Property[] = [
     type: 'office',
     typeAr: 'مكاتب إدارية استراتيجية',
     typeEn: 'Strategic Corporate Offices',
-    title: 'مجمع أجدى لاين الإداري',
+    title: 'مجمع أجدا لاين الإداري',
     titleEn: 'Ajda Line Corporate Complex',
     priceType: 'إيجار',
     priceTypeEn: 'Lease',
@@ -258,7 +258,7 @@ export const properties: Property[] = [
     gallery: [line1, line2],
     badge: 'موقع استراتيجي',
     badgeEn: 'Strategic Arterial Address',
-    description: 'مشروع أجدى لاين التجاري والإداري بموقع حيوي متميز يوفر بيئة عمل استثمارية مرخصة ومكتملة الخدمات للمؤسسات والشركات.',
+    description: 'مشروع أجدا لاين التجاري والإداري بموقع حيوي متميز يوفر بيئة عمل استثمارية مرخصة ومكتملة الخدمات للمؤسسات والشركات.',
     descriptionEn: 'Ajda Line office and commercial development offering licensed, fully serviced corporate environments for enterprises and growing commercial ventures.',
     features: [
       'مواقع تجارية حيوية وسهولة وصول',
@@ -334,4 +334,3 @@ export const getPropertyDisplay = (prop: Property, language: 'ar' | 'en'): Prope
     features,
   };
 };
-
