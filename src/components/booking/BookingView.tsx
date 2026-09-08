@@ -110,11 +110,11 @@ export const BookingView: React.FC<BookingViewProps> = ({
           <React.Fragment key={item.num}>
             <div className="flex flex-col items-center gap-2">
               <div
-                className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm transition-all duration-500 ${
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm transition-all duration-300 ${
                   step >= item.num
-                    ? 'brand-fill shadow-lg shadow-accent/25'
+                    ? 'brand-fill'
                     : 'bg-surface text-neutral-text/40 border border-muted-border/30'
-                } ${item.num === step ? 'step-ring scale-105' : ''}`}
+                } ${item.num === step ? 'ring-2 ring-accent/50' : ''}`}
               >
                 {item.num}
               </div>
@@ -182,7 +182,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
           <div className="max-w-3xl mx-auto space-y-6">
             {/* Selected Property Preview Header */}
             {selectedProperty && (
-              <div className="glass-card border border-accent/40 p-4 sm:p-5 rounded-3xl flex items-center justify-between gap-4 shadow-xl">
+              <div className="glass-card border border-accent/40 p-4 sm:p-5 rounded-3xl flex items-center justify-between gap-4 shadow-xs">
                 <div className="flex items-center gap-4">
                   <img
                     src={selectedProperty.image}
@@ -375,7 +375,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
 
                 <button
                   type="submit"
-                  className="brand-btn-primary font-black text-sm px-8 py-3.5 rounded-full hover:scale-105 transition cursor-pointer shadow-lg shadow-accent/30 inline-flex items-center gap-2"
+                  className="brand-btn-primary font-black text-sm px-8 py-3.5 rounded-full hover:-translate-y-0.5 transition cursor-pointer inline-flex items-center gap-2"
                 >
                   {isAr ? 'تأكيد موعد المعاينة' : 'Confirm Viewing Appointment'}
                   {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
@@ -387,7 +387,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
 
         {/* Step 3: Confirmation Receipt */}
         {step === 3 && (
-          <div className="max-w-xl mx-auto glass-card rounded-3xl p-8 sm:p-10 text-center border border-accent/40 shadow-2xl">
+          <div className="max-w-xl mx-auto glass-card rounded-3xl p-8 sm:p-10 text-center border border-accent/40 shadow-xs">
             <div className="w-20 h-20 rounded-full bg-success/20 border border-success/50 flex items-center justify-center mx-auto mb-6 pop-in">
               <CheckCircle2 className="w-10 h-10 text-success" />
             </div>

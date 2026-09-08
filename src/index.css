@@ -24,28 +24,26 @@
   :root,
   html.light,
   [data-theme="light"] {
-    --accent: #197285;
-    --accent-light: #258ca2;
-    --accent-dark: #0f5261;
-    --gold: #b38238;
-    --gold-light: #c9964a;
-    --canvas: #f6f8fa;
-    --canvas-dark: #ebf0f5;
+    --accent: #0f5f70;
+    --accent-light: #167a90;
+    --accent-dark: #094754;
+    --gold: #a67323;
+    --gold-light: #bf8d3b;
+    --canvas: #f8fafc;
+    --canvas-dark: #f1f5f9;
     --surface: #ffffff;
-    --surface-hover: #f1f5f9;
+    --surface-hover: #f8fafc;
     --muted-border: #cbd5e1;
-    --neutral-text: #334155;
-    --heading: #09131f;
-    --success: #059669;
+    --neutral-text: #0f172a;
+    --heading: #060e18;
+    --success: #047857;
     --brand-btn-text: #ffffff;
-    --glass-card-bg: linear-gradient(180deg,
-        rgba(255, 255, 255, 0.95),
-        rgba(255, 255, 255, 0.8));
-    --glass-border: rgba(203, 213, 225, 0.7);
-    --glass-shadow: 0 16px 36px -12px rgba(15, 23, 42, 0.08);
-    --bg-radial-1: color-mix(in srgb, var(--accent) 5%, transparent);
-    --bg-radial-2: color-mix(in srgb, var(--gold) 4%, transparent);
-    --bg-radial-3: color-mix(in srgb, var(--accent-light) 4%, transparent);
+    --glass-card-bg: #ffffff;
+    --glass-border: #e2e8f0;
+    --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+    --bg-radial-1: color-mix(in srgb, var(--accent) 4%, transparent);
+    --bg-radial-2: color-mix(in srgb, var(--gold) 3%, transparent);
+    --bg-radial-3: color-mix(in srgb, var(--accent-light) 3%, transparent);
   }
 
   html.dark,
@@ -59,16 +57,16 @@
     --canvas-dark: #060b11;
     --surface: #1c2c3b;
     --surface-hover: #23384b;
-    --muted-border: #54606e;
-    --neutral-text: #d5dbe1;
-    --heading: #eef7fa;
+    --muted-border: #3d4a58;
+    --neutral-text: #e2e8f0;
+    --heading: #ffffff;
     --success: #3bd79b;
     --brand-btn-text: #060b11;
     --glass-card-bg: linear-gradient(180deg,
-        color-mix(in srgb, var(--surface) 65%, transparent),
-        color-mix(in srgb, var(--surface) 25%, transparent));
-    --glass-border: color-mix(in srgb, var(--muted-border) 32%, transparent);
-    --glass-shadow: 0 20px 45px -30px rgb(0 0 0 / 0.8);
+        color-mix(in srgb, var(--surface) 80%, transparent),
+        color-mix(in srgb, var(--surface) 40%, transparent));
+    --glass-border: color-mix(in srgb, var(--muted-border) 45%, transparent);
+    --glass-shadow: 0 4px 18px -6px rgba(0, 0, 0, 0.3);
     --bg-radial-1: color-mix(in srgb, var(--accent) 6%, transparent);
     --bg-radial-2: color-mix(in srgb, var(--gold) 4%, transparent);
     --bg-radial-3: color-mix(in srgb, var(--accent-dark) 6%, transparent);
@@ -80,28 +78,26 @@
   html.light[data-theme-variant="prime"],
   [data-theme="light"][data-theme-variant="prime"],
   :root[data-theme-variant="prime"] {
-    --accent: #b38238;
-    --accent-light: #d4a352;
-    --accent-dark: #8b6224;
-    --gold: #b38238;
-    --gold-light: #d4a352;
-    --canvas: #fbf9f4;
-    --canvas-dark: #f2ece0;
+    --accent: #a3721e;
+    --accent-light: #c29038;
+    --accent-dark: #7a5210;
+    --gold: #a3721e;
+    --gold-light: #c29038;
+    --canvas: #faf8f5;
+    --canvas-dark: #f3efe6;
     --surface: #ffffff;
-    --surface-hover: #f7f3e8;
-    --muted-border: #ded4c0;
-    --neutral-text: #2b3848;
-    --heading: #040d1a;
-    --success: #059669;
+    --surface-hover: #fcfbf8;
+    --muted-border: #dcd3c3;
+    --neutral-text: #0a1422;
+    --heading: #020710;
+    --success: #047857;
     --brand-btn-text: #ffffff;
-    --glass-card-bg: linear-gradient(180deg,
-        rgba(255, 255, 255, 0.98),
-        rgba(251, 249, 244, 0.9));
-    --glass-border: rgba(179, 130, 56, 0.32);
-    --glass-shadow: 0 16px 36px -12px rgba(4, 13, 26, 0.09);
-    --bg-radial-1: color-mix(in srgb, var(--gold) 7%, transparent);
-    --bg-radial-2: color-mix(in srgb, #07152b 5%, transparent);
-    --bg-radial-3: color-mix(in srgb, var(--accent-light) 5%, transparent);
+    --glass-card-bg: #ffffff;
+    --glass-border: rgba(163, 114, 30, 0.22);
+    --glass-shadow: 0 1px 3px 0 rgba(10, 20, 34, 0.03), 0 1px 2px -1px rgba(10, 20, 34, 0.03);
+    --bg-radial-1: color-mix(in srgb, var(--gold) 5%, transparent);
+    --bg-radial-2: color-mix(in srgb, #07152b 3%, transparent);
+    --bg-radial-3: color-mix(in srgb, var(--accent-light) 4%, transparent);
   }
 
   /* Signature Ultra-Luxury Dark Royal Blue & Radiant Gold */
@@ -117,18 +113,18 @@
     --surface: #07152b;
     --surface-hover: #0d2242;
     --muted-border: #1a355b;
-    --neutral-text: #c4d4e7;
+    --neutral-text: #e2e8f0;
     --heading: #ffffff;
     --success: #3bd79b;
     --brand-btn-text: #030a16;
     --glass-card-bg: linear-gradient(180deg,
-        rgba(8, 23, 46, 0.9),
+        rgba(8, 23, 46, 0.92),
         rgba(4, 13, 27, 0.96));
     --glass-border: rgba(198, 162, 93, 0.28);
-    --glass-shadow: 0 24px 50px -20px rgba(0, 5, 16, 0.95), 0 0 25px -10px rgba(212, 175, 55, 0.15);
-    --bg-radial-1: color-mix(in srgb, #d4af37 14%, transparent);
-    --bg-radial-2: color-mix(in srgb, #0f3a70 32%, transparent);
-    --bg-radial-3: color-mix(in srgb, #38bdf8 8%, transparent);
+    --glass-shadow: 0 4px 18px -6px rgba(0, 5, 16, 0.4);
+    --bg-radial-1: color-mix(in srgb, #d4af37 10%, transparent);
+    --bg-radial-2: color-mix(in srgb, #0f3a70 24%, transparent);
+    --bg-radial-3: color-mix(in srgb, #38bdf8 6%, transparent);
   }
 
   html {
@@ -201,78 +197,79 @@
       overflow: hidden;
       background: linear-gradient(135deg,
           var(--accent-light),
-          var(--accent) 40%,
+          var(--accent) 45%,
           var(--accent-dark));
-      background-size: 200% auto;
-      background-position: 0% center;
       color: var(--brand-btn-text);
-      border: 1px solid color-mix(in srgb, var(--heading) 20%, transparent);
-      box-shadow:
-        inset 0 1px 0 color-mix(in srgb, var(--heading) 30%, transparent),
-        0 8px 24px -8px color-mix(in srgb, var(--accent) 60%, transparent);
-    }
-
-    .brand-btn-primary::after {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto 0;
-      height: 50%;
-      border-radius: inherit;
-      background: linear-gradient(180deg,
-          color-mix(in srgb, var(--heading) 26%, transparent),
-          transparent);
-      pointer-events: none;
+      border: 1px solid color-mix(in srgb, var(--heading) 15%, transparent);
+      box-shadow: 0 1px 3px 0 color-mix(in srgb, var(--accent) 25%, transparent);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .brand-btn-primary:hover {
-      background-position: 100% center;
-      filter: brightness(1.06);
-      box-shadow:
-        inset 0 1px 0 color-mix(in srgb, var(--heading) 30%, transparent),
-        0 14px 32px -10px color-mix(in srgb, var(--accent-light) 65%, transparent);
+      filter: brightness(1.04);
+      border-color: color-mix(in srgb, var(--heading) 25%, transparent);
+      box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--accent) 30%, transparent);
+      transform: translateY(-0.5px);
     }
 
     .brand-btn-secondary {
-      border: 1px solid transparent;
-      background:
-        linear-gradient(color-mix(in srgb, var(--surface) 85%, transparent),
-          color-mix(in srgb, var(--surface) 85%, transparent)) padding-box,
-        linear-gradient(135deg, var(--accent-light), var(--accent-dark)) border-box;
-      color: var(--accent);
-      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--heading) 10%, transparent);
+      background: color-mix(in srgb, var(--surface) 95%, transparent);
+      border: 1px solid var(--muted-border);
+      color: var(--heading);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .brand-btn-secondary:hover {
-      background:
-        linear-gradient(color-mix(in srgb, var(--surface-hover) 85%, transparent),
-          color-mix(in srgb, var(--surface-hover) 85%, transparent)) padding-box,
-        linear-gradient(135deg, var(--accent-light), var(--accent-dark)) border-box;
-      color: var(--heading);
-      box-shadow: 0 10px 28px -12px color-mix(in srgb, var(--accent) 45%, transparent);
+      background: var(--surface-hover);
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--accent) 15%, transparent);
+      transform: translateY(-0.5px);
+    }
+
+    .hero-glass-panel {
+      background: color-mix(in srgb, var(--surface) 96%, transparent);
+      backdrop-filter: blur(28px) saturate(140%);
+      -webkit-backdrop-filter: blur(28px) saturate(140%);
+      border: 1px solid color-mix(in srgb, var(--muted-border) 60%, transparent);
+      box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.04);
+    }
+
+    html.dark .hero-glass-panel {
+      background: color-mix(in srgb, var(--surface) 86%, transparent);
+      border-color: color-mix(in srgb, var(--muted-border) 40%, transparent);
+      box-shadow: 0 4px 16px -6px rgba(0, 0, 0, 0.3);
+    }
+
+    .hero-scrim-gradient {
+      background: linear-gradient(
+        to top,
+        var(--canvas) 0%,
+        color-mix(in srgb, var(--canvas) 85%, transparent) 25%,
+        color-mix(in srgb, var(--canvas) 40%, transparent) 55%,
+        transparent 100%
+      );
     }
 
     .glass-card {
       position: relative;
       background: var(--glass-card-bg);
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
       border: 1px solid var(--glass-border);
-      box-shadow:
-        inset 0 1px 0 color-mix(in srgb, var(--heading) 10%, transparent),
-        var(--glass-shadow);
+      box-shadow: var(--glass-shadow);
       transition:
-        border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-        box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-        transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
         background 0.3s ease;
     }
 
     .glass-card:hover {
-      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-      box-shadow:
-        inset 0 1px 0 color-mix(in srgb, var(--heading) 14%, transparent),
-        0 22px 50px -24px color-mix(in srgb, var(--accent) 50%, transparent);
-      transition-duration: 0.3s;
+      border-color: color-mix(in srgb, var(--accent) 35%, var(--muted-border));
+      box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--accent) 10%, transparent);
+      transform: translateY(-0.5px);
     }
 
     .glass-card::before {
@@ -283,7 +280,7 @@
       height: 1px;
       background: linear-gradient(90deg,
           transparent,
-          color-mix(in srgb, var(--heading) 22%, transparent),
+          color-mix(in srgb, var(--heading) 15%, transparent),
           transparent);
       pointer-events: none;
     }
@@ -319,55 +316,50 @@
           #d4af37 40%,
           #c6a25d 70%,
           #9a7836 100%);
-      background-size: 200% auto;
       color: #030a16;
       font-weight: 800;
-      border: 1px solid rgba(250, 235, 203, 0.45);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.5),
-        0 10px 28px -8px rgba(198, 162, 93, 0.65);
+      border: 1px solid rgba(250, 235, 203, 0.4);
+      box-shadow: 0 1px 4px 0 rgba(198, 162, 93, 0.25);
     }
 
     [data-theme-variant="prime"] .brand-btn-primary:hover {
-      filter: brightness(1.08);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.7),
-        0 16px 36px -8px rgba(212, 175, 55, 0.85);
+      filter: brightness(1.03);
+      box-shadow: 0 3px 10px -2px rgba(212, 175, 55, 0.3);
+      transform: translateY(-0.5px);
     }
 
     [data-theme-variant="prime"] .brand-btn-secondary {
-      border: 1px solid rgba(198, 162, 93, 0.5);
-      background:
-        linear-gradient(color-mix(in srgb, var(--surface) 92%, transparent),
-          color-mix(in srgb, var(--surface) 92%, transparent)) padding-box,
-        linear-gradient(135deg, #faebcb, #9a7836) border-box;
-      color: #d4af37;
-      box-shadow: inset 0 1px 0 rgba(212, 175, 55, 0.2);
+      background: color-mix(in srgb, var(--surface) 95%, transparent);
+      border: 1px solid rgba(198, 162, 93, 0.35);
+      color: var(--heading);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
     }
 
     [data-theme-variant="prime"] .brand-btn-secondary:hover {
       border-color: #d4af37;
-      color: #ffffff;
-      box-shadow: 0 10px 28px -10px rgba(198, 162, 93, 0.55);
+      color: #d4af37;
+      box-shadow: 0 2px 6px -2px rgba(198, 162, 93, 0.18);
+      transform: translateY(-0.5px);
     }
 
     [data-theme-variant="prime"] .brand-badge {
-      background: color-mix(in srgb, #c6a25d 14%, transparent);
-      border: 1px solid color-mix(in srgb, #d4af37 40%, transparent);
+      background: color-mix(in srgb, #c6a25d 12%, transparent);
+      border: 1px solid color-mix(in srgb, #d4af37 35%, transparent);
+      color: #b88a2c;
+    }
+
+    html.dark[data-theme-variant="prime"] .brand-badge {
       color: #d4af37;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 18px -4px rgba(212, 175, 55, 0.28);
     }
 
     [data-theme-variant="prime"] .glass-card {
-      border-color: rgba(198, 162, 93, 0.25);
+      border-color: rgba(198, 162, 93, 0.22);
     }
 
     [data-theme-variant="prime"] .glass-card:hover {
-      border-color: rgba(198, 162, 93, 0.65);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.2),
-        0 24px 55px -20px rgba(0, 5, 16, 0.98),
-        0 0 28px -8px rgba(212, 175, 55, 0.3);
+      border-color: rgba(198, 162, 93, 0.45);
+      box-shadow: 0 2px 8px -3px rgba(0, 5, 16, 0.18);
+      transform: translateY(-0.5px);
     }
 
     [data-theme-variant="prime"] .hero-grid {
@@ -591,7 +583,7 @@
     }
 
     50% {
-      transform: scale3d(1.12, 1.12, 1);
+      transform: scale3d(1.04, 1.04, 1);
     }
 
     100% {
@@ -867,41 +859,35 @@
         var(--accent-light),
         var(--accent),
         transparent);
-    box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 80%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
     animation: bar-sweep 0.85s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
   /* Booking navigation & page animations */
   @keyframes pulse-ring {
-    0% {
-      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
-    }
-
-    70% {
-      box-shadow: 0 0 0 12px transparent;
-    }
-
-    100% {
+    0%, 100% {
       box-shadow: 0 0 0 0 transparent;
+    }
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent);
     }
   }
 
   .booking-pulse {
-    animation: pulse-ring 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pulse-ring 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   @keyframes step-ring {
-    0% {
-      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
+    0%, 100% {
+      box-shadow: 0 0 0 0 transparent;
     }
-
-    100% {
-      box-shadow: 0 0 0 14px transparent;
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent);
     }
   }
 
   .step-ring {
-    animation: step-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: step-ring 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   @keyframes panel-in {
@@ -923,12 +909,8 @@
 
   @keyframes pop-in {
     0% {
-      transform: scale(0);
+      transform: scale(0.95);
       opacity: 0;
-    }
-
-    60% {
-      transform: scale(1.12);
     }
 
     100% {
@@ -938,7 +920,7 @@
   }
 
   .pop-in {
-    animation: pop-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: pop-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   /* Mobile Menu & Footer Animations */
@@ -946,7 +928,7 @@
     from {
       opacity: 0;
       backdrop-filter: blur(0px);
-      transform: translate3d(0, -10px, 0) scale(1.02);
+      transform: translate3d(0, -6px, 0);
     }
 
     to {
@@ -1004,8 +986,8 @@
   }
 
   .social-icon-glow:hover {
-    transform: translateY(-4px) scale(1.15);
-    box-shadow: 0 8px 20px -4px color-mix(in srgb, var(--accent) 55%, transparent);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--accent) 25%, transparent);
   }
 
   @media (prefers-reduced-motion: reduce) {

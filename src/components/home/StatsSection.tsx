@@ -84,9 +84,9 @@ export const StatsSection: React.FC = () => {
                 transform: isVisible ? 'translate3d(0, 0, 0)' : 'translate3d(0, 20px, 0)',
                 opacity: isVisible ? 1 : 0,
               }}
-              className="gpu-layer glass-card group rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-center hover:-translate-y-2"
+              className="gpu-layer glass-card group rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-center hover:-translate-y-0.5 transition-all duration-300"
             >
-              <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-xl sm:rounded-2xl bg-gradient-to-br from-accent/25 via-accent/10 to-transparent border border-accent/30 flex items-center justify-center text-accent mb-3 sm:mb-5 transition-all duration-500 group-hover:bg-accent group-hover:text-canvas group-hover:scale-110">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-xl sm:rounded-2xl bg-gradient-to-br from-accent/25 via-accent/10 to-transparent border border-accent/30 flex items-center justify-center text-accent mb-3 sm:mb-5 transition-colors duration-300 group-hover:bg-accent group-hover:text-canvas">
                 <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="text-2xl sm:text-4xl md:text-5xl font-black brand-gradient-text tracking-tight mb-1 sm:mb-2">

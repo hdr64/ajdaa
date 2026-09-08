@@ -133,7 +133,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
       />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-4xl bg-surface/95 border border-accent/30 rounded-3xl shadow-2xl shadow-black/30 overflow-hidden z-10 my-auto panel-in flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-4xl bg-surface/95 border border-accent/30 rounded-3xl shadow-lg overflow-hidden z-10 my-auto panel-in flex flex-col max-h-[90vh]">
         {/* Header bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-muted-border/30 bg-surface/50 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-3">
@@ -268,7 +268,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                   onClick={() => setActiveImageIndex(idx)}
                   className={`relative w-20 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition cursor-pointer ${
                     activeImageIndex === idx
-                      ? 'border-accent scale-105 shadow-md shadow-accent/20'
+                      ? 'border-accent ring-2 ring-accent/30'
                       : 'border-muted-border/30 opacity-60 hover:opacity-100'
                   }`}
                 >
@@ -456,7 +456,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
               onClose();
               onBook(property);
             }}
-            className="w-full sm:w-auto brand-btn-primary px-8 py-3.5 rounded-xl text-sm font-extrabold inline-flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
+            className="w-full sm:w-auto brand-btn-primary px-8 py-3.5 rounded-xl text-sm font-extrabold inline-flex items-center justify-center gap-2 hover:-translate-y-0.5 transition cursor-pointer"
           >
             {display.isBooked
               ? isAr

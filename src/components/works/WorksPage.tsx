@@ -291,7 +291,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       {/* Mobile Collapsible Filter Toggle Header */}
       <button
         onClick={() => setMobileFilterOpen((v) => !v)}
-        className="w-full md:hidden flex items-center justify-between p-4 rounded-2xl bg-surface/98 border border-accent/40 font-bold text-xs text-heading cursor-pointer mb-4 shadow-xl sticky top-20 z-30"
+        className="w-full md:hidden flex items-center justify-between p-4 rounded-2xl bg-surface/98 border border-accent/40 font-bold text-xs text-heading cursor-pointer mb-4 shadow-xs sticky top-20 z-30"
       >
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-accent" />
@@ -311,7 +311,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
 
       {/* Filter Bar Container */}
       <div
-        className={`bg-surface/98 border border-accent/30 rounded-3xl p-5 md:p-6 mb-8 sticky top-20 z-30 shadow-2xl shadow-black/20 transition-all duration-300 ${
+        className={`bg-surface/98 border border-accent/30 rounded-3xl p-5 md:p-6 mb-8 sticky top-20 z-30 shadow-xs transition-all duration-300 ${
           mobileFilterOpen ? 'block' : 'hidden md:block'
         }`}
       >
@@ -328,7 +328,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                 onClick={() => setCategory(cat.key)}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 cursor-pointer ${
                   category === cat.key
-                    ? 'brand-fill text-canvas shadow-lg shadow-accent/30 scale-105'
+                    ? 'brand-fill text-canvas ring-1 ring-accent/50'
                     : 'bg-surface/40 border border-muted-border/25 text-neutral-text/60 hover:text-heading hover:border-accent/40 hover:-translate-y-0.5'
                 }`}
               >
@@ -433,7 +433,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                 <img
                   src={featured.image}
                   alt={featuredDisplay.title}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-l from-canvas/90 via-canvas/20 to-transparent" />
               </div>
@@ -596,13 +596,13 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               <div
                 key={prop.id}
                 onClick={() => onQuickView?.(prop)}
-                className="glass-card rounded-2xl p-4 flex flex-col md:flex-row items-center gap-6 group hover:-translate-y-1 transition duration-300 cursor-pointer border border-muted-border/30 hover:border-accent/50"
+                className="glass-card rounded-2xl p-4 flex flex-col md:flex-row items-center gap-6 group hover:-translate-y-0.5 transition duration-300 cursor-pointer border border-muted-border/30 hover:border-accent/50"
               >
                 <div className="relative w-full md:w-64 h-48 rounded-xl overflow-hidden shrink-0">
                   <img
                     src={prop.image}
                     alt={display.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover"
                   />
                   <span
                     className={`absolute top-3 right-3 text-[11px] font-extrabold px-3 py-1 rounded-full ${

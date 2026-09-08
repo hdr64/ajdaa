@@ -22,6 +22,7 @@ import { Reveal } from './components/common/Reveal';
 import { ThemeProvider } from './context/ThemeProvider';
 import { useLanguage } from './hooks/useLanguage';
 import { CheckCircle2 } from 'lucide-react';
+import { BackgroundDecor } from './components/common/BackgroundDecor';
 
 
 type PageKey = 'home' | 'works' | 'booking' | 'contact';
@@ -87,7 +88,8 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-canvas flex flex-col justify-between overflow-clip transition-colors duration-300">
+      <div className="min-h-screen bg-canvas flex flex-col justify-between overflow-clip transition-colors duration-300 relative">
+        <BackgroundDecor />
         <Navbar currentPage={currentPage} onNavigate={navigateTo} />
 
       <main className="flex-1">
@@ -218,8 +220,8 @@ export function App() {
       )}
 
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/50 text-heading px-6 py-3.5 rounded-full flex items-center gap-2.5 shadow-2xl text-xs font-bold z-50 animate-bounce">
-          <CheckCircle2 className="w-4.5 h-4.5 text-success shrink-0" />
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
+          <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}

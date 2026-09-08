@@ -60,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
       <nav
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
           scrolled
-            ? 'backdrop-blur-xl backdrop-saturate-150 bg-surface/90 border-b border-muted-border/30 py-2 sm:py-3 shadow-xl shadow-black/10'
+            ? 'backdrop-blur-xl backdrop-saturate-150 bg-surface/90 border-b border-muted-border/30 py-2 sm:py-3 shadow-xs'
             : 'backdrop-blur-md bg-canvas/75 sm:bg-transparent sm:backdrop-blur-none border-b border-muted-border/20 sm:border-transparent py-2.5 sm:py-5'
         }`}
       >
@@ -73,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
             <img
               src={logoSrc}
               alt={language === 'ar' ? 'أجدا العقارية' : 'Ajda Real Estate'}
-              className="h-8 xs:h-9 sm:h-11 w-auto object-contain transition-all duration-300 group-hover:scale-105 navbar-logo drop-shadow-xs"
+              className="h-8 xs:h-9 sm:h-11 w-auto object-contain transition-opacity duration-300 group-hover:opacity-90 navbar-logo"
             />
           </div>
 
@@ -104,9 +104,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
             <ThemeToggle />
             <button
               onClick={() => handleNav('booking')}
-              className={`brand-btn-primary font-black text-xs px-5 py-2.5 rounded-full hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer ${
-                currentPage !== 'booking' ? 'booking-pulse' : ''
-              }`}
+              className="brand-btn-primary font-black text-xs px-5 py-2.5 rounded-full transition-all duration-300 cursor-pointer"
             >
               {t.nav.bookNow}
             </button>
@@ -118,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
             <ThemeToggle variant="compact" />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="w-9 h-9 rounded-xl brand-fill text-canvas hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center shadow-xs"
+              className="w-9 h-9 rounded-xl brand-fill text-canvas hover:opacity-90 transition-all cursor-pointer flex items-center justify-center shadow-xs"
               aria-label={t.nav.menu}
             >
               <div className={`transition-transform duration-300 ${mobileMenuOpen ? 'rotate-90' : 'rotate-0'}`}>
@@ -156,7 +154,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
                   style={{ animationDelay: `${(idx + 1) * 70}ms` }}
                   className={`mobile-nav-item w-full flex items-center justify-between p-3.5 rounded-2xl border ${isRTL ? 'text-right' : 'text-left'} transition-all duration-300 cursor-pointer ${
                     active
-                      ? 'bg-accent/15 border-accent text-heading font-black shadow-lg shadow-accent/20'
+                      ? 'bg-accent/15 border-accent text-heading font-black'
                       : 'bg-surface/40 border-muted-border/30 text-neutral-text/80 font-bold hover:bg-surface/70 hover:border-accent/40'
                   }`}
                 >
@@ -199,7 +197,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
 
             <button
               onClick={() => handleNav('booking')}
-              className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-xl shadow-accent/25"
+              className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
             >
               <CalendarCheck className="w-4 h-4 text-[var(--brand-btn-text)]" />
               {t.nav.bookNow}

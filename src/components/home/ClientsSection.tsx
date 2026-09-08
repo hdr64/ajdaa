@@ -113,13 +113,13 @@ export const ClientsSection: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6">
           {CLIENTS.map((client, idx) => (
             <Reveal key={client.id} delay={idx * 80}>
-              <div className="group relative h-full flex flex-col items-center justify-between p-4 sm:p-5 rounded-2xl bg-surface/80 hover:bg-surface border border-muted-border/40 hover:border-accent/50 shadow-xs hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 text-center">
+              <div className="group relative h-full flex flex-col items-center justify-between p-4 sm:p-5 rounded-2xl bg-surface/80 hover:bg-surface border border-muted-border/40 hover:border-accent/40 transition-all duration-300 hover:-translate-y-0.5 text-center">
                 {/* Logo Display Canvas (High-contrast clean card for crisp logo rendering) */}
-                <div className="w-full h-24 sm:h-28 rounded-xl bg-white p-3 flex items-center justify-center shadow-inner overflow-hidden border border-slate-100 group-hover:border-accent/20 transition-all">
+                <div className="w-full h-24 sm:h-28 rounded-xl bg-white p-3 flex items-center justify-center overflow-hidden border border-slate-100 group-hover:border-accent/20 transition-all">
                   <img
                     src={client.logo}
                     alt={isAr ? client.nameAr : client.nameEn}
-                    className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                    className="max-h-full max-w-full object-contain transition-opacity duration-300 group-hover:opacity-90"
                     loading="lazy"
                   />
                 </div>

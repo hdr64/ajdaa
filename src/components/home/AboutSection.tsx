@@ -29,7 +29,7 @@ export const AboutSection: React.FC = () => {
       {/* Main Story & Real Project Showcase Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-10 items-center mb-12 sm:mb-20">
         <Reveal direction={isRTL ? 'right' : 'left'}>
-          <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-accent/30 shadow-2xl shadow-black/60 group h-72 sm:h-[430px] bg-black">
+          <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-accent/30 group h-72 sm:h-[430px] bg-black">
             {isVideoPlaying ? (
               <div className="relative w-full h-full">
                 <iframe
@@ -52,14 +52,14 @@ export const AboutSection: React.FC = () => {
                 <img
                   src={primeHero}
                   alt="أجدا برايم - طريق الملك فهد"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                  className="w-full h-full object-cover transition-opacity duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/40 to-transparent" />
 
                 {/* Play Video Button Overlay */}
                 <button
                   onClick={() => setIsVideoPlaying(true)}
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full brand-fill flex items-center justify-center text-canvas-dark shadow-2xl shadow-accent/50 hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer group/btn"
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full brand-fill flex items-center justify-center text-canvas-dark border border-white/25 hover:opacity-95 transition-all duration-300 cursor-pointer group/btn"
                   title="شاهد فيديو المشروع"
                   aria-label="Play Project Video"
                 >
@@ -161,7 +161,7 @@ export const AboutSection: React.FC = () => {
 
       {/* Official Statistics Bar */}
       <Reveal direction="up">
-        <div className="glass-card rounded-2xl sm:rounded-3xl p-5 sm:p-10 border border-accent/40 bg-gradient-to-r from-surface/90 via-canvas/95 to-surface/90 shadow-2xl">
+        <div className="glass-card rounded-2xl sm:rounded-3xl p-5 sm:p-10 border border-accent/40 bg-gradient-to-r from-surface/90 via-canvas/95 to-surface/90">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 text-center">
             {t.about.officialStats.map((stat, i) => (
               <div

@@ -16,7 +16,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', varian
       <button
         type="button"
         onClick={toggleTheme}
-        className={`w-9 h-9 rounded-xl flex items-center justify-center text-heading hover:text-accent hover:bg-surface-hover active:scale-95 transition-all cursor-pointer ${className}`}
+        className={`w-9 h-9 rounded-xl flex items-center justify-center text-heading hover:text-accent hover:bg-surface-hover transition-colors cursor-pointer ${className}`}
         title={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
         aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
       >

@@ -57,21 +57,21 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   return (
     <div
       onClick={() => onQuickView?.(property)}
-      className="glass-card rounded-2xl overflow-hidden group flex flex-col justify-between hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border border-muted-border/30 hover:border-accent/40 shadow-lg hover:shadow-xl hover:shadow-black/40"
+      className="glass-card rounded-2xl overflow-hidden group flex flex-col justify-between hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border border-muted-border/30 hover:border-accent/40"
     >
       <div className="relative h-60 overflow-hidden img-shine">
         <img
           src={property.image}
           alt={display.title}
           loading="lazy"
-          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          className="w-full h-full object-cover transition-opacity duration-300 group-hover:opacity-95"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-300" />
 
         {/* Top Badges */}
         <div className="absolute top-3.5 inset-x-3.5 flex items-center justify-between z-[3]">
           <span
-            className={`text-[11px] font-extrabold px-3 py-1 rounded-full backdrop-blur-md shadow-md ${
+            className={`text-[11px] font-extrabold px-3 py-1 rounded-full backdrop-blur-md border border-white/20 ${
               display.isBooked
                 ? 'bg-amber-500 text-black font-black'
                 : property.type === 'logistics'
@@ -109,7 +109,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
               <Heart
                 className={`w-3.5 h-3.5 transition-all duration-300 ${
                   fav
-                    ? 'fill-red-400 text-red-400 scale-110'
+                    ? 'fill-red-400 text-red-400'
                     : 'text-neutral-text/70 group-hover:text-accent'
                 }`}
               />
@@ -119,7 +119,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
 
         {/* Hover Quick View Overlay */}
         <div className="absolute inset-0 z-[2] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-canvas/40 backdrop-blur-[2px]">
-          <span className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5 shadow-lg">
+          <span className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5">
             <Eye className="w-3.5 h-3.5 text-accent" />
             {isAr ? 'عرض معرض الصور والتفاصيل' : 'View Gallery & Details'}
           </span>
@@ -212,7 +212,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
               e.stopPropagation();
               onSelect(property);
             }}
-            className="brand-btn-primary font-extrabold text-xs px-4 py-2.5 rounded-xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
+            className="brand-btn-primary font-extrabold text-xs px-4 py-2.5 rounded-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
           >
             {display.isBooked
               ? isAr

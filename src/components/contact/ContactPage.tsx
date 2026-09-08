@@ -128,7 +128,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                 const Icon = item.icon;
                 const Content = (
                   <>
-                    <div className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-accent/25 via-accent/10 to-transparent border border-accent/30 flex items-center justify-center text-accent transition-all duration-300 group-hover:bg-accent group-hover:text-canvas group-hover:scale-105">
+                    <div className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-accent/25 via-accent/10 to-transparent border border-accent/30 flex items-center justify-center text-accent transition-all duration-300 group-hover:bg-accent group-hover:text-canvas">
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">

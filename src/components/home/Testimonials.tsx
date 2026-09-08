@@ -48,7 +48,7 @@ export const Testimonials: React.FC = () => {
       <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
         {testimonials.map((item, i) => (
           <Reveal key={i} delay={i * 120} direction="up" className="h-full">
-            <div className="glass-card group relative h-full overflow-hidden rounded-3xl p-7 hover:-translate-y-2">
+            <div className="glass-card group relative h-full overflow-hidden rounded-3xl p-7 hover:-translate-y-0.5 transition-all duration-300">
               <Quote
                 aria-hidden
                 className="absolute -top-3 left-5 w-16 h-16 text-accent/8 group-hover:text-accent/15 transition-colors duration-500"

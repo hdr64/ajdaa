@@ -43,8 +43,8 @@ export const VideoSection: React.FC = () => {
 
       {/* Video Container */}
       <Reveal direction="up">
-        <div className="relative max-w-5xl mx-auto rounded-3xl overflow-hidden glass-card border border-accent/30 shadow-2xl shadow-black/50 p-2 sm:p-4">
-          <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black/90 shadow-inner">
+        <div className="relative max-w-5xl mx-auto rounded-3xl overflow-hidden glass-card border border-accent/30 p-2 sm:p-4">
+          <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black/90">
             <iframe
               src="https://www.youtube-nocookie.com/embed/Ti7MQxfmNWY?rel=0&modestbranding=1"
               title={isAr ? 'فيديو تعريفي بمشروع أجدا برايم' : 'Ajda Prime Video Showcase'}
@@ -75,7 +75,7 @@ export const VideoSection: React.FC = () => {
               href="https://youtube.com/channel/UC5FIObwjjv5ZoiJLy_ufqRQ?si=-b5QV8mXDeOPTjD5"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 brand-btn-secondary text-xs font-bold px-5 py-2.5 rounded-xl hover:scale-105 transition cursor-pointer shadow-md"
+              className="inline-flex items-center gap-2 brand-btn-secondary text-xs font-bold px-5 py-2.5 rounded-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
             >
               <YoutubeIcon className="w-4 h-4 text-red-500" />
               <span>{isAr ? 'قناة أجدا العقارية على YouTube' : 'Ajda Real Estate on YouTube'}</span>
