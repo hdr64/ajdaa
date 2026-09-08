@@ -461,7 +461,7 @@ export const translations = {
       address: 'Riyadh, King Fahd Road',
       phone: '+966 58 048 4528',
       email: 'info@ajdaa.sa',
-      hours: 'Sat – Thu, 9:00 AM – 6:00 PM',
+      hours: 'Sun – Thu, 8:00 AM – 4:00 PM',
       newsletterTitle: 'Newsletter',
       newsletterPlaceholder: 'Enter your email address',
       newsletterSuccess: 'Successfully subscribed to our newsletter! 📩',

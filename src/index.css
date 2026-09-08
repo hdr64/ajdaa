@@ -629,30 +629,22 @@
     will-change: opacity;
   }
 
-  /* Hero content reveal - luxurious staggered entrance */
+  /* Hero content reveal - clean staggered entrance */
   @keyframes hero-reveal {
     0% {
       opacity: 0;
-      transform: translate3d(0, 40px, 0) scale(0.98);
-      filter: blur(10px);
-    }
-
-    55% {
-      opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
-      filter: blur(0);
+      transform: translate3d(0, 20px, 0);
     }
 
     100% {
       opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
-      filter: blur(0);
+      transform: translate3d(0, 0, 0);
     }
   }
 
   .hero-reveal {
-    animation: hero-reveal 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-    will-change: transform, opacity, filter;
+    animation: hero-reveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform, opacity;
   }
 
   @keyframes float-particle {
@@ -701,37 +693,31 @@
     background: linear-gradient(to bottom, var(--accent-light), var(--accent));
   }
 
-  /* Page Transition - soft fade + slide (non-3D) */
+  /* Page Transition - clean GPU-accelerated opacity fade */
   @keyframes page-exit-fade {
     to {
-      transform: translate3d(0, -18px, 0);
       opacity: 0;
-      filter: blur(3px);
     }
   }
 
   .page-exit-fade {
-    animation: page-exit-fade 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    will-change: transform, opacity, filter;
+    animation: page-exit-fade 0.2s ease-out forwards;
+    will-change: opacity;
   }
 
   @keyframes page-enter-fade {
     from {
-      transform: translate3d(0, 24px, 0);
       opacity: 0;
-      filter: blur(4px);
     }
 
     to {
-      transform: translate3d(0, 0, 0);
       opacity: 1;
-      filter: blur(0);
     }
   }
 
   .page-enter-fade {
-    animation: page-enter-fade 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    will-change: transform, opacity, filter;
+    animation: page-enter-fade 0.25s ease-out forwards;
+    will-change: opacity;
   }
 
   /* Staggered element entrance (used on the projects page) */

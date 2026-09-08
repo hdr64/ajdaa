@@ -34,8 +34,8 @@ const getPathForPage = (page: PageKey): string => {
   return `${basePath}/${page}`;
 };
 
-const TRANSITION_EXIT_MS = 400;
-const TRANSITION_ENTER_MS = 650;
+const TRANSITION_EXIT_MS = 180;
+const TRANSITION_ENTER_MS = 220;
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<PageKey>(() => getPageFromPath(window.location.pathname));
@@ -61,11 +61,13 @@ export function App() {
       const pageFromState = (event.state?.page as PageKey) || getPageFromPath(window.location.pathname);
       const targetScrollY = event.state?.scrollY ?? scrollPositionsRef.current[pageFromState] ?? 0;
 
-      runTransition(() => {
-        setCurrentPage(pageFromState);
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: targetScrollY, behavior: 'auto' });
-        });
+      // Instant swap and precise scroll restore on browser back/forward with zero flicker
+      setTransition('idle');
+      transitioningRef.current = false;
+      setCurrentPage(pageFromState);
+      window.scrollTo({ top: targetScrollY, behavior: 'instant' as ScrollBehavior });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: targetScrollY, behavior: 'instant' as ScrollBehavior });
       });
     };
 

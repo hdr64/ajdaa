@@ -18,6 +18,13 @@ export function useIntersection<T extends HTMLElement = HTMLDivElement>({
     const node = ref.current;
     if (!node) return;
 
+    // Check immediate visibility on mount to prevent flash of invisible content
+    const rect = node.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      setIsVisible(true);
+      if (triggerOnce) return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
