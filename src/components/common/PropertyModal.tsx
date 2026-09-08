@@ -441,7 +441,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
         <div className="p-4 sm:p-6 border-t border-muted-border/30 bg-surface/60 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <a
-              href="https://wa.me/966500539520"
+              href="https://wa.me/966580484528"
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 sm:flex-none brand-btn-secondary px-5 py-3 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 hover:text-emerald-500 transition-colors"

@@ -21,9 +21,9 @@ const contactItems = [
   {
     icon: Phone,
     label: 'واتساب والمحادثة المباشرة',
-    value: '+966 50 053 9520',
+    value: '+966 58 048 4528',
     dir: 'ltr' as const,
-    href: 'https://wa.me/966500539520',
+    href: 'https://wa.me/966580484528',
     isExternal: true,
   },
   { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajdaa.sa', dir: 'ltr' as const, href: 'mailto:info@ajdaa.sa' },

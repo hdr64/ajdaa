@@ -158,7 +158,7 @@ export const ClientsSection: React.FC = () => {
             </div>
 
             <a
-              href="https://wa.me/966500539520"
+              href="https://wa.me/966580484528"
               target="_blank"
               rel="noopener noreferrer"
               className="brand-btn-secondary text-xs font-bold px-4 py-2.5 rounded-xl shrink-0 inline-flex items-center gap-2 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
