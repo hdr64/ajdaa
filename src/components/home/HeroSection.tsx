@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { HeroScene } from './HeroScene';
 import { useLanguage } from '../../hooks/useLanguage';
 import heroImage from '../../assets/imgs/a1.webp';
 
 interface HeroSectionProps {
   onExplore: (filters?: { city?: string; type?: string; priceType?: string }) => void;
-  onBook: () => void;
+  onBook?: () => void;
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) => {
+export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
   const { t, isRTL } = useLanguage();
   const sectionRef = useRef<HTMLElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -129,13 +129,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onBook }) =
                 <span>{t.hero.exploreBtn}</span>
                 <ArrowIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
-              <button
+              {/* <button
                 onClick={onBook}
                 className="w-full sm:w-auto brand-btn-secondary font-bold px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl inline-flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer text-xs xs:text-sm sm:text-base"
               >
                 <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
                 <span>{t.hero.consultBtn}</span>
-              </button>
+              </button> */}
             </div>
           </div>
         </div>

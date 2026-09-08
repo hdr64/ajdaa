@@ -399,7 +399,7 @@
       transform-style: preserve-3d;
     }
 
-    .gpu-layer {
+    .gpu-layer0 {
       transform: translate3d(0, 0, 0);
       backface-visibility: hidden;
       perspective: 1000px;
