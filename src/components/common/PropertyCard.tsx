@@ -121,7 +121,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         <div className="absolute inset-0 z-[2] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-canvas/40 backdrop-blur-[2px]">
           <span className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5">
             <Eye className="w-3.5 h-3.5 text-accent" />
-            {isAr ? 'عرض معرض الصور والتفاصيل' : 'View Gallery & Details'}
+            {isAr ? 'عرض صفحة وتفاصيل المشروع' : 'View Project Page & Details'}
           </span>
         </div>
       </div>
@@ -219,8 +219,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
                 ? 'طلب استفسار'
                 : 'Inquire Now'
               : isAr
-              ? 'حجز معاينة'
-              : 'Book Inspection'}
+              ? 'سجل اهتمامك'
+              : 'Register Interest'}
             {isAr ? (
               <ArrowLeft className="w-3.5 h-3.5" />
             ) : (

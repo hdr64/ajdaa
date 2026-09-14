@@ -12,6 +12,7 @@ import {
   Briefcase,
   Warehouse,
   Store,
+  Home,
   Sparkles,
   X,
   Maximize2,
@@ -39,8 +40,8 @@ const MAX_LOADING_MS = 1500;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-const preloadImages = (): Promise<void> => {
-  const tasks = properties.map(
+const preloadImages = (props: Property[] = properties): Promise<void> => {
+  const tasks = props.map(
     (p) =>
       new Promise<void>((resolve) => {
         const img = new Image();
@@ -56,12 +57,14 @@ const typeLabelsAr: Record<PropertyType, string> = {
   logistics: 'مستودعات ومخازن',
   commercial: 'محلات ومجمعات تجارية',
   office: 'مكاتب ومباني إدارية',
+  residential: 'مجمعات وأدوار سكنية',
 };
 
 const typeLabelsEn: Record<PropertyType, string> = {
   logistics: 'Warehouses & Logistics',
   commercial: 'Commercial & Retail',
   office: 'Offices & Corporate',
+  residential: 'Residential Complexes',
 };
 
 type CategoryKey = 'all' | PropertyType;
@@ -72,6 +75,7 @@ const categoryIcons: Record<CategoryKey, React.ComponentType<{ className?: strin
   logistics: Warehouse,
   commercial: Store,
   office: Briefcase,
+  residential: Home,
 };
 
 const specChip =
@@ -177,7 +181,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         acc.all += 1;
         return acc;
       },
-      { all: 0, logistics: 0, commercial: 0, office: 0 },
+      { all: 0, logistics: 0, commercial: 0, office: 0, residential: 0 },
     );
     const labels = isAr ? typeLabelsAr : typeLabelsEn;
     return [
@@ -686,7 +690,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                         }}
                         className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl cursor-pointer"
                       >
-                        {isAr ? 'التفاصيل' : 'Details'}
+                        {isAr ? 'صفحة المشروع' : 'Project Page'}
                       </button>
                       <button
                         onClick={(e) => {
@@ -697,7 +701,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                       >
                         {display.isBooked
                           ? isAr ? 'طلب استفسار' : 'Inquire'
-                          : isAr ? 'احجز الآن' : 'Book Now'}
+                          : isAr ? 'سجل اهتمامك' : 'Register Interest'}
                       </button>
                     </div>
                   </div>

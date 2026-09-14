@@ -30,6 +30,7 @@ interface PropertyModalProps {
   property: Property | null;
   onClose: () => void;
   onBook: (prop: Property) => void;
+  onViewProjectPage?: (prop: Property) => void;
   onToast: (msg: string) => void;
 }
 
@@ -46,6 +47,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
   property,
   onClose,
   onBook,
+  onViewProjectPage,
   onToast,
 }) => {
   const { language } = useLanguage();
@@ -439,7 +441,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
 
         {/* Footer Actions */}
         <div className="p-4 sm:p-6 border-t border-muted-border/30 bg-surface/60 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <a
               href="https://wa.me/966580484528"
               target="_blank"
@@ -449,6 +451,20 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
               <PhoneCall className="w-4 h-4 text-accent" />
               {isAr ? 'استشارة عبر واتساب' : 'WhatsApp Consultation'}
             </a>
+
+            {onViewProjectPage && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onViewProjectPage(property);
+                }}
+                className="flex-1 sm:flex-none brand-btn-secondary px-5 py-3 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 hover:border-accent hover:text-accent transition cursor-pointer"
+              >
+                <Building2 className="w-4 h-4 text-accent" />
+                <span>{isAr ? 'عرض صفحة المشروع الكاملة' : 'View Full Project Page'}</span>
+              </button>
+            )}
           </div>
 
           <button
@@ -463,8 +479,8 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                 ? 'طلب استفسار عن المشروع'
                 : 'Inquire About Project'
               : isAr
-              ? 'احجز معاينة هذا المشروع'
-              : 'Book Inspection Visit'}
+              ? 'سجل اهتمامك بهذا المشروع'
+              : 'Register Interest in Project'}
             {isAr ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
           </button>
         </div>

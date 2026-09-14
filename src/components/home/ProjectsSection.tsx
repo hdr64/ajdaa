@@ -128,7 +128,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                   <div className="absolute inset-0 z-[2] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-canvas/40 backdrop-blur-[2px]">
                     <span className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5">
                       <Eye className="w-3.5 h-3.5 text-accent" />
-                      {isAr ? 'عرض التفاصيل والمعرض' : 'View Details & Gallery'}
+                      {isAr ? 'عرض صفحة وتفاصيل المشروع' : 'View Project Page & Details'}
                     </span>
                   </div>
                 </div>
@@ -178,7 +178,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                         className="brand-btn-secondary text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1 hover:border-accent transition cursor-pointer"
                       >
                         <Eye className="w-3 h-3 text-accent" />
-                        {isAr ? 'تفاصيل' : 'Details'}
+                        {isAr ? 'صفحة المشروع' : 'Project Page'}
                       </button>
 
                       <button

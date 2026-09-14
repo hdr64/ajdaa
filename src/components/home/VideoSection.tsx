@@ -46,7 +46,7 @@ export const VideoSection: React.FC = () => {
         <div className="relative max-w-5xl mx-auto rounded-3xl overflow-hidden glass-card border border-accent/30 p-2 sm:p-4">
           <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black/90">
             <iframe
-              src="https://www.youtube-nocookie.com/embed/Ti7MQxfmNWY?rel=0&modestbranding=1"
+              src="https://www.youtube-nocookie.com/embed/3RlVLmDkres?rel=0&modestbranding=1"
               title={isAr ? 'فيديو تعريفي بمشروع أجدا برايم' : 'Ajda Prime Video Showcase'}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen

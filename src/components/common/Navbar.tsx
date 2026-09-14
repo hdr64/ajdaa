@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, CalendarCheck, MessageSquare, Briefcase, Home, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Menu, X, CalendarCheck, MessageSquare, Briefcase, Home, ArrowLeft, ArrowRight, Handshake, Sparkles } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { ThemeVariantToggle } from './ThemeVariantToggle';
 import { LanguageToggle } from './LanguageToggle';
@@ -11,9 +11,11 @@ import logoArDark from '../../assets/logos/ar-2.png';
 import logoEnLight from '../../assets/logos/en-1.png';
 import logoEnDark from '../../assets/logos/en-2.png';
 
+export type NavPageKey = 'home' | 'works' | 'clients' | 'project' | 'booking' | 'contact' | 'admin_login' | 'admin';
+
 interface NavbarProps {
-  currentPage: 'home' | 'works' | 'booking' | 'contact';
-  onNavigate: (page: 'home' | 'works' | 'booking' | 'contact') => void;
+  currentPage: NavPageKey;
+  onNavigate: (page: NavPageKey) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
@@ -21,6 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { t, isRTL, language } = useLanguage();
   const { theme } = useTheme();
+  const isAr = language === 'ar';
 
   const isDark = theme === 'dark';
   const logoSrc = isDark
@@ -30,7 +33,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
   const NAV_ITEMS = [
     { id: 'home', label: t.nav.home, icon: Home },
     { id: 'works', label: t.nav.works, icon: Briefcase },
-    { id: 'booking', label: t.nav.booking, icon: CalendarCheck },
+    { id: 'clients', label: isAr ? 'عملاؤنا' : 'Our Clients', icon: Handshake },
+    { id: 'booking', label: isAr ? 'سجل اهتمامك' : 'Register Interest', icon: Sparkles },
     { id: 'contact', label: t.nav.contact, icon: MessageSquare },
   ] as const;
 
@@ -48,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
     }
   }, [mobileMenuOpen]);
 
-  const handleNav = (page: 'home' | 'works' | 'booking' | 'contact') => {
+  const handleNav = (page: NavPageKey) => {
     onNavigate(page);
     setMobileMenuOpen(false);
   };
