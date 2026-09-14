@@ -8,7 +8,7 @@ import { AboutSection } from '../components/home/AboutSection';
 import { ServicesSection } from '../components/home/ServicesSection';
 import { ProcessSection } from '../components/home/ProcessSection';
 import { ProjectsSection } from '../components/home/ProjectsSection';
-import { VideoSection } from '../components/home/VideoSection';
+// import { VideoSection } from '../components/home/VideoSection';
 import { ClientsSection } from '../components/home/ClientsSection';
 import { CtaSection } from '../components/home/CtaSection';
 import { Reveal } from '../components/common/Reveal';

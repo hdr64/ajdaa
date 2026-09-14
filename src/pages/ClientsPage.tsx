@@ -91,7 +91,7 @@ const CLIENTS_LIST: ClientDetail[] = [
   },
 ];
 
-const STATS = [
+export const STATS = [
   { value: '+50', labelAr: 'شراكة تجارية واستثمارية', labelEn: 'Corporate Partnerships', icon: Handshake },
   { value: '100%', labelAr: 'التزام بجودة التنفيذ والمرافق', labelEn: 'Quality & Facility Commitment', icon: CheckCircle2 },
   { value: '+120,000', labelAr: 'متر مربع مطور للشركاء', labelEn: 'm² Developed for Partners', icon: Building2 },

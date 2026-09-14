@@ -27,7 +27,7 @@ export const AboutSection: React.FC = () => {
       </div>
 
       {/* Main Story & Real Project Showcase Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-10 items-center mb-12 sm:mb-20">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-10 items-center mb-12 sm:mb-20 hidden!">
         <Reveal direction={isRTL ? 'right' : 'left'}>
           <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-accent/30 group h-72 sm:h-[430px] bg-black">
             {isVideoPlaying ? (
