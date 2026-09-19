@@ -14,11 +14,22 @@ import {
   Send,
   X,
   Building,
+  Building2,
+  ShieldCheck,
   Sparkles,
   Compass,
   Maximize2,
   ExternalLink
 } from 'lucide-react';
+
+const PROJECT_AMENITIES = [
+  { icon: Sparkles, nameAr: 'تشطيب سوبر ديلوكس', nameEn: 'Super Deluxe Finishing' },
+  { icon: ShieldCheck, nameAr: 'نظام أمني سمارت 24/7', nameEn: '24/7 Smart Security System' },
+  { icon: Building2, nameAr: 'موقف سيارات مظلل وخاص', nameEn: 'Dedicated Shaded Parking' },
+  { icon: CheckCircle2, nameAr: 'تكييف مركزي دكت', nameEn: 'Central Ducted AC' },
+  { icon: Sparkles, nameAr: 'حديقة وجلسة خارجية عصرية', nameEn: 'Modern Outdoor Landscaping' },
+  { icon: ShieldCheck, nameAr: 'ضمانات هيكلية وشاملة', nameEn: 'Comprehensive Structural Warranties' },
+];
 
 interface ProjectDetailPageProps {
   projectId: number;
@@ -449,7 +460,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
         {/* Location Highlights Section */}
         {project.locationHighlightsAr && project.locationHighlightsAr.length > 0 && (
           <Reveal>
-            <div className="mb-16 p-6 sm:p-8 rounded-3xl bg-surface/70 border border-muted-border/40">
+            <div className="mb-14 p-6 sm:p-8 rounded-3xl bg-surface/70 border border-muted-border/40">
               <div className="flex items-center gap-2.5 mb-6">
                 <div className="w-10 h-10 rounded-xl brand-fill text-canvas flex items-center justify-center">
                   <Compass className="w-5 h-5 text-inherit" />
@@ -471,6 +482,54 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
             </div>
           </Reveal>
         )}
+
+        {/* Project Key Features Highlights if available */}
+        {project.features && project.features.length > 0 && (
+          <Reveal>
+            <div className="mb-14 p-6 sm:p-8 rounded-3xl bg-surface/70 border border-muted-border/40">
+              <div className="flex items-center gap-2.5 mb-6">
+                <div className="w-10 h-10 rounded-xl brand-fill text-canvas flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-inherit" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-heading">{isAr ? 'أهم مميزات ومواصفات المشروع' : 'Key Project Features & Specifications'}</h3>
+                  <p className="text-xs text-neutral-text/60">{isAr ? 'مزايا فريدة تعزز القيمة الاستثمارية والتشغيلية' : 'Distinctive advantages elevating investment & operational value'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {(isAr ? project.features : (project.featuresEn || project.features)).map((feat, idx) => (
+                  <div key={idx} className="flex items-center gap-2.5 p-3.5 rounded-xl bg-canvas/60 border border-muted-border/30 text-xs font-bold text-heading">
+                    <CheckCircle2 className="w-4 h-4 text-accent shrink-0" />
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        )}
+
+        {/* Included Amenities & Warranties Section (Standard 6-Card Matrix) */}
+        <Reveal>
+          <div className="mb-16">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {PROJECT_AMENITIES.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-3.5 p-4 sm:p-5 rounded-2xl bg-surface border border-muted-border/30 shadow-xs hover:border-accent/40 hover:shadow-sm transition-all"
+                  >
+                    <Icon className="w-5 h-5 text-accent shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-heading">
+                      {isAr ? item.nameAr : item.nameEn}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Reveal>
 
         {/* Dedicated Cinematic Video Showcase Section */}
         {project.videoUrl && (

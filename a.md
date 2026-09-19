@@ -5,3 +5,14 @@ the map should show nothing except the roads and very minimal details of the map
 the section should be designed very beautifully and attractive
 
 
+مشاريعنا
+
+
+
+1. add these tow categories
+سكني
+فنادق
+
+2. in the booking page when user click (Register Interest)
+do not show the step 1 (chose the project) show directly step 2
+you can show a button to chose the project but it can be optional
