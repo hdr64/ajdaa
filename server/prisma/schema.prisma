@@ -1,0 +1,125 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("sales_agent") // super_admin | project_manager | sales_agent | viewer
+  roleAr       String   @default("مسؤول مبيعات")
+  department   String?
+  permissions  String   @default("{}") // JSON string of permissions
+  status       String   @default("active") // active | suspended
+  lastLogin    String?
+  createdAt    DateTime @default(now())
+}
+
+model Project {
+  id                     Int               @id @default(autoincrement())
+  type                   String // logistics | commercial | office | residential
+  typeAr                 String
+  typeEn                 String?
+  title                  String
+  titleEn                String?
+  price                  Float?
+  priceLabel             String?
+  priceType              String // بيع | إيجار | استثمار
+  priceTypeEn            String?
+  status                 String?
+  statusEn               String?
+  area                   Float
+  rooms                  Int?
+  bathrooms              Int?
+  unitsCount             String?
+  unitsCountEn           String?
+  city                   String
+  cityEn                 String?
+  image                  String
+  gallery                String? // JSON string array
+  description            String?
+  descriptionEn          String?
+  badge                  String?
+  badgeEn                String?
+  features               String? // JSON string array
+  featuresEn             String? // JSON string array
+  videoUrl               String?
+  virtualTour3dAvailable Boolean           @default(false)
+  locationHighlightsAr   String? // JSON string array
+  locationHighlightsEn   String? // JSON string array
+  lat                    Float?
+  lng                    Float?
+  floors                 PropertyFloor[]
+  inquiries              CustomerInquiry[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+}
+
+model PropertyFloor {
+  id            Int            @id @default(autoincrement())
+  projectId     Int
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  floorNumber   Int
+  floorNameAr   String
+  floorNameEn   String?
+  descriptionAr String?
+  descriptionEn String?
+  totalArea     Float?
+  units         PropertyUnit[]
+}
+
+model PropertyUnit {
+  id          String            @id // e.g. "p206-g-s1"
+  floorId     Int
+  floor       PropertyFloor     @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  unitNumber  String
+  floorNumber Int
+  floorNameAr String
+  floorNameEn String?
+  sectionAr   String?
+  type        String // showroom | office | apartment | warehouse | outdoor
+  typeAr      String
+  typeEn      String?
+  area        Float
+  priceLabel  String?
+  status      String            @default("available") // available | reserved | rented | sold
+  statusAr    String            @default("متاح")
+  statusEn    String?           @default("Available")
+  features    String? // JSON string array
+  featuresEn  String? // JSON string array
+  inquiries   CustomerInquiry[]
+  updatedAt   DateTime          @updatedAt
+}
+
+model CustomerInquiry {
+  id             String        @id @default(uuid())
+  createdAt      DateTime      @default(now())
+  name           String
+  phone          String?
+  email          String?
+  projectId      Int?
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectTitle   String?
+  unitId         String?
+  unit           PropertyUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  unitNumber     String?
+  interestType   String // rent | buy | invest | general
+  interestTypeAr String
+  message        String?
+  status         String        @default("new") // new | contacted | closed
+  statusAr       String        @default("جديد")
+}
+
+model CategoryItem {
+  id     String @id
+  nameAr String
+  nameEn String
+  type   String
+  tags   String // JSON string array
+}
