@@ -13,8 +13,6 @@ import {
   LogOut,
   ExternalLink,
   Plus,
-  CheckCircle2,
-  Clock,
   RefreshCw,
   ShieldCheck,
   Search,
@@ -22,14 +20,8 @@ import {
   TrendingUp,
   MessageCircle,
   Phone,
-  Store,
-  Warehouse,
-  Building,
   Trash2,
-  Eye,
-  Filter,
   ArrowUpRight,
-  SlidersHorizontal
 } from 'lucide-react';
 
 interface AdminDashboardPageProps {
