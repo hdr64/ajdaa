@@ -2,8 +2,9 @@ import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { config } from '../config/env.js';
 
-const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './uploads');
+const UPLOAD_DIR = config.uploadDir;
 
 // Ensure upload directory exists
 async function ensureUploadDir() {

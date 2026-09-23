@@ -27,3 +27,14 @@ temp
 */**.jpeg
 *.jpeg
 graphify-out
+
+# Backend (server/)
+server/node_modules
+server/dist
+server/.env
+server/dev.db
+server/dev.db-journal
+server/prisma/dev.db
+server/prisma/dev.db-journal
+server/uploads
+server/prisma/schema.postgresql.prisma
