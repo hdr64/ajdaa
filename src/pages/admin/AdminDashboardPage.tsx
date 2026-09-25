@@ -124,6 +124,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       residential: 'مجمع سكني فاخر',
       office: 'مبنى إداري للأعمال',
       logistics: 'مستودعات ومخازن لوجستية',
+      hotel: 'فنادق وأجنحة فندقية',
     };
 
     // Auto-generate realistic floors & units
@@ -142,6 +143,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         const unitType =
           newProjectData.type === 'residential'
             ? 'apartment'
+            : newProjectData.type === 'hotel'
+            ? 'showroom'
             : newProjectData.type === 'commercial' && fIdx === 0
             ? 'showroom'
             : newProjectData.type === 'logistics'
@@ -152,7 +155,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           unitType === 'apartment'
             ? 'شقة سكنية فاخرة'
             : unitType === 'showroom'
-            ? 'معرض تجاري'
+            ? newProjectData.type === 'hotel'
+              ? 'جنحة فندقية'
+              : 'معرض تجاري'
             : unitType === 'warehouse'
             ? 'مستودع تخزين'
             : 'مكتب إداري';
@@ -708,15 +713,35 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     إداري ومكتبي
                   </button>
                   <button
-                    onClick={() => setProjectTypeFilter('logistics')}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                      projectTypeFilter === 'logistics'
-                        ? 'brand-fill text-canvas shadow-xs'
-                        : 'bg-canvas border border-muted-border/40 text-neutral-text/70 hover:text-heading'
-                    }`}
-                  >
-                    لوجستي
-                  </button>
+                     onClick={() => setProjectTypeFilter('logistics')}
+                     className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                       projectTypeFilter === 'logistics'
+                         ? 'brand-fill text-canvas shadow-xs'
+                         : 'bg-canvas border border-muted-border/40 text-neutral-text/70 hover:text-heading'
+                     }`}
+                   >
+                     لوجستي
+                   </button>
+                   <button
+                     onClick={() => setProjectTypeFilter('residential')}
+                     className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                       projectTypeFilter === 'residential'
+                         ? 'brand-fill text-canvas shadow-xs'
+                         : 'bg-canvas border border-muted-border/40 text-neutral-text/70 hover:text-heading'
+                     }`}
+                   >
+                     سكني
+                   </button>
+                   <button
+                     onClick={() => setProjectTypeFilter('hotel')}
+                     className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                       projectTypeFilter === 'hotel'
+                         ? 'brand-fill text-canvas shadow-xs'
+                         : 'bg-canvas border border-muted-border/40 text-neutral-text/70 hover:text-heading'
+                     }`}
+                   >
+                     فنادق
+                   </button>
                 </div>
               </div>
 
@@ -1118,6 +1143,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <option value="residential">مجمع سكني (أدوار وشقق)</option>
                     <option value="office">مبنى ومكاتب إدارية</option>
                     <option value="logistics">مستودعات لوجستية</option>
+                    <option value="hotel">فنادق وأجنحة</option>
                   </select>
                 </div>
 

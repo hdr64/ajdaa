@@ -58,6 +58,7 @@ const typeLabelsAr: Record<PropertyType, string> = {
   commercial: 'محلات ومجمعات تجارية',
   office: 'مكاتب ومباني إدارية',
   residential: 'مجمعات وأدوار سكنية',
+  hotel: 'فنادق وأجنحة',
 };
 
 const typeLabelsEn: Record<PropertyType, string> = {
@@ -65,6 +66,7 @@ const typeLabelsEn: Record<PropertyType, string> = {
   commercial: 'Commercial & Retail',
   office: 'Offices & Corporate',
   residential: 'Residential Complexes',
+  hotel: 'Hotels & Suites',
 };
 
 type CategoryKey = 'all' | PropertyType;
@@ -76,6 +78,7 @@ const categoryIcons: Record<CategoryKey, React.ComponentType<{ className?: strin
   commercial: Store,
   office: Briefcase,
   residential: Home,
+  hotel: BedDouble,
 };
 
 const specChip =
@@ -146,6 +149,8 @@ export const WorksPage: React.FC<WorksPageProps> = ({
     if (t.includes('مستودع') || t.includes('لوجست') || t === 'logistics') return 'logistics';
     if (t.includes('محل') || t.includes('تجار') || t === 'commercial') return 'commercial';
     if (t.includes('مكتب') || t.includes('مبان') || t.includes('إدار') || t === 'office') return 'office';
+    if (t.includes('فندق') || t.includes('أجنحة') || t === 'hotel') return 'hotel';
+    if (t.includes('سكني') || t === 'residential') return 'residential';
     return 'all';
   });
   const [city, setCity] = useState<string>(
@@ -181,7 +186,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         acc.all += 1;
         return acc;
       },
-      { all: 0, logistics: 0, commercial: 0, office: 0, residential: 0 },
+      { all: 0, logistics: 0, commercial: 0, office: 0, residential: 0, hotel: 0 },
     );
     const labels = isAr ? typeLabelsAr : typeLabelsEn;
     return [

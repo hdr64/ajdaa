@@ -10,7 +10,7 @@ interface ProjectsSectionProps {
   onQuickView?: (prop: Property) => void;
 }
 
-type FilterCategory = 'all' | 'commercial' | 'office' | 'logistics';
+type FilterCategory = 'all' | 'commercial' | 'office' | 'logistics' | 'residential' | 'hotel';
 
 export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQuickView }) => {
   const { language, isRTL } = useLanguage();
@@ -24,6 +24,8 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
     { id: 'office', labelAr: 'المباني والأبراج الإدارية', labelEn: 'Corporate & Business Towers' },
     { id: 'commercial', labelAr: 'المعارض والمجمعات التجارية', labelEn: 'Commercial & Showrooms' },
     { id: 'logistics', labelAr: 'المستودعات وسلاسل الإمداد', labelEn: 'Logistics & Warehousing' },
+    { id: 'residential', labelAr: 'سكني', labelEn: 'Residential' },
+    { id: 'hotel', labelAr: 'فنادق', labelEn: 'Hotels' },
   ];
 
   // In the top section of the home page, the first 3 properties (201, 202, 203) are displayed.
@@ -112,6 +114,10 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                         ? 'bg-blue-600 text-white'
                         : prop.type === 'commercial'
                         ? 'bg-emerald-600 text-white'
+                        : prop.type === 'residential'
+                        ? 'bg-violet-600 text-white'
+                        : prop.type === 'hotel'
+                        ? 'bg-amber-600 text-white'
                         : 'brand-fill'
                     }`}
                   >

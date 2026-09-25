@@ -1,4 +1,4 @@
-export type PropertyType = 'logistics' | 'commercial' | 'office' | 'residential';
+export type PropertyType = 'logistics' | 'commercial' | 'office' | 'residential' | 'hotel';
 export type PriceType = 'بيع' | 'إيجار' | 'استثمار';
 export type InterestType = 'rent' | 'buy' | 'invest' | 'general';
 export type UnitStatus = 'available' | 'reserved' | 'rented' | 'sold';

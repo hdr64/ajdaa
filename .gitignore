@@ -28,6 +28,11 @@ temp
 *.jpeg
 graphify-out
 
+# Frontend env (VITE_* vars are compiled into the client bundle)
+.env
+.env.local
+.env.*.local
+
 # Backend (server/)
 server/node_modules
 server/dist

@@ -1,15 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Property } from '../../types/property';
 import { AdminStorage } from '../../services/adminStorage';
+import { loadGoogleMaps, MapsConfigError, type GoogleMapsBundle } from '../../services/googleMaps';
 import { useLanguage } from '../../hooks/useLanguage';
 import {
   MapPin,
   Play,
   X,
   Building,
-  Building2,
   Warehouse,
   Store,
   Sparkles,
@@ -23,7 +21,9 @@ import {
   ExternalLink,
   Plus,
   Minus,
-  CheckCircle2
+  CheckCircle2,
+  Home,
+  BedDouble,
 } from 'lucide-react';
 
 interface InteractiveProjectsMapProps {
@@ -42,20 +42,130 @@ const getYouTubeEmbedUrl = (url?: string, autoplay: boolean = true): string => {
 
 type BasemapStyle = 'dark' | 'satellite';
 type RegionFilter = 'all' | 'riyadh' | 'ahsa';
+type MapsStatus = 'loading' | 'ready' | 'error';
 
-export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
-  onNavigate,
-}) => {
+const riyadhCenter: google.maps.LatLngLiteral = { lat: 24.74, lng: 46.71 };
+const ahsaCenter: google.maps.LatLngLiteral = { lat: 25.38, lng: 49.58 };
+const allRegionsCenter: google.maps.LatLngLiteral = { lat: 24.95, lng: 47.8 };
+const INITIAL_ZOOM = 11;
+
+/* ------------------------------------------------------------------ *
+ * Beacon markers
+ * Static, trusted SVG literals only. Project data is injected through
+ * textContent, never innerHTML.
+ * ------------------------------------------------------------------ */
+
+const ICON_STORE = `
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 9V20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/>
+    <path d="M3 9l1.6-5h14.8L21 9z"/>
+    <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/>
+    <path d="M9 21v-6h6v6"/>
+  </svg>`;
+
+const ICON_OFFICE = `
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
+    <path d="M9 22v-4h6v4"/>
+    <path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/>
+    <path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/>
+    <path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>
+  </svg>`;
+
+const ICON_LOGISTICS = `
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+    <path d="m3.3 7 8.7 5 8.7-5"/>
+    <path d="M12 22V12"/>
+  </svg>`;
+
+const ICON_RESIDENTIAL = `
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 10.6 12 3l9 7.6"/>
+    <path d="M5 9.5V21h14V9.5"/>
+    <path d="M10 21v-5h4v5"/>
+  </svg>`;
+
+const ICON_HOTEL = `
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 20V6"/>
+    <path d="M3 13h18v7"/>
+    <path d="M7 13V9.5h4.5a3.5 3.5 0 0 1 3.5 3.5"/>
+  </svg>`;
+
+interface BeaconTheme {
+  className: string;
+  icon: string;
+  /** Dot colour used by the bottom carousel strip. */
+  dot: string;
+}
+
+const BEACON_THEME: Record<string, BeaconTheme> = {
+  commercial: { className: 'type-commercial', icon: ICON_STORE, dot: 'bg-gold' },
+  office: { className: 'type-office', icon: ICON_OFFICE, dot: 'bg-accent-light' },
+  logistics: { className: 'type-logistics', icon: ICON_LOGISTICS, dot: 'bg-amber-400' },
+  residential: { className: 'type-residential', icon: ICON_RESIDENTIAL, dot: 'bg-violet-400' },
+  hotel: { className: 'type-hotel', icon: ICON_HOTEL, dot: 'bg-pink-400' },
+};
+
+const shortLabel = (title: string): string => title.split(' (')[0].trim();
+
+/**
+ * Builds the jewel-beacon DOM for a project marker.
+ * Mirrors the previous Leaflet divIcon markup so the existing CSS still applies.
+ */
+const buildBeaconElement = (project: Property, isSelected: boolean): HTMLElement => {
+  const theme = BEACON_THEME[project.type] ?? BEACON_THEME.commercial;
+
+  const beacon = document.createElement('div');
+  beacon.className = `custom-map-beacon ${theme.className}${isSelected ? ' is-selected' : ''}`;
+  beacon.dataset.projectId = String(project.id);
+
+  const pulse = document.createElement('div');
+  pulse.className = 'beacon-pulse-ring';
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'beacon-tooltip';
+  const tooltipContent = document.createElement('div');
+  tooltipContent.className = 'tooltip-content';
+  const tooltipTitle = document.createElement('span');
+  tooltipTitle.className = 'tooltip-title';
+  tooltipTitle.textContent = shortLabel(project.title);
+  const tooltipBadge = document.createElement('span');
+  tooltipBadge.className = 'tooltip-type-badge';
+  tooltipBadge.textContent = project.priceType;
+  tooltipContent.append(tooltipTitle, tooltipBadge);
+  const tooltipArrow = document.createElement('div');
+  tooltipArrow.className = 'tooltip-arrow';
+  tooltip.append(tooltipContent, tooltipArrow);
+
+  const core = document.createElement('div');
+  core.className = 'beacon-core';
+  const iconInner = document.createElement('div');
+  iconInner.className = 'beacon-icon-inner';
+  iconInner.innerHTML = theme.icon; // static literal, safe
+  core.appendChild(iconInner);
+
+  const pointer = document.createElement('div');
+  pointer.className = 'beacon-pointer';
+
+  beacon.append(pulse, tooltip, core, pointer);
+  return beacon;
+};
+
+export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ onNavigate }) => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<{ [id: number]: L.Marker }>({});
-  const darkLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const satLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<Record<number, google.maps.marker.AdvancedMarkerElement>>({});
 
   const allProjects = AdminStorage.getAllProjects().filter((p) => p.lat && p.lng);
+
+  const [maps, setMaps] = useState<GoogleMapsBundle | null>(null);
+  const [mapsStatus, setMapsStatus] = useState<MapsStatus>('loading');
+  const [mapsError, setMapsError] = useState<string | null>(null);
 
   const [selectedProject, setSelectedProject] = useState<Property | null>(null);
   const [selectedImage, setSelectedImage] = useState<string>('');
@@ -65,272 +175,199 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
   const [mapStyle, setMapStyle] = useState<BasemapStyle>('dark');
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
 
-  // Default coordinate centers
-  const riyadhCenter: [number, number] = [24.74, 46.71];
-  const ahsaCenter: [number, number] = [25.38, 49.58];
-  const initialCenter: [number, number] = riyadhCenter;
-  const initialZoom = 11;
+  /* ----------------------------- Boot the API ----------------------------- */
 
-  // Initialize Map
   useEffect(() => {
-    if (!mapContainerRef.current) return;
-    if (mapInstanceRef.current) return;
+    let cancelled = false;
 
-    // Create Leaflet Map
-    const map = L.map(mapContainerRef.current, {
-      center: initialCenter,
-      zoom: initialZoom,
-      zoomControl: false,
-      attributionControl: false,
-      scrollWheelZoom: true,
-      minZoom: 6,
-      maxZoom: 18,
-    });
-
-    // Layer 1: ESRI World Dark Gray Canvas (Clean roads & minimal geometries, NO WATERMARK)
-    const darkBase = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 18, subdomains: ['server', 'services'] }
-    );
-    const darkRef = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 18, opacity: 0.85 }
-    );
-    const darkGroup = L.layerGroup([darkBase, darkRef]);
-    darkLayerGroupRef.current = darkGroup;
-
-    // Layer 2: ESRI High-Resolution Satellite World Imagery
-    const satBase = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 18 }
-    );
-    const satRef = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 18, opacity: 0.8 }
-    );
-    const satGroup = L.layerGroup([satBase, satRef]);
-    satLayerGroupRef.current = satGroup;
-
-    // Add initial dark layer
-    darkGroup.addTo(map);
-
-    mapInstanceRef.current = map;
+    (async () => {
+      try {
+        const bundle = await loadGoogleMaps();
+        if (cancelled) return;
+        setMaps(bundle);
+        setMapsStatus('ready');
+      } catch (error) {
+        if (cancelled) return;
+        setMapsStatus('error');
+        setMapsError(
+          error instanceof MapsConfigError
+            ? error.message
+            : 'تعذر تحميل خرائط Google. تحقق من مفتاح API وتفعيل الفوترة.'
+        );
+      }
+    })();
 
     return () => {
-      map.remove();
-      mapInstanceRef.current = null;
+      cancelled = true;
     };
   }, []);
 
-  // Handle Map Style Switch (Dark vs Satellite)
+  /* --------------------------- Instantiate the map -------------------------- */
+
+  useEffect(() => {
+    if (!maps || !mapContainerRef.current || mapInstanceRef.current) return;
+
+    const map = new maps.Map(mapContainerRef.current, {
+      center: riyadhCenter,
+      zoom: INITIAL_ZOOM,
+      mapId: maps.mapId,
+      // The design supplies its own floating controls, so strip Google's chrome.
+      disableDefaultUI: true,
+      clickableIcons: false,
+      keyboardShortcuts: false,
+      gestureHandling: 'cooperative',
+      minZoom: 6,
+      maxZoom: 18,
+      backgroundColor: '#090e15',
+    });
+
+    mapInstanceRef.current = map;
+  }, [maps]);
+
+  useEffect(
+    () => () => {
+      Object.values(markersRef.current).forEach((marker) => {
+        marker.map = null;
+      });
+      markersRef.current = {};
+      mapInstanceRef.current = null;
+    },
+    []
+  );
+
+  /* ------------------------------ Basemap style ---------------------------- */
+
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !darkLayerGroupRef.current || !satLayerGroupRef.current) return;
+    if (!map) return;
+    map.setMapTypeId(mapStyle === 'satellite' ? 'hybrid' : 'roadmap');
+  }, [mapStyle, mapsStatus]);
 
-    if (mapStyle === 'dark') {
-      map.removeLayer(satLayerGroupRef.current);
-      if (!map.hasLayer(darkLayerGroupRef.current)) {
-        darkLayerGroupRef.current.addTo(map);
-      }
-    } else {
-      map.removeLayer(darkLayerGroupRef.current);
-      if (!map.hasLayer(satLayerGroupRef.current)) {
-        satLayerGroupRef.current.addTo(map);
-      }
-    }
-  }, [mapStyle]);
+  /* ----------------------------- Filter projects --------------------------- */
 
-  // Handle FullScreen Resize Invalidation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullScreen) {
-        setIsFullScreen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
-    const timer = setTimeout(() => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
-      }
-    }, 150);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      clearTimeout(timer);
-    };
-  }, [isFullScreen]);
-
-  // Filter projects by both type and region
   const filteredProjects = allProjects.filter((p) => {
-    // Type filter
     if (filterType !== 'all' && p.type !== filterType) return false;
-    // Region filter
     if (selectedRegion === 'riyadh' && p.city !== 'الرياض') return false;
     if (selectedRegion === 'ahsa' && p.city !== 'الأحساء') return false;
     return true;
   });
 
-  // Update Markers with Luxury Jewel Beacon Architecture
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
+  /* ------------------------- Smart camera fly-to ---------------------------- */
 
-    // Clear existing markers
-    Object.values(markersRef.current).forEach((marker) => marker.remove());
-    markersRef.current = {};
+  const handleSelectProject = useCallback(
+    (project: Property) => {
+      setSelectedProject(project);
+      setSelectedImage(project.image);
+      setActiveMediaTab('photos');
 
-    filteredProjects.forEach((p) => {
-      if (!p.lat || !p.lng) return;
+      const map = mapInstanceRef.current;
+      if (!map || !project.lat || !project.lng) return;
 
-      const isSelected = selectedProject?.id === p.id;
+      map.panTo({ lat: project.lat, lng: project.lng });
+      map.setZoom(14);
 
-      // Icon selector based on project type
-      let typeClass = 'type-commercial';
-      let iconSvg = `
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-      `;
-
-      if (p.type === 'office') {
-        typeClass = 'type-office';
-        iconSvg = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-            <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
-            <path d="M9 22v-4h6v4"/>
-            <path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/>
-            <path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/>
-            <path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>
-          </svg>
-        `;
-      } else if (p.type === 'logistics') {
-        typeClass = 'type-logistics';
-        iconSvg = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
-            <path d="m3.3 7 8.7 5 8.7-5"/>
-            <path d="M12 22V12"/>
-          </svg>
-        `;
+      // The detail drawer covers one side of the canvas, so nudge the camera to
+      // keep the pin inside the visible strip.
+      if (window.innerWidth >= 640) {
+        map.panBy(isAr ? 90 : -90, 0);
+      } else {
+        map.panBy(0, 120);
       }
+    },
+    [isAr]
+  );
 
-      // Compact display title for tooltip
-      const shortTitle = p.title.split(' (')[0].trim();
+  /* ------------------------------ Region switch ---------------------------- */
 
-      // Custom HTML Pin Element
-      const pinHtml = `
-        <div class="custom-map-beacon ${typeClass} ${isSelected ? 'is-selected' : ''}" data-project-id="${p.id}">
-          <!-- Radiating Radar Pulse Ring -->
-          <div class="beacon-pulse-ring"></div>
-          
-          <!-- Floating Interactive Tooltip -->
-          <div class="beacon-tooltip">
-            <div class="tooltip-content">
-              <span class="tooltip-title">${shortTitle}</span>
-              <span class="tooltip-type-badge">${p.priceType}</span>
-            </div>
-            <div class="tooltip-arrow"></div>
-          </div>
+  const handleRegionSelect = useCallback(
+    (region: RegionFilter) => {
+      setSelectedRegion(region);
+      setSelectedProject(null);
 
-          <!-- Jewel Circle Core -->
-          <div class="beacon-core">
-            <div class="beacon-icon-inner">
-              ${iconSvg}
-            </div>
-          </div>
+      const map = mapInstanceRef.current;
+      if (!map) return;
 
-          <!-- Bottom Anchor Pointer -->
-          <div class="beacon-pointer"></div>
-        </div>
-      `;
+      if (region === 'ahsa') {
+        map.panTo(ahsaCenter);
+        map.setZoom(13);
+      } else if (region === 'riyadh') {
+        map.panTo(riyadhCenter);
+        map.setZoom(INITIAL_ZOOM);
+      } else {
+        map.panTo(allRegionsCenter);
+        map.setZoom(8);
+      }
+    },
+    []
+  );
 
-      const customIcon = L.divIcon({
-        className: 'custom-leaflet-beacon-icon',
-        html: pinHtml,
-        iconSize: [160, 60],
-        iconAnchor: [80, 56],
-      });
-
-      const marker = L.marker([p.lat, p.lng], {
-        icon: customIcon,
-        zIndexOffset: isSelected ? 1000 : 100,
-      }).addTo(map);
-
-      marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
-        handleSelectProject(p);
-      });
-
-      markersRef.current[p.id] = marker;
-    });
-  }, [filteredProjects, selectedProject]);
-
-  // Smart Camera Fly-To with Viewport Offset
-  const handleSelectProject = (project: Property) => {
-    setSelectedProject(project);
-    setSelectedImage(project.image);
-    setActiveMediaTab('photos');
-
-    const map = mapInstanceRef.current;
-    if (map && project.lat && project.lng) {
-      const isDesktop = window.innerWidth >= 768;
-      // In Arabic RTL, the drawer is on the right, so we offset center longitude slightly eastward
-      // so that the marker remains visible in the open map area on the left.
-      const offsetLng = isDesktop ? (isAr ? 0.018 : -0.018) : 0;
-      const offsetLat = isDesktop ? 0 : -0.005;
-
-      map.flyTo([project.lat + offsetLat, project.lng + offsetLng], 14, {
-        duration: 1.1,
-        easeLinearity: 0.25,
-      });
-    }
-  };
-
-  // Region switcher handler
-  const handleRegionSelect = (region: RegionFilter) => {
-    setSelectedRegion(region);
-    setSelectedProject(null);
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    if (region === 'ahsa') {
-      map.flyTo(ahsaCenter, 13, { duration: 1.4 });
-    } else if (region === 'riyadh') {
-      map.flyTo(riyadhCenter, 11, { duration: 1.4 });
-    } else {
-      // Show all (Saudi bounds or center)
-      map.flyTo([24.95, 47.8], 8, { duration: 1.4 });
-    }
-  };
-
-  const handleResetView = () => {
+  const handleResetView = useCallback(() => {
     setSelectedProject(null);
     setSelectedRegion('riyadh');
     const map = mapInstanceRef.current;
-    if (map) {
-      map.flyTo(riyadhCenter, initialZoom, { duration: 1.1 });
-    }
-  };
+    if (!map) return;
+    map.panTo(riyadhCenter);
+    map.setZoom(INITIAL_ZOOM);
+  }, []);
 
-  const handleZoomIn = () => {
-    mapInstanceRef.current?.zoomIn();
-  };
+  const handleZoomIn = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (map) map.setZoom((map.getZoom() ?? INITIAL_ZOOM) + 1);
+  }, []);
 
-  const handleZoomOut = () => {
-    mapInstanceRef.current?.zoomOut();
-  };
+  const handleZoomOut = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (map) map.setZoom((map.getZoom() ?? INITIAL_ZOOM) - 1);
+  }, []);
+
+  /* -------------------------------- Markers -------------------------------- */
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !maps) return;
+
+    Object.values(markersRef.current).forEach((marker) => {
+      marker.map = null;
+    });
+    markersRef.current = {};
+
+    filteredProjects.forEach((project) => {
+      if (!project.lat || !project.lng) return;
+
+      const isSelected = selectedProject?.id === project.id;
+      const marker = new maps.AdvancedMarkerElement({
+        map,
+        position: { lat: project.lat, lng: project.lng },
+        content: buildBeaconElement(project, isSelected),
+        title: shortLabel(project.title),
+        // Advanced markers ignore clicks unless explicitly clickable.
+        gmpClickable: true,
+        // Default anchor is bottom-centre of the content box, which lands the
+        // beacon's pointer tip on the coordinate.
+        zIndex: isSelected ? 1000 : 100,
+      });
+
+      // gmp-click is the supported event for AdvancedMarkerElement; the old
+      // addListener('click') path is deprecated and warns at runtime.
+      marker.addEventListener('gmp-click', () => handleSelectProject(project));
+      markersRef.current[project.id] = marker;
+    });
+  }, [maps, filteredProjects, selectedProject, handleSelectProject]);
+
+  /* ----------------------------- Fullscreen UX ----------------------------- */
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullScreen) setIsFullScreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreen]);
 
   return (
     <section className="py-20 relative overflow-hidden bg-canvas">
       {/* Luxury Map & Jewel Beacon Custom CSS Styles */}
       <style>{`
-        .custom-leaflet-beacon-icon {
-          background: transparent !important;
-          border: none !important;
-        }
-        
         .custom-map-beacon {
           position: relative;
           display: flex;
@@ -340,14 +377,14 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
           user-select: none;
           transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-        
+
         .custom-map-beacon:hover {
-          transform: translateY(-4px) scale(1.08);
+          transform: translateY(-4px) scale(1.08) !important;
           z-index: 2500 !important;
         }
-        
+
         .custom-map-beacon.is-selected {
-          transform: translateY(-7px) scale(1.18);
+          transform: translateY(-7px) scale(1.18) !important;
           z-index: 3000 !important;
         }
 
@@ -365,15 +402,25 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
           animation: beaconPulse 2.2s infinite ease-out;
           pointer-events: none;
         }
-        
+
         .custom-map-beacon.type-office .beacon-pulse-ring {
           background: rgba(94, 177, 195, 0.45);
           box-shadow: 0 0 16px rgba(94, 177, 195, 0.8);
         }
-        
+
         .custom-map-beacon.type-logistics .beacon-pulse-ring {
           background: rgba(245, 158, 11, 0.45);
           box-shadow: 0 0 16px rgba(245, 158, 11, 0.8);
+        }
+
+        .custom-map-beacon.type-residential .beacon-pulse-ring {
+          background: rgba(167, 139, 250, 0.45);
+          box-shadow: 0 0 16px rgba(167, 139, 250, 0.8);
+        }
+
+        .custom-map-beacon.type-hotel .beacon-pulse-ring {
+          background: rgba(244, 114, 182, 0.45);
+          box-shadow: 0 0 16px rgba(244, 114, 182, 0.8);
         }
 
         @keyframes beaconPulse {
@@ -408,6 +455,16 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
           box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7), 0 0 15px rgba(245, 158, 11, 0.35);
         }
 
+        .custom-map-beacon.type-residential .beacon-core {
+          border-color: #a78bfa;
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7), 0 0 15px rgba(167, 139, 250, 0.35);
+        }
+
+        .custom-map-beacon.type-hotel .beacon-core {
+          border-color: #f472b6;
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7), 0 0 15px rgba(244, 114, 182, 0.35);
+        }
+
         .custom-map-beacon.is-selected .beacon-core {
           border-color: #f2e2bd;
           background: #0f5f70;
@@ -422,17 +479,11 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
           transition: color 0.3s ease;
         }
 
-        .custom-map-beacon.type-office .beacon-icon-inner {
-          color: #5eb1c3;
-        }
-
-        .custom-map-beacon.type-logistics .beacon-icon-inner {
-          color: #f59e0b;
-        }
-
-        .custom-map-beacon.is-selected .beacon-icon-inner {
-          color: #ffffff;
-        }
+        .custom-map-beacon.type-office .beacon-icon-inner { color: #5eb1c3; }
+        .custom-map-beacon.type-logistics .beacon-icon-inner { color: #f59e0b; }
+        .custom-map-beacon.type-residential .beacon-icon-inner { color: #a78bfa; }
+        .custom-map-beacon.type-hotel .beacon-icon-inner { color: #f472b6; }
+        .custom-map-beacon.is-selected .beacon-icon-inner { color: #ffffff; }
 
         /* Pointer triangle pointing down */
         .beacon-pointer {
@@ -446,17 +497,11 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
           z-index: 1;
         }
 
-        .custom-map-beacon.type-office .beacon-pointer {
-          border-top-color: #5eb1c3;
-        }
-
-        .custom-map-beacon.type-logistics .beacon-pointer {
-          border-top-color: #f59e0b;
-        }
-
-        .custom-map-beacon.is-selected .beacon-pointer {
-          border-top-color: #f2e2bd;
-        }
+        .custom-map-beacon.type-office .beacon-pointer { border-top-color: #5eb1c3; }
+        .custom-map-beacon.type-logistics .beacon-pointer { border-top-color: #f59e0b; }
+        .custom-map-beacon.type-residential .beacon-pointer { border-top-color: #a78bfa; }
+        .custom-map-beacon.type-hotel .beacon-pointer { border-top-color: #f472b6; }
+        .custom-map-beacon.is-selected .beacon-pointer { border-top-color: #f2e2bd; }
 
         /* Floating Tooltip */
         .beacon-tooltip {
@@ -520,15 +565,18 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
           margin: 0 auto;
         }
 
-        .leaflet-container {
-          background: #090e15 !important;
-          font-family: inherit !important;
-        }
+        /* Google Maps shell theming */
+        .gm-style { background: #090e15 !important; font-family: inherit !important; }
+        .gm-style .gm-style-iw-c { display: none !important; }
 
-        /* Clean smooth tile filtering for midnight slate elegance */
-        .leaflet-tile {
-          filter: brightness(0.95) contrast(1.15);
-        }
+        /*
+         * "Midnight Slate" is emulated with a canvas-wide invert filter because
+         * legacy \`styles\` arrays are ignored on vector maps. Markers sit inside
+         * the filtered subtree, so they get the inverse filter to stay on-brand.
+         * If you later apply real Cloud Styling to the Map ID, delete both rules.
+         */
+        .gm-canvas-dark { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.92); }
+        .gm-canvas-dark .custom-map-beacon { filter: invert(1) hue-rotate(180deg); }
       `}</style>
 
       {/* Ambient background glow */}
@@ -590,7 +638,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
                   : 'bg-surface/80 border-muted-border/40 text-neutral-text/80 hover:text-heading'
               }`}
             >
-              <Building2 className="w-3.5 h-3.5 text-accent" />
+              <Building className="w-3.5 h-3.5 text-accent" />
               <span>{isAr ? 'إداري ومكتبي' : 'Corporate'}</span>
             </button>
             <button
@@ -603,6 +651,28 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
             >
               <Warehouse className="w-3.5 h-3.5 text-amber-500" />
               <span>{isAr ? 'لوجستي' : 'Logistics'}</span>
+            </button>
+            <button
+              onClick={() => setFilterType('residential')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                filterType === 'residential'
+                  ? 'brand-fill text-canvas border-accent shadow-sm'
+                  : 'bg-surface/80 border-muted-border/40 text-neutral-text/80 hover:text-heading'
+              }`}
+            >
+              <Home className="w-3.5 h-3.5 text-violet-400" />
+              <span>{isAr ? 'سكني' : 'Residential'}</span>
+            </button>
+            <button
+              onClick={() => setFilterType('hotel')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                filterType === 'hotel'
+                  ? 'brand-fill text-canvas border-accent shadow-sm'
+                  : 'bg-surface/80 border-muted-border/40 text-neutral-text/80 hover:text-heading'
+              }`}
+            >
+              <BedDouble className="w-3.5 h-3.5 text-pink-400" />
+              <span>{isAr ? 'فنادق' : 'Hotels'}</span>
             </button>
           </div>
         </div>
@@ -618,8 +688,33 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
             }
           `}
         >
-          {/* Leaflet Map Target */}
-          <div ref={mapContainerRef} className="w-full h-full z-0" />
+          {/* Google Maps Target */}
+          <div
+            ref={mapContainerRef}
+            className={`w-full h-full z-0 ${mapStyle === 'dark' ? 'gm-canvas-dark' : ''}`}
+          />
+
+          {/* Loading / Error overlay */}
+          {mapsStatus !== 'ready' && (
+            <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 bg-[#090e15] text-center px-6">
+              {mapsStatus === 'loading' ? (
+                <>
+                  <div className="w-10 h-10 rounded-full border-2 border-gold/25 border-t-gold animate-spin" />
+                  <p className="text-xs font-bold text-white/70">
+                    {isAr ? 'جارٍ تحميل خرائط Google…' : 'Loading Google Maps…'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                    <X className="w-6 h-6 text-red-400" />
+                  </div>
+                  <p className="text-sm font-black text-white">{isAr ? 'تعذر تحميل الخريطة' : 'Map failed to load'}</p>
+                  <p className="text-xs text-white/60 max-w-md leading-relaxed">{mapsError}</p>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Top Bar Floating Controls inside Map */}
           <div className="absolute top-4 inset-x-4 z-10 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
@@ -721,11 +816,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
                 }
                 className="w-8 h-8 rounded-2xl bg-neutral-950/85 backdrop-blur-md border border-white/15 text-white/80 hover:text-gold hover:border-gold/40 flex items-center justify-center transition cursor-pointer shadow-lg"
               >
-                {isFullScreen ? (
-                  <Minimize2 className="w-3.5 h-3.5" />
-                ) : (
-                  <Maximize2 className="w-3.5 h-3.5" />
-                )}
+                {isFullScreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
             </div>
           </div>
@@ -753,7 +844,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
             <div className="flex items-center gap-2 bg-neutral-950/80 backdrop-blur-xl border border-white/15 p-1.5 rounded-2xl shadow-xl">
               {filteredProjects.map((proj) => {
                 const isSelected = selectedProject?.id === proj.id;
-                const shortTitle = proj.title.split(' (')[0].trim();
+                const theme = BEACON_THEME[proj.type] ?? BEACON_THEME.commercial;
                 return (
                   <button
                     key={proj.id}
@@ -764,16 +855,8 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
                         : 'bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-transparent'
                     }`}
                   >
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        proj.type === 'commercial'
-                          ? 'bg-gold'
-                          : proj.type === 'office'
-                          ? 'bg-accent-light'
-                          : 'bg-amber-400'
-                      }`}
-                    />
-                    <span className="truncate max-w-[120px] sm:max-w-none">{shortTitle}</span>
+                    <span className={`w-2 h-2 rounded-full ${theme.dot}`} />
+                    <span className="truncate max-w-[120px] sm:max-w-none">{shortLabel(proj.title)}</span>
                     <span className="text-[10px] text-white/60 bg-black/30 px-1.5 py-0.5 rounded-md">
                       {proj.priceType}
                     </span>
@@ -839,7 +922,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
               </div>
 
               {/* Scrollable Content Body */}
-              <div className="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col gap-4">
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 flex-col gap-4 flex">
                 {/* Media Switcher: Images vs Video */}
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
@@ -910,44 +993,60 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
                   )}
 
                   {/* Thumbnail Strip */}
-                  {activeMediaTab === 'photos' && selectedProject.gallery && selectedProject.gallery.length > 1 && (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
-                      {selectedProject.gallery.map((img, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setSelectedImage(img)}
-                          className={`relative w-14 h-10 rounded-lg overflow-hidden shrink-0 border transition-all cursor-pointer ${
-                            selectedImage === img
-                              ? 'border-gold ring-1 ring-gold scale-105'
-                              : 'border-transparent opacity-60 hover:opacity-100'
-                          }`}
-                        >
-                          <img src={img} alt="" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {activeMediaTab === 'photos' &&
+                    selectedProject.gallery &&
+                    selectedProject.gallery.length > 1 && (
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
+                        {selectedProject.gallery.map((img, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setSelectedImage(img)}
+                            className={`relative w-14 h-10 rounded-lg overflow-hidden shrink-0 border transition-all cursor-pointer ${
+                              selectedImage === img
+                                ? 'border-gold ring-1 ring-gold scale-105'
+                                : 'border-transparent opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={img} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                 </div>
 
                 {/* Key Metrics Grid */}
                 <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-white/[0.04] border border-white/10 text-xs">
                   <div>
-                    <span className="text-[10px] text-white/50 block">{isAr ? 'المساحة الإجمالية' : 'Total Area'}</span>
+                    <span className="text-[10px] text-white/50 block">
+                      {isAr ? 'المساحة الإجمالية' : 'Total Area'}
+                    </span>
                     <span className="text-xs sm:text-sm font-black text-white">
                       {selectedProject.area.toLocaleString()} م²
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-white/50 block">{isAr ? 'نوع التعاقد' : 'Contract Type'}</span>
-                    <span className="text-xs sm:text-sm font-black text-gold">{selectedProject.priceType}</span>
+                    <span className="text-[10px] text-white/50 block">
+                      {isAr ? 'نوع التعاقد' : 'Contract Type'}
+                    </span>
+                    <span className="text-xs sm:text-sm font-black text-gold">
+                      {selectedProject.priceType}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-white/50 block">{isAr ? 'حالة المشروع' : 'Status'}</span>
-                    <span className="text-xs font-bold text-white/90">{selectedProject.status || 'متاح للتأجير'}</span>
+                    <span className="text-[10px] text-white/50 block">
+                      {isAr ? 'حالة المشروع' : 'Status'}
+                    </span>
+                    <span className="text-xs font-bold text-white/90">
+                      {selectedProject.status || 'متاح للتأجير'}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-white/50 block">{isAr ? 'الوحدات المتاحة' : 'Units'}</span>
-                    <span className="text-xs font-bold text-white/90 truncate">{selectedProject.units || 'متعدد'}</span>
+                    <span className="text-[10px] text-white/50 block">
+                      {isAr ? 'الوحدات المتاحة' : 'Units'}
+                    </span>
+                    <span className="text-xs font-bold text-white/90 truncate">
+                      {selectedProject.units || 'متعدد'}
+                    </span>
                   </div>
                 </div>
 
@@ -957,25 +1056,28 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
                 </p>
 
                 {/* Strategic Location Highlights */}
-                {selectedProject.locationHighlightsAr && selectedProject.locationHighlightsAr.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold text-gold flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      <span>{isAr ? 'أبرز مميزات الموقع الاستراتيجي' : 'Strategic Location Highlights'}</span>
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedProject.locationHighlightsAr.slice(0, 4).map((item, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] font-medium px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/90 flex items-center gap-1"
-                        >
-                          <CheckCircle2 className="w-2.5 h-2.5 text-accent-light shrink-0" />
-                          <span>{item}</span>
+                {selectedProject.locationHighlightsAr &&
+                  selectedProject.locationHighlightsAr.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold text-gold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        <span>
+                          {isAr ? 'أبرز مميزات الموقع الاستراتيجي' : 'Strategic Location Highlights'}
                         </span>
-                      ))}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedProject.locationHighlightsAr.slice(0, 4).map((item, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] font-medium px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/90 flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="w-2.5 h-2.5 text-accent-light shrink-0" />
+                            <span>{item}</span>
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Direct Google Maps Navigation Button */}
                 {selectedProject.lat && selectedProject.lng && (
@@ -987,7 +1089,9 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       <Navigation className="w-3.5 h-3.5 text-gold" />
-                      <span>{isAr ? 'فتح المسار والاتجاهات في خرائط Google' : 'Directions in Google Maps'}</span>
+                      <span>
+                        {isAr ? 'فتح المسار والاتجاهات في خرائط Google' : 'Directions in Google Maps'}
+                      </span>
                     </span>
                     <ExternalLink className="w-3.5 h-3.5 opacity-60" />
                   </a>
