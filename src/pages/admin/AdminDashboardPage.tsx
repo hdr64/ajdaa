@@ -1,6 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import type { Property, PropertyUnit, UnitStatus, CustomerInquiry, PropertyType } from '../../types/property';
 import { AdminStorage, type CategoryItem } from '../../services/adminStorage';
+import type { InquiryStatus } from '../../services/inquiryService';
+import { getErrorMessage } from '../../services/api';
+import { uploadMedia, isAcceptedMedia, MAX_UPLOAD_BYTES } from '../../services/mediaService';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { applyUnitStatus, removeUnit, useRealtimeUnits } from '../../hooks/useRealtimeUnits';
 import { useLanguage } from '../../hooks/useLanguage';
 import { BuildingVisualizer } from '../../components/admin/BuildingVisualizer';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
@@ -22,6 +27,10 @@ import {
   Phone,
   Trash2,
   ArrowUpRight,
+  AlertCircle,
+  ImageUp,
+  FileText,
+  X as CloseIcon,
 } from 'lucide-react';
 
 interface AdminDashboardPageProps {
@@ -32,6 +41,8 @@ interface AdminDashboardPageProps {
 
 type AdminTab = 'overview' | 'projects' | 'units' | 'categories' | 'inquiries' | 'users';
 
+type PriceType = 'إيجار' | 'بيع' | 'استثمار';
+
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onLogout,
   onNavigateHome,
@@ -41,9 +52,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const isAr = language === 'ar';
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
-  const [projects, setProjects] = useState<Property[]>(() => AdminStorage.getAllProjects());
-  const [inquiries, setInquiries] = useState<CustomerInquiry[]>(() => AdminStorage.getInquiries());
+
+  const projectsResource = useAsyncData<Property[]>(
+    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    [],
+    []
+  );
+  const projects = projectsResource.data;
+  const setProjects = projectsResource.setData;
+
+  const inquiriesResource = useAsyncData<CustomerInquiry[]>(
+    useCallback((signal) => AdminStorage.getInquiries({}, signal), []),
+    [],
+    []
+  );
+  const inquiries = inquiriesResource.data;
+  const setInquiries = inquiriesResource.setData;
+
+  // Categories have no API resource yet, so they stay browser-local.
   const [categories, setCategories] = useState<CategoryItem[]>(() => AdminStorage.getCategories());
+  const [currentUser, setCurrentUser] = useState<{ name: string; roleAr: string } | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,31 +80,73 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [inquiryStatusFilter, setInquiryStatusFilter] = useState<string>('all');
 
   // Unit management selected project
-  const [selectedProjectId, setSelectedProjectId] = useState<number>(projects[0]?.id || 206);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
 
   // New Project Modal State
   const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
   const [newProjectData, setNewProjectData] = useState({
     title: '',
     type: 'commercial' as PropertyType,
     city: 'الرياض',
     area: 5000,
-    priceType: 'إيجار' as 'إيجار' | 'بيع' | 'استثمار',
+    priceType: 'إيجار' as PriceType,
     description: '',
     floorsCount: 3,
     unitsPerFloor: 4,
+    imageUrl: '',
+    brochureUrl: '',
   });
+  const [uploadingField, setUploadingField] = useState<'image' | 'brochure' | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<'image' | 'brochure'>('image');
 
   // Category new tag state
   const [newTagText, setNewTagText] = useState('');
   const [activeCategoryForTag, setActiveCategoryForTag] = useState<string>('cat-commercial');
 
-  const refreshData = () => {
-    setProjects(AdminStorage.getAllProjects());
-    setInquiries(AdminStorage.getInquiries());
-    setCategories(AdminStorage.getCategories());
-    onShowToast(isAr ? 'تم تحديث البيانات بنجاح' : 'Data refreshed');
+  // Verify the stored JWT before trusting the session, and show who is signed in.
+  React.useEffect(() => {
+    let cancelled = false;
+    AdminStorage.getCurrentUser()
+      .then((user) => {
+        if (!cancelled) setCurrentUser({ name: user.name, roleAr: user.roleAr });
+      })
+      .catch(() => {
+        // api.ts clears the token and App redirects to the login portal on 401.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Live sync: reflect status changes and deletions made in other sessions.
+  useRealtimeUnits({
+    onUnitStatus: useCallback(
+      (event) => setProjects((current) => applyUnitStatus(current, event)),
+      [setProjects]
+    ),
+    onUnitRemoved: useCallback(
+      (event) => setProjects((current) => removeUnit(current, event)),
+      [setProjects]
+    ),
+    onInquiryCreated: useCallback(() => {
+      void inquiriesResource.reload();
+    }, [inquiriesResource]),
+    onConnectionChange: useCallback((connected) => setRealtimeConnected(connected), []),
+  });
+
+  const refreshData = async () => {
+    try {
+      await Promise.all([projectsResource.reload(), inquiriesResource.reload()]);
+      onShowToast(isAr ? 'تم تحديث البيانات بنجاح' : 'Data refreshed');
+    } catch (error) {
+      onShowToast(getErrorMessage(error, isAr ? 'تعذر تحديث البيانات' : 'Could not refresh data'));
+    }
   };
+
+  const dataError = projectsResource.error ?? inquiriesResource.error;
+  const dataLoading = projectsResource.loading || inquiriesResource.loading;
 
   // Portfolio Stats Calculations
   const totalProjects = projects.length;
@@ -100,25 +171,77 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const occupancyRate = totalUnits > 0 ? Math.round(((reservedUnits + rentedUnits) / totalUnits) * 100) : 0;
   const newInquiriesCount = inquiries.filter((i) => i.status === 'new').length;
 
-  const handleInquiryStatusChange = (id: string, newStatus: 'new' | 'contacted' | 'closed') => {
-    AdminStorage.updateInquiryStatus(id, newStatus);
-    refreshData();
-    onShowToast(isAr ? 'تم تحديث حالة طلب الاهتمام' : 'Inquiry status updated');
-  };
+  const handleInquiryStatusChange = async (id: string, newStatus: 'new' | 'contacted' | 'closed') => {
+    const previous = inquiries;
+    // Optimistic update, rolled back if the server rejects the change.
+    setInquiries((current) =>
+      current.map((inq) =>
+        inq.id === id
+          ? { ...inq, status: newStatus, statusAr: newStatus === 'new' ? 'جديد' : newStatus === 'contacted' ? 'تم التواصل' : 'مغلق' }
+          : inq
+      )
+    );
 
-  const handleDeleteProject = (id: number, title: string) => {
-    if (window.confirm(isAr ? `هل أنت متأكد من حذف المشروع "${title}"؟` : `Are you sure you want to delete "${title}"?`)) {
-      AdminStorage.deleteProject(id);
-      refreshData();
-      onShowToast(isAr ? 'تم حذف المشروع' : 'Project deleted');
+    try {
+      await AdminStorage.updateInquiryStatus(id, newStatus);
+      onShowToast(isAr ? 'تم تحديث حالة طلب الاهتمام' : 'Inquiry status updated');
+    } catch (error) {
+      setInquiries(previous);
+      onShowToast(getErrorMessage(error, isAr ? 'تعذر تحديث الحالة' : 'Could not update the inquiry'));
     }
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleDeleteProject = async (id: number, title: string) => {
+    if (!window.confirm(isAr ? `هل أنت متأكد من حذف المشروع "${title}"؟` : `Are you sure you want to delete "${title}"?`)) {
+      return;
+    }
+    try {
+      await AdminStorage.deleteProject(id);
+      await projectsResource.reload();
+      onShowToast(isAr ? 'تم حذف المشروع' : 'Project deleted');
+    } catch (error) {
+      onShowToast(getErrorMessage(error, isAr ? 'تعذر حذف المشروع' : 'Could not delete the project'));
+    }
+  };
+
+  const handleFileSelected = async (file: File | undefined) => {
+    if (!file) return;
+
+    const target = uploadTargetRef.current;
+    if (!isAcceptedMedia(file)) {
+      onShowToast(isAr ? 'صيغة الملف غير مدعومة (JPG, PNG, WebP, PDF)' : 'Unsupported file type (JPG, PNG, WebP, PDF)');
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      onShowToast(isAr ? 'حجم الملف يتجاوز 50 ميجابايت' : 'File exceeds the 50 MB limit');
+      return;
+    }
+
+    setUploadingField(target);
+    try {
+      const uploaded = await uploadMedia(file);
+      setNewProjectData((current) =>
+        target === 'image' ? { ...current, imageUrl: uploaded.url } : { ...current, brochureUrl: uploaded.url }
+      );
+      onShowToast(isAr ? 'تم رفع الملف بنجاح' : 'File uploaded successfully');
+    } catch (error) {
+      onShowToast(getErrorMessage(error, isAr ? 'تعذر رفع الملف' : 'Upload failed'));
+    } finally {
+      setUploadingField(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const openFilePicker = (target: 'image' | 'brochure') => {
+    uploadTargetRef.current = target;
+    fileInputRef.current?.click();
+  };
+
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectData.title.trim()) return;
 
-    const newId = Date.now();
+    setCreatingProject(true);
     const typeArMap: Record<PropertyType, string> = {
       commercial: 'مجمع ومراكز تجارية',
       residential: 'مجمع سكني فاخر',
@@ -128,7 +251,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     };
 
     // Auto-generate realistic floors & units
-    const generatedFloors = Array.from({ length: newProjectData.floorsCount }).map((_, fIdx) => {
+    const generatedFloors = Array.from({ length: Math.max(1, newProjectData.floorsCount) }).map((_, fIdx) => {
       const floorNameAr =
         fIdx === 0
           ? 'الدور الأرضي'
@@ -138,7 +261,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           ? 'الدور الثاني'
           : `الدور ${fIdx + 1}`;
 
-      const units: PropertyUnit[] = Array.from({ length: newProjectData.unitsPerFloor }).map((_, uIdx) => {
+      const units: PropertyUnit[] = Array.from({ length: Math.max(1, newProjectData.unitsPerFloor) }).map((_, uIdx) => {
         const uNum = (fIdx + 1) * 100 + (uIdx + 1);
         const unitType =
           newProjectData.type === 'residential'
@@ -163,13 +286,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             : 'مكتب إداري';
 
         return {
-          id: `p${newId}-f${fIdx}-u${uIdx}`,
+          id: `p-${newProjectData.title.trim().slice(0, 12)}-${fIdx}-${uIdx}`.replace(/\s+/g, '-'),
           unitNumber: `وحدة ${uNum}`,
           floorNumber: fIdx,
           floorNameAr,
           type: unitType,
           typeAr: unitTypeAr,
-          area: Math.round(newProjectData.area / (newProjectData.floorsCount * newProjectData.unitsPerFloor)),
+          area: Math.round(
+            newProjectData.area / (Math.max(1, newProjectData.floorsCount) * Math.max(1, newProjectData.unitsPerFloor))
+          ),
           status: 'available' as UnitStatus,
           statusAr: 'متاح',
           features: ['تشطيب راقي', 'تكييف مركزي', 'مواقف خاصة'],
@@ -180,13 +305,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         floorNumber: fIdx,
         floorNameAr,
         floorNameEn: `Floor ${fIdx}`,
-        totalArea: Math.round(newProjectData.area / newProjectData.floorsCount),
+        totalArea: Math.round(newProjectData.area / Math.max(1, newProjectData.floorsCount)),
         units,
       };
     });
 
     const newProj: Property = {
-      id: newId,
+      // The server assigns the id; 0 keeps the draft shape valid until then.
+      id: 0,
       title: newProjectData.title.trim(),
       type: newProjectData.type,
       typeAr: typeArMap[newProjectData.type],
@@ -194,26 +320,36 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       city: newProjectData.city,
       area: newProjectData.area,
       status: 'متاح',
-      image: projects[0]?.image || '',
+      image: newProjectData.imageUrl || projects[0]?.image || '',
+      gallery: newProjectData.imageUrl ? [newProjectData.imageUrl] : [],
       description: newProjectData.description || 'مشروع جديد متميز تم إدراجه من خلال لوحة التحكم.',
       floors: generatedFloors,
       virtualTour3dAvailable: true,
     };
 
-    AdminStorage.saveNewProject(newProj);
-    refreshData();
-    setNewProjectModalOpen(false);
-    setNewProjectData({
-      title: '',
-      type: 'commercial',
-      city: 'الرياض',
-      area: 5000,
-      priceType: 'إيجار',
-      description: '',
-      floorsCount: 3,
-      unitsPerFloor: 4,
-    });
-    onShowToast(isAr ? 'تم إنشاء المشروع الجديد بنجاح!' : 'New project added successfully!');
+    try {
+      const created = await AdminStorage.createProject(newProj, generatedFloors);
+      setNewProjectModalOpen(false);
+      setNewProjectData({
+        title: '',
+        type: 'commercial',
+        city: 'الرياض',
+        area: 5000,
+        priceType: 'إيجار',
+        description: '',
+        floorsCount: 3,
+        unitsPerFloor: 4,
+        imageUrl: '',
+        brochureUrl: '',
+      });
+      await projectsResource.reload();
+      setSelectedProjectId(created.id);
+      onShowToast(isAr ? 'تم إنشاء المشروع الجديد بنجاح!' : 'New project added successfully!');
+    } catch (error) {
+      onShowToast(getErrorMessage(error, isAr ? 'تعذر إنشاء المشروع' : 'Could not create the project'));
+    } finally {
+      setCreatingProject(false);
+    }
   };
 
   const handleAddTag = (catId: string) => {
@@ -227,7 +363,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     onShowToast(isAr ? 'تمت إضافة الوسم بنجاح' : 'Tag added successfully');
   };
 
-  const selectedProjectForUnits = projects.find((p) => p.id === selectedProjectId) || projects[0];
+  const selectedProjectForUnits =
+    projects.find((p) => p.id === selectedProjectId) ?? projects[0] ?? null;
 
   // Filtered Projects for Projects Tab
   const filteredProjects = useMemo(() => {
@@ -426,25 +563,36 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 {activeTab === 'users' && 'المستخدمين ومصفوفة الأذونات'}
               </h1>
               <p className="text-[10px] text-neutral-text/60 mt-0.5 hidden sm:block">
-                متابعة حركة الأصول، نسب الإشغال، والفرص الاستثمارية الفعالة
+                {currentUser
+                  ? `${currentUser.name} · ${currentUser.roleAr}`
+                  : 'متابعة حركة الأصول، نسب الإشغال، والفرص الاستثمارية الفعالة'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
             {/* Live Market Status Badge */}
-            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 font-bold text-[11px]">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>السوق العقاري: نشط</span>
+            <div
+              className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl border font-bold text-[11px] ${
+                realtimeConnected
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                  : 'bg-amber-500/10 border-amber-500/20 text-amber-600'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}
+              />
+              <span>{realtimeConnected ? 'البيانات حية ومزامنة' : 'في انتظار الاتصال الحي'}</span>
             </div>
 
             {/* Quick Refresh */}
             <button
-              onClick={refreshData}
+              onClick={() => void refreshData()}
+              disabled={dataLoading}
               title="تحديث البيانات"
-              className="p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:text-accent bg-surface transition cursor-pointer text-neutral-text/70 shadow-xs"
+              className="p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:text-accent bg-surface transition cursor-pointer text-neutral-text/70 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${dataLoading ? 'animate-spin' : ''}`} />
             </button>
 
             {/* Primary Action: Add Project */}
@@ -460,6 +608,46 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
         {/* Content Body */}
         <div className="p-6 space-y-6 flex-1">
+          {/* Data gate: the whole workspace depends on projects + inquiries loading. */}
+          {dataError && (
+            <div className="p-10 rounded-2xl bg-surface border border-red-500/30 text-center space-y-4">
+              <AlertCircle className="w-9 h-9 text-red-400 mx-auto" />
+              <p className="text-sm font-black text-heading">تعذر تحميل بيانات لوحة التحكم</p>
+              <p className="text-xs text-neutral-text/60 max-w-lg mx-auto leading-relaxed">{dataError}</p>
+              <button
+                onClick={() => void refreshData()}
+                className="brand-btn-secondary font-bold text-xs px-5 py-2.5 rounded-xl inline-flex items-center gap-2"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                إعادة المحاولة
+              </button>
+            </div>
+          )}
+
+          {!dataError && dataLoading && projects.length === 0 && (
+            <div className="py-20 text-center space-y-4">
+              <div className="w-11 h-11 rounded-full border-2 border-accent/25 border-t-accent animate-spin mx-auto" />
+              <p className="text-xs font-bold text-neutral-text/60">جاري تحميل بيانات الأصول العقارية...</p>
+            </div>
+          )}
+
+          {!dataError && !dataLoading && projects.length === 0 && (
+            <div className="p-10 rounded-2xl bg-surface border border-dashed border-muted-border/50 text-center space-y-4">
+              <Building2 className="w-9 h-9 text-neutral-text/40 mx-auto" />
+              <p className="text-sm font-black text-heading">لا توجد مشاريع مسجلة بعد</p>
+              <p className="text-xs text-neutral-text/60">ابدأ بإضافة أول مشروع عقاري إلى المحفظة.</p>
+              <button
+                onClick={() => setNewProjectModalOpen(true)}
+                className="brand-btn-primary font-bold text-xs px-5 py-2.5 rounded-xl inline-flex items-center gap-2"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                إضافة مشروع جديد
+              </button>
+            </div>
+          )}
+
+          {!dataError && (!dataLoading || projects.length > 0) && (
+            <>
           {/* TAB 1: EXECUTIVE OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
@@ -624,7 +812,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                             <select
                               value={inq.status}
                               onChange={(e) =>
-                                handleInquiryStatusChange(inq.id, e.target.value as any)
+                                handleInquiryStatusChange(inq.id, e.target.value as InquiryStatus)
                               }
                               className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border outline-none cursor-pointer ${
                                 inq.status === 'new'
@@ -851,7 +1039,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         </button>
 
                         <button
-                          onClick={() => handleDeleteProject(proj.id, proj.title)}
+                          onClick={() => void handleDeleteProject(proj.id, proj.title)}
                           title="حذف المشروع"
                           className="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition cursor-pointer"
                         >
@@ -873,7 +1061,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-heading text-xs">حدد المشروع لعرض وتعديل أدوار ووحدات المبنى:</span>
                   <select
-                    value={selectedProjectId}
+                    value={selectedProjectId ?? ''}
                     onChange={(e) => setSelectedProjectId(Number(e.target.value))}
                     className="px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 font-bold text-xs text-heading outline-none cursor-pointer focus:border-accent"
                   >
@@ -889,7 +1077,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               {selectedProjectForUnits ? (
                 <BuildingVisualizer
                   project={selectedProjectForUnits}
-                  onProjectUpdate={refreshData}
+                  onProjectUpdate={async () => {
+                    await projectsResource.reload();
+                  }}
                   onShowToast={onShowToast}
                 />
               ) : (
@@ -992,7 +1182,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           <select
                             value={inq.status}
                             onChange={(e) =>
-                              handleInquiryStatusChange(inq.id, e.target.value as any)
+                              handleInquiryStatusChange(inq.id, e.target.value as InquiryStatus)
                             }
                             className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border outline-none cursor-pointer ${
                               inq.status === 'new'
@@ -1101,6 +1291,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {activeTab === 'users' && (
             <UsersPermissionsManager onShowToast={onShowToast} />
           )}
+            </>
+          )}
         </div>
       </main>
 
@@ -1154,7 +1346,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <select
                     value={newProjectData.priceType}
                     onChange={(e) =>
-                      setNewProjectData({ ...newProjectData, priceType: e.target.value as any })
+                      setNewProjectData({ ...newProjectData, priceType: e.target.value as PriceType })
                     }
                     className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none cursor-pointer"
                   >
@@ -1228,6 +1420,111 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 />
               </div>
 
+              {/* Media: real uploads to /api/media/upload, persisted on the project record. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+                    صورة المشروع
+                  </label>
+                  {newProjectData.imageUrl ? (
+                    <div className="relative rounded-xl overflow-hidden border border-muted-border/50">
+                      <img
+                        src={newProjectData.imageUrl}
+                        alt="صورة المشروع"
+                        className="w-full h-28 object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewProjectData((current) => ({ ...current, imageUrl: '' }))
+                        }
+                        className="absolute top-1.5 left-1.5 p-1 rounded-lg bg-black/60 text-white hover:bg-black/80 transition cursor-pointer"
+                        title="إزالة الصورة"
+                      >
+                        <CloseIcon className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openFilePicker('image')}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        void handleFileSelected(e.dataTransfer.files[0]);
+                      }}
+                      className="w-full h-28 rounded-xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex flex-col items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      {uploadingField === 'image' ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <ImageUp className="w-5 h-5" />
+                      )}
+                      <span className="text-[10px] font-bold">
+                        {uploadingField === 'image' ? 'جارٍ الرفع...' : 'اسحب صورة أو انقر للرفع'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+                    ملف الكتيّب (PDF)
+                  </label>
+                  {newProjectData.brochureUrl ? (
+                    <div className="h-28 rounded-xl border border-muted-border/50 bg-canvas flex items-center gap-2 p-3">
+                      <FileText className="w-5 h-5 text-accent shrink-0" />
+                      <a
+                        href={newProjectData.brochureUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] font-bold text-heading hover:text-accent truncate min-w-0"
+                      >
+                        عرض الكتيّب
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewProjectData((current) => ({ ...current, brochureUrl: '' }))
+                        }
+                        className="mr-auto p-1 rounded-lg text-neutral-text/60 hover:text-red-500 transition cursor-pointer shrink-0"
+                        title="إزالة الملف"
+                      >
+                        <CloseIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openFilePicker('brochure')}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        void handleFileSelected(e.dataTransfer.files[0]);
+                      }}
+                      className="w-full h-28 rounded-xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex flex-col items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      {uploadingField === 'brochure' ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <FileText className="w-5 h-5" />
+                      )}
+                      <span className="text-[10px] font-bold">
+                        {uploadingField === 'brochure' ? 'جارٍ الرفع...' : 'اسحب ملف PDF أو انقر للرفع'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf"
+                className="hidden"
+                onChange={(e) => void handleFileSelected(e.target.files?.[0])}
+              />
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-muted-border/30">
                 <button
                   type="button"
@@ -1238,9 +1535,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="brand-btn-primary px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer"
+                  disabled={creatingProject || uploadingField !== null}
+                  className="brand-btn-primary px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                 >
-                  تأكيد وإنشاء المشروع
+                  {creatingProject && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  {creatingProject ? 'جارٍ الإنشاء...' : 'تأكيد وإنشاء المشروع'}
                 </button>
               </div>
             </form>

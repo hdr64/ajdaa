@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Property, PropertyFloor, PropertyUnit, UnitStatus } from '../../types/property';
 import { AdminStorage } from '../../services/adminStorage';
+import { getErrorMessage } from '../../services/api';
 import {
   Layers,
   Building,
@@ -18,7 +19,7 @@ import {
 
 interface BuildingVisualizerProps {
   project: Property;
-  onProjectUpdate: () => void;
+  onProjectUpdate: () => void | Promise<void>;
   onShowToast: (msg: string) => void;
 }
 
@@ -30,6 +31,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
   const floors = project.floors || [];
   const [selectedFloorIndex, setSelectedFloorIndex] = useState<number>(0);
   const [unitFilter, setUnitFilter] = useState<'all' | UnitStatus>('all');
+  const [saving, setSaving] = useState(false);
 
   // Add / Edit Unit Modal State
   const [unitModalOpen, setUnitModalOpen] = useState(false);
@@ -83,9 +85,24 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
     setUnitModalOpen(true);
   };
 
-  const handleSaveUnit = (e: React.FormEvent) => {
+  /** Wraps a mutation so failures surface as a toast instead of an unhandled rejection. */
+  const runMutation = async (action: () => Promise<unknown>, successMessage: string) => {
+    setSaving(true);
+    try {
+      await action();
+      await onProjectUpdate();
+      onShowToast(successMessage);
+    } catch (error) {
+      onShowToast(getErrorMessage(error, 'تعذر حفظ التعديلات على الخادم'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!unitForm.unitNumber.trim()) return;
+    if (!activeFloor) return;
 
     const typeArMap: Record<PropertyUnit['type'], string> = {
       showroom: 'معرض تجاري',
@@ -107,52 +124,38 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
       .map((s) => s.trim())
       .filter(Boolean);
 
-    if (editingUnit) {
-      // Update existing unit
-      const updated: PropertyUnit = {
-        ...editingUnit,
-        unitNumber: unitForm.unitNumber.trim(),
-        sectionAr: unitForm.sectionAr.trim() || undefined,
-        type: unitForm.type,
-        typeAr: typeArMap[unitForm.type],
-        area: Number(unitForm.area),
-        priceLabel: unitForm.priceLabel.trim() || undefined,
-        status: unitForm.status,
-        statusAr: statusArMap[unitForm.status],
-        features,
-      };
-      AdminStorage.updateUnitInProject(project.id, updated);
-      onShowToast('تم تحديث بيانات الوحدة بنجاح');
-    } else {
-      // Add new unit
-      const newUnit: PropertyUnit = {
-        id: `u-${Date.now()}`,
-        unitNumber: unitForm.unitNumber.trim(),
-        floorNumber: activeFloor?.floorNumber || 0,
-        floorNameAr: activeFloor?.floorNameAr || 'الدور الأرضي',
-        sectionAr: unitForm.sectionAr.trim() || undefined,
-        type: unitForm.type,
-        typeAr: typeArMap[unitForm.type],
-        area: Number(unitForm.area),
-        priceLabel: unitForm.priceLabel.trim() || undefined,
-        status: unitForm.status,
-        statusAr: statusArMap[unitForm.status],
-        features,
-      };
-      AdminStorage.addUnitToProject(project.id, activeFloor?.floorNumber || 0, newUnit);
-      onShowToast('تمت إضافة الوحدة الجديدة بنجاح');
-    }
+    const baseUnit = {
+      unitNumber: unitForm.unitNumber.trim(),
+      floorNumber: activeFloor.floorNumber,
+      floorNameAr: activeFloor.floorNameAr,
+      floorNameEn: activeFloor.floorNameEn,
+      sectionAr: unitForm.sectionAr.trim() || undefined,
+      type: unitForm.type,
+      typeAr: typeArMap[unitForm.type],
+      area: Number(unitForm.area),
+      priceLabel: unitForm.priceLabel.trim() || undefined,
+      status: unitForm.status,
+      statusAr: statusArMap[unitForm.status],
+      features,
+    };
+
+    await runMutation(
+      () =>
+        editingUnit
+          ? AdminStorage.updateUnitInProject(project.id, activeFloor, { ...editingUnit, ...baseUnit })
+          : AdminStorage.addUnitToProject(project.id, activeFloor, {
+              ...baseUnit,
+              id: `u-${Date.now()}`,
+            }),
+      editingUnit ? 'تم تحديث بيانات الوحدة بنجاح' : 'تمت إضافة الوحدة الجديدة بنجاح'
+    );
 
     setUnitModalOpen(false);
-    onProjectUpdate();
   };
 
   const handleDeleteUnit = (unitId: string, unitNumber: string) => {
-    if (confirm(`هل أنت متأكد من حذف (${unitNumber})؟`)) {
-      AdminStorage.deleteUnitFromProject(project.id, unitId);
-      onProjectUpdate();
-      onShowToast('تم حذف الوحدة');
-    }
+    if (!confirm(`هل أنت متأكد من حذف (${unitNumber})؟`)) return;
+    void runMutation(() => AdminStorage.deleteUnitFromProject(project.id, unitId), 'تم حذف الوحدة');
   };
 
   const handleCycleStatus = (unit: PropertyUnit) => {
@@ -160,41 +163,29 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
     const nextIdx = (sequence.indexOf(unit.status) + 1) % sequence.length;
     const nextStatus = sequence[nextIdx];
 
-    const statusArMap: Record<UnitStatus, string> = {
-      available: 'متاح',
-      reserved: 'محجوز',
-      rented: 'مؤجر',
-      sold: 'مباع',
-    };
-
-    const updated: PropertyUnit = {
-      ...unit,
-      status: nextStatus,
-      statusAr: statusArMap[nextStatus],
-    };
-
-    AdminStorage.updateUnitInProject(project.id, updated);
-    AdminStorage.updateUnitStatus(unit.id, nextStatus);
-    onProjectUpdate();
+    // The server owns the status labels and broadcasts the change to every tab.
+    void runMutation(() => AdminStorage.updateUnitStatus(unit.id, nextStatus), 'تم تحديث حالة الوحدة');
   };
 
-  const handleAddFloor = (e: React.FormEvent) => {
+  const handleAddFloor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFloorName.trim()) return;
-    AdminStorage.addFloorToProject(project.id, newFloorName.trim());
+
+    await runMutation(
+      () => AdminStorage.addFloorToProject(project.id, newFloorName.trim()),
+      'تمت إضافة الدور بنجاح'
+    );
+
     setNewFloorName('');
     setFloorModalOpen(false);
-    onProjectUpdate();
-    onShowToast('تمت إضافة الدور بنجاح');
   };
 
   const handleDeleteFloor = (floorNumber: number, floorName: string) => {
-    if (confirm(`هل تريد بالتأكيد حذف (${floorName}) وكافة الوحدات التابعة له؟`)) {
-      AdminStorage.deleteFloorFromProject(project.id, floorNumber);
+    if (!confirm(`هل تريد بالتأكيد حذف (${floorName}) وكافة الوحدات التابعة له؟`)) return;
+    void runMutation(async () => {
+      await AdminStorage.deleteFloorFromProject(project.id, floorNumber);
       setSelectedFloorIndex(0);
-      onProjectUpdate();
-      onShowToast('تم حذف الدور');
-    }
+    }, 'تم حذف الدور');
   };
 
   const getUnitIcon = (type: PropertyUnit['type']) => {
@@ -439,8 +430,9 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
                         {/* Interactive Status Switcher Chip */}
                         <button
                           onClick={() => handleCycleStatus(unit)}
+                          disabled={saving}
                           title="انقر لتغيير الحالة مباشرة"
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer hover:scale-105 transition-transform flex items-center gap-1 ${badgeColor}`}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer hover:scale-105 transition-transform flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed ${badgeColor}`}
                         >
                           <RefreshCw className="w-2.5 h-2.5" />
                           <span>{unit.statusAr}</span>
@@ -622,7 +614,8 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer"
+                  disabled={saving}
+                  className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
                 >
                   {editingUnit ? 'حفظ التعديلات' : 'إضافة الوحدة'}
                 </button>

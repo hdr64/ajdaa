@@ -1,109 +1,30 @@
-import type { Property, PropertyUnit, UnitStatus, CustomerInquiry, PropertyType } from '../types/property';
-import { properties as initialProperties } from '../data/properties';
+import { authService, type AuthSession } from './authService';
+import { inquiryService, type InquiryFilters, type InquiryInput, type InquiryStatus } from './inquiryService';
+import {
+  propertyService,
+  toUnitInput,
+  type UnitInput,
+} from './propertyService';
+import { ApiError } from './api';
+import type {
+  CustomerInquiry,
+  Property,
+  PropertyFloor,
+  PropertyUnit,
+  UnitStatus,
+} from '../types/property';
+import type { AdminUser, AdminUserInput, CategoryItem, AdminStatus } from '../types/admin';
 
-const AUTH_KEY = 'ajdaa_admin_authenticated';
-const PROJECTS_KEY = 'ajdaa_custom_projects';
-const INQUIRIES_KEY = 'ajdaa_customer_inquiries';
-const STATUS_OVERRIDES_KEY = 'ajdaa_unit_status_overrides';
+export type { AdminUser, AdminUserInput, CategoryItem, AdminStatus } from '../types/admin';
+
 const CATEGORIES_KEY = 'ajdaa_categories';
-const USERS_KEY = 'ajdaa_admin_users';
 
-export interface CategoryItem {
-  id: string;
-  nameAr: string;
-  nameEn: string;
-  type: PropertyType;
-  tags: string[];
-}
-
-export interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  role: 'super_admin' | 'project_manager' | 'sales_agent' | 'viewer';
-  roleAr: string;
-  department: string;
-  permissions: {
-    manageProjects: boolean;
-    manageUnits: boolean;
-    viewInquiries: boolean;
-    exportData: boolean;
-    manageUsers: boolean;
-  };
-  lastLogin?: string;
-  status: 'active' | 'suspended';
-}
-
-const DEFAULT_USERS: AdminUser[] = [
-  {
-    id: 'usr-1',
-    name: 'سلطان المقرن',
-    email: 'admin@ajdaa.sa',
-    role: 'super_admin',
-    roleAr: 'مدير عام النظام (Super Admin)',
-    department: 'الإدارة التنفيذية',
-    permissions: {
-      manageProjects: true,
-      manageUnits: true,
-      viewInquiries: true,
-      exportData: true,
-      manageUsers: true,
-    },
-    lastLogin: 'الآن',
-    status: 'active',
-  },
-  {
-    id: 'usr-2',
-    name: 'م. فهد السديري',
-    email: 'f.sudairy@ajdaa.sa',
-    role: 'project_manager',
-    roleAr: 'مدير التطوير والمشاريع',
-    department: 'التطوير الهندسي',
-    permissions: {
-      manageProjects: true,
-      manageUnits: true,
-      viewInquiries: true,
-      exportData: true,
-      manageUsers: false,
-    },
-    lastLogin: 'منذ ساعتين',
-    status: 'active',
-  },
-  {
-    id: 'usr-3',
-    name: 'ريم القحطاني',
-    email: 'reem.q@ajdaa.sa',
-    role: 'sales_agent',
-    roleAr: 'مسؤول تأجير ومبيعات',
-    department: 'إدارة الاستثمار والمبيعات',
-    permissions: {
-      manageProjects: false,
-      manageUnits: true,
-      viewInquiries: true,
-      exportData: false,
-      manageUsers: false,
-    },
-    lastLogin: 'أمس، 4:30 م',
-    status: 'active',
-  },
-  {
-    id: 'usr-4',
-    name: 'تركي الدوسري',
-    email: 'turki.d@ajdaa.sa',
-    role: 'viewer',
-    roleAr: 'محلل استثماري ومتابع',
-    department: 'التخطيط والتحليل',
-    permissions: {
-      manageProjects: false,
-      manageUnits: false,
-      viewInquiries: true,
-      exportData: true,
-      manageUsers: false,
-    },
-    lastLogin: 'منذ 3 أيام',
-    status: 'active',
-  },
-];
+/**
+ * Categories have no API resource yet (see `server/src/routes`), so they remain
+ * browser-local. Everything else in this facade is backed by the live API and
+ * every method is asynchronous — the previous localStorage implementation was
+ * synchronous, which is why all call sites now load inside effects.
+ */
 
 const DEFAULT_CATEGORIES: CategoryItem[] = [
   {
@@ -111,355 +32,202 @@ const DEFAULT_CATEGORIES: CategoryItem[] = [
     nameAr: 'مجمعات ومراكز تجارية',
     nameEn: 'Commercial Complexes & Centers',
     type: 'commercial',
-    tags: ['طريق الملك فهد', 'واجهات زجاجية', 'صالات عرض', 'معارض تجارية', 'مطاعم وكافيهات']
+    tags: ['طريق الملك فهد', 'واجهات زجاجية', 'صالات عرض', 'معارض تجارية', 'مطاعم وكافيهات'],
   },
   {
     id: 'cat-office',
     nameAr: 'مباني وأبراج إدارية',
     nameEn: 'Corporate Buildings & Towers',
     type: 'office',
-    tags: ['مقرات شركات', 'مكاتب تنفيذية', 'قاعات مؤتمرات', 'تراسات خارجية', 'ألياف بصرية']
+    tags: ['مقرات شركات', 'مكاتب تنفيذية', 'قاعات مؤتمرات', 'تراسات خارجية', 'ألياف بصرية'],
   },
   {
     id: 'cat-logistics',
     nameAr: 'مستودعات ومخازن لوجستية',
     nameEn: 'Logistics Hubs & Warehouses',
     type: 'logistics',
-    tags: ['سلاسل إمداد', 'مستودعات مبردة', 'أرصفة هيدروليكية', 'شحن وتفريغ', 'أمن 24/7']
+    tags: ['سلاسل إمداد', 'مستودعات مبردة', 'أرصفة هيدروليكية', 'شحن وتفريغ', 'أمن 24/7'],
   },
   {
     id: 'cat-residential',
     nameAr: 'مجمعات سكنية فاخرة',
     nameEn: 'Luxury Residential Compounds',
     type: 'residential',
-    tags: ['شقق فاخرة', 'أدوار متكررة', 'بنتهاوس', 'مسابح وحدائق', 'مواقف خاصة']
+    tags: ['شقق فاخرة', 'أدوار متكررة', 'بنتهاوس', 'مسابح وحدائق', 'مواقف خاصة'],
   },
   {
     id: 'cat-hotel',
     nameAr: 'فنادق وأجنحة فندقية',
     nameEn: 'Hotels & Hotel Suites',
     type: 'hotel',
-    tags: ['أجنحة فندقية', 'غرف ضيافة', 'مرافق رياضية', 'مطاعم', 'واي فاي مجاني']
-  }
+    tags: ['أجنحة فندقية', 'غرف ضيافة', 'مرافق رياضية', 'مطاعم', 'واي فاي مجاني'],
+  },
 ];
 
-const DEFAULT_INQUIRIES: CustomerInquiry[] = [
-  {
-    id: 'inq-101',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    name: 'سعد بن عبدالعزيز المقرن',
-    phone: '+966 50 123 4567',
-    email: 'saad.almuqrin@enterprise.sa',
-    projectId: 206,
-    projectTitle: 'مركز أجدا برايم للأعمال',
-    unitId: 'p206-g-s1',
-    unitNumber: 'معرض 01 (جنوبي)',
-    interestType: 'rent',
-    interestTypeAr: 'استئجار',
-    message: 'نود استئجار المعرض الرئيسي لافتتاح فرع جديد لعلامتنا التجارية، نرجو تزويدنا بشروط العقد والأسعار.',
-    status: 'new',
-    statusAr: 'جديد'
-  },
-  {
-    id: 'inq-102',
-    createdAt: new Date(Date.now() - 3600000 * 18).toISOString(),
-    name: 'عبدالله السبيعي',
-    phone: '+966 55 987 6543',
-    email: 'a.subaie@logistics-sa.com',
-    projectId: 201,
-    projectTitle: 'مستودعات المنصورية اللوجستية',
-    unitId: 'p201-w3',
-    unitNumber: 'مستودع B-01 (تبريد/تجميد)',
-    interestType: 'invest',
-    interestTypeAr: 'استثمار طويل الأجل',
-    message: 'استفسار عن إمكانية التعاقد لـ 5 سنوات على المستودعات المبردة لسلاسل إمداد الأغذية.',
-    status: 'contacted',
-    statusAr: 'تم التواصل'
+function readLocalCategories(): CategoryItem[] {
+  try {
+    const stored = window.localStorage.getItem(CATEGORIES_KEY);
+    if (!stored) {
+      window.localStorage.setItem(CATEGORIES_KEY, JSON.stringify(DEFAULT_CATEGORIES));
+      return DEFAULT_CATEGORIES;
+    }
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? (parsed as CategoryItem[]) : DEFAULT_CATEGORIES;
+  } catch {
+    return DEFAULT_CATEGORIES;
   }
-];
+}
 
 export const AdminStorage = {
-  // Auth
+  /* ------------------------------- Auth ---------------------------------- */
+
+  /**
+   * Synchronous presence check for the router only. The token is verified against
+   * `/api/auth/me` before the dashboard renders anything.
+   */
   isAuthenticated(): boolean {
-    return localStorage.getItem(AUTH_KEY) === 'true';
+    return authService.hasToken();
   },
 
-  login(email: string, pass: string): boolean {
-    if (email.trim().toLowerCase() === 'admin@ajdaa.sa' && pass === 'password') {
-      localStorage.setItem(AUTH_KEY, 'true');
-      return true;
-    }
-    return false;
+  async login(email: string, password: string): Promise<AuthSession> {
+    return authService.login(email, password);
+  },
+
+  async getCurrentUser(): Promise<AdminUser> {
+    return authService.me();
   },
 
   logout(): void {
-    localStorage.removeItem(AUTH_KEY);
+    authService.logout();
   },
 
-  // Projects CRUD
-  getAllProjects(): Property[] {
-    let customProjects: Property[] = [];
+  /* ----------------------------- Projects -------------------------------- */
+
+  getAllProjects(filters?: Parameters<typeof propertyService.list>[0], signal?: AbortSignal): Promise<Property[]> {
+    return propertyService.list(filters ?? {}, signal);
+  },
+
+  /** Resolves to `undefined` instead of throwing so callers can render a 404 state. */
+  async getProjectById(id: number, signal?: AbortSignal): Promise<Property | undefined> {
     try {
-      const stored = localStorage.getItem(PROJECTS_KEY);
-      if (stored) customProjects = JSON.parse(stored);
-    } catch {
-      customProjects = [];
+      return await propertyService.getById(id, signal);
+    } catch (error) {
+      if (error instanceof ApiError && error.isNotFound) return undefined;
+      throw error;
     }
-
-    const all = [...initialProperties, ...customProjects];
-    const overrides = this.getUnitStatusOverrides();
-
-    // Apply unit status overrides
-    return all.map((p) => {
-      if (!p.floors) return p;
-      const updatedFloors = p.floors.map((fl) => ({
-        ...fl,
-        units: fl.units.map((u) => {
-          if (overrides[u.id]) {
-            const newStatus = overrides[u.id];
-            return {
-              ...u,
-              status: newStatus,
-              statusAr:
-                newStatus === 'available'
-                  ? 'متاح'
-                  : newStatus === 'reserved'
-                  ? 'محجوز'
-                  : newStatus === 'rented'
-                  ? 'مؤجر'
-                  : 'مباع',
-            };
-          }
-          return u;
-        }),
-      }));
-      return { ...p, floors: updatedFloors };
-    });
   },
 
-  getProjectById(id: number): Property | undefined {
-    return this.getAllProjects().find((p) => p.id === id);
+  /** Creates the project together with the supplied floors and units. */
+  createProject(project: Property, floors: PropertyFloor[] = []): Promise<Property> {
+    return propertyService.createWithStructure(project, floors);
   },
 
-  saveNewProject(project: Property): void {
-    let custom: Property[] = [];
-    try {
-      const stored = localStorage.getItem(PROJECTS_KEY);
-      if (stored) custom = JSON.parse(stored);
-    } catch {
-      custom = [];
-    }
-    custom.push(project);
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(custom));
+  updateProject(id: number, project: Property): Promise<Property> {
+    return propertyService.update(id, project);
   },
 
-  deleteProject(projectId: number): void {
-    let custom: Property[] = [];
-    try {
-      const stored = localStorage.getItem(PROJECTS_KEY);
-      if (stored) custom = JSON.parse(stored);
-    } catch {
-      custom = [];
-    }
-    const filtered = custom.filter((p) => p.id !== projectId);
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(filtered));
+  async deleteProject(projectId: number): Promise<void> {
+    await propertyService.remove(projectId);
   },
 
-  // Units CRUD for any project
-  addUnitToProject(projectId: number, floorNumber: number, unit: PropertyUnit): void {
-    const all = this.getAllProjects();
-    const targetProj = all.find((p) => p.id === projectId);
-    if (!targetProj) return;
+  /* ------------------------------ Floors --------------------------------- */
 
-    if (!targetProj.floors) targetProj.floors = [];
-    let floor = targetProj.floors.find((f) => f.floorNumber === floorNumber);
-    if (!floor) {
-      floor = {
-        floorNumber,
-        floorNameAr: `الدور ${floorNumber}`,
-        floorNameEn: `Floor ${floorNumber}`,
-        units: [],
-      };
-      targetProj.floors.push(floor);
-    }
-    floor.units.push(unit);
-    this.updateProjectInMemory(targetProj);
-  },
+  async addFloorToProject(projectId: number, floorName: string): Promise<Property> {
+    const project = await propertyService.getById(projectId);
+    const nextNumber = (project.floors ?? []).reduce((max, floor) => Math.max(max, floor.floorNumber), -1) + 1;
 
-  updateUnitInProject(projectId: number, updatedUnit: PropertyUnit): void {
-    const all = this.getAllProjects();
-    const targetProj = all.find((p) => p.id === projectId);
-    if (!targetProj || !targetProj.floors) return;
-
-    targetProj.floors.forEach((fl) => {
-      fl.units = fl.units.map((u) => (u.id === updatedUnit.id ? updatedUnit : u));
-    });
-    this.updateProjectInMemory(targetProj);
-  },
-
-  deleteUnitFromProject(projectId: number, unitId: string): void {
-    const all = this.getAllProjects();
-    const targetProj = all.find((p) => p.id === projectId);
-    if (!targetProj || !targetProj.floors) return;
-
-    targetProj.floors.forEach((fl) => {
-      fl.units = fl.units.filter((u) => u.id !== unitId);
-    });
-    this.updateProjectInMemory(targetProj);
-  },
-
-  addFloorToProject(projectId: number, floorName: string): void {
-    const all = this.getAllProjects();
-    const targetProj = all.find((p) => p.id === projectId);
-    if (!targetProj) return;
-
-    if (!targetProj.floors) targetProj.floors = [];
-    const nextNumber = targetProj.floors.length;
-    targetProj.floors.push({
+    await propertyService.createFloor(projectId, {
       floorNumber: nextNumber,
       floorNameAr: floorName,
       floorNameEn: `Floor ${nextNumber}`,
-      units: [],
     });
-    this.updateProjectInMemory(targetProj);
+
+    return propertyService.getById(projectId);
   },
 
-  deleteFloorFromProject(projectId: number, floorNumber: number): void {
-    const all = this.getAllProjects();
-    const targetProj = all.find((p) => p.id === projectId);
-    if (!targetProj || !targetProj.floors) return;
-
-    targetProj.floors = targetProj.floors.filter((f) => f.floorNumber !== floorNumber);
-    this.updateProjectInMemory(targetProj);
+  async deleteFloorFromProject(projectId: number, floorNumber: number): Promise<Property> {
+    await propertyService.removeFloor(projectId, floorNumber);
+    return propertyService.getById(projectId);
   },
 
-  updateProjectInMemory(project: Property): void {
-    // Check if it's a custom project
-    let custom: Property[] = [];
-    try {
-      const stored = localStorage.getItem(PROJECTS_KEY);
-      if (stored) custom = JSON.parse(stored);
-    } catch {
-      custom = [];
+  /* ------------------------------- Units --------------------------------- */
+
+  async addUnitToProject(projectId: number, floor: PropertyFloor, unit: PropertyUnit): Promise<Property> {
+    if (typeof floor.id !== 'number') {
+      throw new Error('Cannot add a unit to a floor that has not been saved yet.');
     }
+    await propertyService.createUnit(toUnitInput(unit, floor.id));
+    return propertyService.getById(projectId);
+  },
 
-    const existingIdx = custom.findIndex((p) => p.id === project.id);
-    if (existingIdx >= 0) {
-      custom[existingIdx] = project;
-    } else {
-      // Overriding a base project by pushing to custom
-      custom.push(project);
+  async updateUnitInProject(projectId: number, floor: PropertyFloor, unit: PropertyUnit): Promise<Property> {
+    if (typeof floor.id !== 'number') {
+      throw new Error('Cannot update a unit on a floor that has not been saved yet.');
     }
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(custom));
+    const payload: Partial<UnitInput> = toUnitInput(unit, floor.id);
+    delete payload.id;
+    delete payload.floorId;
+    await propertyService.updateUnit(unit.id, payload);
+    return propertyService.getById(projectId);
   },
 
-  // Unit Status Overrides
-  getUnitStatusOverrides(): Record<string, UnitStatus> {
-    try {
-      const stored = localStorage.getItem(STATUS_OVERRIDES_KEY);
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
+  async deleteUnitFromProject(projectId: number, unitId: string): Promise<Property> {
+    await propertyService.removeUnit(unitId);
+    return propertyService.getById(projectId);
   },
 
-  updateUnitStatus(unitId: string, newStatus: UnitStatus): void {
-    const current = this.getUnitStatusOverrides();
-    current[unitId] = newStatus;
-    localStorage.setItem(STATUS_OVERRIDES_KEY, JSON.stringify(current));
+  /** Persists the status server-side; the server then broadcasts it to every tab. */
+  async updateUnitStatus(unitId: string, newStatus: UnitStatus): Promise<void> {
+    await propertyService.updateUnitStatus(unitId, newStatus);
   },
 
-  // Customer Inquiries
-  getInquiries(): CustomerInquiry[] {
-    try {
-      const stored = localStorage.getItem(INQUIRIES_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(INQUIRIES_KEY, JSON.stringify(DEFAULT_INQUIRIES));
-      return DEFAULT_INQUIRIES;
-    } catch {
-      return DEFAULT_INQUIRIES;
-    }
+  /* ----------------------------- Inquiries ------------------------------- */
+
+  getInquiries(filters?: InquiryFilters, signal?: AbortSignal): Promise<CustomerInquiry[]> {
+    return inquiryService.list(filters ?? {}, signal);
   },
 
-  addInquiry(data: Omit<CustomerInquiry, 'id' | 'createdAt' | 'status' | 'statusAr'>): CustomerInquiry {
-    const list = this.getInquiries();
-    const newInquiry: CustomerInquiry = {
-      ...data,
-      id: `inq-${Date.now().toString().slice(-5)}`,
-      createdAt: new Date().toISOString(),
-      status: 'new',
-      statusAr: 'جديد',
-    };
-    list.unshift(newInquiry);
-    localStorage.setItem(INQUIRIES_KEY, JSON.stringify(list));
-    return newInquiry;
+  addInquiry(input: InquiryInput) {
+    return inquiryService.submit(input);
   },
 
-  updateInquiryStatus(id: string, status: 'new' | 'contacted' | 'closed'): void {
-    const list = this.getInquiries();
-    const statusArMap = { new: 'جديد', contacted: 'تم التواصل', closed: 'مغلق' };
-    const updated = list.map((inq) =>
-      inq.id === id ? { ...inq, status, statusAr: statusArMap[status] } : inq
-    );
-    localStorage.setItem(INQUIRIES_KEY, JSON.stringify(updated));
+  async updateInquiryStatus(id: string, status: InquiryStatus): Promise<void> {
+    await inquiryService.updateStatus(id, status);
   },
 
-  deleteInquiry(id: string): void {
-    const list = this.getInquiries();
-    const filtered = list.filter((inq) => inq.id !== id);
-    localStorage.setItem(INQUIRIES_KEY, JSON.stringify(filtered));
-  },
+  /* ---------------------- Categories (local only) ------------------------ */
 
-  // Categories & Tags
   getCategories(): CategoryItem[] {
+    return readLocalCategories();
+  },
+
+  saveCategories(categories: CategoryItem[]): void {
     try {
-      const stored = localStorage.getItem(CATEGORIES_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(CATEGORIES_KEY, JSON.stringify(DEFAULT_CATEGORIES));
-      return DEFAULT_CATEGORIES;
+      window.localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
     } catch {
-      return DEFAULT_CATEGORIES;
+      // Storage unavailable: keep the in-memory value the caller already has.
     }
   },
 
-  saveCategories(cats: CategoryItem[]): void {
-    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(cats));
+  /* ------------------------------- Users --------------------------------- */
+
+  getUsers(signal?: AbortSignal): Promise<AdminUser[]> {
+    return authService.listUsers(signal);
   },
 
-  // Users & Permissions
-  getUsers(): AdminUser[] {
-    try {
-      const stored = localStorage.getItem(USERS_KEY);
-      if (stored) return JSON.parse(stored);
-      localStorage.setItem(USERS_KEY, JSON.stringify(DEFAULT_USERS));
-      return DEFAULT_USERS;
-    } catch {
-      return DEFAULT_USERS;
-    }
+  createUser(input: AdminUserInput): Promise<AdminUser> {
+    return authService.createUser(input);
   },
 
-  saveUser(user: AdminUser): void {
-    const list = this.getUsers();
-    const existingIdx = list.findIndex((u) => u.id === user.id);
-    if (existingIdx >= 0) {
-      list[existingIdx] = user;
-    } else {
-      list.push(user);
-    }
-    localStorage.setItem(USERS_KEY, JSON.stringify(list));
+  updateUser(id: string, input: Partial<AdminUserInput>): Promise<AdminUser> {
+    return authService.updateUser(id, input);
   },
 
-  deleteUser(userId: string): void {
-    const list = this.getUsers();
-    const filtered = list.filter((u) => u.id !== userId);
-    localStorage.setItem(USERS_KEY, JSON.stringify(filtered));
+  async deleteUser(userId: string): Promise<void> {
+    await authService.deleteUser(userId);
   },
 
-  toggleUserStatus(userId: string): void {
-    const list = this.getUsers();
-    const updated = list.map((u) =>
-      u.id === userId ? { ...u, status: (u.status === 'active' ? 'suspended' : 'active') as 'active' | 'suspended' } : u
-    );
-    localStorage.setItem(USERS_KEY, JSON.stringify(updated));
+  setUserStatus(userId: string, status: AdminStatus): Promise<AdminUser> {
+    return authService.setUserStatus(userId, status);
   },
 };

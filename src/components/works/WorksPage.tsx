@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Search,
   MapPin,
@@ -22,8 +22,12 @@ import {
   ArrowRight,
   ChevronDown,
   ShieldCheck,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
-import { properties, getPropertyDisplay } from '../../data/properties';
+import { getPropertyDisplay } from '../../data/properties';
+import { AdminStorage } from '../../services/adminStorage';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import type { Property, PropertyType, PriceType } from '../../types/property';
 import { PropertyCard } from '../common/PropertyCard';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -35,12 +39,8 @@ interface WorksPageProps {
   initialFilters?: { city?: string; type?: string; priceType?: string };
 }
 
-const MIN_LOADING_MS = 500;
-const MAX_LOADING_MS = 1500;
-
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const preloadImages = (props: Property[] = properties): Promise<void> => {
+/** Warms the browser cache so the grid does not flash empty image frames. */
+const preloadImages = (props: Property[]): Promise<void> => {
   const tasks = props.map(
     (p) =>
       new Promise<void>((resolve) => {
@@ -141,7 +141,11 @@ export const WorksPage: React.FC<WorksPageProps> = ({
   const { language } = useLanguage();
   const isAr = language === 'ar';
 
-  const [ready, setReady] = useState(false);
+  const { data: properties, loading, error, reload } = useAsyncData<Property[]>(
+    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    [],
+    []
+  );
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<CategoryKey>(() => {
     if (!initialFilters?.type || initialFilters.type === 'الكل' || initialFilters.type === 'all') return 'all';
@@ -165,19 +169,11 @@ export const WorksPage: React.FC<WorksPageProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
+  // Warm the image cache once the portfolio arrives, without blocking rendering.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await Promise.race([
-        Promise.all([preloadImages(), wait(MIN_LOADING_MS)]),
-        wait(MAX_LOADING_MS),
-      ]);
-      if (!cancelled) setReady(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (properties.length === 0) return;
+    void preloadImages(properties);
+  }, [properties]);
 
   const categories = useMemo<{ key: CategoryKey; label: string; count: number }[]>(() => {
     const counts = properties.reduce<Record<CategoryKey, number>>(
@@ -197,19 +193,21 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         count: counts[t] || 0,
       })),
     ];
-  }, [isAr]);
+  }, [isAr, properties]);
 
   const cities = useMemo(
     () => Array.from(new Set(properties.map((p) => (isAr ? p.city : p.cityEn || p.city)))).sort(),
-    [isAr],
+    [isAr, properties],
   );
 
   const featured = useMemo(
     () => properties.find((p) => p.badge?.includes('رئيسي')) || properties[0],
-    [],
+    [properties],
   );
+  // `properties` is empty until the first request resolves, so this must stay
+  // nullable: the featured banner below renders while loading.
   const featuredDisplay = useMemo(
-    () => getPropertyDisplay(featured, language),
+    () => (featured ? getPropertyDisplay(featured, language) : null),
     [featured, language],
   );
 
@@ -259,7 +257,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
         break;
     }
     return list;
-  }, [query, category, city, priceType, sort]);
+  }, [query, category, city, priceType, sort, properties]);
 
   const hasActiveFilters =
     query.trim() !== '' || category !== 'all' || city !== 'all' || priceType !== 'all';
@@ -425,7 +423,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       </div>
 
       {/* Featured Banner when no query */}
-      {!hasActiveFilters && (
+      {!hasActiveFilters && featured && featuredDisplay && (
         <div
           className="relative mb-10 rounded-[28px] p-px bg-gradient-to-l from-accent/40 via-gold/35 to-accent/40 stagger-anim cursor-pointer"
           style={{ animationDelay: '220ms' }}
@@ -575,7 +573,23 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       </div>
 
       {/* Properties Display */}
-      {!ready ? (
+      {error ? (
+        <div className="text-center py-16 space-y-4">
+          <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
+          <p className="text-sm font-black text-heading">
+            {isAr ? 'تعذر تحميل المشاريع' : 'Could not load projects'}
+          </p>
+          <p className="text-xs text-neutral-text/60 max-w-md mx-auto leading-relaxed">{error}</p>
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="brand-btn-secondary text-xs font-bold px-5 py-2.5 rounded-xl inline-flex items-center gap-2"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            {isAr ? 'إعادة المحاولة' : 'Retry'}
+          </button>
+        </div>
+      ) : loading ? (
         <SkeletonGrid />
       ) : filtered.length === 0 ? (
         <EmptyState onReset={resetFilters} isAr={isAr} />

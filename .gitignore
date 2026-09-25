@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+*.err
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -43,3 +44,8 @@ server/prisma/dev.db
 server/prisma/dev.db-journal
 server/uploads
 server/prisma/schema.postgresql.prisma
+
+# Auto-generated directory-tree dumps from an external tool (regenerate, never edit)
+# Root-anchored so the committed md/ajda.md is unaffected.
+/ajda.md
+/src/src.md

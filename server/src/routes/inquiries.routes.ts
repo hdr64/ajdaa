@@ -44,15 +44,27 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
       const body = createInquirySchema.parse(request.body);
       const interestType = body.interestType as InterestType;
 
+      // The CRM must not depend on the client sending display labels, so the
+      // snapshots are resolved from the referenced rows and only fall back to
+      // the request body when the row is gone (e.g. a deleted project).
+      const [project, unit] = await Promise.all([
+        body.projectId != null
+          ? prisma.project.findUnique({ where: { id: body.projectId }, select: { title: true } })
+          : null,
+        body.unitId
+          ? prisma.propertyUnit.findUnique({ where: { id: body.unitId }, select: { unitNumber: true } })
+          : null,
+      ]);
+
       const created = await prisma.customerInquiry.create({
         data: {
           name: body.name,
           phone: body.phone,
           email: body.email,
           projectId: body.projectId,
-          projectTitle: body.projectTitle,
+          projectTitle: project?.title ?? body.projectTitle,
           unitId: body.unitId,
-          unitNumber: body.unitNumber,
+          unitNumber: unit?.unitNumber ?? body.unitNumber,
           interestType,
           interestTypeAr: INTEREST_TYPE_AR[interestType],
           message: body.message,

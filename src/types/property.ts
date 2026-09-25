@@ -23,6 +23,8 @@ export interface PropertyUnit {
 }
 
 export interface PropertyFloor {
+  /** Database id. Required to create or delete units against a specific floor. */
+  id?: number;
   floorNumber: number;
   floorNameAr: string;
   floorNameEn: string;

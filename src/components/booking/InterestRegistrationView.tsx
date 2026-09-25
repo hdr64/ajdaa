@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import type { Property, PropertyUnit } from '../../types/property';
 import { AdminStorage } from '../../services/adminStorage';
+import { getErrorMessage } from '../../services/api';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { PropertyCard } from '../common/PropertyCard';
-import { CheckCircle2, ArrowRight, ArrowLeft, Sparkles, Send, MapPin } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ArrowLeft, Sparkles, Send, MapPin, AlertCircle, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 
 interface InterestRegistrationViewProps {
@@ -22,7 +24,11 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
-  const allProjects = AdminStorage.getAllProjects();
+  const { data: allProjects, loading, error } = useAsyncData<Property[]>(
+    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    [],
+    []
+  );
 
   const [step, setStep] = useState<number>(selectedProperty ? 2 : 1);
   const [filter, setFilter] = useState<string>('all');
@@ -40,7 +46,7 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
 
   const filtered = filter === 'all' ? allProjects : allProjects.filter((p) => p.type === filter);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
       onSuccessToast(isAr ? 'يرجى إدخال اسمك' : 'Please enter your name');
@@ -48,8 +54,8 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      AdminStorage.addInquiry({
+    try {
+      await AdminStorage.addInquiry({
         name: formData.name.trim(),
         phone: formData.phone.trim() || undefined,
         email: formData.email.trim() || undefined,
@@ -58,23 +64,18 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
         unitId: selectedUnit?.id,
         unitNumber: selectedUnit?.unitNumber,
         interestType: formData.interestType,
-        interestTypeAr:
-          formData.interestType === 'buy'
-            ? 'شراء'
-            : formData.interestType === 'rent'
-            ? 'استئجار'
-            : formData.interestType === 'invest'
-            ? 'استثمار'
-            : 'استفسار عام',
         message: formData.message.trim() || undefined,
       });
 
-      setSubmitting(false);
       setStep(3);
       onSuccessToast(
         isAr ? 'تم تسجيل اهتمامك بنجاح! سيتواصل معك فريقنا قريباً.' : 'Your interest has been submitted successfully!'
       );
-    }, 500);
+    } catch (caught) {
+      onSuccessToast(getErrorMessage(caught, isAr ? 'تعذر إرسال الطلب' : 'Could not submit your request'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const steps = isAr
@@ -175,7 +176,31 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map((prop) => (
+            {loading && (
+            <div className="col-span-full py-16 text-center">
+              <RefreshCw className="w-6 h-6 text-accent animate-spin mx-auto mb-3" />
+              <p className="text-xs text-neutral-text/60 font-bold">
+                {isAr ? 'جاري تحميل المشاريع...' : 'Loading projects...'}
+              </p>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="col-span-full py-16 text-center">
+              <AlertCircle className="w-7 h-7 text-red-400 mx-auto mb-3" />
+              <p className="text-xs text-neutral-text/60 font-bold">{error}</p>
+            </div>
+          )}
+
+          {!loading && !error && filtered.length === 0 && (
+            <div className="col-span-full py-16 text-center border border-dashed border-muted-border/50 rounded-3xl">
+              <p className="text-xs text-neutral-text/60 font-bold">
+                {isAr ? 'لا توجد مشاريع مطابقة لهذا التصنيف' : 'No projects match this filter'}
+              </p>
+            </div>
+          )}
+
+          {filtered.map((prop) => (
               <div
                 key={prop.id}
                 onClick={() => {

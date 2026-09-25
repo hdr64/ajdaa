@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Property } from '../../types/property';
 import { AdminStorage } from '../../services/adminStorage';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { loadGoogleMaps, MapsConfigError, type GoogleMapsBundle } from '../../services/googleMaps';
 import { useLanguage } from '../../hooks/useLanguage';
 import {
@@ -161,7 +162,20 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Record<number, google.maps.marker.AdvancedMarkerElement>>({});
 
-  const allProjects = AdminStorage.getAllProjects().filter((p) => p.lat && p.lng);
+  const {
+    data: projectList,
+    loading: projectsLoading,
+    error: projectsError,
+  } = useAsyncData<Property[]>(
+    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    [],
+    []
+  );
+
+  const allProjects = useMemo(
+    () => projectList.filter((p) => p.lat && p.lng),
+    [projectList]
+  );
 
   const [maps, setMaps] = useState<GoogleMapsBundle | null>(null);
   const [mapsStatus, setMapsStatus] = useState<MapsStatus>('loading');
@@ -694,23 +708,31 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
             className={`w-full h-full z-0 ${mapStyle === 'dark' ? 'gm-canvas-dark' : ''}`}
           />
 
-          {/* Loading / Error overlay */}
-          {mapsStatus !== 'ready' && (
+          {/* Loading / Error overlay — covers both the Maps SDK and the project feed */}
+          {(mapsStatus !== 'ready' || projectsLoading || projectsError) && (
             <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 bg-[#090e15] text-center px-6">
-              {mapsStatus === 'loading' ? (
-                <>
-                  <div className="w-10 h-10 rounded-full border-2 border-gold/25 border-t-gold animate-spin" />
-                  <p className="text-xs font-bold text-white/70">
-                    {isAr ? 'جارٍ تحميل خرائط Google…' : 'Loading Google Maps…'}
-                  </p>
-                </>
-              ) : (
+              {projectsError || mapsStatus === 'error' ? (
                 <>
                   <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
                     <X className="w-6 h-6 text-red-400" />
                   </div>
-                  <p className="text-sm font-black text-white">{isAr ? 'تعذر تحميل الخريطة' : 'Map failed to load'}</p>
-                  <p className="text-xs text-white/60 max-w-md leading-relaxed">{mapsError}</p>
+                  <p className="text-sm font-black text-white">
+                    {projectsError
+                      ? isAr
+                        ? 'تعذر تحميل المشاريع'
+                        : 'Could not load projects'
+                      : isAr
+                        ? 'تعذر تحميل الخريطة'
+                        : 'Map failed to load'}
+                  </p>
+                  <p className="text-xs text-white/60 max-w-md leading-relaxed">{projectsError ?? mapsError}</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full border-2 border-gold/25 border-t-gold animate-spin" />
+                  <p className="text-xs font-bold text-white/70">
+                    {isAr ? 'جارٍ تحميل المشاريع والخرائط…' : 'Loading projects and map…'}
+                  </p>
                 </>
               )}
             </div>

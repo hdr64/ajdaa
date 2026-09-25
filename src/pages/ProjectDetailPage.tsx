@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Property, PropertyUnit, UnitStatus } from '../types/property';
 import { AdminStorage } from '../services/adminStorage';
+import { getErrorMessage } from '../services/api';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
 import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
 import {
@@ -19,7 +22,8 @@ import {
   Sparkles,
   Compass,
   Maximize2,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 
 const PROJECT_AMENITIES = [
@@ -54,13 +58,34 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   const { language } = useLanguage();
   const isAr = language === 'ar';
 
-  const project: Property | undefined = AdminStorage.getProjectById(projectId);
+  const {
+    data: project,
+    loading,
+    error,
+    setData: setProject,
+  } = useAsyncData<Property | null>(async (signal) => {
+    const result = await AdminStorage.getProjectById(projectId, signal);
+    return result ?? null;
+  }, [projectId], null);
 
-  const [selectedImage, setSelectedImage] = useState<string>(project?.image || '');
+  const [selectedImage, setSelectedImage] = useState<string>('');
   const [activeFloorIndex, setActiveFloorIndex] = useState<number>(0);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [interestModalUnit, setInterestModalUnit] = useState<PropertyUnit | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos' | 'video'>('photos');
+
+  // Keep the gallery selection valid once the project arrives or changes.
+  useEffect(() => {
+    if (!project) return;
+    setSelectedImage((current) => current || project.image || project.gallery?.[0] || '');
+  }, [project]);
+
+  // Another tab changed a unit status: reflect it without a refetch.
+  useRealtimeUnits({
+    onUnitStatus: useCallback((event) => {
+      setProject((current) => (current ? applyUnitStatus([current], event)[0] : current));
+    }, [setProject]),
+  });
 
   // Quick Inline Interest Form State
   const [interestName, setInterestName] = useState('');
@@ -104,6 +129,37 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 px-4 pt-32">
+        <RefreshCw className="w-6 h-6 text-accent animate-spin" />
+        <p className="text-sm text-neutral-text/60">
+          {isAr ? 'جاري تحميل بيانات المشروع...' : 'Loading project details...'}
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 pt-32">
+        <AlertCircle className="w-8 h-8 text-red-400 mb-3" />
+        <h2 className="text-xl font-black text-heading mb-2">
+          {isAr ? 'تعذر تحميل المشروع' : 'Could not load project'}
+        </h2>
+        <p className="text-sm text-neutral-text/60 mb-6 max-w-md">{error}</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onNavigate('works')}
+            className="brand-btn-secondary font-bold text-xs px-6 py-2.5 rounded-full"
+          >
+            {isAr ? 'العودة لقائمة المشاريع' : 'Back to Projects'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 pt-32">
@@ -131,7 +187,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
     setSubmittedSuccess(false);
   };
 
-  const handleInterestSubmit = (e: React.FormEvent) => {
+  const handleInterestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!interestName.trim()) {
       onShowToast(isAr ? 'يرجى إدخال اسمك الكريم' : 'Please enter your name');
@@ -139,8 +195,8 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
     }
 
     setSubmittingInterest(true);
-    setTimeout(() => {
-      AdminStorage.addInquiry({
+    try {
+      await AdminStorage.addInquiry({
         name: interestName.trim(),
         phone: interestPhone.trim() || undefined,
         email: interestEmail.trim() || undefined,
@@ -148,12 +204,10 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
         projectTitle: project.title,
         unitId: interestModalUnit?.id,
         unitNumber: interestModalUnit?.unitNumber,
-        interestType: (project.priceType === 'بيع' ? 'buy' : project.priceType === 'إيجار' ? 'rent' : 'invest'),
-        interestTypeAr: project.priceType === 'بيع' ? 'شراء' : project.priceType === 'إيجار' ? 'استئجار' : 'استثمار',
+        interestType: project.priceType === 'بيع' ? 'buy' : project.priceType === 'إيجار' ? 'rent' : 'invest',
         message: interestNotes.trim() || undefined,
       });
 
-      setSubmittingInterest(false);
       setSubmittedSuccess(true);
       onShowToast(isAr ? 'تم تسجيل اهتمامك بنجاح!' : 'Your interest has been recorded!');
       setTimeout(() => {
@@ -164,7 +218,13 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
         setInterestEmail('');
         setInterestNotes('');
       }, 1800);
-    }, 600);
+    } catch (caught) {
+      onShowToast(
+        getErrorMessage(caught, isAr ? 'تعذر إرسال طلب الاهتمام' : 'Could not submit your request')
+      );
+    } finally {
+      setSubmittingInterest(false);
+    }
   };
 
   const getStatusBadge = (status: UnitStatus, statusAr?: string) => {

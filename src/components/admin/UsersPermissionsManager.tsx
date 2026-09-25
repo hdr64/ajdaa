@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { AdminStorage, type AdminUser } from '../../services/adminStorage';
+import { getErrorMessage } from '../../services/api';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import {
   ShieldCheck,
   UserPlus,
   Edit2,
   Trash2,
   CheckCircle2,
-  X
+  X,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 
 interface UsersPermissionsManagerProps {
@@ -14,9 +18,16 @@ interface UsersPermissionsManagerProps {
 }
 
 export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = ({ onShowToast }) => {
-  const [users, setUsers] = useState<AdminUser[]>(() => AdminStorage.getUsers());
+  const {
+    data: users,
+    loading,
+    error,
+    reload: refreshUsers,
+  } = useAsyncData<AdminUser[]>(useCallback((signal) => AdminStorage.getUsers(signal), []), [], []);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -31,10 +42,6 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
       manageUsers: false,
     },
   });
-
-  const refreshUsers = () => {
-    setUsers(AdminStorage.getUsers());
-  };
 
   const handleOpenAdd = () => {
     setEditingUser(null);
@@ -66,7 +73,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     setModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim()) return;
 
@@ -77,49 +84,57 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
       viewer: 'محلل استثماري ومتابع',
     };
 
-    if (editingUser) {
-      const updated: AdminUser = {
-        ...editingUser,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        role: form.role,
-        roleAr: roleArMap[form.role],
-        department: form.department.trim(),
-        permissions: form.permissions,
-      };
-      AdminStorage.saveUser(updated);
-      onShowToast('تم تحديث بيانات المستخدم والصلاحيات');
-    } else {
-      const newUser: AdminUser = {
-        id: `usr-${Date.now()}`,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        role: form.role,
-        roleAr: roleArMap[form.role],
-        department: form.department.trim(),
-        permissions: form.permissions,
-        lastLogin: 'لم يسجل دخول بعد',
-        status: 'active',
-      };
-      AdminStorage.saveUser(newUser);
-      onShowToast('تمت إضافة المستخدم الجديد بنجاح');
+    setSaving(true);
+    try {
+      if (editingUser) {
+        await AdminStorage.updateUser(editingUser.id, {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          role: form.role,
+          roleAr: roleArMap[form.role],
+          department: form.department.trim(),
+          permissions: form.permissions,
+        });
+        onShowToast('تم تحديث بيانات المستخدم والصلاحيات');
+      } else {
+        await AdminStorage.createUser({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          role: form.role,
+          roleAr: roleArMap[form.role],
+          department: form.department.trim(),
+          permissions: form.permissions,
+        });
+        onShowToast('تمت إضافة المستخدم الجديد بنجاح');
+      }
+
+      setModalOpen(false);
+      await refreshUsers();
+    } catch (caught) {
+      onShowToast(getErrorMessage(caught, 'تعذر حفظ بيانات المستخدم'));
+    } finally {
+      setSaving(false);
     }
-
-    setModalOpen(false);
-    refreshUsers();
   };
 
-  const handleToggleStatus = (userId: string) => {
-    AdminStorage.toggleUserStatus(userId);
-    refreshUsers();
-    onShowToast('تم تغيير حالة الحساب');
+  const handleToggleStatus = async (user: AdminUser) => {
+    try {
+      await AdminStorage.setUserStatus(user.id, user.status === 'active' ? 'suspended' : 'active');
+      await refreshUsers();
+      onShowToast('تم تغيير حالة الحساب');
+    } catch (caught) {
+      onShowToast(getErrorMessage(caught, 'تعذر تغيير حالة الحساب'));
+    }
   };
 
-  const handleDelete = (userId: string, name: string) => {
-    if (confirm(`هل أنت متأكد من حذف المستخدم (${name})؟`)) {
-      AdminStorage.deleteUser(userId);
-      refreshUsers();
+  const handleDelete = async (user: AdminUser) => {
+    if (!confirm(`هل أنت متأكد من حذف المستخدم (${user.name})؟`)) return;
+    try {
+      await AdminStorage.deleteUser(user.id);
+      await refreshUsers();
       onShowToast('تم حذف المستخدم');
+    } catch (caught) {
+      onShowToast(getErrorMessage(caught, 'تعذر حذف المستخدم'));
     }
   };
 
@@ -151,6 +166,32 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
 
       {/* Users Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {loading && (
+          <div className="col-span-full py-14 text-center">
+            <RefreshCw className="w-6 h-6 text-accent animate-spin mx-auto mb-3" />
+            <p className="text-xs text-neutral-text/60 font-bold">جاري تحميل المستخدمين...</p>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="col-span-full py-14 text-center">
+            <AlertCircle className="w-7 h-7 text-red-400 mx-auto mb-3" />
+            <p className="text-xs text-neutral-text/60 font-bold mb-3">{error}</p>
+            <button
+              onClick={() => void refreshUsers()}
+              className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl"
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && users.length === 0 && (
+          <div className="col-span-full py-14 text-center border border-dashed border-muted-border/50 rounded-2xl">
+            <p className="text-xs text-neutral-text/60 font-bold">لا يوجد مستخدمون مسجلون</p>
+          </div>
+        )}
+
         {users.map((user) => (
           <div
             key={user.id}
@@ -171,7 +212,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
                 </div>
 
                 <button
-                  onClick={() => handleToggleStatus(user.id)}
+                  onClick={() => handleToggleStatus(user)}
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer ${
                     user.status === 'active'
                       ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
@@ -241,7 +282,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
               </button>
               {user.role !== 'super_admin' && (
                 <button
-                  onClick={() => handleDelete(user.id, user.name)}
+                  onClick={() => handleDelete(user)}
                   className="p-1.5 rounded-lg border border-muted-border/40 hover:border-red-400 text-neutral-text/40 hover:text-red-400 transition cursor-pointer"
                   title="حذف الحساب"
                 >
@@ -421,7 +462,8 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
                 </button>
                 <button
                   type="submit"
-                  className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer"
+                  disabled={saving}
+                  className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
                 >
                   {editingUser ? 'حفظ الصلاحيات' : 'تأكيد الإضافة'}
                 </button>

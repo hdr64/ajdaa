@@ -16,6 +16,7 @@ import {
   AdminDashboardPage,
 } from './pages';
 import { AdminStorage } from './services/adminStorage';
+import { onUnauthorized } from './services/api';
 import { CheckCircle2 } from 'lucide-react';
 
 export type PageKey = NavPageKey;
@@ -95,6 +96,22 @@ export function App() {
 
   const currentPage = route.page;
   const currentProjectId = route.projectId || 206;
+
+  // An expired or revoked JWT must eject the admin portal from anywhere in the app.
+  useEffect(
+    () =>
+      onUnauthorized(() => {
+        setRoute({ page: 'admin_login' });
+      }),
+    []
+  );
+
+  useEffect(() => {
+    // Reaching /admin without a token is a hard redirect to the login portal.
+    if (route.page === 'admin' && !AdminStorage.isAuthenticated()) {
+      setRoute({ page: 'admin_login' });
+    }
+  }, [route.page]);
 
   useEffect(() => {
     if ('scrollRestoration' in window.history) {

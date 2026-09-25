@@ -28,7 +28,7 @@ export function parseJsonArray(value: string | null | undefined): string[] | nul
   }
 }
 
-function serializeUnit(unit: PropertyUnit): SerializedUnit {
+export function serializeUnit(unit: PropertyUnit): SerializedUnit {
   return {
     ...unit,
     features: parseJsonArray(unit.features),
@@ -36,7 +36,7 @@ function serializeUnit(unit: PropertyUnit): SerializedUnit {
   };
 }
 
-function serializeFloor(floor: PropertyFloor & { units?: PropertyUnit[] }): SerializedFloor {
+export function serializeFloor(floor: PropertyFloor & { units?: PropertyUnit[] }): SerializedFloor {
   return {
     ...floor,
     units: (floor.units ?? []).map(serializeUnit),

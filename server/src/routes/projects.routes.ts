@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
-import { serializeProject } from '../services/serializers.js';
+import { serializeProject, serializeFloor } from '../services/serializers.js';
 
 const projectSchema = z.object({
   type: z.string().min(1),
@@ -46,6 +46,26 @@ const projectQuerySchema = z.object({
   city: z.string().trim().optional(),
   type: z.string().trim().optional(),
   priceType: z.string().trim().optional(),
+});
+
+const idParamsSchema = z.object({ id: z.coerce.number().int() });
+
+const createFloorSchema = z.object({
+  floorNumber: z.number().int(),
+  floorNameAr: z.string().trim().min(1),
+  floorNameEn: z.string().nullish(),
+  descriptionAr: z.string().nullish(),
+  descriptionEn: z.string().nullish(),
+  totalArea: z.number().nonnegative().nullish(),
+});
+
+const updateFloorSchema = createFloorSchema.partial().refine((data) => Object.keys(data).length > 0, {
+  message: 'At least one field must be provided',
+});
+
+const floorParamsSchema = z.object({
+  id: z.coerce.number().int(),
+  floorNumber: z.coerce.number().int(),
 });
 
 function includeProjectRelations() {
@@ -168,4 +188,94 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     await prisma.project.delete({ where: { id } });
     return { success: true };
   });
+
+  // Create floor inside a project (Admin)
+  fastify.post(
+    '/:id/floors',
+    { preValidation: [validateBody(createFloorSchema)], onRequest: [authenticate] },
+    async (request, reply) => {
+      const { id } = idParamsSchema.parse(request.params);
+      const body = createFloorSchema.parse(request.body ?? {});
+
+      const project = await prisma.project.findUnique({ where: { id } });
+      if (!project) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      const duplicate = await prisma.propertyFloor.findFirst({
+        where: { projectId: id, floorNumber: body.floorNumber },
+      });
+      if (duplicate) {
+        return reply.status(409).send({ error: 'Floor number already used in this project' });
+      }
+
+      const created = await prisma.propertyFloor.create({
+        data: {
+          projectId: id,
+          floorNumber: body.floorNumber,
+          floorNameAr: body.floorNameAr,
+          floorNameEn: body.floorNameEn,
+          descriptionAr: body.descriptionAr,
+          descriptionEn: body.descriptionEn,
+          totalArea: body.totalArea,
+        },
+        include: { units: true },
+      });
+
+      return reply.status(201).send(serializeFloor(created));
+    }
+  );
+
+  // Update floor (Admin)
+  fastify.put(
+    '/:id/floors/:floorNumber',
+    { preValidation: [validateBody(updateFloorSchema)], onRequest: [authenticate] },
+    async (request, reply) => {
+      const { id, floorNumber } = floorParamsSchema.parse(request.params);
+      const body = updateFloorSchema.parse(request.body ?? {});
+
+      const floor = await prisma.propertyFloor.findFirst({
+        where: { projectId: id, floorNumber },
+      });
+      if (!floor) {
+        return reply.status(404).send({ error: 'Floor not found' });
+      }
+
+      const updated = await prisma.propertyFloor.update({
+        where: { id: floor.id },
+        data: body,
+        include: { units: true },
+      });
+
+      return serializeFloor(updated);
+    }
+  );
+
+  // Delete floor and its units (Admin)
+  fastify.delete(
+    '/:id/floors/:floorNumber',
+    { onRequest: [authenticate] },
+    async (request, reply) => {
+      const { id, floorNumber } = floorParamsSchema.parse(request.params);
+
+      const floor = await prisma.propertyFloor.findFirst({
+        where: { projectId: id, floorNumber },
+        include: { units: true },
+      });
+      if (!floor) {
+        return reply.status(404).send({ error: 'Floor not found' });
+      }
+
+      // Units hold the live status, so admins must be told what disappeared.
+      const io = fastify.io;
+      if (io) {
+        for (const unit of floor.units) {
+          io.emit('unit_removed', { unitId: unit.id, floorId: floor.id, projectId: id });
+        }
+      }
+
+      await prisma.propertyFloor.delete({ where: { id: floor.id } });
+      return { success: true };
+    }
+  );
 };

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { processAndSaveFile } from '../services/mediaService.js';
+import { processAndSaveFile, MAX_UPLOAD_BYTES } from '../services/mediaService.js';
 
 // Admin-only route: protects uploads from unauthenticated abuse.
 export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
@@ -13,8 +13,13 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const buffer = await data.toBuffer();
-      const result = await processAndSaveFile(buffer, data.filename, data.mimetype);
-      return result;
+
+      if (data.file.truncated || buffer.length > MAX_UPLOAD_BYTES) {
+        return reply.status(413).send({ error: 'File exceeds the 50 MB limit' });
+      }
+
+      const stored = await processAndSaveFile(buffer, data.filename);
+      return reply.status(201).send(stored);
     }
   );
 };

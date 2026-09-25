@@ -1,5 +1,6 @@
-import type { FC } from 'react';
-import { properties } from '../../data/properties';
+import { useCallback, type FC } from 'react';
+import { AdminStorage } from '../../services/adminStorage';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { useLanguage } from "../../hooks/useLanguage";
 import type { Property } from "../../types/property";
 import { PropertyCard } from '../common/PropertyCard';
@@ -13,6 +14,11 @@ interface Props {
 }
 const ProjectsSection1:FC<Props> = ({onNavigate,onSelectProperty,onQuickView,onShowToast})=>{
       const { t, isRTL } = useLanguage();
+  const { data: properties } = useAsyncData<Property[]>(
+    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    [],
+    []
+  );
     return (
               <section className="py-14 bg-red-600 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-12">

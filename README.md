@@ -7,18 +7,20 @@ Full-stack real estate management system: a React 19 + Vite SPA (AR/EN) with a F
 ```
 ajda/
 ├── src/                    # Frontend — React 19 + Vite + Tailwind v4
-│   ├── data/properties.ts  # Source of truth for project data
-│   ├── services/           # adminStorage.ts (localStorage), API layer (Phase 4)
+│   ├── data/properties.ts  # Display helpers only (getPropertyDisplay)
+│   ├── services/           # api.ts client + property/inquiry/auth/media services
+│   │                        #   and adminStorage.ts (async facade over the API)
+│   ├── hooks/              # useAsyncData (loading/error/reload), useRealtimeUnits
 │   └── pages/              # public site + /admin/*
 ├── server/                 # Backend — Fastify + Prisma
 │   ├── prisma/
 │   │   ├── schema.prisma   # Canonical schema (SQLite provider = DEV)
 │   │   ├── migrations/     # PRODUCTION Postgres migrations (committed)
 │   │   ├── seed.ts         # Seeds admin users, categories, projects
-│   │   └── seed-data/      # projects.seed.ts (AUTO-GENERATED from frontend data)
+│   │   └── seed-data/      # projects.seed.ts (AUTO-GENERATED, dev bootstrap only)
 │   ├── scripts/
 │   │   ├── generate-prod-schema.mjs   # schema.prisma → schema.postgresql.prisma
-│   │   └── sync-data.mjs              # src/data/properties.ts → seed data
+│   │   └── sync-data.mjs              # legacy bootstrap: static data → seed
 │   ├── src/
 │   │   ├── config/         # env.ts (zod-validated), constants.ts
 │   │   ├── middleware/     # auth (JWT), validate (zod)
@@ -29,7 +31,7 @@ ajda/
 │   │   ├── app.ts          # buildApp() factory (testable, no listen)
 │   │   └── server.ts       # Entry point → listen
 │   └── uploads/            # Local media storage (gitignored)
-└── refactor.md             # Architecture & phase plan
+└── refactor.md             # Architecture & phase plan (Phase 4 complete)
 ```
 
 ## Database Strategy — SQLite (dev) / PostgreSQL (prod)
@@ -44,6 +46,24 @@ One canonical schema, two generated schemas — no Docker required.
 
 > Prisma cannot read `provider` from an env var (error P1012). The prod schema is
 > generated from the canonical one — see `npm run db:gen:prod`.
+
+## Data Source of Truth
+
+The **database is the source of truth** for projects, floors, units, and inquiries.
+`src/data/properties.ts` survives only as a pure presentation helper
+(`getPropertyDisplay`) — it is no longer the data layer.
+
+| Concern | Owner |
+|---|---|
+| Projects / floors / units / inquiries / admin users | API + Prisma |
+| Categories | Browser `localStorage` (no category endpoint yet; the `CategoryItem` model is seeded but unexposed) |
+| Auth token | `localStorage`, sent as `Authorization: Bearer` |
+| UI loading / error / reload state | `useAsyncData` |
+| Live unit-status sync | `useRealtimeUnits` (Socket.io) |
+
+Reads are public (`GET /api/projects`); every write is JWT-protected. In dev the
+Vite server proxies `/api`, `/uploads`, and `/socket.io` to `http://localhost:4000`,
+so both servers run on their default ports with no CORS setup.
 
 ## Backend — Quick Start (dev)
 
@@ -60,13 +80,27 @@ npm run dev                    # API on :4000 with tsx watch
 - Default admin: `admin@ajdaa.sa` / `password` (override via `SEED_ADMIN_PASSWORD`).
 - Smoke tests: `curl http://localhost:4000/api/health`.
 
-### Regenerating seed data
-
-`server/prisma/seed-data/projects.seed.ts` is **auto-generated** from the frontend
-source of truth `src/data/properties.ts`:
+## Frontend — Quick Start (dev)
 
 ```bash
-npm run db:sync-data   # regenerate, then npm run db:seed
+npm install
+npm run dev      # SPA on :5173, proxying /api + /socket.io to :4000
+npm run build    # production bundle → dist/ (static, served by Caddy)
+```
+
+Run the API first (`cd server && npm run dev`), otherwise every read returns a
+network error and the UI shows its error state rather than empty data.
+
+### Seed data
+
+`server/prisma/seed-data/projects.seed.ts` is **auto-generated** by
+`npm run db:sync-data` and is a **dev bootstrap only** — it seeds a starting dataset
+(7 projects / 12 floors / 30 units). It is no longer the source of truth; the API and
+database are. Once the API is live, projects are created and edited through
+`/admin/dashboard`, not by regenerating this file.
+
+```bash
+npm run db:sync-data   # optional: regenerate the bootstrap seed, then npm run db:seed
 ```
 
 ## API Overview
@@ -76,17 +110,33 @@ npm run db:sync-data   # regenerate, then npm run db:seed
 | POST | `/api/auth/login` | – | Login → JWT token |
 | GET | `/api/auth/me` | JWT | Current user |
 | GET/POST | `/api/auth/users` | JWT | List / create admin users |
+| PUT/DELETE | `/api/auth/users/:id` | JWT | Update / deactivate (no self-delete, no last `super_admin`) |
 | GET | `/api/projects` | – | Projects `?city=&type=&priceType=` |
 | GET | `/api/projects/:id` | – | Project + floors + units |
 | POST/PUT/DELETE | `/api/projects/:id` | JWT | Admin CRUD |
+| POST/PUT/DELETE | `/api/projects/:id/floors*` | JWT | Nested floor CRUD; deleting a floor cascades its units |
+| POST/PUT/DELETE | `/api/units*` | JWT | Unit CRUD |
 | PATCH | `/api/units/:id/status` | JWT | Update unit status (Socket.io broadcast) |
 | POST | `/api/inquiries` | – | Public inquiry (Socket.io alert) |
-| GET/PATCH | `/api/inquiries*` | JWT | CRM list / status |
-| POST | `/api/media/upload` | JWT | Image→WebP (sharp 2400px q82) or PDF |
+| GET | `/api/inquiries` | JWT | CRM list `?status=&projectId=` |
+| PATCH | `/api/inquiries/:id/status` | JWT | CRM status change |
+| POST | `/api/media/upload` | JWT | Image → WebP (sharp, 2400px q82) or PDF |
 | GET | `/api/health` | – | Health check |
 
 Bodies are validated with zod (`400` + `issues` on failure). Arrays stored in the DB
 (JSON) are serialized back to real arrays by `services/serializers.ts`.
+
+Notable server-side guarantees:
+
+- **Prisma error mapping** — `P2025` → `404`, `P2002` → `409`, `P2003` → `400`, so a
+  missing row never surfaces as an opaque `500`.
+- **Uploads are type-sniffed, not trusted** — the media type is detected from magic
+  bytes, not the client-declared mimetype. Images are always re-encoded through
+  sharp; PDFs are stored as-is and served with `Content-Disposition: attachment` and
+  `X-Content-Type-Options: nosniff`. Anything outside the allowlist → `400`,
+  over 50 MB → `413`.
+- **Inquiries are self-describing** — `projectTitle` / `unitNumber` are resolved from
+  the referenced `Project` / `PropertyUnit` rows, so a client cannot spoof or omit them.
 
 ## Production Checklist
 
@@ -94,5 +144,16 @@ Bodies are validated with zod (`400` + `issues` on failure). Arrays stored in th
 - [ ] `JWT_SECRET` = `openssl rand -base64 32`
 - [ ] `CLIENT_ORIGIN` = production origin (e.g. `https://ajda.weghetk.com`)
 - [ ] `npm run db:migrate` → applies committed Postgres migrations
+- [ ] `npm run build` in the repo root → serve `dist/` as static files from Caddy
+      (the SPA calls same-origin `/api`, `/uploads`, `/socket.io`; in dev these are
+      Vite proxies, in production they are Caddy `reverse_proxy` blocks)
 - [ ] Caddy block: `/api/*`, `/uploads/*`, `/socket.io/*` → `localhost:4000`
 - [ ] `uploads/` must be writable by the service user
+- [ ] SPA fallback: unknown paths → `index.html` (client-side routing)
+
+### Known non-blocking items
+
+- The frontend ships as a single ~600 kB chunk (166 kB gzipped). Route-level code
+  splitting is the obvious next win if first paint on mobile needs to be faster.
+- `npm run lint` (oxlint) reports 3 pre-existing warnings in `ClientsPage.tsx` and
+  `PropertyModal.tsx`; they predate Phase 4 and are unrelated to it.

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AdminStorage } from '../../services/adminStorage';
+import { getErrorMessage } from '../../services/api';
 import { ShieldCheck, Lock, Mail, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 
@@ -21,20 +22,24 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    setTimeout(() => {
-      const ok = AdminStorage.login(email, password);
+    try {
+      await AdminStorage.login(email, password);
+      onLoginSuccess();
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر تسجيل الدخول. حاول مرة أخرى.' : 'Unable to sign in. Please try again.'
+        )
+      );
+    } finally {
       setLoading(false);
-      if (ok) {
-        onLoginSuccess();
-      } else {
-        setError(isAr ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة' : 'Invalid email or password');
-      }
-    }, 400);
+    }
   };
 
   return (

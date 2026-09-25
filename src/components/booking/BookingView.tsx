@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import type { Property, BookingFormData } from '../../types/property';
-import { properties, getPropertyDisplay } from '../../data/properties';
+import { getPropertyDisplay } from '../../data/properties';
+import { AdminStorage } from '../../services/adminStorage';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { PropertyCard } from '../common/PropertyCard';
-import { CheckCircle2, ArrowRight, ArrowLeft, Clock, Video, UserCheck, MapPin, Sparkles } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ArrowLeft, Clock, Video, UserCheck, MapPin, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 
 interface BookingViewProps {
@@ -35,6 +37,12 @@ export const BookingView: React.FC<BookingViewProps> = ({
     date: new Date().toISOString().split('T')[0],
     notes: '',
   });
+
+  const { data: properties, loading, error, reload } = useAsyncData<Property[]>(
+    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    [],
+    []
+  );
 
   const filtered = filter === 'all' ? properties : properties.filter((p) => p.type === filter);
 
@@ -158,6 +166,39 @@ export const BookingView: React.FC<BookingViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {loading &&
+                [0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-64 rounded-3xl bg-surface/60 border border-muted-border/30 animate-pulse"
+                  />
+                ))}
+
+              {error && (
+                <div className="col-span-full text-center py-12 space-y-3">
+                  <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
+                  <p className="text-xs font-bold text-neutral-text/70">
+                    {isAr ? 'تعذر تحميل المشاريع' : 'Could not load projects'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void reload()}
+                    className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    {isAr ? 'إعادة المحاولة' : 'Retry'}
+                  </button>
+                </div>
+              )}
+
+              {!loading && !error && filtered.length === 0 && (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-xs font-bold text-neutral-text/60">
+                    {isAr ? 'لا توجد مشاريع متاحة' : 'No properties available'}
+                  </p>
+                </div>
+              )}
+
               {filtered.map((prop, idx) => (
                 <div
                   key={prop.id}

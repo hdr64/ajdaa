@@ -171,6 +171,10 @@ ajda/
 4. **Real-time Unit Status Hook**:
    - Integrate `useRealtimeUnits` in [`ProjectDetailPage.tsx`](file:///d:/projects/html/ajda/src/pages/ProjectDetailPage.tsx) and unit modal so status updates reflect immediately across all open tabs.
 
+> **Backend endpoints added in Phase 4** to unblock the frontend:
+> `POST|PUT|DELETE /api/units`, nested `POST|PUT|DELETE /api/projects/:id/floors`,
+> and `PUT|DELETE /api/auth/users/:id` (with last-super-admin and self-delete guards).
+
 ### Phase 5: Local Testing & Validation
 1. Start backend server (`npm run dev` in `server`).
 2. Start frontend dev server (`npm run dev` in root).
@@ -247,20 +251,68 @@ ajda/
 - [x] zod request validation on all bodies + typed Fastify/JWT augmentation
 
 ### Phase 4: Frontend Refactoring
-- [ ] Create `src/services/api.ts` HTTP client
-- [ ] Create `src/services/propertyService.ts` for live project fetching
-- [ ] Create `src/services/inquiryService.ts` for inquiry submission
-- [ ] Refactor `src/services/adminStorage.ts` to bridge with live API
-- [ ] Update `AdminLoginPage.tsx` with live JWT login
-- [ ] Update `AdminDashboardPage.tsx` with real media upload & live CRM data
-- [ ] Add `useRealtimeUnits` hook to sync floor plan changes live
+- [x] Create `src/services/api.ts` HTTP client
+- [x] Create `src/services/propertyService.ts` for live project fetching
+- [x] Create `src/services/inquiryService.ts` for inquiry submission
+- [x] Create `src/services/authService.ts` for JWT login/session/user management
+- [x] Create `src/services/mediaService.ts` for image/PDF upload with validation
+- [x] Create `src/hooks/useAsyncData.ts` for async loading/error/reload state
+- [x] Refactor `src/services/adminStorage.ts` to bridge with live API (categories remain local)
+- [x] Update `AdminLoginPage.tsx` with live JWT login
+- [x] Update `AdminDashboardPage.tsx` with real media upload, live CRM, realtime connection badge, and loading/error states
+- [x] Migrate `UsersPermissionsManager.tsx`, `BuildingVisualizer.tsx`, `InteractiveProjectsMap.tsx` to async API calls
+- [x] Update public pages/components (`WorksPage`, `ProjectsSection`, `ProjectsSec`, `BookingView`, `InterestRegistrationView`, `ProjectDetailPage`, `App`) to consume live API data
+- [x] Add `useRealtimeUnits` hook to sync floor plan changes live
 
 ### Phase 5: Local Verification
 - [x] Test public project browsing and filtering
-- [ ] Test inquiry submission flow
+- [x] Test inquiry submission flow
 - [x] Test admin authentication & permissions
 - [x] Test media upload (images & PDF brochures) + auth guards (401 without token)
-- [ ] Test unit status live synchronization between two browser windows
+- [x] Test unit status live synchronization between two browser windows
+
+> Phase 4 note: `socket.io-client` is installed and the Vite dev server proxies
+> `/api`, `/uploads`, and `/socket.io` to `http://localhost:4000`, so both
+> servers can run on their default ports with no CORS configuration.
+> Categories remain browser-local (`localStorage`) because no category API
+> endpoint exists yet; the Prisma `CategoryItem` model is seeded but unexposed.
+
+#### Phase 5 verification notes
+
+Verified against a live API on `:4000` (login → CRUD → realtime), not just by
+typecheck. Frontend and server typechecks pass, both `npm run build`s succeed, and
+`npm run lint` (oxlint) is clean apart from 3 pre-existing warnings in
+`ClientsPage.tsx` / `PropertyModal.tsx` that predate this phase.
+
+Realtime was confirmed with two independent Socket.io clients: a single
+`PATCH /api/units/:id/status` delivered `unit_status_updated` to both, then the
+original status was restored.
+
+The smoke run surfaced four real defects, all fixed:
+
+1. **Inquiries trusted a client-supplied snapshot.** `projectTitle` / `unitNumber`
+   came from the request body, so the CRM's key column was blank or spoofable
+   whenever a client omitted or faked it. `inquiries.routes.ts` now resolves both
+   from the referenced `Project` / `PropertyUnit` rows.
+2. **Media upload trusted the declared mimetype.** `processAndSaveFile` branched on
+   `data.mimetype` and saved anything non-`image/*` verbatim, so `.txt` / `.html` /
+   `.svg` were accepted and served from `/uploads`. The type is now detected from
+   magic bytes against an allowlist; images are always re-encoded through sharp.
+3. **Oversized uploads dropped the connection.** A 51 MB body aborted the request
+   instead of answering. `throwFileSizeLimit: false` plus a truncated-stream check
+   returns a clean `413`, with the limit shared via `MAX_UPLOAD_BYTES`.
+4. **`WorksPage` crashed on first paint.** The featured banner dereferenced
+   `featured.image` while `properties` was still `[]`; the `error`/`loading` gate
+   only covered the grid below it. `featuredDisplay` is now nullable and the banner
+   is guarded. A stale `useMemo` dependency on `properties` was fixed at the same time.
+
+Hardening added alongside: PDFs are served with `Content-Disposition: attachment` and
+`X-Content-Type-Options: nosniff`, and the global error handler now honours an
+explicit 4xx `statusCode` before Prisma mapping so validation errors are no longer
+masked as `500`.
+
+Smoke-created rows (inquiries, a unit, a floor, a user) and all uploaded files were
+removed afterwards, leaving the database and `uploads/` in their original state.
 
 ### Phase 6: Production & Deployment (no Docker)
 - [x] Frontend deployed behind Caddy + Cloudflare Origin Cert
