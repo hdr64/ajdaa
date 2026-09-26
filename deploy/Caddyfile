@@ -1,0 +1,75 @@
+# Ajda Real Estate — Caddy reverse proxy
+#
+# Serves the built SPA and proxies the API, uploaded media and the Socket.io
+# websocket to the systemd-managed Fastify process on :4000.
+#
+# Install: /etc/caddy/Caddyfile
+# Reload:  systemctl reload caddy
+#
+# Cloudflare Origin Certificate is expected in /etc/caddy (see README-deploy.md).
+
+{
+	email admin@ajda.weghetk.com
+	# Uncomment while bootstrapping so a config typo fails loudly instead of
+	# silently taking the site down on reload.
+	# admin off
+}
+
+www.ajda.weghetk.com {
+	redir https://ajda.weghetk.com{uri} permanent
+}
+
+ajda.weghetk.com {
+	encode zstd gzip
+
+	# --- API: JSON, auth, inquiries ---
+	handle /api/* {
+		reverse_proxy localhost:4000
+	}
+
+	# --- Uploaded media (WebP images, PDF brochures) ---
+	handle /uploads/* {
+		reverse_proxy localhost:4000
+	}
+
+	# --- Socket.io realtime ---
+	# The websocket upgrade must reach the API; buffering or compression here
+	# would break the long-lived connection that unit-status updates ride on.
+	handle /socket.io/* {
+		reverse_proxy localhost:4000 {
+			flush_interval -1
+		}
+	}
+
+	# --- SPA ---
+	handle {
+		root * /var/www/ajda
+
+		# Hashed asset filenames are safe to cache aggressively.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+
+		# index.html must never be cached, or clients pin to a stale bundle.
+		@index path /index.html
+		header @index Cache-Control "no-cache, no-store, must-revalidate"
+
+		# Client-side routing: unknown paths render the SPA shell.
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/ajda-access.log {
+			roll_size 20MiB
+			roll_keep 10
+		}
+	}
+}

@@ -319,4 +319,41 @@ removed afterwards, leaving the database and `uploads/` in their original state.
 - [x] Document complete deployment walkthrough in README + Phase 7 checklist
 - [ ] Install PostgreSQL 16 + role/db on VPS
 - [ ] Deploy API via systemd + Caddy `/api/*` `/uploads/*` `/socket.io/*` blocks
-- [ ] Nightly `pg_dump` backup script (`backup_db.sh`)
+- [x] Nightly `pg_dump` backup script (`server/scripts/backup_db.sh`)
+
+#### Phase 6 artifacts (authored; VPS steps still pending)
+
+Everything in `deploy/` is written and syntax-checked, but the three unchecked items
+above need shell access to the VPS, so they stay open.
+
+| File | Purpose |
+|---|---|
+| `deploy/README-deploy.md` | Ordered walkthrough: system user, Node 22 + PostgreSQL 16, env files, build, systemd, Cloudflare Origin cert, Caddy, backups, firewall, routine deploy, rollback |
+| `deploy/ajda-api.service` | systemd unit for `node dist/server.js`; `ProtectSystem=strict` with `ReadWritePaths` limited to `uploads/` |
+| `deploy/ajda-backup.service` / `.timer` | Nightly 03:17 dump, `Persistent=true` so a missed run catches up |
+| `deploy/Caddyfile` | SPA static + SPA fallback, `/api/*`, `/uploads/*`, and `/socket.io/*` (with `flush_interval -1` so broadcasts are not buffered) |
+| `server/scripts/backup_db.sh` | `pg_dump` custom format, `pg_restore --list` verification, retention pruning, stable `ajda-latest.dump` restore target |
+
+**Deploy ordering that is easy to get wrong:** `prisma/schema.postgresql.prisma` is
+generated and gitignored, so `db:gen:prod` must run before `db:migrate`.
+
+**Backup gap to close:** the dump covers the database only. `server/uploads/` needs
+its own backup, or a restore yields a healthy database pointing at missing images.
+
+#### Phase 6 bug fixes
+
+Found while writing the deploy config, both in `server/src/config/env.ts`:
+
+1. **`CLIENT_ORIGIN` ignored its documented format.** `.env.example` promised a
+   comma-separated list, but the code used the raw string as a single origin, so any
+   second origin silently produced a CORS allowlist matching nothing. It is now split
+   on commas and trimmed.
+2. **Development origins leaked into production.** `localhost:5173` and
+   `127.0.0.1:5173` were appended unconditionally, and CORS runs with
+   `credentials: true` — so a page served from a developer's machine could make
+   credentialed cross-origin calls to the live API. They are now added only when
+   `NODE_ENV !== 'production'`.
+
+Verified by running the API in both modes: in production both configured origins
+receive `Access-Control-Allow-Origin` while `localhost:5173` and an unknown origin
+receive no CORS header; in development the loopback origins still work.

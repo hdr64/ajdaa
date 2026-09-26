@@ -1,0 +1,54 @@
+[Unit]
+Description=Ajda Real Estate API (Fastify)
+Documentation=https://github.com/your-org/ajda
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ajda
+Group=ajda
+
+# Required: UPLOAD_DIR defaults to ./uploads and is resolved against the cwd,
+# and dotenv reads .env from the cwd as well.
+WorkingDirectory=/opt/ajda/server
+
+# systemd-provided variables take precedence over the .env file, because dotenv
+# never overwrites an already-set process.env value.
+EnvironmentFile=/opt/ajda/server/.env
+Environment=NODE_ENV=production
+Environment=PORT=4000
+
+ExecStart=/usr/bin/node dist/server.js
+
+# dist/server.js must exist first: `npm ci && npm run db:gen:prod && npm run build`
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+
+# --- Hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Only the upload directory (and nothing else) is writable.
+ReadWritePaths=/opt/ajda/server/uploads
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ajda-api
+
+[Install]
+WantedBy=multi-user.target

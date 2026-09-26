@@ -23,6 +23,22 @@ if (!parsed.success) {
 
 const env = parsed.data;
 
+// CLIENT_ORIGIN is documented as a comma-separated list, so honour that instead
+// of treating the whole string as one unmatched origin.
+const configuredOrigins = env.CLIENT_ORIGIN.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+// Dev conveniences are opt-in: in production a page on a developer's localhost
+// must not be able to make credentialed cross-origin calls to the live API.
+const devOrigins =
+  env.NODE_ENV === 'production'
+    ? []
+    : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
+// Kept mutable: @fastify/cors and socket.io both require a non-readonly array.
+const clientOrigins: string[] = [...new Set([...configuredOrigins, ...devOrigins])];
+
 export const config = {
   env: env.NODE_ENV,
   isProduction: env.NODE_ENV === 'production',
@@ -30,9 +46,7 @@ export const config = {
   databaseUrl: env.DATABASE_URL,
   jwtSecret: env.JWT_SECRET,
   uploadDir: path.resolve(env.UPLOAD_DIR),
-  clientOrigins: [env.CLIENT_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(
-    (origin, index, all) => origin && all.indexOf(origin) === index
-  ),
+  clientOrigins,
 } as const;
 
 export type Config = typeof config;

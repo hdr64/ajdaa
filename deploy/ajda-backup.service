@@ -1,0 +1,30 @@
+[Unit]
+Description=Nightly Ajda PostgreSQL backup
+Documentation=file:/opt/ajda/server/scripts/backup_db.sh
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=ajda
+Group=ajda
+WorkingDirectory=/opt/ajda/server
+
+# Secrets live here, not in this unit. Must be mode 600 and owned by root:ajda.
+EnvironmentFile=/opt/ajda/server/.env.backup
+
+ExecStart=/opt/ajda/server/scripts/backup_db.sh
+
+# A failed backup must be visible, not silently retried forever.
+SuccessExitStatus=0
+TimeoutStartSec=30min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/ajda
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ajda-backup

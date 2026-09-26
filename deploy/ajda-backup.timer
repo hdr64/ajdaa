@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the Ajda database backup every night at 03:17
+Documentation=file:/opt/ajda/server/scripts/backup_db.sh
+
+[Timer]
+# 03:17 rather than 03:00 to avoid the thundering herd every other cron job hits.
+OnCalendar=*-*-* 03:17:00
+# Catch up after downtime (laptop closed, VPS rebooted).
+Persistent=true
+# Spread load; a backup that takes 10s does not need to start to the second.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
