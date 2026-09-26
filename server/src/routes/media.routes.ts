@@ -1,11 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { processAndSaveFile, MAX_UPLOAD_BYTES } from '../services/mediaService.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
 
 // Admin-only route: protects uploads from unauthenticated abuse.
 export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
     '/upload',
-    { onRequest: [fastify.authenticate] },
+    { onRequest: [authenticate, requirePermission('manageProjects')] },
     async (request, reply) => {
       const data = await request.file();
       if (!data) {

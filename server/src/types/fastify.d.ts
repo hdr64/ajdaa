@@ -8,9 +8,17 @@ export interface JwtPayload {
   role: string;
 }
 
-export type AuthenticatedUser = JwtPayload;
+export type AdminPermission = 'manageProjects' | 'manageUnits' | 'viewInquiries' | 'exportData' | 'manageUsers';
 
-export type AuthenticateFunction = (request: FastifyRequest, reply: FastifyReply) => Promise<void> | void;
+/** The admin as currently stored in the database, resolved by `authenticate`. */
+export interface AuthenticatedAdmin {
+  id: string;
+  email: string;
+  role: string;
+  permissions: Record<string, boolean>;
+}
+
+export type AuthenticateFunction = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | void>;
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -23,5 +31,9 @@ declare module 'fastify' {
   interface FastifyInstance {
     authenticate: AuthenticateFunction;
     io: SocketIOServer | undefined;
+  }
+
+  interface FastifyRequest {
+    admin?: AuthenticatedAdmin;
   }
 }

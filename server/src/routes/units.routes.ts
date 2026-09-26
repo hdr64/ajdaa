@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { serializeUnit } from '../services/serializers.js';
 import { UNIT_STATUSES, UNIT_STATUS_AR, UNIT_STATUS_EN, type UnitStatus } from '../config/constants.js';
@@ -57,7 +57,7 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
   // Update unit status & broadcast live to all clients (Admin)
   fastify.patch(
     '/:id/status',
-    { preValidation: [validateBody(statusBodySchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(statusBodySchema)], onRequest: [authenticate, requirePermission('manageUnits')] },
     async (request, reply) => {
       const { id } = statusParamsSchema.parse(request.params);
       const { status } = statusBodySchema.parse(request.body) as { status: UnitStatus };
@@ -85,7 +85,7 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
   // Create unit inside an existing floor (Admin)
   fastify.post(
     '/',
-    { preValidation: [validateBody(createUnitSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(createUnitSchema)], onRequest: [authenticate, requirePermission('manageUnits')] },
     async (request, reply) => {
       const body = createUnitSchema.parse(request.body ?? {}) as CreateUnitInput;
 
@@ -133,7 +133,7 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
   // Update unit fields (Admin). Broadcasts when the status changed.
   fastify.put(
     '/:id',
-    { preValidation: [validateBody(updateUnitSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(updateUnitSchema)], onRequest: [authenticate, requirePermission('manageUnits')] },
     async (request, reply) => {
       const { id } = statusParamsSchema.parse(request.params);
       const body = updateUnitSchema.parse(request.body ?? {}) as UpdateUnitInput;
@@ -174,7 +174,7 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Delete unit (Admin)
-  fastify.delete('/:id', { onRequest: [authenticate] }, async (request, reply) => {
+  fastify.delete('/:id', { onRequest: [authenticate, requirePermission('manageUnits')] }, async (request, reply) => {
     const { id } = statusParamsSchema.parse(request.params);
 
     const existing = await prisma.propertyUnit.findUnique({ where: { id } });

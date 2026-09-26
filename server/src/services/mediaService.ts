@@ -123,8 +123,13 @@ export async function processAndSaveFile(
 
   // PDFs (brochures) are stored as-is and served with a download disposition.
   if (detected === 'pdf') {
-    const safeName = originalFilename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
-    const filename = `${fileId}-${safeName || 'document.pdf'}`;
+    // The extension is forced: a client-chosen one (e.g. `.html`) would make the
+    // static server send a %PDF-prefixed HTML payload as text/html on our origin.
+    const baseName = originalFilename
+      .replace(/\.[^.]*$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 80);
+    const filename = `${fileId}-${baseName || 'document'}.pdf`;
     const targetPath = path.join(UPLOAD_DIR, filename);
 
     await fs.writeFile(targetPath, fileBuffer);

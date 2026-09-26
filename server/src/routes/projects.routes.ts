@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { serializeProject, serializeFloor } from '../services/serializers.js';
 
@@ -152,7 +152,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   // Create new project (Admin)
   fastify.post(
     '/',
-    { preValidation: [validateBody(projectSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(projectSchema)], onRequest: [authenticate, requirePermission('manageProjects')] },
     async (request, reply) => {
       const body = projectSchema.parse(request.body ?? {});
       const created = await prisma.project.create({
@@ -167,7 +167,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   // Update project
   fastify.put(
     '/:id',
-    { preValidation: [validateBody(projectSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(projectSchema)], onRequest: [authenticate, requirePermission('manageProjects')] },
     async (request) => {
       const { id } = z.object({ id: z.coerce.number().int() }).parse(request.params);
       const body = projectSchema.parse(request.body ?? {});
@@ -183,7 +183,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Delete project
-  fastify.delete('/:id', { onRequest: [authenticate] }, async (request) => {
+  fastify.delete('/:id', { onRequest: [authenticate, requirePermission('manageProjects')] }, async (request) => {
     const { id } = z.object({ id: z.coerce.number().int() }).parse(request.params);
     await prisma.project.delete({ where: { id } });
     return { success: true };
@@ -192,7 +192,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   // Create floor inside a project (Admin)
   fastify.post(
     '/:id/floors',
-    { preValidation: [validateBody(createFloorSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(createFloorSchema)], onRequest: [authenticate, requirePermission('manageProjects')] },
     async (request, reply) => {
       const { id } = idParamsSchema.parse(request.params);
       const body = createFloorSchema.parse(request.body ?? {});
@@ -229,7 +229,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   // Update floor (Admin)
   fastify.put(
     '/:id/floors/:floorNumber',
-    { preValidation: [validateBody(updateFloorSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(updateFloorSchema)], onRequest: [authenticate, requirePermission('manageProjects')] },
     async (request, reply) => {
       const { id, floorNumber } = floorParamsSchema.parse(request.params);
       const body = updateFloorSchema.parse(request.body ?? {});
@@ -254,7 +254,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   // Delete floor and its units (Admin)
   fastify.delete(
     '/:id/floors/:floorNumber',
-    { onRequest: [authenticate] },
+    { onRequest: [authenticate, requirePermission('manageProjects')] },
     async (request, reply) => {
       const { id, floorNumber } = floorParamsSchema.parse(request.params);
 

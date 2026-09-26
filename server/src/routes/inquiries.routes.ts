@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import {
   INQUIRY_STATUSES,
@@ -11,6 +11,7 @@ import {
   type InquiryStatus,
   type InterestType,
 } from '../config/constants.js';
+import { INQUIRIES_ROOM } from '../sockets/index.js';
 
 const createInquirySchema = z.object({
   name: z.string().trim().min(1),
@@ -73,18 +74,15 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
-      // Notify admins via Realtime Socket
-      const io = fastify.io;
-      if (io) {
-        io.emit('new_inquiry_received', created);
-      }
+      // Notify authorized admins only: the payload contains customer PII.
+      fastify.io?.to(INQUIRIES_ROOM).emit('new_inquiry_received', created);
 
       return reply.status(201).send(created);
     }
   );
 
   // Get all inquiries (Admin)
-  fastify.get('/', { onRequest: [authenticate] }, async (request) => {
+  fastify.get('/', { onRequest: [authenticate, requirePermission('viewInquiries')] }, async (request) => {
     const query = listQuerySchema.parse(request.query ?? {});
 
     const where: Record<string, unknown> = {};
@@ -102,7 +100,7 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
   // Update inquiry status (Admin)
   fastify.patch(
     '/:id/status',
-    { preValidation: [validateBody(inquiryStatusBodySchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(inquiryStatusBodySchema)], onRequest: [authenticate, requirePermission('viewInquiries')] },
     async (request) => {
       const { id } = inquiryStatusParamsSchema.parse(request.params);
       const { status } = inquiryStatusBodySchema.parse(request.body) as { status: InquiryStatus };

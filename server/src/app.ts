@@ -33,7 +33,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // 3. JWT Authentication
-  await fastify.register(jwt, { secret: config.jwtSecret });
+  // Tokens expire so a leaked one has a bounded lifetime; the client already
+  // treats a 401 as a logout.
+  await fastify.register(jwt, { secret: config.jwtSecret, sign: { expiresIn: '12h' } });
   fastify.decorate('authenticate', authenticate);
 
   // 4. Static Uploads Serving
@@ -53,20 +55,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   // 5. Socket.io Realtime Engine
   attachSockets(fastify);
 
-  // 6. Register API Routes
-  await fastify.register(authRoutes, { prefix: '/api/auth' });
-  await fastify.register(projectRoutes, { prefix: '/api/projects' });
-  await fastify.register(unitRoutes, { prefix: '/api/units' });
-  await fastify.register(inquiryRoutes, { prefix: '/api/inquiries' });
-  await fastify.register(mediaRoutes, { prefix: '/api/media' });
-
-  // Health check
-  fastify.get('/api/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
-  });
-
-  // 7. Translate Prisma's known-request errors into real HTTP status codes so a
-  // missing row is a 404 for the client instead of an opaque 500.
+  // 6. Translate Prisma's known-request errors into real HTTP status codes so a
+  // missing row is a 404 for the client instead of an opaque 500. Must be set
+  // before the route plugins register: each plugin captures the handler that
+  // exists at registration time.
   fastify.setErrorHandler((error, request, reply) => {
     const statusCode = (error as { statusCode?: unknown }).statusCode;
     const code = (error as { code?: unknown }).code;
@@ -89,6 +81,18 @@ export async function buildApp(): Promise<FastifyInstance> {
 
     request.log.error({ err: error }, 'Unhandled request error');
     return reply.status(500).send({ error: 'Internal server error' });
+  });
+
+  // 7. Register API Routes
+  await fastify.register(authRoutes, { prefix: '/api/auth' });
+  await fastify.register(projectRoutes, { prefix: '/api/projects' });
+  await fastify.register(unitRoutes, { prefix: '/api/units' });
+  await fastify.register(inquiryRoutes, { prefix: '/api/inquiries' });
+  await fastify.register(mediaRoutes, { prefix: '/api/media' });
+
+  // Health check
+  fastify.get('/api/health', async () => {
+    return { status: 'ok', timestamp: new Date().toISOString() };
   });
 
   return fastify;

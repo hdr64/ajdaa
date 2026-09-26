@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { ADMIN_ROLES } from '../config/constants.js';
 
@@ -122,7 +122,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // List admin users
-  fastify.get('/users', { onRequest: [authenticate] }, async () => {
+  fastify.get('/users', { onRequest: [authenticate, requirePermission('manageUsers')] }, async () => {
     const users = await prisma.adminUser.findMany({ orderBy: { createdAt: 'asc' } });
     return users.map(serializeUser);
   });
@@ -130,9 +130,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Create admin user
   fastify.post(
     '/users',
-    { preValidation: [validateBody(createUserSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(createUserSchema)], onRequest: [authenticate, requirePermission('manageUsers')] },
     async (request, reply) => {
       const body = createUserSchema.parse(request.body ?? {});
+
+      if (body.role === 'super_admin' && request.admin?.role !== 'super_admin') {
+        return reply.status(403).send({ error: 'Only a super admin can create a super admin' });
+      }
 
       const existing = await prisma.adminUser.findUnique({ where: { email: body.email.toLowerCase() } });
       if (existing) {
@@ -160,7 +164,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Update admin user (Admin)
   fastify.put(
     '/users/:id',
-    { preValidation: [validateBody(updateUserSchema)], onRequest: [authenticate] },
+    { preValidation: [validateBody(updateUserSchema)], onRequest: [authenticate, requirePermission('manageUsers')] },
     async (request, reply) => {
       const { id } = userIdParamsSchema.parse(request.params);
       const body = updateUserSchema.parse(request.body ?? {}) as UpdateUserInput;
@@ -168,6 +172,29 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const target = await prisma.adminUser.findUnique({ where: { id } });
       if (!target) {
         return reply.status(404).send({ error: 'User not found' });
+      }
+
+      // Holding manageUsers must not be a path to super admin: only a super
+      // admin may touch a super admin account or hand out that role.
+      const requesterIsSuperAdmin = request.admin?.role === 'super_admin';
+      if (!requesterIsSuperAdmin && (target.role === 'super_admin' || body.role === 'super_admin')) {
+        return reply.status(403).send({ error: 'Only a super admin can modify super admin accounts' });
+      }
+
+      // Nobody grants themselves access or lifts their own suspension.
+      // The admin form always resends these fields, so only real changes count.
+      const currentPermissions = parsePermissions(target.permissions);
+      const permissionsChanged =
+        body.permissions !== undefined &&
+        [...new Set([...Object.keys(body.permissions), ...Object.keys(currentPermissions)])].some(
+          (key) => Boolean(body.permissions?.[key]) !== Boolean(currentPermissions[key])
+        );
+      const changesOwnAccess =
+        (body.role !== undefined && body.role !== target.role) ||
+        (body.status !== undefined && body.status !== target.status) ||
+        permissionsChanged;
+      if (request.admin?.id === id && changesOwnAccess) {
+        return reply.status(403).send({ error: 'You cannot change your own role, status or permissions' });
       }
 
       if (body.email && body.email.toLowerCase() !== target.email) {
@@ -210,7 +237,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Delete admin user (Admin)
-  fastify.delete('/users/:id', { onRequest: [authenticate] }, async (request, reply) => {
+  fastify.delete('/users/:id', { onRequest: [authenticate, requirePermission('manageUsers')] }, async (request, reply) => {
     const { id } = userIdParamsSchema.parse(request.params);
 
     if (request.user.id === id) {
@@ -223,6 +250,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     if (target.role === 'super_admin') {
+      if (request.admin?.role !== 'super_admin') {
+        return reply.status(403).send({ error: 'Only a super admin can delete a super admin' });
+      }
       const activeSuperAdmins = await prisma.adminUser.count({
         where: { role: 'super_admin', status: 'active' },
       });

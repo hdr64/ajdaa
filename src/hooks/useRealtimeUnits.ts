@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { Property } from '../types/property';
 import type { UnitRemovedEvent, UnitStatusEvent } from '../services/propertyService';
+import { getAuthToken } from '../services/api';
 
 /**
  * Socket.io stays on the same origin: the Vite dev server proxies it in
@@ -14,6 +15,12 @@ function getSocket(): Socket {
     autoConnect: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 8000,
+    // Evaluated on every (re)connect so a fresh login is picked up. The server
+    // only delivers inquiry events to sockets whose token grants viewInquiries.
+    auth: (cb) => {
+      const token = getAuthToken();
+      cb(token ? { token } : {});
+    },
   });
 }
 
