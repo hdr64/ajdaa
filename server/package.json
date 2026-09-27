@@ -12,7 +12,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.postgresql.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
@@ -31,8 +32,10 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.13.4",
     "prisma": "^6.4.1",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.2"
   },
   "allowScripts": {
     "sharp@0.33.5": true,

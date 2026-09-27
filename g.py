@@ -94,6 +94,109 @@ def is_ignored_file(file_path: Path) -> bool:
     return is_binary(file_path)
 
 
+GLOB_CHARS = ("*", "?", "[")
+
+
+def split_file_patterns(raw_values) -> list[str]:
+    """Flatten repeated --files values, which may be comma/space/semicolon separated."""
+    if not raw_values:
+        return []
+
+    patterns = []
+    for value in raw_values:
+        for part in re.split(r"[,\s;]+", value.strip().strip('"\'')):
+            if part:
+                patterns.append(part)
+    return patterns
+
+
+def _resolve_case_insensitive(base: Path, relative: Path) -> Path | None:
+    """Walk `relative` segment by segment, matching names case-insensitively."""
+    current = base
+    for part in relative.parts:
+        try:
+            entries = {e.name.lower(): e for e in current.iterdir()}
+        except OSError:
+            return None
+        current = entries.get(part.lower())
+        if current is None:
+            return None
+    return current
+
+
+def resolve_file_selection(target_path: Path, patterns: list[str]) -> tuple[set[Path], list[str]]:
+    """Map --files patterns to absolute file paths inside `target_path`.
+
+    Literal paths are resolved directly, a directory expands to every file
+    beneath it, and patterns containing wildcards are expanded with Path.glob.
+    Matching is case-insensitive so the flag behaves the same on case-sensitive
+    and case-insensitive filesystems.
+
+    Returns (selected, missing) where `missing` lists patterns that matched
+    nothing so the caller can report them.
+    """
+    selected: set[Path] = set()
+    missing: list[str] = []
+
+    def _absorb(candidate: Path) -> None:
+        if candidate.is_dir():
+            for root, _, names in os.walk(candidate):
+                for name in names:
+                    selected.add((Path(root) / name).resolve())
+        elif candidate.is_file():
+            selected.add(candidate.resolve())
+
+    for pattern in patterns:
+        normalized = pattern.replace("\\", "/")
+        pattern_path = Path(pattern)
+        has_glob = any(ch in pattern for ch in GLOB_CHARS)
+
+        if has_glob:
+            if pattern_path.is_absolute():
+                try:
+                    relative = Path(normalized).relative_to(target_path.as_posix())
+                except ValueError:
+                    print(
+                        f"Warning: '{pattern}' is a wildcard outside the scanned directory and was ignored.",
+                        file=sys.stderr,
+                    )
+                    missing.append(pattern)
+                    continue
+            else:
+                relative = Path(normalized)
+
+            matches = sorted(target_path.glob(str(relative)))
+            if not matches:
+                missing.append(pattern)
+                continue
+            for match in matches:
+                _absorb(match)
+            continue
+
+        candidate = pattern_path if pattern_path.is_absolute() else target_path / pattern_path
+        if not candidate.exists():
+            fixed = (
+                _resolve_case_insensitive(target_path, pattern_path)
+                if not pattern_path.is_absolute()
+                else None
+            )
+            if fixed is None:
+                missing.append(pattern)
+                continue
+            candidate = fixed
+
+        if not candidate.resolve().is_relative_to(target_path):
+            print(
+                f"Warning: '{pattern}' is outside the scanned directory and was ignored.",
+                file=sys.stderr,
+            )
+            continue
+
+        _absorb(candidate.resolve())
+
+    return selected, missing
+
+
 def strip_comments(content: str, ext: str) -> str:
     """Remove comments from file content based on file extension while preserving string literals."""
     ext = ext.lower()
@@ -149,7 +252,7 @@ def strip_comments(content: str, ext: str) -> str:
     return '\n'.join(lines)
 
 
-def build_tree(target_path: Path) -> str:
+def build_tree(target_path: Path, exclude: Path = None) -> str:
     """Build an ASCII tree representation of the directory hierarchy."""
     try:
         rel = target_path.relative_to(Path.cwd())
@@ -171,6 +274,7 @@ def build_tree(target_path: Path) -> str:
             e for e in entries
             if e.name not in DEFAULT_IGNORE_DIRS and not e.name.startswith(".")
             and (e.is_dir() or not is_ignored_file(e))
+            and (exclude is None or e.resolve() != exclude)
         ]
 
         for i, entry in enumerate(entries):
@@ -187,7 +291,48 @@ def build_tree(target_path: Path) -> str:
     return "\n".join(lines)
 
 
-def generate_md(target_dir: str, output_file: str = None, remove_comments: bool = True, structure_only: bool = False, collapse: bool = False):
+OUTPUT_DIR = "md"
+
+
+def resolve_output_path(target_path: Path, output_file: str = None) -> Path:
+    """Resolve the destination markdown file.
+
+    Reports land in the `md` folder beside the working directory, so
+    `python g.py src` produces `md/src.md`. A bare filename passed to --out is
+    placed there too; a value containing a directory component is honoured as
+    given. When the `md` folder cannot be created the report falls back to the
+    working directory instead of failing.
+    """
+    try:
+        rel_dir = target_path.relative_to(Path.cwd())
+        name_parts = [p for p in rel_dir.parts if p and p != "."]
+        dir_name = "_".join(name_parts) if name_parts else target_path.name
+    except ValueError:
+        dir_name = target_path.name
+
+    out_name = None
+    if not output_file:
+        out_name = f"{dir_name}.md"
+    else:
+        out_p = Path(output_file.strip().strip('"\''))
+        out_name = out_p.name if out_p.parent == Path(".") else None
+
+    if out_name is None:
+        # Explicit destination: honour it exactly, failures are the user's to see.
+        output_path = out_p.resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        return output_path
+
+    output_path = (Path(OUTPUT_DIR) / out_name).resolve()
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        output_path = (Path.cwd() / out_name).resolve()
+
+    return output_path
+
+
+def generate_md(target_dir: str, output_file: str = None, remove_comments: bool = True, structure_only: bool = False, collapse: bool = False, only_files: list[str] = None):
     # Sanitize input directory path
     target_dir_clean = target_dir.strip().strip('"\'')
     target_path = Path(target_dir_clean).resolve()
@@ -199,26 +344,19 @@ def generate_md(target_dir: str, output_file: str = None, remove_comments: bool 
         print(f"Error: '{target_dir}' is not a directory.", file=sys.stderr)
         sys.exit(1)
 
-    # Default output directory is 'md'
-    out_dir = Path("md")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    output_path = resolve_output_path(target_path, output_file)
 
-    if not output_file:
-        try:
-            rel_dir = target_path.relative_to(Path.cwd())
-            name_parts = [p for p in rel_dir.parts if p and p != "."]
-            dir_name = "_".join(name_parts) if name_parts else target_path.name
-        except ValueError:
-            dir_name = target_path.name
-
-        output_path = (out_dir / f"{dir_name}.md").resolve()
-    else:
-        out_p = Path(output_file)
-        if out_p.parent == Path("."):
-            output_path = (out_dir / out_p.name).resolve()
-        else:
-            output_path = out_p.resolve()
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Resolve an explicit --files selection up front so a total miss fails
+    # before an empty report is created. An empty/absent list means no filter.
+    selected = None
+    if only_files:
+        selected, missing = resolve_file_selection(target_path, only_files)
+        for pattern in missing:
+            print(f"Warning: --files pattern '{pattern}' matched no file.", file=sys.stderr)
+        if not selected:
+            print("Error: none of the --files patterns matched any file.", file=sys.stderr)
+            sys.exit(1)
+        selected.discard(output_path)
 
     processed_files = []
     skipped_count = 0
@@ -232,11 +370,13 @@ def generate_md(target_dir: str, output_file: str = None, remove_comments: bool 
         if not structure_only:
             out.write(f"- **Comments Ignored**: {'Yes' if remove_comments else 'No'}\n")
             out.write(f"- **Collapsible**: {'Yes' if collapse else 'No'}\n")
+            if only_files:
+                out.write(f"- **File Filter**: `{', '.join(only_files)}` (directory tree stays complete)\n")
         out.write("\n")
 
         # Write Directory Tree
         out.write("## Directory Tree\n\n```\n")
-        out.write(build_tree(target_path))
+        out.write(build_tree(target_path, exclude=output_path))
         out.write("\n```\n\n")
 
         # If structure only, stop here without file list or file contents
@@ -249,21 +389,35 @@ def generate_md(target_dir: str, output_file: str = None, remove_comments: bool 
         # Collect files for content dumping
         files_to_process = []
         for root, dirs, files in os.walk(target_path):
-            # Filter directories in-place to avoid descending into ignored folders
-            dirs[:] = [d for d in dirs if d not in DEFAULT_IGNORE_DIRS and not d.startswith(".")]
+            # Filter directories in-place to avoid descending into ignored folders.
+            # An explicit --files selection is honoured even inside ignored folders.
+            if selected is None:
+                dirs[:] = [d for d in dirs if d not in DEFAULT_IGNORE_DIRS and not d.startswith(".")]
 
             for file in sorted(files):
-                file_path = Path(root) / file
+                file_path = (Path(root) / file).resolve()
 
                 # Skip output file if saved within the target directory
-                if file_path.resolve() == output_path:
+                if file_path == output_path:
                     continue
 
-                if is_ignored_file(file_path):
+                if selected is not None:
+                    if file_path not in selected:
+                        continue
+                    # Explicit selection bypasses the ignore rules, but binary
+                    # content still cannot be embedded as text.
+                    if is_binary(file_path):
+                        print(f"Warning: '{file_path}' is binary and was skipped.", file=sys.stderr)
+                        skipped_count += 1
+                        continue
+                elif is_ignored_file(file_path):
                     skipped_count += 1
                     continue
 
                 files_to_process.append(file_path)
+
+        if selected is not None:
+            files_to_process.sort(key=lambda p: p.relative_to(target_path).as_posix())
 
         # Write content for each file
         for file_path in files_to_process:
@@ -305,19 +459,45 @@ def generate_md(target_dir: str, output_file: str = None, remove_comments: bool 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Recursively read all text files in a directory and consolidate them into a single Markdown file."
+        description="Recursively read all text files in a directory and consolidate them into a single Markdown file.",
+        epilog=(
+            "examples:\n"
+            "  python g.py src/                     write md/src.md\n"
+            "  python g.py src/ -o docs/all.md      write to an explicit path\n"
+            "  python g.py src/ -o all.md           write md/all.md\n"
+            "  python g.py src/ --str               folder tree only\n"
+            "  python g.py src/ -f 'main.py,lib/*'  export only matching files\n"
+            "  python g.py -f 'main.py'             DIR optional, resolves against cwd\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--dir",
-        "-d",
-        required=True,
-        help="Path to the directory to scan."
+        "directory",
+        nargs="?",
+        default=None,
+        metavar="DIR",
+        help="Directory to scan. Optional only when --files is given, in which "
+             "case the file patterns resolve against the current directory."
     )
     parser.add_argument(
         "--out",
         "-o",
         default=None,
-        help="Path to the output Markdown file (default: <dir_path>.md)."
+        help=f"Output Markdown file. Default: {OUTPUT_DIR}/<dir_name>.md. "
+             "A bare filename is also written into that folder; a value with a "
+             "directory component is written there instead."
+    )
+    parser.add_argument(
+        "--files",
+        "-f",
+        action="append",
+        default=None,
+        metavar="PATTERNS",
+        help="Export only these files instead of the whole directory. Comma/space "
+             "separated and repeatable. Paths are relative to DIR, a directory "
+             "expands to everything inside it, and * ? wildcards are supported. "
+             "Explicitly named files bypass the default ignore rules. The "
+             "directory tree still shows the full folder."
     )
     parser.add_argument(
         "--str",
@@ -338,12 +518,24 @@ def main():
     )
 
     args = parser.parse_args()
+    only_files = split_file_patterns(args.files)
+
+    # DIR is required unless --files narrows the export down to specific paths,
+    # in which case those patterns resolve against the current directory.
+    if args.directory is not None:
+        directory = args.directory
+    elif only_files:
+        directory = "."
+    else:
+        parser.error("DIR is required (or pass --files to export specific files)")
+
     generate_md(
-        args.dir,
+        directory,
         args.out,
         remove_comments=not args.keep_comments,
         structure_only=args.str,
-        collapse=args.collapse
+        collapse=args.collapse,
+        only_files=only_files
     )
 
 

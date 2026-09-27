@@ -49,3 +49,5 @@ server/prisma/schema.postgresql.prisma
 # Root-anchored so the committed md/ajda.md is unaffected.
 /ajda.md
 /src/src.md
+md/ajda.md
+md
