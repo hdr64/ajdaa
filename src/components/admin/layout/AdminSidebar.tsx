@@ -202,18 +202,35 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
 
         {/* Footer: user card + quick actions */}
         <div className="border-t border-muted-border/30 p-3 space-y-2 shrink-0">
-          <div className={`flex items-center gap-2.5 p-2 rounded-xl bg-canvas/70 ${rail ? 'md:justify-center' : ''}`}>
+          <button
+            type="button"
+            onClick={() => {
+              navigate({ section: 'profile' });
+              onClose();
+            }}
+            className={`w-full flex items-center gap-2.5 p-2 rounded-xl border transition text-start cursor-pointer group ${
+              location.section === 'profile'
+                ? 'bg-accent/10 border-accent/40 text-accent'
+                : 'bg-canvas/70 border-transparent hover:bg-surface-hover hover:border-muted-border/40'
+            } ${rail ? 'md:justify-center' : ''}`}
+            title={rail ? `${currentUser?.name ?? ''} · الملف الشخصي` : undefined}
+          >
             <div
-              className="w-9 h-9 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-black text-xs shrink-0 border border-accent/25"
-              title={rail ? `${currentUser?.name ?? ''} · ${currentUser?.roleAr ?? ''}` : undefined}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 border transition ${
+                location.section === 'profile'
+                  ? 'bg-accent text-canvas border-accent'
+                  : 'bg-accent/15 text-accent border-accent/25 group-hover:bg-accent group-hover:text-canvas'
+              }`}
             >
               {currentUser ? initialsOf(currentUser.name) : '…'}
             </div>
             <div className={`min-w-0 flex-1 ${rail ? 'md:hidden' : ''}`}>
               <div className="text-xs font-bold text-heading truncate">{currentUser?.name ?? '…'}</div>
-              <div className="text-[10px] text-neutral-text/55 truncate">{currentUser?.roleAr ?? '…'}</div>
+              <div className="text-[10px] text-neutral-text/55 truncate">
+                {currentUser?.roleAr ?? '…'} · الملف الشخصي
+              </div>
             </div>
-          </div>
+          </button>
 
           <div className={`grid gap-1 ${rail ? 'md:grid-cols-1 grid-cols-5' : 'grid-cols-5'}`}>
             {[

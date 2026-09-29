@@ -451,6 +451,7 @@ receive no CORS header; in development the loopback origins still work.
 - [ ] **Admin (system) settings page** `/admin/settings/system` (super_admin): site-wide settings — company info, contact details, social links, default language/theme, upload limits, session length, security policy (password rules, 2FA required for roles)
 - [ ] **User settings page** `/admin/settings` for every admin: theme, language, default layouts/views, "don't ask again" choices reset, notification preferences
 - [ ] **Profile page** `/admin/profile`: update name, email (re-verify), phone, avatar, department (read-only unless HR permission); **change password** (current password required, strength rules, all other sessions signed out after change)
+  - Shipped: name/email/phone, change password (keeps this session, revokes the others), email-OTP toggle. Still open: email re-verify, avatar, department.
 - [ ] **2FA (TOTP)**: enable with QR code (authenticator app), verify a code before activation, 10 one-time recovery codes (shown once, stored hashed), require the code at login, disable only with password + code; super_admin can require 2FA per role
 - [ ] **Passkeys (WebAuthn)**: register several passkeys per admin (named devices), sign in with a passkey, list/rename/remove; needs `@simplewebauthn/server` + `@simplewebauthn/browser` (new deps — approval needed) and an HTTPS origin (localhost is allowed in dev)
 - [ ] Session security that 2FA/passkeys depend on: short-lived access token + refresh token or server-side sessions, "sign out all devices", list of active sessions with device/IP/last seen (today the JWT lasts 12h and cannot be revoked individually)
@@ -459,10 +460,10 @@ receive no CORS header; in development the loopback origins still work.
 See the list under "Admin gap review" at the end of this file.
 
 #### Phase 8g: Email + OTP (requested 2026-09-30, in progress)
-- [ ] Mail service (Gmail SMTP via MAIL_* env; secrets only in server/.env, never in git), Arabic RTL templates
-- [ ] Email OTP: login verification (per-admin toggle, or LOGIN_OTP_REQUIRED for all), forgot/reset password by 6-digit code (10 min, 5 attempts, resend 60 s, rate-limited)
-- [ ] Notifications: new inquiry → admins with viewInquiries (or NOTIFY_INQUIRY_EMAILS); password changed → that admin
-- [ ] UI: login OTP step, forgot/reset password screens, OTP toggle on the profile page
+- [x] Mail service (Gmail SMTP via MAIL_* env; secrets only in server/.env, never in git), Arabic RTL templates
+- [x] Email OTP: login verification (per-admin toggle, or LOGIN_OTP_REQUIRED for all), forgot/reset password by 6-digit code (10 min, 5 attempts, resend 60 s, rate-limited)
+- [x] Notifications: new inquiry → admins with viewInquiries (or NOTIFY_INQUIRY_EMAILS); password changed → that admin
+- [x] UI: login OTP step, forgot/reset password screens, OTP toggle on the profile page
 - [x] Users page layouts + role-based forms (f99b735); [ ] HR pages roles/departments (in progress)
 
 ### Working rules (from the owner)
@@ -523,7 +524,7 @@ Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email
 ### A. Security & accounts (highest risk)
 - [ ] **Rate limiting** on login and on public forms (`/api/auth/login`, `/api/inquiries`, `/api/newsletter`) — today unlimited password guessing and form spam are possible (`@fastify/rate-limit`)
 - [ ] **Spam protection** on public forms: honeypot field + time-to-submit check, optional CAPTCHA (Turnstile) for the contact/interest/newsletter forms
-- [ ] **Forgot / reset password** by email (none today — a locked-out admin needs a developer)
+- [x] **Forgot / reset password** by email (6-digit code; Phase 8g)
 - [ ] **Email delivery** (SMTP/transactional provider) — prerequisite for password reset, new-inquiry notifications, 2FA recovery
 - [ ] 2FA, passkeys, session list/revoke, password policy → Phase 8e
 - [ ] Account lockout after repeated failed logins, login history per admin
@@ -569,6 +570,12 @@ Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email
 - [ ] System status page (API, database, disk, realtime)
 - [ ] Maintenance mode / announcement banner for the public site
 - [ ] Redirects manager (old URLs → new), 404 log
+- [ ] **Mail settings page** (owner request 2026-09-30): admin page to edit the `MAIL_*` SMTP settings and send a test email.
+  Decisions: stored in an `AppSetting` table and overrides `.env` (a "reset to .env" action deletes it); SMTP password
+  encrypted at rest (AES-256-GCM, key from `SETTINGS_ENCRYPTION_KEY`, else derived from `JWT_SECRET` — rotating it means
+  re-entering the password) and never returned to the browser (`passwordSet` only); super_admin only; the test email uses
+  the unsaved form values and returns the real SMTP error; rate-limited. API: `GET/PUT/DELETE /api/settings/mail`,
+  `POST /api/settings/mail/test`.
 
 ### G. UX quality details
 - [ ] Toasts: queue several instead of replacing the previous one; success/error variants with icons

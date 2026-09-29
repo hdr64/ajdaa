@@ -30,6 +30,8 @@ export interface AdminContextValue {
   showToast: (message: string) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   refreshAll: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  setCurrentUser: (user: AdminUser | null) => void;
 }
 
 export const AdminContext = createContext<AdminContextValue | null>(null);

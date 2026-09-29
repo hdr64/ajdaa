@@ -3,7 +3,7 @@
  * as `adminPath`, so refresh, deep links and back/forward all land on the same
  * section.
  *
- *   overview | projects | inquiries | categories | users
+ *   overview | projects | inquiries | categories | users | profile
  *   roles | departments    HR reference data behind the user accounts
  *   projects/:id            project details   (alias: projects/:id/show)
  *   projects/:id/edit       project editor
@@ -20,7 +20,8 @@ export type AdminSection =
   | 'categories'
   | 'users'
   | 'roles'
-  | 'departments';
+  | 'departments'
+  | 'profile';
 
 export interface AdminLocation {
   section: AdminSection;
@@ -37,6 +38,7 @@ const SIMPLE_SECTIONS: AdminSection[] = [
   'users',
   'roles',
   'departments',
+  'profile',
 ];
 
 const PROJECT_SUBROUTES: Record<string, AdminSection> = {

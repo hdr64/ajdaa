@@ -188,6 +188,7 @@ function serializeUser(user: {
   status: string;
   lastLogin: string | null;
   departmentRef?: { nameAr: string } | null;
+  loginOtpEnabled?: boolean | null;
 }) {
   return {
     id: user.id,
@@ -203,6 +204,7 @@ function serializeUser(user: {
     permissions: parsePermissions(user.permissions),
     status: user.status,
     lastLogin: user.lastLogin,
+    loginOtpEnabled: Boolean(user.loginOtpEnabled),
   };
 }
 
@@ -549,7 +551,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       void notifyPasswordChanged({ email: user.email, name: user.name, via: 'self_service' });
 
-      return reply.status(200).send({ message: 'Password updated successfully' });
+      // The change revokes every token issued before it, including the caller's;
+      // hand this session a fresh one so the admin is not signed out mid-page.
+      const token = fastify.jwt.sign({ id: user.id, email: user.email, role: user.role });
+      return reply.status(200).send({ message: 'Password updated successfully', token });
     }
   );
 

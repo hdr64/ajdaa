@@ -309,6 +309,12 @@ describe('Security & Account Protection', () => {
       });
       expect(oldTokenRes.statusCode).toBe(401);
 
+      // 6b. The fresh token returned with the change keeps the caller signed in
+      const freshToken = successRes.json().token;
+      expect(typeof freshToken).toBe('string');
+      const freshTokenRes = await authInject(freshToken, { method: 'GET', url: '/api/auth/me' });
+      expect(freshTokenRes.statusCode).toBe(200);
+
       // 7. Old password no longer works for login
       const oldLoginRes = await inject({
         method: 'POST',

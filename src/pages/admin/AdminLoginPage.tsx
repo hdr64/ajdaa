@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
 import { AdminStorage } from '../../services/adminStorage';
-import { getErrorMessage } from '../../services/api';
-import { ShieldCheck, Lock, Mail, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
+import { ApiError, getErrorMessage } from '../../services/api';
+import { ShieldCheck, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
+import { LoginCredentialsStep } from '../../components/admin/auth/LoginCredentialsStep';
+import { LoginOtpStep } from '../../components/admin/auth/LoginOtpStep';
+import { ForgotPasswordStep } from '../../components/admin/auth/ForgotPasswordStep';
+import { ResetPasswordStep } from '../../components/admin/auth/ResetPasswordStep';
 
 interface AdminLoginPageProps {
   onLoginSuccess: () => void;
   onNavigateHome: () => void;
 }
+
+type AuthStep = 'credentials' | 'otp' | 'forgot' | 'reset';
 
 export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   onLoginSuccess,
@@ -17,19 +23,32 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
+  const [step, setStep] = useState<AuthStep>('credentials');
   const [email, setEmail] = useState('admin@ajdaa.sa');
   const [password, setPassword] = useState('');
+  const [challengeId, setChallengeId] = useState('');
+  const [emailHint, setEmailHint] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  /* ---------------------- Credentials Login ---------------------- */
+
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
 
     try {
-      await AdminStorage.login(email, password);
-      onLoginSuccess();
+      const result = await AdminStorage.startLogin(email, password);
+      if (result.kind === 'session') {
+        onLoginSuccess();
+      } else {
+        setChallengeId(result.challengeId);
+        setEmailHint(result.emailHint);
+        setStep('otp');
+      }
     } catch (caught) {
       setError(
         getErrorMessage(
@@ -40,6 +59,120 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  /* -------------------------- Login OTP -------------------------- */
+
+  const handleVerifyOtp = async (code: string) => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await AdminStorage.verifyLoginOtp(challengeId, code);
+      onLoginSuccess();
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
+        setStep('credentials');
+        setError(
+          isAr
+            ? 'انتهت صلاحية جلسة التحقق، يرجى إعادة تسجيل الدخول'
+            : 'Verification session has expired. Please sign in again.'
+        );
+      } else {
+        setError(
+          getErrorMessage(
+            caught,
+            isAr ? 'رمز التحقق غير صحيح أو منتهي الصلاحية' : 'Invalid or expired verification code'
+          )
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setError(null);
+    try {
+      await AdminStorage.resendLoginOtp(challengeId);
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
+        setStep('credentials');
+        setError(
+          isAr
+            ? 'انتهت صلاحية جلسة التحقق، يرجى إعادة تسجيل الدخول'
+            : 'Verification session has expired. Please sign in again.'
+        );
+      } else {
+        setError(
+          getErrorMessage(
+            caught,
+            isAr ? 'تعذر إعادة إرسال الرمز، يرجى الانتظار قليلاً' : 'Could not resend code, please wait'
+          )
+        );
+      }
+    }
+  };
+
+  /* ----------------------- Forgot Password ----------------------- */
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setLoading(true);
+
+    try {
+      await AdminStorage.forgotPassword(email);
+      setStep('reset');
+      setNotice(
+        isAr
+          ? 'إذا كان الحساب مسجلاً، فقد تم إرسال رمز التحقق إلى بريدك الإلكتروني'
+          : 'If an account exists with this email, a verification code was sent.'
+      );
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر إرسال طلب الاستعادة' : 'Could not process password reset request'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ------------------------ Reset Password ----------------------- */
+
+  const handleResetPassword = async (code: string, newPassword: string) => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await AdminStorage.resetPassword(email, code, newPassword);
+      setStep('credentials');
+      setPassword('');
+      setNotice(
+        isAr
+          ? 'تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.'
+          : 'Password reset successfully. You can now sign in.'
+      );
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر تغيير كلمة المرور. تحقق من صحة الرمز.' : 'Could not reset password. Check the code and try again.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToCredentials = () => {
+    setError(null);
+    setNotice(null);
+    setStep('credentials');
   };
 
   return (
@@ -66,82 +199,68 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
 
         {/* Card */}
         <div className="rounded-3xl bg-surface/90 border border-muted-border/40 p-6 sm:p-8 shadow-xl backdrop-blur-xl">
-          {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+          {step === 'credentials' && (
+            <LoginCredentialsStep
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              onSubmit={handleCredentialsSubmit}
+              onForgotPassword={() => {
+                setError(null);
+                setNotice(null);
+                setStep('forgot');
+              }}
+              onNavigateHome={onNavigateHome}
+              loading={loading}
+              error={error}
+              notice={notice}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'البريد الإلكتروني للإدارة' : 'Admin Email'}
-              </label>
-              <div className="relative flex items-center">
-                <Mail className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
-                <input
-                  type="email"
-                  required
-                  dir="ltr"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@ajdaa.sa"
-                  className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent font-mono"
-                />
-              </div>
-            </div>
+          {step === 'otp' && (
+            <LoginOtpStep
+              emailHint={emailHint}
+              onVerify={handleVerifyOtp}
+              onResend={handleResendOtp}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
 
-            <div>
-              <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'كلمة المرور' : 'Password'}
-              </label>
-              <div className="relative flex items-center">
-                <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
-                <input
-                  type="password"
-                  required
-                  dir="ltr"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
-                />
-              </div>
-            </div>
+          {step === 'forgot' && (
+            <ForgotPasswordStep
+              email={email}
+              setEmail={setEmail}
+              onSubmit={handleForgotPasswordSubmit}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
 
-            {/* Helper credentials note */}
-            <div className="p-3 rounded-xl bg-accent/5 border border-accent/20 text-[11px] text-neutral-text/70 flex items-center justify-between font-mono">
-              <span>user: admin@ajdaa.sa</span>
-              <span>pass: password</span>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50 mt-2"
-            >
-              {loading ? (
-                <span>{isAr ? 'جاري التحقق...' : 'Signing in...'}</span>
-              ) : (
-                <>
-                  <span>{isAr ? 'تسجيل الدخول إلى النظام' : 'Sign In to Dashboard'}</span>
-                  <ArrowIcon className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-6 pt-5 border-t border-muted-border/30 text-center">
-            <button
-              onClick={onNavigateHome}
-              className="text-xs font-bold text-neutral-text/60 hover:text-accent transition cursor-pointer"
-            >
-              {isAr ? '← العودة للموقع الرئيسي' : '← Return to Main Website'}
-            </button>
-          </div>
+          {step === 'reset' && (
+            <ResetPasswordStep
+              email={email}
+              onReset={handleResetPassword}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              notice={notice}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 };
+

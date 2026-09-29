@@ -32,6 +32,7 @@ interface UserDto {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   role: string;
   roleAr: string;
   roleId?: string | null;
@@ -41,6 +42,7 @@ interface UserDto {
   permissions: Record<string, boolean> | null;
   status: string;
   lastLogin: string | null;
+  loginOtpEnabled?: boolean;
 }
 
 const ROLES = ['super_admin', 'project_manager', 'sales_agent', 'viewer'] as const;
@@ -75,6 +77,7 @@ export function toAdminUser(dto: UserDto): AdminUser {
     id: dto.id,
     name: dto.name,
     email: dto.email,
+    phone: dto.phone ?? null,
     role: normalizeRole(dto.role),
     roleAr: dto.roleAr,
     roleId: dto.roleId ?? null,
@@ -84,6 +87,7 @@ export function toAdminUser(dto: UserDto): AdminUser {
     permissions: normalizePermissions(dto.permissions),
     lastLogin: dto.lastLogin ?? undefined,
     status: dto.status === 'suspended' ? 'suspended' : 'active',
+    loginOtpEnabled: dto.loginOtpEnabled,
   };
 }
 
@@ -194,11 +198,14 @@ export const authService = {
     return toAdminUser(result.user);
   },
 
+  /** The server revokes older tokens on a password change and returns a fresh one for this session. */
   async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
-    return api.post<{ message: string }>('/api/auth/me/password', {
+    const result = await api.post<{ message: string; token?: string }>('/api/auth/me/password', {
       currentPassword,
       newPassword,
     });
+    if (result.token) setAuthToken(result.token);
+    return { message: result.message };
   },
 };
 

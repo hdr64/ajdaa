@@ -62,6 +62,7 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   role: AdminRole;
   roleAr: string;
   roleId?: string | null;
@@ -71,6 +72,7 @@ export interface AdminUser {
   permissions: AdminPermissions;
   lastLogin?: string;
   status: AdminStatus;
+  loginOtpEnabled?: boolean;
 }
 
 /** Payload accepted by the user create/update endpoints. */

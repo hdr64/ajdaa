@@ -144,6 +144,14 @@ export const AdminStorage = {
     return authService.setLoginOtp(enabled, password);
   },
 
+  updateProfile(input: { name?: string; email?: string; phone?: string | null }): Promise<AdminUser> {
+    return authService.updateProfile(input);
+  },
+
+  changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return authService.changePassword(currentPassword, newPassword);
+  },
+
   async getCurrentUser(): Promise<AdminUser> {
     return authService.me();
   },

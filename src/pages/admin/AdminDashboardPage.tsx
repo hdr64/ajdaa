@@ -27,6 +27,7 @@ import { DepartmentsSection } from './sections/DepartmentsSection';
 import { ProjectShowSection } from './sections/ProjectShowSection';
 import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
+import { AdminProfilePage } from '../../components/admin/profile/AdminProfilePage';
 
 interface AdminDashboardPageProps {
   /** Path after `/admin/`, e.g. "projects" or "projects/206/units". */
@@ -60,6 +61,10 @@ const SECTION_META: Record<AdminSection, { title: string; subtitle: string; perm
     title: 'الأقسام والإدارات',
     subtitle: 'تنظيم أعضاء الفريق في أقسام العمل',
     permission: 'manageUsers',
+  },
+  profile: {
+    title: 'الملف الشخصي والحساب',
+    subtitle: 'إدارة البيانات الشخصية، كلمة المرور وخيارات الأمان',
   },
 };
 
@@ -97,6 +102,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const user = await AdminStorage.getCurrentUser();
+      setCurrentUser(user);
+    } catch {
+      // Handled by api.ts
+    }
   }, []);
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
@@ -211,8 +225,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       showToast,
       confirm,
       refreshAll,
+      refreshUser,
+      setCurrentUser,
     }),
-    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, location, navigate, showToast, confirm, refreshAll]
+    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, location, navigate, showToast, confirm, refreshAll, refreshUser]
   );
 
   const renderSection = () => {
@@ -241,6 +257,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <RolesSection />;
       case 'departments':
         return <DepartmentsSection />;
+      case 'profile':
+        return <AdminProfilePage />;
     }
   };
 
