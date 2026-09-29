@@ -187,7 +187,14 @@ async function request<T>(method: string, path: string, body?: unknown, options:
   if (response.status === 204) return undefined as T;
 
   const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  try {
+    return (text ? JSON.parse(text) : undefined) as T;
+  } catch {
+    throw new ApiError(
+      response.status,
+      'The server returned an unexpected non-JSON response. Please ensure the backend API service is running.'
+    );
+  }
 }
 
 export const api = {
@@ -237,7 +244,14 @@ export const api = {
     }
 
     const text = await response.text();
-    return (text ? JSON.parse(text) : undefined) as T;
+    try {
+      return (text ? JSON.parse(text) : undefined) as T;
+    } catch {
+      throw new ApiError(
+        response.status,
+        'The server returned an unexpected non-JSON response. Please ensure the backend API service is running.'
+      );
+    }
   },
 };
 

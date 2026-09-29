@@ -6,7 +6,7 @@ const API_TARGET = process.env.VITE_API_PROXY_TARGET || 'http://localhost:4000';
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [react(), tailwindcss()],
 
   // Mirrors the production Caddy routing so the frontend can always talk to a
