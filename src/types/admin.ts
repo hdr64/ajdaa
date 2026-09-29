@@ -12,13 +12,62 @@ export interface AdminPermissions {
   manageUsers: boolean;
 }
 
+export interface PermissionDef {
+  key: keyof AdminPermissions;
+  group: string;
+  labelAr: string;
+  labelEn: string;
+  description: string;
+}
+
+export interface Role {
+  id: string;
+  key: string;
+  nameAr: string;
+  nameEn: string;
+  description?: string | null;
+  permissions: (keyof AdminPermissions)[];
+  isSystem: boolean;
+  sortOrder: number;
+  userCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RoleInput {
+  key?: string;
+  nameAr: string;
+  nameEn: string;
+  description?: string | null;
+  permissions: (keyof AdminPermissions)[];
+  sortOrder?: number;
+  applyToUsers?: boolean;
+}
+
+export interface Department {
+  id: string;
+  nameAr: string;
+  nameEn?: string | null;
+  userCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DepartmentInput {
+  nameAr: string;
+  nameEn?: string | null;
+}
+
 export interface AdminUser {
   id: string;
   name: string;
   email: string;
   role: AdminRole;
   roleAr: string;
+  roleId?: string | null;
   department: string;
+  departmentId?: string | null;
+  departmentName?: string | null;
   permissions: AdminPermissions;
   lastLogin?: string;
   status: AdminStatus;
@@ -31,7 +80,9 @@ export interface AdminUserInput {
   password?: string;
   role: AdminRole;
   roleAr: string;
+  roleId?: string | null;
   department?: string | null;
+  departmentId?: string | null;
   permissions: Partial<AdminPermissions>;
   status?: AdminStatus;
 }

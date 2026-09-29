@@ -7,6 +7,7 @@ import {
 } from './propertyService';
 import { categoryService, type CategoryInput } from './categoryService';
 import { newsletterService, type NewsletterSubscriber } from './newsletterService';
+import { rolesService } from './rolesService';
 import { ApiError } from './api';
 import type {
   CustomerInquiry,
@@ -16,9 +17,29 @@ import type {
   UnitStatus,
   PublishStatus,
 } from '../types/property';
-import type { AdminUser, AdminUserInput, CategoryItem, AdminStatus } from '../types/admin';
+import type {
+  AdminUser,
+  AdminUserInput,
+  CategoryItem,
+  AdminStatus,
+  Role,
+  RoleInput,
+  Department,
+  DepartmentInput,
+  PermissionDef,
+} from '../types/admin';
 
-export type { AdminUser, AdminUserInput, CategoryItem, AdminStatus } from '../types/admin';
+export type {
+  AdminUser,
+  AdminUserInput,
+  CategoryItem,
+  AdminStatus,
+  Role,
+  RoleInput,
+  Department,
+  DepartmentInput,
+  PermissionDef,
+} from '../types/admin';
 export type { NewsletterSubscriber } from './newsletterService';
 
 const CATEGORIES_KEY = 'ajdaa_categories';
@@ -286,6 +307,44 @@ export const AdminStorage = {
 
   setUserStatus(userId: string, status: AdminStatus): Promise<AdminUser> {
     return authService.setUserStatus(userId, status);
+  },
+
+  /* ----------------- Roles & Permissions & Departments ------------------- */
+
+  listPermissions(signal?: AbortSignal): Promise<PermissionDef[]> {
+    return rolesService.getPermissions(signal);
+  },
+
+  listRoles(signal?: AbortSignal): Promise<Role[]> {
+    return rolesService.listRoles(signal);
+  },
+
+  createRole(input: RoleInput): Promise<Role> {
+    return rolesService.createRole(input);
+  },
+
+  updateRole(id: string, input: Partial<RoleInput>): Promise<Role> {
+    return rolesService.updateRole(id, input);
+  },
+
+  deleteRole(id: string): Promise<void> {
+    return rolesService.deleteRole(id);
+  },
+
+  listDepartments(signal?: AbortSignal): Promise<Department[]> {
+    return rolesService.listDepartments(signal);
+  },
+
+  createDepartment(input: DepartmentInput): Promise<Department> {
+    return rolesService.createDepartment(input);
+  },
+
+  updateDepartment(id: string, input: Partial<DepartmentInput>): Promise<Department> {
+    return rolesService.updateDepartment(id, input);
+  },
+
+  deleteDepartment(id: string): Promise<void> {
+    return rolesService.deleteDepartment(id);
   },
 
   /* ---------------------------- Newsletter ------------------------------- */

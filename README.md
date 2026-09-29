@@ -136,6 +136,11 @@ site content and must be backed up** (the deploy backup script at
 | GET | `/api/auth/me` | JWT | Current user |
 | GET/POST | `/api/auth/users` | JWT | List / create admin users |
 | PUT/DELETE | `/api/auth/users/:id` | JWT | Update / deactivate (no self-delete, no last `super_admin`) |
+| GET | `/api/permissions` | JWT | List fixed permission catalogue |
+| GET/POST | `/api/roles` | JWT | List roles (with userCount) / create role (manageUsers) |
+| PUT/DELETE | `/api/roles/:id` | JWT | Update role (applyToUsers) / delete unused role (manageUsers) |
+| GET/POST | `/api/departments` | JWT | List departments (with userCount) / create department (manageUsers) |
+| PUT/DELETE | `/api/departments/:id` | JWT | Update department / delete unused department (manageUsers) |
 | GET | `/api/projects` | – | Published projects `?city=&type=&priceType=`; admin list via `?scope=admin[&status=]` (JWT) |
 | GET | `/api/projects/:id` | – | Published project + floors + units; admin view via `?scope=admin` (JWT) |
 | POST/PUT/DELETE | `/api/projects/:id` | JWT | Admin CRUD (new projects default to draft) |

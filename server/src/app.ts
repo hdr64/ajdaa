@@ -15,6 +15,9 @@ import { inquiryRoutes } from './routes/inquiries.routes.js';
 import { mediaRoutes } from './routes/media.routes.js';
 import { categoryRoutes } from './routes/categories.routes.js';
 import { newsletterRoutes } from './routes/newsletter.routes.js';
+import { permissionRoutes } from './routes/permissions.routes.js';
+import { roleRoutes } from './routes/roles.routes.js';
+import { departmentRoutes } from './routes/departments.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({ logger: true });
@@ -93,6 +96,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(mediaRoutes, { prefix: '/api/media' });
   await fastify.register(categoryRoutes, { prefix: '/api/categories' });
   await fastify.register(newsletterRoutes, { prefix: '/api/newsletter' });
+  await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
+  await fastify.register(roleRoutes, { prefix: '/api/roles' });
+  await fastify.register(departmentRoutes, { prefix: '/api/departments' });
 
   // Health check
   fastify.get('/api/health', async () => {

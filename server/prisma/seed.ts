@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import * as seedModule from './seed-data/projects.seed.ts';
@@ -106,24 +107,135 @@ const CATEGORIES = [
 
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'password';
 
+const SEED_ROLES = [
+  {
+    id: 'role_super_admin',
+    key: 'super_admin',
+    nameAr: 'مدير عام النظام (Super Admin)',
+    nameEn: 'Super Admin',
+    description: 'Full system access and user management',
+    permissions: JSON.stringify(['manageProjects', 'manageUnits', 'viewInquiries', 'exportData', 'manageUsers']),
+    isSystem: true,
+    sortOrder: 1,
+  },
+  {
+    id: 'role_project_manager',
+    key: 'project_manager',
+    nameAr: 'مدير التطوير والمشاريع',
+    nameEn: 'Project Manager',
+    description: 'Project and unit management',
+    permissions: JSON.stringify(['manageProjects', 'manageUnits', 'viewInquiries', 'exportData']),
+    isSystem: false,
+    sortOrder: 2,
+  },
+  {
+    id: 'role_sales_agent',
+    key: 'sales_agent',
+    nameAr: 'مسؤول تأجير ومبيعات',
+    nameEn: 'Sales Agent',
+    description: 'Unit management and inquiry handling',
+    permissions: JSON.stringify(['manageUnits', 'viewInquiries']),
+    isSystem: false,
+    sortOrder: 3,
+  },
+  {
+    id: 'role_viewer',
+    key: 'viewer',
+    nameAr: 'محلل استثماري ومتابع',
+    nameEn: 'Viewer',
+    description: 'View inquiries and export data',
+    permissions: JSON.stringify(['viewInquiries', 'exportData']),
+    isSystem: false,
+    sortOrder: 4,
+  },
+];
+
+function deptId(nameAr: string): string {
+  return 'dept_' + crypto.createHash('md5').update(nameAr).digest('hex');
+}
+
+const SEED_DEPARTMENTS = [
+  {
+    id: deptId('الإدارة التنفيذية'),
+    nameAr: 'الإدارة التنفيذية',
+    nameEn: 'Executive Management',
+  },
+  {
+    id: deptId('التطوير الهندسي'),
+    nameAr: 'التطوير الهندسي',
+    nameEn: 'Engineering & Development',
+  },
+  {
+    id: deptId('إدارة الاستثمار والمبيعات'),
+    nameAr: 'إدارة الاستثمار والمبيعات',
+    nameEn: 'Investment & Sales',
+  },
+  {
+    id: deptId('التخطيط والتحليل'),
+    nameAr: 'التخطيط والتحليل',
+    nameEn: 'Planning & Analysis',
+  },
+];
+
 function toJsonArray(value: string[] | undefined): string | null {
   return value && value.length > 0 ? JSON.stringify(value) : null;
+}
+
+async function seedRoles(): Promise<void> {
+  for (const role of SEED_ROLES) {
+    await prisma.role.upsert({
+      where: { id: role.id },
+      update: {
+        key: role.key,
+        nameAr: role.nameAr,
+        nameEn: role.nameEn,
+        description: role.description,
+        permissions: role.permissions,
+        isSystem: role.isSystem,
+        sortOrder: role.sortOrder,
+      },
+      create: role,
+    });
+  }
+}
+
+async function seedDepartments(): Promise<void> {
+  for (const dept of SEED_DEPARTMENTS) {
+    await prisma.department.upsert({
+      where: { nameAr: dept.nameAr },
+      update: {
+        nameEn: dept.nameEn,
+      },
+      create: dept,
+    });
+  }
 }
 
 async function seedAdminUsers(): Promise<void> {
   const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
   for (const user of ADMIN_USERS) {
+    const roleId = `role_${user.role}`;
+    const departmentId = user.department ? deptId(user.department) : null;
+
     await prisma.adminUser.upsert({
       where: { email: user.email },
-      update: {},
+      update: {
+        roleId,
+        departmentId,
+        role: user.role,
+        roleAr: user.roleAr,
+        department: user.department,
+      },
       create: {
         email: user.email,
         passwordHash,
         name: user.name,
         role: user.role,
         roleAr: user.roleAr,
+        roleId,
         department: user.department,
+        departmentId,
         permissions: JSON.stringify(user.permissions),
         status: 'active',
       },
@@ -262,6 +374,8 @@ async function seedProjectData(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await seedRoles();
+  await seedDepartments();
   await seedAdminUsers();
   await seedCategories();
   await seedProjectData();

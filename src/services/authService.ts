@@ -12,7 +12,10 @@ interface UserDto {
   email: string;
   role: string;
   roleAr: string;
+  roleId?: string | null;
   department: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
   permissions: Record<string, boolean> | null;
   status: string;
   lastLogin: string | null;
@@ -52,7 +55,10 @@ export function toAdminUser(dto: UserDto): AdminUser {
     email: dto.email,
     role: normalizeRole(dto.role),
     roleAr: dto.roleAr,
+    roleId: dto.roleId ?? null,
     department: dto.department ?? '',
+    departmentId: dto.departmentId ?? null,
+    departmentName: dto.departmentName ?? dto.department ?? null,
     permissions: normalizePermissions(dto.permissions),
     lastLogin: dto.lastLogin ?? undefined,
     status: dto.status === 'suspended' ? 'suspended' : 'active',

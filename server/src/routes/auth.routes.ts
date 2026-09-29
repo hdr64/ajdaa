@@ -4,7 +4,10 @@ import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
-import { ADMIN_ROLES } from '../config/constants.js';
+import {
+  parseRolePermissions,
+  rolePermissionsToUserPermissions,
+} from '../config/permissions.js';
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
@@ -15,10 +18,12 @@ const createUserSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
   password: z.string().min(8).default('password123'),
-  role: z.enum(ADMIN_ROLES).default('sales_agent'),
-  roleAr: z.string().default('مسؤول مبيعات'),
+  role: z.string().optional(),
+  roleId: z.string().optional(),
+  roleAr: z.string().optional(),
   department: z.string().nullish(),
-  permissions: z.record(z.boolean()).default({}),
+  departmentId: z.string().nullish(),
+  permissions: z.record(z.boolean()).optional(),
 });
 
 const updateUserSchema = z
@@ -26,9 +31,11 @@ const updateUserSchema = z
     name: z.string().trim().min(1).optional(),
     email: z.string().trim().email().optional(),
     password: z.string().min(8).optional(),
-    role: z.enum(ADMIN_ROLES).optional(),
+    role: z.string().optional(),
+    roleId: z.string().nullish(),
     roleAr: z.string().optional(),
     department: z.string().nullish(),
+    departmentId: z.string().nullish(),
     permissions: z.record(z.boolean()).optional(),
     status: z.enum(['active', 'suspended']).optional(),
   })
@@ -53,10 +60,14 @@ function serializeUser(user: {
   email: string;
   role: string;
   roleAr: string;
+  roleId?: string | null;
   department: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
   permissions: string;
   status: string;
   lastLogin: string | null;
+  departmentRef?: { nameAr: string } | null;
 }) {
   return {
     id: user.id,
@@ -64,7 +75,10 @@ function serializeUser(user: {
     email: user.email,
     role: user.role,
     roleAr: user.roleAr,
+    roleId: user.roleId ?? null,
     department: user.department,
+    departmentId: user.departmentId ?? null,
+    departmentName: user.departmentName ?? user.departmentRef?.nameAr ?? user.department ?? null,
     permissions: parsePermissions(user.permissions),
     status: user.status,
     lastLogin: user.lastLogin,
@@ -134,7 +148,56 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = createUserSchema.parse(request.body ?? {});
 
-      if (body.role === 'super_admin' && request.admin?.role !== 'super_admin') {
+      let resolvedRoleKey: string = body.role ?? 'sales_agent';
+      let resolvedRoleAr: string = body.roleAr ?? 'مسؤول مبيعات';
+      let resolvedRoleId: string | null = null;
+      let resolvedPermissions: Record<string, boolean> = body.permissions ?? {};
+
+      if (body.roleId) {
+        const roleRecord = await prisma.role.findUnique({ where: { id: body.roleId } });
+        if (!roleRecord) {
+          return reply.status(400).send({ error: 'Role not found' });
+        }
+        resolvedRoleKey = roleRecord.key;
+        resolvedRoleAr = roleRecord.nameAr;
+        resolvedRoleId = roleRecord.id;
+        if (body.permissions === undefined) {
+          const rolePerms = parseRolePermissions(roleRecord.permissions);
+          resolvedPermissions = rolePermissionsToUserPermissions(rolePerms);
+        }
+      } else if (body.role) {
+        resolvedRoleKey = body.role;
+        const roleRecord = await prisma.role.findUnique({ where: { key: body.role } });
+        if (roleRecord) {
+          resolvedRoleId = roleRecord.id;
+          if (!body.roleAr) resolvedRoleAr = roleRecord.nameAr;
+        }
+      } else {
+        const roleRecord = await prisma.role.findUnique({ where: { key: 'sales_agent' } });
+        if (roleRecord) {
+          resolvedRoleId = roleRecord.id;
+          resolvedRoleAr = roleRecord.nameAr;
+        }
+      }
+
+      let resolvedDepartmentText: string | null = body.department ?? null;
+      let resolvedDepartmentId: string | null = body.departmentId ?? null;
+
+      if (body.departmentId) {
+        const deptRecord = await prisma.department.findUnique({ where: { id: body.departmentId } });
+        if (!deptRecord) {
+          return reply.status(400).send({ error: 'Department not found' });
+        }
+        resolvedDepartmentId = deptRecord.id;
+        resolvedDepartmentText = deptRecord.nameAr;
+      } else if (body.department) {
+        const deptRecord = await prisma.department.findUnique({ where: { nameAr: body.department } });
+        if (deptRecord) {
+          resolvedDepartmentId = deptRecord.id;
+        }
+      }
+
+      if (resolvedRoleKey === 'super_admin' && request.admin?.role !== 'super_admin') {
         return reply.status(403).send({ error: 'Only a super admin can create a super admin' });
       }
 
@@ -149,10 +212,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           name: body.name,
           email: body.email.toLowerCase(),
           passwordHash,
-          role: body.role,
-          roleAr: body.roleAr,
-          department: body.department,
-          permissions: JSON.stringify(body.permissions),
+          role: resolvedRoleKey,
+          roleAr: resolvedRoleAr,
+          roleId: resolvedRoleId,
+          department: resolvedDepartmentText,
+          departmentId: resolvedDepartmentId,
+          permissions: JSON.stringify(resolvedPermissions),
           status: 'active',
         },
       });
@@ -174,10 +239,65 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'User not found' });
       }
 
+      let resolvedRoleKey: string | undefined = body.role;
+      let resolvedRoleAr: string | undefined = body.roleAr;
+      let resolvedRoleId: string | null | undefined = body.roleId;
+      let resolvedPermissions: Record<string, boolean> | undefined = body.permissions;
+
+      if (body.roleId !== undefined) {
+        if (body.roleId) {
+          const roleRecord = await prisma.role.findUnique({ where: { id: body.roleId } });
+          if (!roleRecord) {
+            return reply.status(400).send({ error: 'Role not found' });
+          }
+          resolvedRoleKey = roleRecord.key;
+          resolvedRoleAr = roleRecord.nameAr;
+          resolvedRoleId = roleRecord.id;
+          if (body.permissions === undefined) {
+            const rolePerms = parseRolePermissions(roleRecord.permissions);
+            resolvedPermissions = rolePermissionsToUserPermissions(rolePerms);
+          }
+        } else {
+          resolvedRoleId = null;
+        }
+      } else if (body.role !== undefined) {
+        const roleRecord = await prisma.role.findUnique({ where: { key: body.role } });
+        if (roleRecord) {
+          resolvedRoleId = roleRecord.id;
+          if (resolvedRoleAr === undefined) resolvedRoleAr = roleRecord.nameAr;
+        }
+      }
+
+      let resolvedDepartmentText: string | null | undefined = body.department;
+      let resolvedDepartmentId: string | null | undefined = body.departmentId;
+
+      if (body.departmentId !== undefined) {
+        if (body.departmentId) {
+          const deptRecord = await prisma.department.findUnique({ where: { id: body.departmentId } });
+          if (!deptRecord) {
+            return reply.status(400).send({ error: 'Department not found' });
+          }
+          resolvedDepartmentId = deptRecord.id;
+          resolvedDepartmentText = deptRecord.nameAr;
+        } else {
+          resolvedDepartmentId = null;
+          resolvedDepartmentText = null;
+        }
+      } else if (body.department !== undefined) {
+        if (body.department) {
+          const deptRecord = await prisma.department.findUnique({ where: { nameAr: body.department } });
+          if (deptRecord) {
+            resolvedDepartmentId = deptRecord.id;
+          }
+        } else {
+          resolvedDepartmentId = null;
+        }
+      }
+
       // Holding manageUsers must not be a path to super admin: only a super
       // admin may touch a super admin account or hand out that role.
       const requesterIsSuperAdmin = request.admin?.role === 'super_admin';
-      if (!requesterIsSuperAdmin && (target.role === 'super_admin' || body.role === 'super_admin')) {
+      if (!requesterIsSuperAdmin && (target.role === 'super_admin' || resolvedRoleKey === 'super_admin')) {
         return reply.status(403).send({ error: 'Only a super admin can modify super admin accounts' });
       }
 
@@ -185,12 +305,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // The admin form always resends these fields, so only real changes count.
       const currentPermissions = parsePermissions(target.permissions);
       const permissionsChanged =
-        body.permissions !== undefined &&
-        [...new Set([...Object.keys(body.permissions), ...Object.keys(currentPermissions)])].some(
-          (key) => Boolean(body.permissions?.[key]) !== Boolean(currentPermissions[key])
+        resolvedPermissions !== undefined &&
+        [...new Set([...Object.keys(resolvedPermissions), ...Object.keys(currentPermissions)])].some(
+          (key) => Boolean(resolvedPermissions?.[key]) !== Boolean(currentPermissions[key])
         );
       const changesOwnAccess =
-        (body.role !== undefined && body.role !== target.role) ||
+        (resolvedRoleKey !== undefined && resolvedRoleKey !== target.role) ||
+        (resolvedRoleId !== undefined && resolvedRoleId !== target.roleId) ||
         (body.status !== undefined && body.status !== target.status) ||
         permissionsChanged;
       if (request.admin?.id === id && changesOwnAccess) {
@@ -207,7 +328,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // Guard the last usable super admin so the portal cannot be locked out.
       const losingSuperAdmin =
         target.role === 'super_admin' &&
-        ((body.role !== undefined && body.role !== 'super_admin') || body.status === 'suspended');
+        ((resolvedRoleKey !== undefined && resolvedRoleKey !== 'super_admin') || body.status === 'suspended');
 
       if (losingSuperAdmin) {
         const activeSuperAdmins = await prisma.adminUser.count({
@@ -224,10 +345,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           name: body.name,
           email: body.email ? body.email.toLowerCase() : undefined,
           passwordHash: body.password ? await bcrypt.hash(body.password, 10) : undefined,
-          role: body.role,
-          roleAr: body.roleAr,
-          department: body.department,
-          permissions: body.permissions ? JSON.stringify(body.permissions) : undefined,
+          role: resolvedRoleKey,
+          roleAr: resolvedRoleAr,
+          roleId: resolvedRoleId !== undefined ? resolvedRoleId : undefined,
+          department: resolvedDepartmentText !== undefined ? resolvedDepartmentText : undefined,
+          departmentId: resolvedDepartmentId !== undefined ? resolvedDepartmentId : undefined,
+          permissions: resolvedPermissions ? JSON.stringify(resolvedPermissions) : undefined,
           status: body.status,
         },
       });
