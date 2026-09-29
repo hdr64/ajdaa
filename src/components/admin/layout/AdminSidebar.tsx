@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   KeyRound,
   Building,
+  Mail,
+  Settings,
   X as CloseIcon,
   Moon,
   Sun,
@@ -30,6 +32,8 @@ interface NavItem {
   icon: LucideIcon;
   /** Hidden unless the admin holds this permission. */
   permission?: AdminPermission;
+  /** Hidden for everyone but super admins (no permission flag unlocks it). */
+  superAdminOnly?: boolean;
 }
 
 interface NavGroup {
@@ -49,7 +53,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'العملاء',
-    items: [{ section: 'inquiries', label: 'طلبات الاهتمام', icon: Users, permission: 'viewInquiries' }],
+    items: [
+      { section: 'inquiries', label: 'طلبات الاهتمام', icon: Users, permission: 'viewInquiries' },
+      { section: 'newsletter', label: 'مشتركو النشرة', icon: Mail, permission: 'exportData' },
+    ],
   },
   {
     label: 'الإدارة',
@@ -57,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
       { section: 'users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, permission: 'manageUsers' },
       { section: 'roles', label: 'الأدوار والصلاحيات', icon: KeyRound, permission: 'manageUsers' },
       { section: 'departments', label: 'الأقسام والإدارات', icon: Building, permission: 'manageUsers' },
+      { section: 'settings', label: 'إعدادات البريد', icon: Settings, superAdminOnly: true },
     ],
   },
 ];
@@ -78,7 +86,7 @@ function initialsOf(name: string): string {
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLogout }) => {
-  const { can, currentUser, location, navigate, projects, inquiries } = useAdmin();
+  const { can, isSuperAdmin, currentUser, location, navigate, projects, inquiries } = useAdmin();
   const { theme, toggleTheme, variant, toggleVariant } = useTheme();
   // Desktop only: an icon rail that leaves more room for wide tables and the floor plan.
   const [collapsed, setCollapsed] = usePersistentState<boolean>('ajda.admin.sidebar.collapsed', false, isBoolean);
@@ -88,9 +96,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
     () =>
       NAV_GROUPS.map((group) => ({
         ...group,
-        items: group.items.filter((item) => !item.permission || can(item.permission)),
+        items: group.items.filter(
+          (item) => (!item.superAdminOnly || isSuperAdmin) && (!item.permission || can(item.permission))
+        ),
       })).filter((group) => group.items.length > 0),
-    [can]
+    [can, isSuperAdmin]
   );
 
   const totalUnits = useMemo(

@@ -4,6 +4,8 @@
  * section.
  *
  *   overview | projects | inquiries | categories | users | profile
+ *   newsletter              newsletter subscribers
+ *   settings                mail (SMTP) settings, super admin only
  *   roles | departments    HR reference data behind the user accounts
  *   projects/:id            project details   (alias: projects/:id/show)
  *   projects/:id/edit       project editor
@@ -21,7 +23,9 @@ export type AdminSection =
   | 'users'
   | 'roles'
   | 'departments'
-  | 'profile';
+  | 'profile'
+  | 'newsletter'
+  | 'settings';
 
 export interface AdminLocation {
   section: AdminSection;
@@ -39,6 +43,8 @@ const SIMPLE_SECTIONS: AdminSection[] = [
   'roles',
   'departments',
   'profile',
+  'newsletter',
+  'settings',
 ];
 
 const PROJECT_SUBROUTES: Record<string, AdminSection> = {

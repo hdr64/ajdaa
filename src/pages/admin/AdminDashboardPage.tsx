@@ -24,6 +24,8 @@ import { InquiriesSection } from './sections/InquiriesSection';
 import { CategoriesSection } from './sections/CategoriesSection';
 import { RolesSection } from './sections/RolesSection';
 import { DepartmentsSection } from './sections/DepartmentsSection';
+import { NewsletterSection } from './sections/NewsletterSection';
+import { MailSettingsSection } from './sections/MailSettingsSection';
 import { ProjectShowSection } from './sections/ProjectShowSection';
 import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
@@ -39,7 +41,7 @@ interface AdminDashboardPageProps {
   onShowToast: (msg: string) => void;
 }
 
-const SECTION_META: Record<AdminSection, { title: string; subtitle: string; permission?: AdminPermission }> = {
+const SECTION_META: Record<AdminSection, { title: string; subtitle: string; permission?: AdminPermission; superAdminOnly?: boolean }> = {
   overview: { title: 'لوحة التحكم والمؤشرات', subtitle: 'متابعة المحفظة العقارية، نسب الإشغال وطلبات العملاء' },
   projects: { title: 'المشاريع العقارية', subtitle: 'إضافة المشاريع وتعديل بياناتها وصورها ومواقعها' },
   project: { title: 'تفاصيل المشروع', subtitle: 'بيانات المشروع ووحداته وطلبات الاهتمام به' },
@@ -61,6 +63,16 @@ const SECTION_META: Record<AdminSection, { title: string; subtitle: string; perm
     title: 'الأقسام والإدارات',
     subtitle: 'تنظيم أعضاء الفريق في أقسام العمل',
     permission: 'manageUsers',
+  },
+  newsletter: {
+    title: 'مشتركو النشرة البريدية',
+    subtitle: 'العناوين المسجلة من نموذج الاشتراك في الموقع',
+    permission: 'exportData',
+  },
+  settings: {
+    title: 'إعدادات البريد',
+    subtitle: 'خادم SMTP المستخدم لإرسال رموز الدخول والإشعارات',
+    superAdminOnly: true,
   },
   profile: {
     title: 'الملف الشخصي والحساب',
@@ -197,7 +209,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       ? `تعديل: ${currentProject.title}`
       : currentProject.title
     : meta.title;
-  const allowed = !meta.permission || can(meta.permission);
+  const allowed = (!meta.superAdminOnly || isSuperAdmin) && (!meta.permission || can(meta.permission));
 
   // Canonicalise the URL (bare /admin, unknown sections) without a new history
   // entry. The units section pins its own project id.
@@ -233,7 +245,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const renderSection = () => {
     // Wait for the identity before declaring a permission-gated section forbidden.
-    if (meta.permission && !currentUser) return null;
+    if ((meta.permission || meta.superAdminOnly) && !currentUser) return null;
     if (!allowed) return <NoAccess />;
 
     switch (location.section) {
@@ -259,6 +271,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <DepartmentsSection />;
       case 'profile':
         return <AdminProfilePage />;
+      case 'newsletter':
+        return <NewsletterSection />;
+      case 'settings':
+        return <MailSettingsSection />;
     }
   };
 
