@@ -100,14 +100,23 @@ sudo -u ajda npm --prefix server run db:migrate    # apply migrations
 sudo install -o root -g ajda -d -m 755 dist/. /var/www/ajda/
 ```
 
-Seed **only** on a brand-new empty database; it creates the first admin account:
+Seed once on a brand-new empty database; it creates the first admin account:
 
 ```bash
 sudo -u ajda npm --prefix server run db:seed
 ```
 
-> Re-running the seed on a live database would overwrite real data. It is not part
-> of routine deploys.
+> The seed is safe to re-run: admin users and categories are upserted, and projects
+> are seeded only when the `Project` table is empty. Otherwise it logs
+> `Projects already present (N) — skipping project seed.` and changes nothing, so
+> dashboard edits are never destroyed. `SEED_RESET_PROJECTS=1` forces the legacy
+> wipe-and-reseed of projects/floors/units.
+
+> The seed also copies the bootstrap images from `src/assets/` into
+> `/opt/ajda/server/uploads/seed/` and stores `/uploads/seed/...` URLs, so the
+> service must be able to write there (it can — `ReadWritePaths` covers it) and
+> `/opt/ajda/server/uploads/` must be part of your backups. See the backup note in
+> §8.
 
 ## 6. systemd
 

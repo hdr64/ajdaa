@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import * as seedModule from './seed-data/projects.seed.ts';
+import { publishSeedMedia, resolveUploadDir, toStoredMediaUrl } from './seed-media.ts';
 
 const seedProjects = seedModule.properties;
 
@@ -151,9 +152,34 @@ async function seedCategories(): Promise<void> {
 }
 
 async function seedProjectData(): Promise<void> {
-  await prisma.project.deleteMany({});
-  await prisma.propertyFloor.deleteMany({});
-  await prisma.propertyUnit.deleteMany({});
+  const resetProjects = process.env.SEED_RESET_PROJECTS === '1';
+  const existingProjects = await prisma.project.count();
+
+  // Admins edit projects through /admin/dashboard, so a second seed run must never
+  // wipe their work. SEED_RESET_PROJECTS=1 is the explicit opt-in to that.
+  if (existingProjects > 0 && !resetProjects) {
+    console.log(
+      `Projects already present (${existingProjects}) — skipping project seed. ` +
+        'Set SEED_RESET_PROJECTS=1 to wipe and reseed.'
+    );
+    return;
+  }
+
+  if (resetProjects) {
+    await prisma.project.deleteMany({});
+    await prisma.propertyFloor.deleteMany({});
+    await prisma.propertyUnit.deleteMany({});
+  }
+
+  // Seed images are frontend asset paths (relative to src/); Vite content-hashes
+  // them in production builds, so they are copied into UPLOAD_DIR and stored as
+  // /uploads/seed/... URLs that the API actually serves.
+  const media = publishSeedMedia(seedProjects, resolveUploadDir());
+  if (media.copied > 0 || media.skipped > 0) {
+    console.log(
+      `✓ Seed media prepared — ${media.copied} copied / ${media.skipped} already up to date`
+    );
+  }
 
   for (const p of seedProjects) {
     await prisma.project.create({
@@ -177,8 +203,8 @@ async function seedProjectData(): Promise<void> {
         unitsCountEn: p.unitsEn,
         city: p.city,
         cityEn: p.cityEn,
-        image: p.image,
-        gallery: toJsonArray(p.gallery),
+        image: toStoredMediaUrl(p.image),
+        gallery: toJsonArray(p.gallery?.map(toStoredMediaUrl)),
         description: p.description,
         descriptionEn: p.descriptionEn,
         badge: p.badge,
