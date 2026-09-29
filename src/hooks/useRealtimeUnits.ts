@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { Property } from '../types/property';
 import type { UnitRemovedEvent, UnitStatusEvent } from '../services/propertyService';
@@ -29,10 +29,19 @@ function getSocket(): Socket {
 
 let sharedSocket: Socket | null = null;
 let consumerCount = 0;
+let pendingDisconnect: ReturnType<typeof setTimeout> | null = null;
+
+/** Grace period before the last consumer's release actually closes the socket. */
+const DISCONNECT_GRACE_MS = 1500;
 
 /** One connection is shared by every consumer on the page. */
 function acquireSocket(): Socket {
   consumerCount += 1;
+  // A consumer re-mounting right after the previous one left keeps the live socket.
+  if (pendingDisconnect) {
+    clearTimeout(pendingDisconnect);
+    pendingDisconnect = null;
+  }
   if (!sharedSocket) {
     sharedSocket = getSocket();
   }
@@ -41,10 +50,16 @@ function acquireSocket(): Socket {
 
 function releaseSocket(): void {
   consumerCount = Math.max(0, consumerCount - 1);
-  if (consumerCount === 0 && sharedSocket) {
-    sharedSocket.disconnect();
-    sharedSocket = null;
-  }
+  if (consumerCount > 0 || !sharedSocket || pendingDisconnect) return;
+  // Deferred: page transitions and StrictMode unmount/remount would otherwise
+  // close the socket mid-handshake and immediately open a new one.
+  pendingDisconnect = setTimeout(() => {
+    pendingDisconnect = null;
+    if (consumerCount === 0 && sharedSocket) {
+      sharedSocket.disconnect();
+      sharedSocket = null;
+    }
+  }, DISCONNECT_GRACE_MS);
 }
 
 export interface RealtimeHandlers {
@@ -59,16 +74,19 @@ export interface RealtimeHandlers {
  * Handlers are kept in a ref so callers do not have to memoise their callbacks.
  */
 export function useRealtimeUnits(handlers: RealtimeHandlers = {}): void {
-  const { onUnitStatus, onUnitRemoved, onInquiryCreated, onConnectionChange } = handlers;
+  // Latest handlers live in a ref, so re-renders with new inline callbacks never
+  // re-subscribe (which used to release and reopen the socket on every render).
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
   useEffect(() => {
     const socket = acquireSocket();
 
-    const handleStatus = (event: UnitStatusEvent) => onUnitStatus?.(event);
-    const handleRemoved = (event: UnitRemovedEvent) => onUnitRemoved?.(event);
-    const handleInquiry = (payload: unknown) => onInquiryCreated?.(payload);
-    const handleConnect = () => onConnectionChange?.(true);
-    const handleDisconnect = () => onConnectionChange?.(false);
+    const handleStatus = (event: UnitStatusEvent) => handlersRef.current.onUnitStatus?.(event);
+    const handleRemoved = (event: UnitRemovedEvent) => handlersRef.current.onUnitRemoved?.(event);
+    const handleInquiry = (payload: unknown) => handlersRef.current.onInquiryCreated?.(payload);
+    const handleConnect = () => handlersRef.current.onConnectionChange?.(true);
+    const handleDisconnect = () => handlersRef.current.onConnectionChange?.(false);
 
     socket.on('unit_status_updated', handleStatus);
     socket.on('unit_removed', handleRemoved);
@@ -76,7 +94,7 @@ export function useRealtimeUnits(handlers: RealtimeHandlers = {}): void {
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
 
-    if (socket.connected) onConnectionChange?.(true);
+    if (socket.connected) handlersRef.current.onConnectionChange?.(true);
 
     return () => {
       socket.off('unit_status_updated', handleStatus);
@@ -86,7 +104,7 @@ export function useRealtimeUnits(handlers: RealtimeHandlers = {}): void {
       socket.off('disconnect', handleDisconnect);
       releaseSocket();
     };
-  }, [onUnitStatus, onUnitRemoved, onInquiryCreated, onConnectionChange]);
+  }, []);
 }
 
 /**
