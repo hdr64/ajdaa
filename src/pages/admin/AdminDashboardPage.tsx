@@ -31,7 +31,8 @@ interface AdminDashboardPageProps {
   adminPath?: string;
   onAdminNavigate: (adminPath: string, options?: { replace?: boolean }) => void;
   onLogout: () => void;
-  onNavigateHome: () => void;
+  /** Kept for App compatibility; the sidebar now opens the site in a new tab. */
+  onNavigateHome?: () => void;
   onShowToast: (msg: string) => void;
 }
 
@@ -54,7 +55,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   adminPath,
   onAdminNavigate,
   onLogout,
-  onNavigateHome,
   onShowToast,
 }) => {
   const location = useMemo(() => parseAdminPath(adminPath), [adminPath]);
@@ -235,7 +235,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             open={menuOpen}
             onClose={() => setMenuOpen(false)}
             onLogout={onLogout}
-            onNavigateHome={onNavigateHome}
           />
 
           <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col">

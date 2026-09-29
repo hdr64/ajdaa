@@ -20,6 +20,11 @@ export const UNIT_STATUS_LABELS_AR: Record<UnitStatus, string> = {
   sold: 'مباع',
 };
 
+/** Root of the public site, honouring a sub-path deployment. */
+export function publicSiteUrl(): string {
+  return window.location.pathname.replace(/\/admin(?:\/.*)?$/i, '') || '/';
+}
+
 /** Public URL of a project page, honouring a sub-path deployment (e.g. /ajdaa/admin/...). */
 export function publicProjectUrl(projectId: number): string {
   const base = window.location.pathname.replace(/\/admin(?:\/.*)?$/i, '');

@@ -21,15 +21,18 @@ import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeader
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { InquiryStatusSelect } from './inquiryUi';
+import { ProjectUnitsPanel } from './ProjectUnitsPanel';
 import { formatAdminDate } from '../adminFormat';
 import { publicProjectUrl, UNIT_STATUS_LABELS_AR } from '../projectLabels';
 
 const STATUS_COLOR: Record<UnitStatus, string> = {
-  available: 'bg-emerald-500',
-  reserved: 'bg-amber-500',
-  rented: 'bg-sky-500',
-  sold: 'bg-neutral-400',
+  available: 'var(--viz-available)',
+  reserved: 'var(--viz-reserved)',
+  rented: 'var(--viz-rented)',
+  sold: 'var(--viz-sold)',
 };
+
+type ProjectTab = 'overview' | 'units' | 'inquiries';
 
 function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -71,6 +74,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
   const { can, navigate, showToast, confirm, projects, inquiries } = useAdmin();
   const canManage = can('manageProjects');
   const [activeImage, setActiveImage] = useState(project.image);
+  const [tab, setTab] = useState<ProjectTab>('overview');
 
   const images = useMemo(() => {
     const all = [project.image, ...(project.gallery ?? [])].filter(Boolean);
@@ -167,6 +171,30 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
         </div>
       </div>
 
+      <div className="flex items-center gap-1 border-b border-muted-border/40 overflow-x-auto" role="tablist" aria-label="أقسام المشروع">
+        {(
+          [
+            ['overview', 'نظرة عامة', null],
+            ['units', 'الوحدات', unitStats.total],
+            ...(can('viewInquiries') ? ([['inquiries', 'طلبات الاهتمام', projectInquiries.length]] as const) : []),
+          ] as const
+        ).map(([key, label, count]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={`px-4 py-2.5 -mb-px border-b-2 text-xs font-bold whitespace-nowrap cursor-pointer transition ${
+              tab === key ? 'border-accent text-accent' : 'border-transparent text-neutral-text/60 hover:text-heading'
+            }`}
+          >
+            {label}
+            {count !== null && <span className="ms-1.5 opacity-70 tabular-nums">({count})</span>}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
         {/* Main column */}
         <div className="xl:col-span-2 space-y-5">
@@ -253,37 +281,6 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             </Panel>
           )}
 
-          {can('viewInquiries') && (
-            <Panel
-              title={`طلبات الاهتمام بهذا المشروع (${projectInquiries.length})`}
-              action={
-                projectInquiries.length > 0 && (
-                  <button onClick={() => navigate({ section: 'inquiries' })} className="text-[11px] font-bold text-accent hover:underline cursor-pointer">
-                    كل الطلبات
-                  </button>
-                )
-              }
-            >
-              {projectInquiries.length === 0 ? (
-                <EmptyState compact icon={Inbox} title="لا توجد طلبات لهذا المشروع بعد" />
-              ) : (
-                <div className="divide-y divide-muted-border/15">
-                  {projectInquiries.slice(0, 8).map((inq) => (
-                    <div key={inq.id} className="py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                      <div className="min-w-0">
-                        <div className="font-bold text-heading">{inq.name}</div>
-                        <div className="text-[10px] text-neutral-text/55">
-                          {inq.interestTypeAr}
-                          {inq.unitNumber ? ` · ${inq.unitNumber}` : ''} · {formatAdminDate(inq.createdAt)}
-                        </div>
-                      </div>
-                      <InquiryStatusSelect inquiry={inq} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Panel>
-          )}
         </div>
 
         {/* Side column */}
@@ -308,18 +305,26 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             </section>
           )}
 
-          <Panel title="الوحدات">
+          <Panel
+            title="الوحدات"
+            action={
+              unitStats.total > 0 && (
+                <button onClick={() => setTab('units')} className="text-[11px] font-bold text-accent hover:underline cursor-pointer">
+                  عرض كل الوحدات
+                </button>
+              )
+            }
+          >
             {unitStats.total === 0 ? (
               <EmptyState compact icon={Layers} title="لا توجد وحدات بعد" />
             ) : (
               <>
-                <div className="flex h-2.5 rounded-full overflow-hidden bg-canvas mb-3">
+                <div className="flex h-2.5 gap-[2px] rounded-full overflow-hidden bg-canvas mb-3">
                   {(Object.keys(unitStats.counts) as UnitStatus[]).map((status) =>
                     unitStats.counts[status] > 0 ? (
                       <div
                         key={status}
-                        className={STATUS_COLOR[status]}
-                        style={{ width: `${(unitStats.counts[status] / unitStats.total) * 100}%` }}
+                        style={{ width: `${(unitStats.counts[status] / unitStats.total) * 100}%`, background: STATUS_COLOR[status] }}
                         title={`${UNIT_STATUS_LABELS_AR[status]}: ${unitStats.counts[status]}`}
                       />
                     ) : null
@@ -328,7 +333,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   {(Object.keys(unitStats.counts) as UnitStatus[]).map((status) => (
                     <div key={status} className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${STATUS_COLOR[status]}`} />
+                      <span className="w-2 h-2 rounded-full" style={{ background: STATUS_COLOR[status] }} />
                       <span className="text-neutral-text/60">{UNIT_STATUS_LABELS_AR[status]}</span>
                       <span className="font-black text-heading ms-auto">{unitStats.counts[status]}</span>
                     </div>
@@ -397,6 +402,41 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
           </Panel>
         </div>
       </div>
+      )}
+
+      {tab === 'units' && <ProjectUnitsPanel project={project} />}
+
+      {tab === 'inquiries' && can('viewInquiries') && (
+            <Panel
+              title={`طلبات الاهتمام بهذا المشروع (${projectInquiries.length})`}
+              action={
+                projectInquiries.length > 0 && (
+                  <button onClick={() => navigate({ section: 'inquiries' })} className="text-[11px] font-bold text-accent hover:underline cursor-pointer">
+                    كل الطلبات
+                  </button>
+                )
+              }
+            >
+              {projectInquiries.length === 0 ? (
+                <EmptyState compact icon={Inbox} title="لا توجد طلبات لهذا المشروع بعد" />
+              ) : (
+                <div className="divide-y divide-muted-border/15">
+                  {projectInquiries.map((inq) => (
+                    <div key={inq.id} className="py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="min-w-0">
+                        <div className="font-bold text-heading">{inq.name}</div>
+                        <div className="text-[10px] text-neutral-text/55">
+                          {inq.interestTypeAr}
+                          {inq.unitNumber ? ` · ${inq.unitNumber}` : ''} · {formatAdminDate(inq.createdAt)}
+                        </div>
+                      </div>
+                      <InquiryStatusSelect inquiry={inq} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+      )}
     </div>
   );
 };

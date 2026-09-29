@@ -373,7 +373,7 @@ receive no CORS header; in development the loopback origins still work.
 - [ ] Remaining UI review items (empty states, styled confirm dialog, date formatting, users "last active", overview charts)
 
 #### Phase 8 follow-ups (requested 2026-09-29)
-- [ ] Unit status: admin sets any unit directly to متاح / محجوز / مؤجر / مباع from a select (today the chip only cycles to the next status)
+- [x] Unit status: admin sets any unit directly to متاح / محجوز / مؤجر / مباع from a select — done in the project page's Units tab (`/admin/projects/:id`); the floor-plan chip still cycles
 - [ ] Cities list: a curated list of the main Saudi cities (AR + EN names, region, center coordinates) used by the project create/edit forms and public filters instead of free text
 - [ ] Map location picker in the project editor: click or drag a pin on the map to set lat/lng (reuse the Google Maps loader the public map already uses); search box to jump to a city/place
 - [ ] Theme (light/dark, classic/prime) and language (AR/EN) switchers inside the admin dashboard header

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAdmin, type AdminPermission } from '../../../pages/admin/adminContextDef';
 import { navSectionOf, type AdminSection } from '../../../pages/admin/adminRoutes';
+import { publicSiteUrl } from '../../../pages/admin/projectLabels';
 
 interface NavItem {
   section: AdminSection;
@@ -39,7 +40,6 @@ interface AdminSidebarProps {
   open: boolean;
   onClose: () => void;
   onLogout: () => void;
-  onNavigateHome: () => void;
 }
 
 /**
@@ -50,7 +50,7 @@ function initialsOf(name: string): string {
   return name.trim().charAt(0).toUpperCase() || '…';
 }
 
-export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLogout, onNavigateHome }) => {
+export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLogout }) => {
   const { can, currentUser, location, navigate, projects, inquiries } = useAdmin();
   const items = useMemo(() => visibleNavItems(can), [can]);
 
@@ -160,13 +160,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
         </div>
 
         <div className="pt-4 mt-6 border-t border-muted-border/30 space-y-2 text-xs">
-          <button
-            onClick={onNavigateHome}
-            className="w-full p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:bg-accent/5 flex items-center justify-center gap-2 text-neutral-text/80 hover:text-accent font-bold transition cursor-pointer"
+          {/* New tab: the admin session and any unsaved edit stay open. */}
+          <a
+            href={publicSiteUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:bg-accent/5 flex items-center justify-center gap-2 text-neutral-text/80 hover:text-accent font-bold transition"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span>عرض الموقع الحي</span>
-          </button>
+          </a>
           <button
             onClick={onLogout}
             className="w-full p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center gap-2 font-bold transition cursor-pointer"
