@@ -442,6 +442,22 @@ receive no CORS header; in development the loopback origins still work.
 **Newsletter admin**
 - [ ] Admin screen for newsletter subscribers (list, search, delete, CSV export) — backend and service are done (`/api/newsletter`)
 
+#### Phase 8d: CRUD in the project Units tab, sidebar & overall design (requested 2026-09-29)
+- [ ] Project page Units tab (`/admin/projects/:id` → الوحدات): full CRUD without leaving the page — add floor, rename floor, delete floor, add a unit to a specific floor, edit unit, delete unit. Reuse the floor-plan dialogs (one shared unit form + floor form) so both screens behave identically
+- [ ] Improve the admin sidebar: grouped navigation (portfolio / customers / settings), collapsible to an icon rail on desktop (remembered), clearer active state, counts that don't compete with labels, user card with quick actions (settings, theme, language, logout)
+- [ ] Improve the overall admin UI design: consistent page header + section spacing, one card style, one button hierarchy (primary / secondary / ghost / danger), consistent form controls, typography scale, and dark-mode contrast pass across every page
+
+#### Phase 8e: Settings, profile & account security (requested 2026-09-29)
+- [ ] **Admin (system) settings page** `/admin/settings/system` (super_admin): site-wide settings — company info, contact details, social links, default language/theme, upload limits, session length, security policy (password rules, 2FA required for roles)
+- [ ] **User settings page** `/admin/settings` for every admin: theme, language, default layouts/views, "don't ask again" choices reset, notification preferences
+- [ ] **Profile page** `/admin/profile`: update name, email (re-verify), phone, avatar, department (read-only unless HR permission); **change password** (current password required, strength rules, all other sessions signed out after change)
+- [ ] **2FA (TOTP)**: enable with QR code (authenticator app), verify a code before activation, 10 one-time recovery codes (shown once, stored hashed), require the code at login, disable only with password + code; super_admin can require 2FA per role
+- [ ] **Passkeys (WebAuthn)**: register several passkeys per admin (named devices), sign in with a passkey, list/rename/remove; needs `@simplewebauthn/server` + `@simplewebauthn/browser` (new deps — approval needed) and an HTTPS origin (localhost is allowed in dev)
+- [ ] Session security that 2FA/passkeys depend on: short-lived access token + refresh token or server-side sessions, "sign out all devices", list of active sessions with device/IP/last seen (today the JWT lasts 12h and cannot be revoked individually)
+
+#### Phase 8f: Gap review — what a standard modern admin has that this one lacks (2026-09-29)
+See the list under "Admin gap review" at the end of this file.
+
 ### Working rules (from the owner)
 - Every item and note the owner sends is recorded in this file (the TODO / phase lists), not only in chat
 - `README.md` stays clean: setup, architecture and API reference only — no task lists or notes

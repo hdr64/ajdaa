@@ -1,10 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Property, PropertyFloor, PropertyUnit, UnitStatus } from '../../types/property';
-import { AdminStorage } from '../../services/adminStorage';
-import { propertyService } from '../../services/propertyService';
-import { getErrorMessage } from '../../services/api';
 import { usePersistentState } from '../../hooks/usePersistentState';
-import { useAdmin } from '../../pages/admin/adminContextDef';
+import { useFloorPlanEditor } from './floorplan/useFloorPlanEditor';
 import { UNIT_STATUS_LABELS_AR } from '../../pages/admin/projectLabels';
 import {
   Layers,
@@ -16,7 +13,6 @@ import {
   Home,
   Warehouse,
   Sun,
-  X,
   Pencil,
   PanelRight,
   LayoutGrid,
@@ -26,7 +22,8 @@ import {
 interface BuildingVisualizerProps {
   project: Property;
   onProjectUpdate: () => void | Promise<void>;
-  onShowToast: (msg: string) => void;
+  /** Kept for compatibility; toasts now come from the admin context. */
+  onShowToast?: (msg: string) => void;
   /** Units: add, edit, delete, change status (server: manageUnits). */
   canEdit?: boolean;
   /** Floors: add, rename, delete (server: manageProjects). */
@@ -60,14 +57,6 @@ const SIDE_DEFAULT = 320;
 const isFloorsView = (v: unknown): v is FloorsView => v === 'side' || v === 'grid';
 const isUnitColumns = (v: unknown): v is UnitColumns => v === 0 || v === 2 || v === 3 || v === 4 || v === 5;
 const isSideWidth = (v: unknown): v is number => typeof v === 'number' && v >= SIDE_MIN && v <= SIDE_MAX;
-
-const UNIT_TYPE_AR: Record<PropertyUnit['type'], string> = {
-  showroom: 'معرض تجاري',
-  office: 'مكتب إداري',
-  apartment: 'شقة سكنية',
-  warehouse: 'مستودع تخزين',
-  outdoor: 'جلسات خارجية / تراس',
-};
 
 function UnitIcon({ type }: { type: PropertyUnit['type'] }) {
   const className = 'w-4 h-4 text-accent';
@@ -143,36 +132,15 @@ function Segmented<T extends string | number>({
 export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
   project,
   onProjectUpdate,
-  onShowToast,
   canEdit = true,
   canEditFloors = canEdit,
 }) => {
-  const { confirm } = useAdmin();
   const floors = project.floors || [];
   const [selectedFloorNumber, setSelectedFloorNumber] = useState<number | null>(floors[0]?.floorNumber ?? null);
   const [unitFilter, setUnitFilter] = useState<'all' | UnitStatus>('all');
-  const [saving, setSaving] = useState(false);
-
   const [floorsView, setFloorsView] = usePersistentState<FloorsView>('ajda.admin.floorplan.floorsView', 'side', isFloorsView);
   const [unitColumns, setUnitColumns] = usePersistentState<UnitColumns>('ajda.admin.floorplan.unitColumns', 0, isUnitColumns);
   const [sideWidth, setSideWidth] = usePersistentState<number>('ajda.admin.floorplan.sideWidth', SIDE_DEFAULT, isSideWidth);
-
-  // Unit dialog
-  const [unitModalOpen, setUnitModalOpen] = useState(false);
-  const [editingUnit, setEditingUnit] = useState<PropertyUnit | null>(null);
-  const [unitForm, setUnitForm] = useState({
-    unitNumber: '',
-    sectionAr: '',
-    type: 'showroom' as PropertyUnit['type'],
-    area: 120,
-    priceLabel: 'متاح للإيجار',
-    status: 'available' as UnitStatus,
-    featuresStr: '',
-  });
-
-  // Floor dialog (add or rename)
-  const [floorDialog, setFloorDialog] = useState<{ floor: PropertyFloor | null } | null>(null);
-  const [floorForm, setFloorForm] = useState({ nameAr: '', nameEn: '', descriptionAr: '' });
 
   // A different project, or the selected floor deleted: fall back to the first floor.
   const activeFloor: PropertyFloor | undefined =
@@ -186,140 +154,11 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
 
   /* ------------------------------- Mutations ------------------------------ */
 
-  const runMutation = async (action: () => Promise<unknown>, successMessage: string): Promise<boolean> => {
-    setSaving(true);
-    try {
-      await action();
-      await onProjectUpdate();
-      onShowToast(successMessage);
-      return true;
-    } catch (error) {
-      onShowToast(getErrorMessage(error, 'تعذر حفظ التعديلات على الخادم'));
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const openAddUnit = () => {
-    setEditingUnit(null);
-    setUnitForm({
-      unitNumber: '',
-      sectionAr: '',
-      type: project.type === 'residential' ? 'apartment' : project.type === 'logistics' ? 'warehouse' : project.type === 'office' ? 'office' : 'showroom',
-      area: 150,
-      priceLabel: 'متاح للإيجار',
-      status: 'available',
-      featuresStr: '',
-    });
-    setUnitModalOpen(true);
-  };
-
-  const openEditUnit = (unit: PropertyUnit) => {
-    setEditingUnit(unit);
-    setUnitForm({
-      unitNumber: unit.unitNumber,
-      sectionAr: unit.sectionAr || '',
-      type: unit.type,
-      area: unit.area,
-      priceLabel: unit.priceLabel || '',
-      status: unit.status,
-      featuresStr: unit.features?.join('، ') || '',
-    });
-    setUnitModalOpen(true);
-  };
-
-  const saveUnit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!unitForm.unitNumber.trim() || !activeFloor) return;
-
-    const features = unitForm.featuresStr
-      .split(/[,،]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const baseUnit = {
-      unitNumber: unitForm.unitNumber.trim(),
-      floorNumber: activeFloor.floorNumber,
-      floorNameAr: activeFloor.floorNameAr,
-      floorNameEn: activeFloor.floorNameEn,
-      sectionAr: unitForm.sectionAr.trim() || undefined,
-      type: unitForm.type,
-      typeAr: UNIT_TYPE_AR[unitForm.type],
-      area: Number(unitForm.area),
-      priceLabel: unitForm.priceLabel.trim() || undefined,
-      status: unitForm.status,
-      statusAr: UNIT_STATUS_LABELS_AR[unitForm.status],
-      features,
-    };
-
-    const ok = await runMutation(
-      () =>
-        editingUnit
-          ? AdminStorage.updateUnitInProject(project.id, activeFloor, { ...editingUnit, ...baseUnit })
-          : AdminStorage.addUnitToProject(project.id, activeFloor, { ...baseUnit, id: `u-${crypto.randomUUID()}` }),
-      editingUnit ? 'تم تحديث بيانات الوحدة' : 'تمت إضافة الوحدة'
-    );
-    if (ok) setUnitModalOpen(false);
-  };
-
-  const deleteUnit = async (unit: PropertyUnit) => {
-    const ok = await confirm({
-      title: `حذف الوحدة "${unit.unitNumber}"؟`,
-      message: 'لا يمكن التراجع عن هذا الإجراء.',
-      confirmLabel: 'حذف الوحدة',
-      danger: true,
-    });
-    if (ok) void runMutation(() => AdminStorage.deleteUnitFromProject(project.id, unit.id), 'تم حذف الوحدة');
-  };
-
-  const setUnitStatus = (unit: PropertyUnit, status: UnitStatus) => {
-    if (status === unit.status) return;
-    // The server owns the labels and broadcasts the change to every open tab.
-    void runMutation(() => AdminStorage.updateUnitStatus(unit.id, status), `الوحدة ${unit.unitNumber}: ${UNIT_STATUS_LABELS_AR[status]}`);
-  };
-
-  const openFloorDialog = (floor: PropertyFloor | null) => {
-    setFloorForm({
-      nameAr: floor?.floorNameAr ?? '',
-      nameEn: floor?.floorNameEn ?? '',
-      descriptionAr: floor?.descriptionAr ?? '',
-    });
-    setFloorDialog({ floor });
-  };
-
-  const saveFloor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!floorDialog || !floorForm.nameAr.trim()) return;
-    const editing = floorDialog.floor;
-    const ok = await runMutation(
-      () =>
-        editing
-          ? propertyService.updateFloor(project.id, editing.floorNumber, {
-              floorNameAr: floorForm.nameAr.trim(),
-              floorNameEn: floorForm.nameEn.trim() || null,
-              descriptionAr: floorForm.descriptionAr.trim() || null,
-            })
-          : propertyService.createFloor(project.id, {
-              // Next free number above the highest existing floor.
-              floorNumber: floors.reduce((max, f) => Math.max(max, f.floorNumber), -1) + 1,
-              floorNameAr: floorForm.nameAr.trim(),
-              floorNameEn: floorForm.nameEn.trim() || null,
-            }),
-      editing ? 'تم تحديث بيانات الدور' : 'تمت إضافة الدور'
-    );
-    if (ok) setFloorDialog(null);
-  };
+  // Shared with the project page's Units tab: same dialogs, confirmations and calls.
+  const editor = useFloorPlanEditor(project, onProjectUpdate);
 
   const deleteFloor = async (floor: PropertyFloor) => {
-    const ok = await confirm({
-      title: `حذف "${floor.floorNameAr}"؟`,
-      message: `سيتم حذف الدور و${floor.units.length} وحدة تابعة له نهائياً.`,
-      confirmLabel: 'حذف الدور',
-      danger: true,
-    });
-    if (!ok) return;
-    const deleted = await runMutation(() => AdminStorage.deleteFloorFromProject(project.id, floor.floorNumber), 'تم حذف الدور');
+    const deleted = await editor.deleteFloor(floor);
     if (deleted && floor.floorNumber === activeFloor?.floorNumber) setSelectedFloorNumber(null);
   };
 
@@ -401,7 +240,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
           <div className="absolute top-2.5 end-2.5 flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition">
             <button
               type="button"
-              onClick={() => openFloorDialog(fl)}
+              onClick={() => editor.openEditFloor(fl)}
               className="p-1.5 rounded-lg text-neutral-text/55 hover:text-accent hover:bg-accent/10 cursor-pointer"
               title="تعديل اسم الدور"
               aria-label={`تعديل اسم ${fl.floorNameAr}`}
@@ -436,7 +275,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
         {canEditFloors && (
           <button
             type="button"
-            onClick={() => openFloorDialog(null)}
+            onClick={editor.openAddFloor}
             className="text-[11px] font-bold text-accent hover:underline cursor-pointer inline-flex items-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -504,7 +343,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
           {canEdit && activeFloor && (
             <button
               type="button"
-              onClick={openAddUnit}
+              onClick={() => activeFloor && editor.openAddUnit(activeFloor)}
               className="brand-btn-primary text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -523,7 +362,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
           {canEdit && activeFloor && unitFilter === 'all' && (
             <button
               type="button"
-              onClick={openAddUnit}
+              onClick={() => activeFloor && editor.openAddUnit(activeFloor)}
               className="mt-3 brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -557,8 +396,8 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
                   {canEdit ? (
                     <select
                       value={unit.status}
-                      disabled={saving}
-                      onChange={(e) => setUnitStatus(unit, e.target.value as UnitStatus)}
+                      disabled={editor.saving}
+                      onChange={(e) => editor.setUnitStatus(unit, e.target.value as UnitStatus)}
                       aria-label={`حالة الوحدة ${unit.unitNumber}`}
                       className="shrink-0 px-2 py-1 rounded-lg bg-surface border border-muted-border/50 text-[10px] font-bold text-heading outline-none cursor-pointer focus:border-accent disabled:opacity-50"
                     >
@@ -604,7 +443,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
                 <div className="flex items-center gap-1.5 pt-2 border-t border-muted-border/20">
                   <button
                     type="button"
-                    onClick={() => openEditUnit(unit)}
+                    onClick={() => activeFloor && editor.openEditUnit(activeFloor, unit)}
                     className="flex-1 py-1.5 rounded-lg bg-surface border border-muted-border/40 hover:border-accent text-neutral-text/75 hover:text-accent font-bold text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <Edit2 className="w-3 h-3" />
@@ -612,7 +451,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => void deleteUnit(unit)}
+                    onClick={() => void editor.deleteUnit(unit)}
                     className="p-1.5 rounded-lg bg-surface border border-muted-border/40 hover:border-red-400 text-neutral-text/40 hover:text-red-400 transition cursor-pointer"
                     title="حذف الوحدة"
                     aria-label={`حذف الوحدة ${unit.unitNumber}`}
@@ -630,8 +469,6 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
 
   /* -------------------------------- Render ------------------------------- */
 
-  const inputClass =
-    'w-full px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
 
   return (
     <div className="space-y-4">
@@ -699,199 +536,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
         </div>
       )}
 
-      {/* Unit dialog */}
-      {canEdit && unitModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setUnitModalOpen(false);
-          }}
-        >
-          <div role="dialog" aria-modal="true" className="relative w-full max-w-md bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 my-8">
-            <div className="flex items-center justify-between mb-4 border-b border-muted-border/30 pb-3">
-              <h4 className="text-sm font-black text-heading">
-                {editingUnit ? `تعديل (${editingUnit.unitNumber})` : `وحدة جديدة في ${activeFloor?.floorNameAr ?? ''}`}
-              </h4>
-              <button
-                type="button"
-                onClick={() => setUnitModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-surface border border-muted-border/40 flex items-center justify-center text-heading hover:text-accent cursor-pointer"
-                aria-label="إغلاق"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <form onSubmit={saveUnit} className="space-y-3.5">
-              <label className="block">
-                <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">رقم / اسم الوحدة *</span>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={unitForm.unitNumber}
-                  onChange={(e) => setUnitForm({ ...unitForm, unitNumber: e.target.value })}
-                  placeholder="مثال: معرض 101 أو مكتب 204"
-                  className={inputClass}
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">الجهة / القسم</span>
-                  <input
-                    type="text"
-                    value={unitForm.sectionAr}
-                    onChange={(e) => setUnitForm({ ...unitForm, sectionAr: e.target.value })}
-                    placeholder="مثال: الجهة الشمالية"
-                    className={inputClass}
-                  />
-                </label>
-                <label className="block">
-                  <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">المساحة (م²) *</span>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    step="any"
-                    value={unitForm.area}
-                    onChange={(e) => setUnitForm({ ...unitForm, area: Number(e.target.value) })}
-                    className={inputClass}
-                  />
-                </label>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">نوع الوحدة</span>
-                  <select
-                    value={unitForm.type}
-                    onChange={(e) => setUnitForm({ ...unitForm, type: e.target.value as PropertyUnit['type'] })}
-                    className={`${inputClass} cursor-pointer`}
-                  >
-                    {(Object.keys(UNIT_TYPE_AR) as PropertyUnit['type'][]).map((t) => (
-                      <option key={t} value={t}>
-                        {UNIT_TYPE_AR[t]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">حالة الوحدة</span>
-                  <select
-                    value={unitForm.status}
-                    onChange={(e) => setUnitForm({ ...unitForm, status: e.target.value as UnitStatus })}
-                    className={`${inputClass} cursor-pointer`}
-                  >
-                    {STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {UNIT_STATUS_LABELS_AR[s]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label className="block">
-                <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">السعر / وصف العرض</span>
-                <input
-                  type="text"
-                  value={unitForm.priceLabel}
-                  onChange={(e) => setUnitForm({ ...unitForm, priceLabel: e.target.value })}
-                  placeholder="مثال: متاح للإيجار"
-                  className={inputClass}
-                />
-              </label>
-              <label className="block">
-                <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">المميزات (مفصولة بفواصل)</span>
-                <input
-                  type="text"
-                  value={unitForm.featuresStr}
-                  onChange={(e) => setUnitForm({ ...unitForm, featuresStr: e.target.value })}
-                  placeholder="واجهة زجاجية، تكييف، إطلالة رئيسية"
-                  className={inputClass}
-                />
-              </label>
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-muted-border/30">
-                <button type="button" onClick={() => setUnitModalOpen(false)} className="brand-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer">
-                  إلغاء
-                </button>
-                <button type="submit" disabled={saving} className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50">
-                  {editingUnit ? 'حفظ التعديلات' : 'إضافة الوحدة'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Floor dialog: add or rename */}
-      {canEditFloors && floorDialog && (
-        <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setFloorDialog(null);
-          }}
-        >
-          <form
-            onSubmit={saveFloor}
-            role="dialog"
-            aria-modal="true"
-            className="relative w-full max-w-sm bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 space-y-3.5"
-          >
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-black text-heading">{floorDialog.floor ? 'تعديل بيانات الدور' : 'إضافة دور جديد'}</h4>
-              <button
-                type="button"
-                onClick={() => setFloorDialog(null)}
-                className="w-7 h-7 rounded-full bg-surface border border-muted-border/40 flex items-center justify-center text-heading hover:text-accent cursor-pointer"
-                aria-label="إغلاق"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <label className="block">
-              <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">اسم الدور بالعربية *</span>
-              <input
-                type="text"
-                required
-                autoFocus
-                value={floorForm.nameAr}
-                onChange={(e) => setFloorForm({ ...floorForm, nameAr: e.target.value })}
-                placeholder="مثال: الدور الأول - مكاتب إدارية"
-                className={inputClass}
-              />
-            </label>
-            <label className="block">
-              <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">اسم الدور بالإنجليزية</span>
-              <input
-                type="text"
-                dir="ltr"
-                value={floorForm.nameEn}
-                onChange={(e) => setFloorForm({ ...floorForm, nameEn: e.target.value })}
-                placeholder="First floor - Offices"
-                className={inputClass}
-              />
-            </label>
-            {floorDialog.floor && (
-              <label className="block">
-                <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">وصف قصير</span>
-                <input
-                  type="text"
-                  value={floorForm.descriptionAr}
-                  onChange={(e) => setFloorForm({ ...floorForm, descriptionAr: e.target.value })}
-                  className={inputClass}
-                />
-              </label>
-            )}
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setFloorDialog(null)} className="brand-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer">
-                إلغاء
-              </button>
-              <button type="submit" disabled={saving} className="brand-btn-primary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50">
-                {floorDialog.floor ? 'حفظ' : 'إضافة الدور'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {editor.dialogs}
     </div>
   );
 };
