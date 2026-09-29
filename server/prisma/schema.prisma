@@ -31,21 +31,23 @@ model Department {
 }
 
 model AdminUser {
-  id            String      @id @default(uuid())
-  email         String      @unique
-  passwordHash  String
-  name          String
-  role          String      @default("sales_agent") // super_admin | project_manager | sales_agent | viewer
-  roleAr        String      @default("مسؤول مبيعات")
-  roleId        String?
-  roleRef       Role?       @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  department    String?
-  departmentId  String?
-  departmentRef Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  permissions   String      @default("{}") // JSON string of permissions
-  status        String      @default("active") // active | suspended
-  lastLogin     String?
-  createdAt     DateTime    @default(now())
+  id                String      @id @default(uuid())
+  email             String      @unique
+  passwordHash      String
+  name              String
+  phone             String?
+  role              String      @default("sales_agent") // super_admin | project_manager | sales_agent | viewer
+  roleAr            String      @default("مسؤول مبيعات")
+  roleId            String?
+  roleRef           Role?       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  department        String?
+  departmentId      String?
+  departmentRef     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  permissions       String      @default("{}") // JSON string of permissions
+  status            String      @default("active") // active | suspended
+  lastLogin         String?
+  passwordChangedAt DateTime?
+  createdAt         DateTime    @default(now())
 }
 
 model Project {

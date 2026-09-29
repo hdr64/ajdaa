@@ -39,13 +39,24 @@ export function setup(): void {
   }
 
   runNodeStep(
-    'prisma db push',
+    'prisma generate',
     PRISMA_CLI,
-    ['db', 'push', '--schema', 'prisma/schema.prisma', '--skip-generate', '--accept-data-loss'],
+    ['generate', '--schema', 'prisma/schema.prisma'],
     env
   );
 
-  runNodeStep('prisma seed', TSX_CLI, ['prisma/seed.ts'], { ...env, SEED_ADMIN_PASSWORD: SEED_PASSWORD });
+  runNodeStep(
+    'prisma db push',
+    PRISMA_CLI,
+    ['db', 'push', '--schema', 'prisma/schema.prisma', '--accept-data-loss'],
+    env
+  );
+
+  runNodeStep('prisma seed', TSX_CLI, ['prisma/seed.ts'], {
+    ...env,
+    SEED_ADMIN_PASSWORD: SEED_PASSWORD,
+    SEED_TEST_FIXTURES: '1',
+  });
 }
 
 export function teardown(): void {

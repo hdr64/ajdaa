@@ -29,6 +29,14 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return reply.status(401).send({ error: 'Unauthorized: Account is no longer active' });
   }
 
+  if (user.passwordChangedAt) {
+    const pwdChangedSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+    const tokenIat = request.user.iat;
+    if (tokenIat !== undefined && tokenIat < pwdChangedSeconds) {
+      return reply.status(401).send({ error: 'Unauthorized: Password has been changed, please log in again' });
+    }
+  }
+
   request.admin = {
     id: user.id,
     email: user.email,

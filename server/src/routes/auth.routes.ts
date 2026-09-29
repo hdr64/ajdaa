@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { config } from '../config/env.js';
+import { loginFailureTracker } from '../services/loginFailureService.js';
 import {
   parseRolePermissions,
   rolePermissionsToUserPermissions,
@@ -14,10 +16,24 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const updateProfileSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    email: z.string().trim().toLowerCase().email().optional(),
+    phone: z.string().trim().nullish(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(1, 'New password is required'),
+});
+
 const createUserSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
   password: z.string().min(8).default('password123'),
+  phone: z.string().trim().nullish(),
   role: z.string().optional(),
   roleId: z.string().optional(),
   roleAr: z.string().optional(),
@@ -31,6 +47,7 @@ const updateUserSchema = z
     name: z.string().trim().min(1).optional(),
     email: z.string().trim().email().optional(),
     password: z.string().min(8).optional(),
+    phone: z.string().trim().nullish(),
     role: z.string().optional(),
     roleId: z.string().nullish(),
     roleAr: z.string().optional(),
@@ -58,6 +75,7 @@ function serializeUser(user: {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   role: string;
   roleAr: string;
   roleId?: string | null;
@@ -73,6 +91,7 @@ function serializeUser(user: {
     id: user.id,
     name: user.name,
     email: user.email,
+    phone: user.phone ?? null,
     role: user.role,
     roleAr: user.roleAr,
     roleId: user.roleId ?? null,
@@ -87,42 +106,72 @@ function serializeUser(user: {
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Login
-  fastify.post('/login', { preValidation: [validateBody(loginSchema)] }, async (request, reply) => {
-    const { email, password } = loginSchema.parse(request.body ?? {});
+  fastify.post(
+    '/login',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitLoginMax,
+          timeWindow: config.rateLimitLoginWindowMs,
+          errorResponseBuilder: () => ({
+            statusCode: 429,
+            error: 'Too Many Requests',
+            message: 'تم تجاوز الحد الأقصى للطلبات، يرجى المحاولة لاحقاً / Rate limit exceeded, please try again later',
+          }),
+        },
+      },
+      preValidation: [validateBody(loginSchema)],
+    },
+    async (request, reply) => {
+      const { email, password } = loginSchema.parse(request.body ?? {});
+      const normalizedEmail = email.toLowerCase().trim();
 
-    const user = await prisma.adminUser.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+      const lockout = loginFailureTracker.isLocked(normalizedEmail);
+      if (lockout.locked) {
+        reply.header('Retry-After', lockout.retryAfter.toString());
+        return reply.status(429).send({
+          error: 'تم تجاوز الحد الأقصى للمحاولات غير الصحيحة، يرجى المحاولة لاحقاً / Too many failed login attempts, please try again later',
+        });
+      }
 
-    if (!user) {
-      return reply.status(401).send({ error: 'Invalid credentials' });
+      const user = await prisma.adminUser.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (!user) {
+        loginFailureTracker.recordFailure(normalizedEmail);
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      if (user.status === 'suspended') {
+        return reply.status(403).send({ error: 'Account is suspended' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        loginFailureTracker.recordFailure(normalizedEmail);
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      loginFailureTracker.recordSuccess(normalizedEmail);
+
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date().toISOString() },
+      });
+
+      const token = fastify.jwt.sign({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      });
+
+      return {
+        token,
+        user: serializeUser(user),
+      };
     }
-
-    if (user.status === 'suspended') {
-      return reply.status(403).send({ error: 'Account is suspended' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return reply.status(401).send({ error: 'Invalid credentials' });
-    }
-
-    await prisma.adminUser.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date().toISOString() },
-    });
-
-    const token = fastify.jwt.sign({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    return {
-      token,
-      user: serializeUser(user),
-    };
-  });
+  );
 
   // Get current user profile
   fastify.get('/me', { onRequest: [authenticate] }, async (request, reply) => {
@@ -134,6 +183,92 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
     return { user: serializeUser(user) };
   });
+
+  // Update own profile
+  fastify.patch(
+    '/me',
+    { onRequest: [authenticate], preValidation: [validateBody(updateProfileSchema)] },
+    async (request, reply) => {
+      const data = updateProfileSchema.parse(request.body ?? {});
+
+      if (data.email) {
+        const existing = await prisma.adminUser.findUnique({
+          where: { email: data.email },
+        });
+        if (existing && existing.id !== request.user.id) {
+          return reply.status(409).send({ error: 'Email already in use' });
+        }
+      }
+
+      const updateData: { name?: string; email?: string; phone?: string | null } = {};
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.email !== undefined) updateData.email = data.email;
+      if (data.phone !== undefined) updateData.phone = data.phone || null;
+
+      const updated = await prisma.adminUser.update({
+        where: { id: request.user.id },
+        data: updateData,
+        include: { departmentRef: true, roleRef: true },
+      });
+
+      return reply.status(200).send({ user: serializeUser(updated) });
+    }
+  );
+
+  // Change password
+  fastify.post(
+    '/me/password',
+    { onRequest: [authenticate], preValidation: [validateBody(changePasswordSchema)] },
+    async (request, reply) => {
+      const { currentPassword, newPassword } = changePasswordSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      const lockout = loginFailureTracker.isLocked(user.email);
+      if (lockout.locked) {
+        reply.header('Retry-After', lockout.retryAfter.toString());
+        return reply.status(429).send({
+          error: 'تم تجاوز الحد الأقصى للمحاولات غير الصحيحة، يرجى المحاولة لاحقاً / Too many failed attempts, please try again later',
+        });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        loginFailureTracker.recordFailure(user.email);
+        return reply.status(401).send({ error: 'Current password is incorrect' });
+      }
+
+      // Policy: ≥ 10 chars, at least one letter and one digit, not equal to current
+      const hasMinLength = newPassword.length >= 10;
+      const hasLetter = /[a-zA-Z\p{L}]/u.test(newPassword);
+      const hasDigit = /\d/.test(newPassword);
+      const isDifferent = newPassword !== currentPassword;
+
+      if (!hasMinLength || !hasLetter || !hasDigit || !isDifferent) {
+        return reply.status(400).send({
+          error: 'Password does not meet requirements: must be at least 10 characters, include at least one letter and one digit, and be different from current password',
+        });
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      const passwordChangedAt = new Date();
+
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          passwordChangedAt,
+        },
+      });
+
+      loginFailureTracker.recordSuccess(user.email);
+
+      return reply.status(200).send({ message: 'Password updated successfully' });
+    }
+  );
 
   // List admin users
   fastify.get('/users', { onRequest: [authenticate, requirePermission('manageUsers')] }, async () => {

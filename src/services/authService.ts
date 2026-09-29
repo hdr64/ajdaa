@@ -115,4 +115,20 @@ export const authService = {
     const updated = await api.put<UserDto>(`/api/auth/users/${encodeURIComponent(id)}`, { status });
     return toAdminUser(updated);
   },
+
+  async updateProfile(input: { name?: string; email?: string; phone?: string | null }): Promise<AdminUser> {
+    const result = await api.patch<{ user: UserDto }>('/api/auth/me', input);
+    return toAdminUser(result.user);
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return api.post<{ message: string }>('/api/auth/me/password', {
+      currentPassword,
+      newPassword,
+    });
+  },
 };
+
+export const updateProfile = authService.updateProfile.bind(authService);
+export const changePassword = authService.changePassword.bind(authService);
+

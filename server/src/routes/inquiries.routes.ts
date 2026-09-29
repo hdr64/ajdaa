@@ -1,6 +1,8 @@
+import crypto from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
+import { config } from '../config/env.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import {
@@ -24,6 +26,8 @@ const createInquirySchema = z.object({
   unitNumber: z.string().nullish(),
   interestType: z.enum(INTEREST_TYPES),
   message: z.string().nullish(),
+  website: z.string().nullish(),
+  startedAt: z.coerce.number().nullish(),
 });
 
 const inquiryStatusParamsSchema = z.object({ id: z.string().min(1) });
@@ -101,10 +105,49 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
   // Submit new customer inquiry (Public)
   fastify.post(
     '/',
-    { preValidation: [validateBody(createInquirySchema)] },
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitInquiriesMax,
+          timeWindow: config.rateLimitInquiriesWindowMs,
+          errorResponseBuilder: () => ({
+            statusCode: 429,
+            error: 'Too Many Requests',
+            message: 'تم تجاوز الحد الأقصى للطلبات، يرجى المحاولة لاحقاً / Rate limit exceeded, please try again later',
+          }),
+        },
+      },
+      preValidation: [validateBody(createInquirySchema)],
+    },
     async (request, reply) => {
       const body = createInquirySchema.parse(request.body);
       const interestType = body.interestType as InterestType;
+
+      // Spam protection check (honeypot or too fast submission < 2s)
+      const isHoneypot = Boolean(body.website && body.website.trim().length > 0);
+      const isTooFast = body.startedAt != null && Date.now() - body.startedAt < 2000;
+
+      if (isHoneypot || isTooFast) {
+        const now = new Date();
+        return reply.status(200).send({
+          id: crypto.randomUUID(),
+          createdAt: now.toISOString(),
+          name: body.name,
+          phone: body.phone ?? null,
+          email: body.email ?? null,
+          projectId: body.projectId ?? null,
+          projectTitle: body.projectTitle ?? null,
+          unitId: body.unitId ?? null,
+          unitNumber: body.unitNumber ?? null,
+          interestType,
+          interestTypeAr: INTEREST_TYPE_AR[interestType],
+          message: body.message ?? null,
+          notes: null,
+          status: 'new',
+          statusAr: 'جديد',
+          updatedAt: now.toISOString(),
+        });
+      }
 
       // The CRM must not depend on the client sending display labels, so the
       // snapshots are resolved from the referenced rows and only fall back to

@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import jwt from '@fastify/jwt';
 import fastifyStatic from '@fastify/static';
@@ -20,7 +21,12 @@ import { roleRoutes } from './routes/roles.routes.js';
 import { departmentRoutes } from './routes/departments.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
-  const fastify = Fastify({ logger: true });
+  const fastify = Fastify({ logger: true, trustProxy: config.trustProxy });
+
+  // Rate Limiting (global default off; strict per-route limits configured on endpoints)
+  await fastify.register(rateLimit, {
+    global: false,
+  });
 
   // 1. CORS
   await fastify.register(cors, {

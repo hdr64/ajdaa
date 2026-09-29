@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
+import { config } from '../config/env.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { escapeCsvCell } from '../services/csv.js';
@@ -9,6 +10,8 @@ const subscribeSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   locale: z.enum(['ar', 'en']).nullish(),
   source: z.string().trim().max(40).nullish(),
+  website: z.string().nullish(),
+  startedAt: z.coerce.number().nullish(),
 });
 
 const listQuerySchema = z.object({
@@ -23,9 +26,31 @@ export const newsletterRoutes: FastifyPluginAsync = async (fastify) => {
   // Subscribe to newsletter (Public, idempotent)
   fastify.post(
     '/',
-    { preValidation: [validateBody(subscribeSchema)] },
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitNewsletterMax,
+          timeWindow: config.rateLimitNewsletterWindowMs,
+          errorResponseBuilder: () => ({
+            statusCode: 429,
+            error: 'Too Many Requests',
+            message: 'تم تجاوز الحد الأقصى للطلبات، يرجى المحاولة لاحقاً / Rate limit exceeded, please try again later',
+          }),
+        },
+      },
+      preValidation: [validateBody(subscribeSchema)],
+    },
     async (request, reply) => {
-      const { email, locale, source } = subscribeSchema.parse(request.body);
+      const body = subscribeSchema.parse(request.body);
+      const { email, locale, source } = body;
+
+      // Spam protection (honeypot or too-fast submission < 2s)
+      const isHoneypot = Boolean(body.website && body.website.trim().length > 0);
+      const isTooFast = body.startedAt != null && Date.now() - body.startedAt < 2000;
+
+      if (isHoneypot || isTooFast) {
+        return reply.status(200).send({ subscribed: true });
+      }
 
       try {
         await prisma.newsletterSubscriber.create({

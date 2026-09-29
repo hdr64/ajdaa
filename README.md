@@ -193,6 +193,8 @@ site content and must be backed up** (the deploy backup script at
 |---|---|---|---|
 | POST | `/api/auth/login` | – | Login → JWT token |
 | GET | `/api/auth/me` | JWT | Current user |
+| PATCH | `/api/auth/me` | JWT | Update own profile (name, email, phone) |
+| POST | `/api/auth/me/password` | JWT | Change password (requires current password verification) |
 | GET/POST | `/api/auth/users` | JWT | List / create admin users |
 | PUT/DELETE | `/api/auth/users/:id` | JWT | Update / deactivate (no self-delete, no last `super_admin`) |
 | GET | `/api/permissions` | JWT | List fixed permission catalogue |
@@ -238,6 +240,7 @@ Notable server-side guarantees:
   over 50 MB → `413`.
 - **Inquiries are self-describing** — `projectTitle` / `unitNumber` are resolved from
   the referenced `Project` / `PropertyUnit` rows, so a client cannot spoof or omit them.
+- **Rate limiting & reverse proxy** — Per-route rate limits (login, inquiries, newsletter) and account lockouts protect against abuse; Fastify respects `trustProxy` when deployed behind Caddy.
 
 ## Production Checklist
 

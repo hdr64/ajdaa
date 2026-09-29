@@ -37,8 +37,67 @@ const ADMIN_USERS = [
       manageUsers: true,
     },
   },
-
 ];
+
+const FIXTURE_ADMIN_USERS = [
+  {
+    email: 'admin@ajdaa.sa',
+    name: 'سلطان المقرن',
+    role: 'super_admin',
+    roleAr: 'مدير عام النظام (Super Admin)',
+    department: 'الإدارة التنفيذية',
+    permissions: {
+      manageProjects: true,
+      manageUnits: true,
+      viewInquiries: true,
+      exportData: true,
+      manageUsers: true,
+    },
+  },
+  {
+    email: 'f.sudairy@ajdaa.sa',
+    name: 'م. فهد السديري',
+    role: 'project_manager',
+    roleAr: 'مدير التطوير والمشاريع',
+    department: 'التطوير الهندسي',
+    permissions: {
+      manageProjects: true,
+      manageUnits: true,
+      viewInquiries: true,
+      exportData: true,
+      manageUsers: false,
+    },
+  },
+  {
+    email: 'reem.q@ajdaa.sa',
+    name: 'ريم القحطاني',
+    role: 'sales_agent',
+    roleAr: 'مسؤول تأجير ومبيعات',
+    department: 'إدارة الاستثمار والمبيعات',
+    permissions: {
+      manageProjects: false,
+      manageUnits: true,
+      viewInquiries: true,
+      exportData: false,
+      manageUsers: false,
+    },
+  },
+  {
+    email: 'turki.d@ajdaa.sa',
+    name: 'تركي الدوسري',
+    role: 'viewer',
+    roleAr: 'محلل استثماري ومتابع',
+    department: 'التخطيط والتحليل',
+    permissions: {
+      manageProjects: false,
+      manageUnits: false,
+      viewInquiries: true,
+      exportData: true,
+      manageUsers: false,
+    },
+  },
+];
+
 
 const CATEGORIES = [
   {
@@ -187,7 +246,18 @@ async function seedDepartments(): Promise<void> {
 async function seedAdminUsers(): Promise<void> {
   const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
+  const usersMap = new Map<string, (typeof ADMIN_USERS)[number]>();
   for (const user of ADMIN_USERS) {
+    usersMap.set(user.email, user);
+  }
+  if (process.env.SEED_TEST_FIXTURES === '1') {
+    for (const user of FIXTURE_ADMIN_USERS) {
+      usersMap.set(user.email, user);
+    }
+  }
+  const usersToSeed = Array.from(usersMap.values());
+
+  for (const user of usersToSeed) {
     const roleId = `role_${user.role}`;
     const departmentId = user.department ? deptId(user.department) : null;
 
@@ -199,6 +269,8 @@ async function seedAdminUsers(): Promise<void> {
         role: user.role,
         roleAr: user.roleAr,
         department: user.department,
+        name: user.name,
+        permissions: JSON.stringify(user.permissions),
       },
       create: {
         email: user.email,
@@ -215,7 +287,7 @@ async function seedAdminUsers(): Promise<void> {
     });
   }
 
-  console.log(`✓ Admin users seeded (${ADMIN_USERS.length}) — default password: "${ADMIN_PASSWORD}"`);
+  console.log(`✓ Admin users seeded (${usersToSeed.length}) — default password: "${ADMIN_PASSWORD}"`);
 }
 
 async function seedCategories(): Promise<void> {

@@ -6,6 +6,8 @@ export interface JwtPayload {
   id: string;
   email: string;
   role: string;
+  iat?: number;
+  exp?: number;
 }
 
 export type AdminPermission = 'manageProjects' | 'manageUnits' | 'viewInquiries' | 'exportData' | 'manageUsers';
