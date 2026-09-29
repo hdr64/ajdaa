@@ -243,10 +243,24 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Floor not found' });
       }
 
-      const updated = await prisma.propertyFloor.update({
-        where: { id: floor.id },
-        data: body,
-        include: { units: true },
+      // Units carry a copy of their floor's name; a rename must update both in
+      // one transaction or the old name keeps showing wherever units are listed.
+      const renamesUnits = body.floorNameAr !== undefined || body.floorNameEn !== undefined;
+      const updated = await prisma.$transaction(async (tx) => {
+        if (renamesUnits) {
+          await tx.propertyUnit.updateMany({
+            where: { floorId: floor.id },
+            data: {
+              ...(body.floorNameAr !== undefined ? { floorNameAr: body.floorNameAr } : {}),
+              ...(body.floorNameEn !== undefined ? { floorNameEn: body.floorNameEn } : {}),
+            },
+          });
+        }
+        return tx.propertyFloor.update({
+          where: { id: floor.id },
+          data: body,
+          include: { units: true },
+        });
       });
 
       return serializeFloor(updated);
