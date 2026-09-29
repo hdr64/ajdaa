@@ -10,8 +10,8 @@ Branch: `feat/backend-admin` (pushed). Plan + every owner request: `refactor.md`
 ## State at handoff
 Last commit: `d028a9e` (sidebar). All committed work is verified (tsc, oxlint, server vitest, Playwright screenshots).
 
-### UNCOMMITTED — finish these first
-> Status at handoff: agy and Big Pickle both **finished**. Gates on the combined working tree are green (server tsc 0, vitest 11 files / 77 tests, root tsc 0). Remaining job: **review the diffs** (agy report: task output of the roles relay; `git diff` + new files) and **browser-check** the inquiries page, then commit in two commits.
+### COMMITTED FOR A DEMO DEPLOY, STILL NEEDS REVIEW (b91fbe8, 9729fb6)
+> Status at handoff: agy and Big Pickle both **finished**. Gates on the combined working tree are green (server tsc 0, vitest 11 files / 77 tests, root tsc 0). Remaining job: **review the diffs** (agy report: task output of the roles relay; `git diff` + new files) and **browser-check** the inquiries page, Owner committed/pushed them on 2026-09-29 to demo progress; do the review now and fix forward.
 1. **agy: roles / departments / permissions backend (Phase 8b)** — brief: see "brief-roles" design in refactor.md Phase 8b. Files: `server/prisma/schema.prisma`, `seed.ts`, `server/src/app.ts`, `routes/auth.routes.ts`, new `routes/{roles,departments,permissions}.routes.ts`, `config/permissions.ts`, migration `20260929210000_roles_departments`, `test/roles.test.ts`, `src/types/admin.ts`, `src/services/authService.ts` (+ probably `rolesService.ts`, `adminStorage.ts`).
    - May be half-done. Check `git status`, then run: `cd server && npx tsc --noEmit && npx vitest run` and root `npx tsc -b --noEmit`.
    - Review hard: escalation guards must still key off `role === 'super_admin'`; migration must NOT change any user's `permissions`; system role ids `role_super_admin` etc.; `applyToUsers` in one transaction. Existing authz/escalation tests must pass unchanged.
