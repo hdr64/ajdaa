@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
@@ -6,7 +6,20 @@ import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { config } from '../config/env.js';
 import { loginFailureTracker } from '../services/loginFailureService.js';
+import { sendMail } from '../services/mailService.js';
+import { loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
+import { notifyPasswordChanged } from '../services/notificationService.js';
 import {
+  clearChallenges,
+  findChallengeOwner,
+  issueChallenge,
+  resendChallenge,
+  ttlMinutes,
+  verifyChallenge,
+} from '../services/otpService.js';
+import { meetsPasswordPolicy, PASSWORD_POLICY_ERROR } from '../services/passwordPolicy.js';
+import {
+  parsePermissions,
   parseRolePermissions,
   rolePermissionsToUserPermissions,
 } from '../config/permissions.js';
@@ -15,6 +28,40 @@ const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
 });
+
+const verifyOtpSchema = z.object({
+  challengeId: z.string().trim().min(1),
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+const resendOtpSchema = z.object({
+  challengeId: z.string().trim().min(1),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email(),
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().trim().email(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
+  newPassword: z.string().min(1, 'New password is required'),
+});
+
+const loginOtpSettingsSchema = z.object({
+  enabled: z.boolean(),
+  password: z.string().min(1, 'Current password is required'),
+});
+
+const OTP_EXPIRED_ERROR = 'رمز التحقق منتهي الصلاحية أو تم استخدامه، يرجى طلب رمز جديد / Verification code has expired or was already used, please request a new one';
+const OTP_INVALID_ERROR = 'رمز التحقق غير صحيح / Invalid verification code';
+const RESET_FAILED_ERROR = 'تعذّر إكمال إعادة التعيين: رمز غير صحيح أو منتهي الصلاحية / Could not reset the password: the code is invalid or has expired';
+
+const RATE_LIMIT_ERROR_BODY = {
+  statusCode: 429,
+  error: 'Too Many Requests',
+  message: 'تم تجاوز الحد الأقصى للطلبات، يرجى المحاولة لاحقاً / Rate limit exceeded, please try again later',
+} as const;
 
 const updateProfileSchema = z
   .object({
@@ -62,13 +109,68 @@ const userIdParamsSchema = z.object({ id: z.string().min(1) });
 
 type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
-function parsePermissions(value: string | null | undefined): Record<string, boolean> {
-  if (!value) return {};
-  try {
-    return JSON.parse(value);
-  } catch {
-    return {};
-  }
+interface OtpUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+/** True when this admin must clear a one-time code before a session is issued. */
+function requiresLoginOtp(user: { loginOtpEnabled: boolean }): boolean {
+  return config.loginOtpRequired || user.loginOtpEnabled;
+}
+
+/**
+ * `ajdaa.sa` → `aj***@ajdaa.sa`. Enough for the user to recognise the account
+ * without echoing the full address back over an unauthenticated endpoint.
+ */
+function emailHint(email: string): string {
+  const at = email.lastIndexOf('@');
+  if (at <= 0) return '***';
+  return `${email.slice(0, 2)}***${email.slice(at)}`;
+}
+
+async function sendLoginOtpMail(user: OtpUser, code: string): Promise<void> {
+  const content = loginOtpEmail({
+    brandName: config.mail.fromName,
+    name: user.name,
+    code,
+    expiresInMinutes: ttlMinutes(),
+  });
+  await sendMail({ to: user.email, ...content });
+}
+
+async function sendPasswordResetMail(user: OtpUser, code: string): Promise<void> {
+  const content = passwordResetEmail({
+    brandName: config.mail.fromName,
+    name: user.name,
+    code,
+    expiresInMinutes: ttlMinutes(),
+  });
+  await sendMail({ to: user.email, ...content });
+}
+
+async function findActiveUser(id: string): Promise<OtpUser | null> {
+  const user = await prisma.adminUser.findUnique({ where: { id } });
+  if (!user || user.status !== 'active') return null;
+  return { id: user.id, email: user.email, name: user.name, role: user.role };
+}
+
+/**
+ * The per-email lockout applies to the whole login flow: a correct password plus
+ * a valid code must not be a way around it. Answers `429` and returns `true`
+ * when the caller should stop.
+ */
+function rejectIfLocked(email: string, reply: FastifyReply): boolean {
+  const lockout = loginFailureTracker.isLocked(email);
+  if (!lockout.locked) return false;
+
+  reply.header('Retry-After', lockout.retryAfter.toString());
+  reply.status(429).send({
+    error: 'تم تجاوز الحد الأقصى للمحاولات غير الصحيحة، يرجى المحاولة لاحقاً / Too many failed login attempts, please try again later',
+  });
+  return true;
 }
 
 function serializeUser(user: {
@@ -113,11 +215,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         rateLimit: {
           max: config.rateLimitLoginMax,
           timeWindow: config.rateLimitLoginWindowMs,
-          errorResponseBuilder: () => ({
-            statusCode: 429,
-            error: 'Too Many Requests',
-            message: 'تم تجاوز الحد الأقصى للطلبات، يرجى المحاولة لاحقاً / Rate limit exceeded, please try again later',
-          }),
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
         },
       },
       preValidation: [validateBody(loginSchema)],
@@ -126,13 +224,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const { email, password } = loginSchema.parse(request.body ?? {});
       const normalizedEmail = email.toLowerCase().trim();
 
-      const lockout = loginFailureTracker.isLocked(normalizedEmail);
-      if (lockout.locked) {
-        reply.header('Retry-After', lockout.retryAfter.toString());
-        return reply.status(429).send({
-          error: 'تم تجاوز الحد الأقصى للمحاولات غير الصحيحة، يرجى المحاولة لاحقاً / Too many failed login attempts, please try again later',
-        });
-      }
+      if (rejectIfLocked(normalizedEmail, reply)) return reply;
 
       const user = await prisma.adminUser.findUnique({
         where: { email: normalizedEmail },
@@ -153,7 +245,22 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
+      // The password is proven, so the failure counter is cleared. A wrong code
+      // is *not* fed back into this tracker: the challenge's own attempt cap
+      // bounds guessing, and charging it here would let anyone holding a stolen
+      // password lock the real owner out for the whole window.
       loginFailureTracker.recordSuccess(normalizedEmail);
+
+      if (requiresLoginOtp(user)) {
+        const { challengeId, code } = await issueChallenge(user.id, 'login');
+        await sendLoginOtpMail(user, code);
+
+        return reply.status(200).send({
+          otpRequired: true,
+          challengeId,
+          emailHint: emailHint(user.email),
+        });
+      }
 
       await prisma.adminUser.update({
         where: { id: user.id },
@@ -170,6 +277,188 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         token,
         user: serializeUser(user),
       };
+    }
+  );
+
+  // Complete an OTP login (Public)
+  fastify.post(
+    '/login/verify-otp',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitOtpMax,
+          timeWindow: config.rateLimitOtpWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(verifyOtpSchema)],
+    },
+    async (request, reply) => {
+      const { challengeId, code } = verifyOtpSchema.parse(request.body ?? {});
+
+      // The challenge is inspected before it is consumed: while the account is
+      // locked the code is neither spent nor counted as an attempt, and a
+      // suspended owner is told the same thing as an unknown challenge. Only then
+      // does the code itself get verified.
+      const owner = await findChallengeOwner(challengeId, 'login');
+      if (!owner) return reply.status(410).send({ error: OTP_EXPIRED_ERROR });
+
+      const lockedUser = await findActiveUser(owner.adminUserId);
+      if (!lockedUser) return reply.status(410).send({ error: OTP_EXPIRED_ERROR });
+      if (rejectIfLocked(lockedUser.email, reply)) return reply;
+
+      const result = await verifyChallenge(challengeId, code, 'login');
+      if (!result.ok) {
+        if (result.reason === 'dead') {
+          return reply.status(410).send({ error: OTP_EXPIRED_ERROR });
+        }
+        return reply.status(400).send({ error: OTP_INVALID_ERROR, attemptsLeft: result.attemptsLeft });
+      }
+
+      const user = await prisma.adminUser.findUnique({ where: { id: result.adminUserId } });
+      if (!user || user.status !== 'active') {
+        return reply.status(410).send({ error: OTP_EXPIRED_ERROR });
+      }
+
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date().toISOString() },
+      });
+
+      return {
+        token: fastify.jwt.sign({ id: user.id, email: user.email, role: user.role }),
+        user: serializeUser(user),
+      };
+    }
+  );
+
+  // Re-send the login code (Public)
+  fastify.post(
+    '/login/resend-otp',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitOtpMax,
+          timeWindow: config.rateLimitOtpWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(resendOtpSchema)],
+    },
+    async (request, reply) => {
+      const { challengeId } = resendOtpSchema.parse(request.body ?? {});
+
+      // Resolved before the challenge is replaced, so the per-email lockout is
+      // checked against the address that owns it.
+      const owner = await findChallengeOwner(challengeId, 'login');
+      if (!owner) return reply.status(410).send({ error: OTP_EXPIRED_ERROR });
+
+      const user = await findActiveUser(owner.adminUserId);
+      if (!user) return reply.status(410).send({ error: OTP_EXPIRED_ERROR });
+      if (rejectIfLocked(user.email, reply)) return reply;
+
+      const result = await resendChallenge(challengeId, 'login');
+      if (!result.ok) {
+        if (result.reason === 'throttled') {
+          reply.header('Retry-After', result.retryAfterSeconds.toString());
+          return reply.status(429).send({
+            error: 'يرجى الانتظار قبل طلب رمز جديد / Please wait before requesting a new code',
+          });
+        }
+        return reply.status(410).send({ error: OTP_EXPIRED_ERROR });
+      }
+
+      // The new code belongs to a challenge that superseded the old one, so the
+      // previous `challengeId` (and its code) stop working from here on.
+      await sendLoginOtpMail(user, result.code);
+
+      return { sent: true };
+    }
+  );
+
+  // Start a password reset (Public). Always answers 200 so the endpoint cannot be
+  // used to discover which email addresses have an account.
+  fastify.post(
+    '/password/forgot',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitPasswordResetMax,
+          timeWindow: config.rateLimitPasswordResetWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(forgotPasswordSchema)],
+    },
+    async (request) => {
+      const { email } = forgotPasswordSchema.parse(request.body ?? {});
+      const user = await prisma.adminUser.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+
+      if (user && user.status === 'active') {
+        const { code } = await issueChallenge(user.id, 'password_reset');
+        await sendPasswordResetMail(user, code);
+      }
+
+      return { sent: true };
+    }
+  );
+
+  // Finish a password reset (Public)
+  fastify.post(
+    '/password/reset',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitPasswordResetMax,
+          timeWindow: config.rateLimitPasswordResetWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(resetPasswordSchema)],
+    },
+    async (request, reply) => {
+      const { email, code, newPassword } = resetPasswordSchema.parse(request.body ?? {});
+      const normalizedEmail = email.toLowerCase();
+
+      const user = await prisma.adminUser.findUnique({ where: { email: normalizedEmail } });
+      if (!user || user.status !== 'active') {
+        return reply.status(400).send({ error: RESET_FAILED_ERROR });
+      }
+
+      // Checked before the challenge is touched: a password that fails the policy
+      // must not burn the user's only code.
+      if (!meetsPasswordPolicy(newPassword)) {
+        return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
+      }
+
+      const challenge = await prisma.otpChallenge.findFirst({
+        where: { adminUserId: user.id, purpose: 'password_reset' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!challenge) {
+        return reply.status(400).send({ error: RESET_FAILED_ERROR });
+      }
+
+      const result = await verifyChallenge(challenge.id, code, 'password_reset');
+      if (!result.ok) {
+        return reply.status(400).send({ error: RESET_FAILED_ERROR });
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      // Moving passwordChangedAt forward is what kills every token issued before
+      // this point, including the one the browser is currently holding.
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { passwordHash, passwordChangedAt: new Date() },
+      });
+
+      loginFailureTracker.recordSuccess(normalizedEmail);
+
+      void notifyPasswordChanged({ email: user.email, name: user.name, via: 'reset' });
+
+      return { reset: true };
     }
   );
 
@@ -241,16 +530,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(401).send({ error: 'Current password is incorrect' });
       }
 
-      // Policy: ≥ 10 chars, at least one letter and one digit, not equal to current
-      const hasMinLength = newPassword.length >= 10;
-      const hasLetter = /[a-zA-Z\p{L}]/u.test(newPassword);
-      const hasDigit = /\d/.test(newPassword);
-      const isDifferent = newPassword !== currentPassword;
-
-      if (!hasMinLength || !hasLetter || !hasDigit || !isDifferent) {
-        return reply.status(400).send({
-          error: 'Password does not meet requirements: must be at least 10 characters, include at least one letter and one digit, and be different from current password',
-        });
+      if (!meetsPasswordPolicy(newPassword, currentPassword)) {
+        return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
       }
 
       const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -266,7 +547,43 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       loginFailureTracker.recordSuccess(user.email);
 
+      void notifyPasswordChanged({ email: user.email, name: user.name, via: 'self_service' });
+
       return reply.status(200).send({ message: 'Password updated successfully' });
+    }
+  );
+
+  // Turn email OTP on or off for the signed-in admin (current password required)
+  fastify.patch(
+    '/me/login-otp',
+    { onRequest: [authenticate], preValidation: [validateBody(loginOtpSettingsSchema)] },
+    async (request, reply) => {
+      const { enabled, password } = loginOtpSettingsSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        return reply.status(401).send({ error: 'Current password is incorrect' });
+      }
+
+      const loginOtpEnabled = user.loginOtpEnabled !== enabled ? enabled : user.loginOtpEnabled;
+      if (loginOtpEnabled !== user.loginOtpEnabled) {
+        await prisma.adminUser.update({
+          where: { id: user.id },
+          data: { loginOtpEnabled },
+        });
+      }
+
+      // Switching OTP off must not leave a usable login code behind.
+      if (!loginOtpEnabled) {
+        await clearChallenges(user.id, 'login');
+      }
+
+      return { loginOtpEnabled };
     }
   );
 

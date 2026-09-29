@@ -15,6 +15,7 @@ import {
 } from '../config/constants.js';
 import { INQUIRIES_ROOM } from '../sockets/index.js';
 import { escapeCsvCell } from '../services/csv.js';
+import { notifyNewInquiry } from '../services/notificationService.js';
 
 const createInquirySchema = z.object({
   name: z.string().trim().min(1),
@@ -185,6 +186,20 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Notify authorized admins only: the payload contains customer PII.
       fastify.io?.to(INQUIRIES_ROOM).emit('new_inquiry_received', created);
+
+      // Fire-and-forget: the client already has its 201 and an SMTP hiccup must
+      // not turn a captured lead into a failed request.
+      void notifyNewInquiry({
+        name: created.name,
+        phone: created.phone,
+        email: created.email,
+        projectTitle: created.projectTitle,
+        unitNumber: created.unitNumber,
+        interestTypeAr: created.interestTypeAr,
+        message: created.message,
+      }).catch((error: unknown) => {
+        request.log.error({ err: error }, 'Failed to send new-inquiry notifications');
+      });
 
       return reply.status(201).send(created);
     }

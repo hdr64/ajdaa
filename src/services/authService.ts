@@ -6,6 +6,28 @@ export interface AuthSession {
   user: AdminUser;
 }
 
+/** A session was issued and its token is already stored. */
+export interface LoginSessionResult {
+  kind: 'session';
+  token: string;
+  user: AdminUser;
+}
+
+/** Credentials were correct but a one-time code must be entered first. */
+export interface LoginOtpResult {
+  kind: 'otp';
+  challengeId: string;
+  /** Masked address, e.g. `aj***@gmail.com`, so the UI can confirm the account. */
+  emailHint: string;
+}
+
+export type LoginResult = LoginSessionResult | LoginOtpResult;
+
+/** Wire shape of `POST /api/auth/login`, which answers one of two bodies. */
+type LoginResponseDto =
+  | { token: string; user: UserDto }
+  | { otpRequired: true; challengeId: string; emailHint: string };
+
 interface UserDto {
   id: string;
   name: string;
@@ -66,15 +88,66 @@ export function toAdminUser(dto: UserDto): AdminUser {
 }
 
 export const authService = {
-  /** Exchanges credentials for a JWT. The token is stored for later requests. */
-  async login(email: string, password: string): Promise<AuthSession> {
-    const result = await api.post<{ token: string; user: UserDto }>('/api/auth/login', {
+  /**
+   * Begins a login. Returns `kind: 'session'` when no code is needed, otherwise
+   * `kind: 'otp'` with the `challengeId` to pass to `verifyLoginOtp` — no token
+   * is stored in that case.
+   */
+  async startLogin(email: string, password: string): Promise<LoginResult> {
+    const result = await api.post<LoginResponseDto>('/api/auth/login', {
       email: email.trim(),
       password,
     });
 
+    if ('otpRequired' in result && result.otpRequired) {
+      return { kind: 'otp', challengeId: result.challengeId, emailHint: result.emailHint };
+    }
+
+    const { token, user } = result as { token: string; user: UserDto };
+    setAuthToken(token);
+    return { kind: 'session', token, user: toAdminUser(user) };
+  },
+
+  /**
+   * Alias of {@link authService.startLogin}. Kept under the historical name so
+   * existing call sites keep working; both return the same discriminated union.
+   */
+  login(email: string, password: string): Promise<LoginResult> {
+    return this.startLogin(email, password);
+  },
+
+  /** Exchanges a login code for a session; stores the token like a plain login. */
+  async verifyLoginOtp(challengeId: string, code: string): Promise<AuthSession> {
+    const result = await api.post<{ token: string; user: UserDto }>('/api/auth/login/verify-otp', {
+      challengeId,
+      code: code.trim(),
+    });
+
     setAuthToken(result.token);
     return { token: result.token, user: toAdminUser(result.user) };
+  },
+
+  /** Asks for a fresh login code. Throws an ApiError with status 429 if too soon. */
+  resendLoginOtp(challengeId: string): Promise<{ sent: boolean }> {
+    return api.post<{ sent: boolean }>('/api/auth/login/resend-otp', { challengeId });
+  },
+
+  /** Always resolves, whether or not the address has an account. */
+  forgotPassword(email: string): Promise<{ sent: boolean }> {
+    return api.post<{ sent: boolean }>('/api/auth/password/forgot', { email: email.trim() });
+  },
+
+  resetPassword(email: string, code: string, newPassword: string): Promise<{ reset: boolean }> {
+    return api.post<{ reset: boolean }>('/api/auth/password/reset', {
+      email: email.trim(),
+      code: code.trim(),
+      newPassword,
+    });
+  },
+
+  /** Turns login OTP on/off for the signed-in admin; requires the current password. */
+  setLoginOtp(enabled: boolean, password: string): Promise<{ loginOtpEnabled: boolean }> {
+    return api.patch<{ loginOtpEnabled: boolean }>('/api/auth/me/login-otp', { enabled, password });
   },
 
   /** Validates the stored token against the server. */
@@ -131,4 +204,9 @@ export const authService = {
 
 export const updateProfile = authService.updateProfile.bind(authService);
 export const changePassword = authService.changePassword.bind(authService);
+export const verifyLoginOtp = authService.verifyLoginOtp.bind(authService);
+export const resendLoginOtp = authService.resendLoginOtp.bind(authService);
+export const forgotPassword = authService.forgotPassword.bind(authService);
+export const resetPassword = authService.resetPassword.bind(authService);
+export const setLoginOtp = authService.setLoginOtp.bind(authService);
 

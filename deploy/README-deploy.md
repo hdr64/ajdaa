@@ -77,6 +77,33 @@ UPLOAD_DIR="./uploads"
 `localhost:5173` development origins are **not** added, so a page on a developer's
 machine cannot make credentialed cross-origin calls to the live API.
 
+### Email and OTP (optional)
+
+The API boots with email disabled: with no `MAIL_HOST`, every send is a logged
+no-op, so OTP logins, password reset and inquiry notifications stay silent but
+nothing breaks. Add these to `server/.env` to switch it on (real SMTP values only
+on the VPS — never in the repo):
+
+```dotenv
+MAIL_HOST="<smtp host>"        # e.g. smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME="<smtp account>"
+MAIL_PASSWORD="<app password or SMTP key>"   # Gmail requires an app password
+MAIL_ENCRYPTION=tls             # tls = STARTTLS (587) | ssl = implicit TLS (465)
+MAIL_FROM_ADDRESS="<sender address>"
+MAIL_FROM_NAME="Ajda"           # sender name and the heading of every email
+APP_URL="https://ajda.weghetk.com"          # base for links inside emails
+LOGIN_OTP_REQUIRED="false"      # true = every admin login needs an emailed code
+NOTIFY_INQUIRY_EMAILS=""        # empty = every active admin with viewInquiries
+```
+
+`LOGIN_OTP_REQUIRED=true` locks the whole admin portal behind emailed codes —
+confirm SMTP works first, or nobody can log in. `NOTIFY_INQUIRY_EMAILS` takes a
+comma-separated allowlist; when set, new-inquiry notices go only to those
+addresses instead of to every active admin holding `viewInquiries`. Code lifetime
+(`LOGIN_OTP_TTL_MS`), attempt cap (`LOGIN_OTP_MAX_ATTEMPTS`) and resend cooldown
+(`LOGIN_OTP_RESEND_COOLDOWN_MS`) default to 10 minutes, 5 and 60 seconds.
+
 Secrets for the backup unit go in a separate file so they are not readable by the
 web-facing process:
 

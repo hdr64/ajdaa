@@ -1,16 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../services/prisma.js';
+import { parsePermissions } from '../config/permissions.js';
 import type { AdminPermission, AuthenticatedAdmin } from '../types/fastify.js';
-
-function parsePermissions(value: string | null | undefined): Record<string, boolean> {
-  if (!value) return {};
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {};
-  } catch {
-    return {};
-  }
-}
 
 /**
  * Loads the admin from the database on every request: the token only proves

@@ -1,4 +1,4 @@
-import { authService, type AuthSession } from './authService';
+import { authService, type AuthSession, type LoginResult } from './authService';
 import { inquiryService, type InquiryFilters, type InquiryInput, type InquiryStatus } from './inquiryService';
 import {
   propertyService,
@@ -41,6 +41,7 @@ export type {
   PermissionDef,
 } from '../types/admin';
 export type { NewsletterSubscriber } from './newsletterService';
+export type { LoginResult, AuthSession } from './authService';
 
 const CATEGORIES_KEY = 'ajdaa_categories';
 
@@ -114,8 +115,33 @@ export const AdminStorage = {
     return authService.hasToken();
   },
 
-  async login(email: string, password: string): Promise<AuthSession> {
+  async login(email: string, password: string): Promise<LoginResult> {
     return authService.login(email, password);
+  },
+
+  /** Same request as `login`, named for the OTP-aware flow the UI will drive. */
+  startLogin(email: string, password: string): Promise<LoginResult> {
+    return authService.startLogin(email, password);
+  },
+
+  verifyLoginOtp(challengeId: string, code: string): Promise<AuthSession> {
+    return authService.verifyLoginOtp(challengeId, code);
+  },
+
+  resendLoginOtp(challengeId: string): Promise<{ sent: boolean }> {
+    return authService.resendLoginOtp(challengeId);
+  },
+
+  forgotPassword(email: string): Promise<{ sent: boolean }> {
+    return authService.forgotPassword(email);
+  },
+
+  resetPassword(email: string, code: string, newPassword: string): Promise<{ reset: boolean }> {
+    return authService.resetPassword(email, code, newPassword);
+  },
+
+  setLoginOtp(enabled: boolean, password: string): Promise<{ loginOtpEnabled: boolean }> {
+    return authService.setLoginOtp(enabled, password);
   },
 
   async getCurrentUser(): Promise<AdminUser> {

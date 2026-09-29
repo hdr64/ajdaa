@@ -24,6 +24,7 @@ export type TestEnvironment = {
   DATABASE_URL: string;
   JWT_SECRET: string;
   UPLOAD_DIR: string;
+  LOGIN_OTP_RESEND_COOLDOWN_MS: string;
 };
 
 /** Prisma's SQLite URL parser wants forward slashes even for Windows drive letters. */
@@ -41,6 +42,9 @@ export function createTestEnvironment(): TestEnvironment {
     DATABASE_URL: `file:${toPosix(path.join(root, DB_FILENAME))}`,
     JWT_SECRET: crypto.randomBytes(32).toString('hex'),
     UPLOAD_DIR: uploadDir,
+    // Short enough for the resend-throttle test to wait it out, long enough that
+    // two back-to-back requests still collide.
+    LOGIN_OTP_RESEND_COOLDOWN_MS: '1500',
   };
 }
 
@@ -80,6 +84,7 @@ export function requireTestEnvironment(): TestEnvironment {
     DATABASE_URL: process.env.DATABASE_URL as string,
     JWT_SECRET: process.env.JWT_SECRET as string,
     UPLOAD_DIR: process.env.UPLOAD_DIR as string,
+    LOGIN_OTP_RESEND_COOLDOWN_MS: process.env.LOGIN_OTP_RESEND_COOLDOWN_MS as string,
   };
 }
 

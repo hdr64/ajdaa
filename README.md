@@ -25,7 +25,8 @@ ajda/
 │   │   ├── config/         # env.ts (zod-validated), constants.ts
 │   │   ├── middleware/     # auth (JWT), validate (zod)
 │   │   ├── routes/         # auth, projects, units, inquiries, media
-│   │   ├── services/       # prisma, mediaService (sharp/WebP), serializers
+│   │   ├── services/       # prisma, mediaService (sharp/WebP), serializers,
+│   │   │                   #   mailService + mailTemplates, otpService, notifications
 │   │   ├── sockets/        # Socket.io realtime engine
 │   │   ├── types/          # Fastify/JWT type augmentation
 │   │   ├── app.ts          # buildApp() factory (testable, no listen)
@@ -191,7 +192,12 @@ site content and must be backed up** (the deploy backup script at
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/login` | – | Login → JWT token |
+| POST | `/api/auth/login` | – | Login → `{ token, user }`, or `{ otpRequired, challengeId, emailHint }` + emailed code when OTP applies |
+| POST | `/api/auth/login/verify-otp` | – | Exchange the emailed code → `{ token, user }` (wrong: `400` + `attemptsLeft`; dead: `410`) |
+| POST | `/api/auth/login/resend-otp` | – | Re-send the login code → `{ sent }` (`429` inside the cooldown) |
+| POST | `/api/auth/password/forgot` | – | Start a reset. Always `{ sent }`, whether or not the address exists |
+| POST | `/api/auth/password/reset` | – | `{ email, code, newPassword }` → `{ reset }`; kills every earlier token |
+| PATCH | `/api/auth/me/login-otp` | JWT | Turn login OTP on/off for the signed-in admin (requires the current password) |
 | GET | `/api/auth/me` | JWT | Current user |
 | PATCH | `/api/auth/me` | JWT | Update own profile (name, email, phone) |
 | POST | `/api/auth/me/password` | JWT | Change password (requires current password verification) |
@@ -209,7 +215,7 @@ site content and must be backed up** (the deploy backup script at
 | POST/PUT/DELETE | `/api/projects/:id/floors*` | JWT | Nested floor CRUD; deleting a floor cascades its units |
 | POST/PUT/DELETE | `/api/units*` | JWT | Unit CRUD |
 | PATCH | `/api/units/:id/status` | JWT | Update unit status (Socket.io broadcast) |
-| POST | `/api/inquiries` | – | Public inquiry against published project (Socket.io alert) |
+| POST | `/api/inquiries` | – | Public inquiry against published project (Socket.io alert + admin email) |
 | GET | `/api/inquiries` | JWT | CRM list `?status=&projectId=` |
 | GET | `/api/inquiries/export` | JWT | Export inquiries to CSV (BOM, RFC 4180) |
 | PATCH | `/api/inquiries/:id` | JWT | CRM inquiry update (notes, status) |
@@ -240,7 +246,47 @@ Notable server-side guarantees:
   over 50 MB → `413`.
 - **Inquiries are self-describing** — `projectTitle` / `unitNumber` are resolved from
   the referenced `Project` / `PropertyUnit` rows, so a client cannot spoof or omit them.
-- **Rate limiting & reverse proxy** — Per-route rate limits (login, inquiries, newsletter) and account lockouts protect against abuse; Fastify respects `trustProxy` when deployed behind Caddy.
+- **Rate limiting & reverse proxy** — Per-route rate limits (login, inquiries, newsletter, OTP, password reset) and account lockouts protect against abuse; Fastify respects `trustProxy` when deployed behind Caddy.
+- **Email is optional at boot** — with no `MAIL_HOST` (or under `NODE_ENV=test`) every send becomes a logged no-op, so the API never fails to start because SMTP is missing. The test suite reads the in-memory capture through `getSentMail()`.
+- **OTP codes are never stored in the clear** — only a SHA-256 digest of `JWT_SECRET + admin + purpose + code` is persisted, compared in constant time, and bounded by a 10-minute TTL, five attempts and a 60-second resend cooldown. Issuing a new challenge supersedes the previous one.
+- **Notifications never leak to the wrong inbox** — a new inquiry is emailed only to active admins holding `viewInquiries` (or to `NOTIFY_INQUIRY_EMAILS` when set), and spam-dropped submissions send nothing.
+
+## Email
+
+`server/src/services/mailService.ts` holds the transport; `mailTemplates.ts` renders
+Arabic-first RTL bodies (inline styles, a plain-text alternative, everything
+interpolated escaped). Copy these placeholders into `server/.env`:
+
+```dotenv
+MAIL_HOST=""                 # empty = mail disabled (logged no-op)
+MAIL_PORT=587
+MAIL_USERNAME=""
+MAIL_PASSWORD=""             # Gmail: an app password, not the account password
+MAIL_ENCRYPTION=tls          # tls = STARTTLS (587) | ssl = implicit TLS (465) | none
+MAIL_FROM_ADDRESS=""
+MAIL_FROM_NAME="Ajda"        # sender display name and the heading of every email
+APP_URL="https://ajda.weghetk.com"   # base for links inside emails
+
+LOGIN_OTP_REQUIRED="false"   # true = every admin login needs a code
+LOGIN_OTP_TTL_MS=600000
+LOGIN_OTP_MAX_ATTEMPTS=5
+LOGIN_OTP_RESEND_COOLDOWN_MS=60000
+
+NOTIFY_INQUIRY_EMAILS=""     # empty = every active admin with viewInquiries
+```
+
+| Variable | Effect |
+|---|---|
+| `MAIL_HOST` unset, or `NODE_ENV=test` | Sending is disabled; messages are captured in memory instead of delivered |
+| `LOGIN_OTP_REQUIRED=false` (default) | Only admins with `loginOtpEnabled` (set via `PATCH /api/auth/me/login-otp`) need a code |
+| `LOGIN_OTP_REQUIRED=true` | Every admin login answers `otpRequired` until the flag is turned off |
+| `NOTIFY_INQUIRY_EMAILS=a@x.com,b@y.com` | Only these addresses receive new-inquiry notices |
+| `APP_URL` | Prefix for the "view inquiries" link in the notification email |
+
+A send failure is logged and swallowed, so it can never turn a successful inquiry
+or password change into a `500`. The one deliberate exception: the OTP code is
+awaited by the login/reset routes, because without the mail there is nothing to
+verify.
 
 ## Production Checklist
 
@@ -254,6 +300,9 @@ Notable server-side guarantees:
 - [ ] Caddy block: `/api/*`, `/uploads/*`, `/socket.io/*` → `localhost:4000`
 - [ ] `uploads/` must be writable by the service user
 - [ ] SPA fallback: unknown paths → `index.html` (client-side routing)
+- [ ] Email (see [Email](#email)): `MAIL_*` filled in, `APP_URL` = production origin.
+      The API boots without it, but OTP logins, password reset and inquiry
+      notifications stay silent until `MAIL_HOST` is set
 
 ### Known non-blocking items
 

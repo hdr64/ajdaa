@@ -78,3 +78,21 @@ export function rolePermissionsToUserPermissions(rolePermsArray: string[]): Reco
   }
   return result;
 }
+
+/**
+ * Parses the per-user permission map (`AdminUser.permissions`), which is a JSON
+ * object rather than a role's array. A malformed or non-object value grants
+ * nothing, so a corrupted row can never widen access.
+ */
+export function parsePermissions(value: string | null | undefined): Record<string, boolean> {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, boolean>;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}

@@ -47,7 +47,27 @@ model AdminUser {
   status            String      @default("active") // active | suspended
   lastLogin         String?
   passwordChangedAt DateTime?
+  loginOtpEnabled   Boolean     @default(false)
   createdAt         DateTime    @default(now())
+  otpChallenges     OtpChallenge[]
+}
+
+/// A one-time code emailed to an admin: login verification (purpose = 'login')
+/// or password reset (purpose = 'password_reset'). Only `codeHash` is stored, so a
+/// database leak cannot be replayed as a valid code.
+model OtpChallenge {
+  id          String    @id @default(uuid())
+  adminUserId String
+  purpose     String // login | password_reset
+  codeHash    String
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, purpose])
+  @@index([expiresAt])
 }
 
 model Project {

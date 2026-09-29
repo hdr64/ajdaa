@@ -25,6 +25,49 @@ const envSchema = z.object({
   RATE_LIMIT_INQUIRIES_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
   RATE_LIMIT_NEWSLETTER_MAX: z.coerce.number().int().positive().default(process.env.NODE_ENV === 'test' ? 100 : 5),
   RATE_LIMIT_NEWSLETTER_WINDOW_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
+  RATE_LIMIT_OTP_MAX: z.coerce.number().int().positive().default(process.env.NODE_ENV === 'test' ? 100 : 20),
+  RATE_LIMIT_OTP_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  RATE_LIMIT_PASSWORD_RESET_MAX: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(process.env.NODE_ENV === 'test' ? 100 : 5),
+  RATE_LIMIT_PASSWORD_RESET_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+
+  // --- Email (SMTP) ---
+  // An empty MAIL_HOST is not an error: the API must boot without SMTP so a
+  // deployment can run with notifications silently disabled.
+  MAIL_HOST: z.string().trim().default(''),
+  MAIL_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  MAIL_USERNAME: z.string().trim().default(''),
+  MAIL_PASSWORD: z.string().default(''),
+  MAIL_ENCRYPTION: z.enum(['tls', 'ssl', 'none']).default('tls'),
+  MAIL_FROM_ADDRESS: z.string().trim().email().default(''),
+  MAIL_FROM_NAME: z.string().trim().default(''),
+
+  // Absolute base used for links inside emails (e.g. the admin inquiries page).
+  APP_URL: z
+    .string()
+    .trim()
+    .url()
+    .default('https://ajda.weghetk.com')
+    .transform((value) => value.replace(/\/+$/, '')),
+
+  // --- Email OTP ---
+  // When true every admin login needs a one-time code; otherwise only accounts
+  // with `AdminUser.loginOtpEnabled` do.
+  LOGIN_OTP_REQUIRED: z
+    .string()
+    .optional()
+    .default('false')
+    .transform((val) => val === 'true' || val === '1'),
+  LOGIN_OTP_TTL_MS: z.coerce.number().int().positive().default(10 * 60 * 1000),
+  LOGIN_OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  LOGIN_OTP_RESEND_COOLDOWN_MS: z.coerce.number().int().positive().default(60 * 1000),
+
+  // Comma-separated allowlist. Empty = notify every active admin who can see
+  // inquiries; when set, only these recipients are notified.
+  NOTIFY_INQUIRY_EMAILS: z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -53,6 +96,15 @@ const devOrigins =
 // Kept mutable: @fastify/cors and socket.io both require a non-readonly array.
 const clientOrigins: string[] = [...new Set([...configuredOrigins, ...devOrigins])];
 
+// Same comma-separated convention as CLIENT_ORIGIN. An empty list means "derive
+// the recipients from permissions instead".
+const notifyInquiryEmails: string[] = env.NOTIFY_INQUIRY_EMAILS.split(',')
+  .map((address) => address.trim().toLowerCase())
+  .filter(Boolean);
+
+/** Display name for outgoing mail; falls back to the from address, then to a literal. */
+const mailFromName = env.MAIL_FROM_NAME || env.MAIL_FROM_ADDRESS || 'Ajda';
+
 export const config = {
   env: env.NODE_ENV,
   isProduction: env.NODE_ENV === 'production',
@@ -71,6 +123,28 @@ export const config = {
   rateLimitInquiriesWindowMs: env.RATE_LIMIT_INQUIRIES_WINDOW_MS,
   rateLimitNewsletterMax: env.RATE_LIMIT_NEWSLETTER_MAX,
   rateLimitNewsletterWindowMs: env.RATE_LIMIT_NEWSLETTER_WINDOW_MS,
+  rateLimitOtpMax: env.RATE_LIMIT_OTP_MAX,
+  rateLimitOtpWindowMs: env.RATE_LIMIT_OTP_WINDOW_MS,
+  rateLimitPasswordResetMax: env.RATE_LIMIT_PASSWORD_RESET_MAX,
+  rateLimitPasswordResetWindowMs: env.RATE_LIMIT_PASSWORD_RESET_WINDOW_MS,
+  appUrl: env.APP_URL,
+  loginOtpRequired: env.LOGIN_OTP_REQUIRED,
+  loginOtpTtlMs: env.LOGIN_OTP_TTL_MS,
+  loginOtpMaxAttempts: env.LOGIN_OTP_MAX_ATTEMPTS,
+  loginOtpResendCooldownMs: env.LOGIN_OTP_RESEND_COOLDOWN_MS,
+  notifyInquiryEmails,
+  mail: {
+    host: env.MAIL_HOST,
+    port: env.MAIL_PORT,
+    username: env.MAIL_USERNAME,
+    password: env.MAIL_PASSWORD,
+    /** `ssl` maps to implicit TLS (port 465); `tls` upgrades over STARTTLS (587). */
+    encryption: env.MAIL_ENCRYPTION,
+    fromAddress: env.MAIL_FROM_ADDRESS,
+    fromName: mailFromName,
+    /** True when SMTP is configured and the process is not a test run. */
+    enabled: env.MAIL_HOST.length > 0 && env.NODE_ENV !== 'test',
+  },
 } as const;
 
 export type Config = typeof config;
