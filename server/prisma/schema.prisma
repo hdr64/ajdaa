@@ -34,6 +34,8 @@ model Project {
   priceTypeEn            String?
   status                 String?
   statusEn               String?
+  publishStatus          String            @default("published") // draft | published | hidden
+  publishedAt            DateTime?
   area                   Float
   rooms                  Int?
   bathrooms              Int?

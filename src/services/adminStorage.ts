@@ -14,6 +14,7 @@ import type {
   PropertyFloor,
   PropertyUnit,
   UnitStatus,
+  PublishStatus,
 } from '../types/property';
 import type { AdminUser, AdminUserInput, CategoryItem, AdminStatus } from '../types/admin';
 
@@ -118,6 +119,31 @@ export const AdminStorage = {
       if (error instanceof ApiError && error.isNotFound) return undefined;
       throw error;
     }
+  },
+
+  /** Admin list of projects across all publishing statuses. */
+  getAdminProjects(
+    filtersOrSignal?: Parameters<typeof propertyService.list>[0] | AbortSignal,
+    signal?: AbortSignal
+  ): Promise<Property[]> {
+    if (filtersOrSignal instanceof AbortSignal) {
+      return propertyService.list({}, filtersOrSignal, { scope: 'admin' });
+    }
+    return propertyService.list(filtersOrSignal ?? {}, signal, { scope: 'admin' });
+  },
+
+  /** Admin fetch of project by ID across all publishing statuses. */
+  async getAdminProjectById(id: number, signal?: AbortSignal): Promise<Property | undefined> {
+    try {
+      return await propertyService.getById(id, signal, { scope: 'admin' });
+    } catch (error) {
+      if (error instanceof ApiError && error.isNotFound) return undefined;
+      throw error;
+    }
+  },
+
+  setProjectPublishStatus(id: number, status: PublishStatus): Promise<Property> {
+    return propertyService.setPublishStatus(id, status);
   },
 
   /** Creates the project together with the supplied floors and units. */

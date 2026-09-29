@@ -33,6 +33,7 @@ describe('Project brochureUrl', () => {
         city: 'الرياض',
         image: '/uploads/brochure-test.webp',
         brochureUrl: 'https://example.com/docs/brochure.pdf',
+        publishStatus: 'published',
       },
     });
 

@@ -196,6 +196,8 @@ async function seedProjectData(): Promise<void> {
         priceTypeEn: p.priceTypeEn,
         status: p.status,
         statusEn: p.statusEn,
+        publishStatus: 'published',
+        publishedAt: new Date(),
         area: p.area,
         rooms: p.rooms ?? null,
         bathrooms: p.bathrooms ?? null,

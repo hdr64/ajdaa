@@ -108,15 +108,20 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
 
       // The CRM must not depend on the client sending display labels, so the
       // snapshots are resolved from the referenced rows and only fall back to
-      // the request body when the row is gone (e.g. a deleted project).
-      const [project, unit] = await Promise.all([
-        body.projectId != null
-          ? prisma.project.findUnique({ where: { id: body.projectId }, select: { title: true } })
-          : null,
-        body.unitId
-          ? prisma.propertyUnit.findUnique({ where: { id: body.unitId }, select: { unitNumber: true } })
-          : null,
-      ]);
+      let project: { title: string; publishStatus: string } | null = null;
+      if (body.projectId != null) {
+        project = await prisma.project.findUnique({
+          where: { id: body.projectId },
+          select: { title: true, publishStatus: true },
+        });
+        if (!project || project.publishStatus !== 'published') {
+          return reply.status(404).send({ error: 'Project not found' });
+        }
+      }
+
+      const unit = body.unitId
+        ? await prisma.propertyUnit.findUnique({ where: { id: body.unitId }, select: { unitNumber: true } })
+        : null;
 
       const created = await prisma.customerInquiry.create({
         data: {

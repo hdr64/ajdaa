@@ -4,6 +4,7 @@ import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { serializeProject, serializeFloor } from '../services/serializers.js';
+import { PUBLISH_STATUSES, type PublishStatus } from '../config/constants.js';
 
 const projectSchema = z.object({
   type: z.string().min(1),
@@ -17,6 +18,7 @@ const projectSchema = z.object({
   priceTypeEn: z.string().nullish(),
   status: z.string().nullish(),
   statusEn: z.string().nullish(),
+  publishStatus: z.enum(PUBLISH_STATUSES).optional(),
   area: z.number().nonnegative(),
   rooms: z.number().int().nullish(),
   bathrooms: z.number().int().nullish(),
@@ -47,6 +49,16 @@ const projectQuerySchema = z.object({
   city: z.string().trim().optional(),
   type: z.string().trim().optional(),
   priceType: z.string().trim().optional(),
+  scope: z.enum(['admin']).optional(),
+  status: z.enum(PUBLISH_STATUSES).optional(),
+});
+
+const projectGetQuerySchema = z.object({
+  scope: z.enum(['admin']).optional(),
+});
+
+const publishBodySchema = z.object({
+  publishStatus: z.enum(PUBLISH_STATUSES),
 });
 
 const idParamsSchema = z.object({ id: z.coerce.number().int() });
@@ -118,13 +130,24 @@ function toCreateData(input: ProjectInput) {
 
 export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   // Get all projects with floors and units
-  fastify.get('/', async (request) => {
+  fastify.get('/', async (request, reply) => {
     const query = projectQuerySchema.parse(request.query ?? {});
 
-    const where: Record<string, string> = {};
+    const where: Record<string, unknown> = {};
     if (query.city) where.city = query.city;
     if (query.type) where.type = query.type;
     if (query.priceType) where.priceType = query.priceType;
+
+    if (query.scope === 'admin') {
+      await authenticate(request, reply);
+      if (reply.sent) return;
+
+      if (query.status) {
+        where.publishStatus = query.status;
+      }
+    } else {
+      where.publishStatus = 'published';
+    }
 
     const projects = await prisma.project.findMany({
       where,
@@ -137,14 +160,31 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Get project by ID
   fastify.get('/:id', async (request, reply) => {
-    const { id } = z.object({ id: z.coerce.number().int() }).parse(request.params);
+    const { id } = idParamsSchema.parse(request.params);
+    const query = projectGetQuerySchema.parse(request.query ?? {});
+
+    if (query.scope === 'admin') {
+      await authenticate(request, reply);
+      if (reply.sent) return;
+
+      const project = await prisma.project.findUnique({
+        where: { id },
+        include: includeProjectRelations(),
+      });
+
+      if (!project) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      return serializeProject(project);
+    }
 
     const project = await prisma.project.findUnique({
       where: { id },
       include: includeProjectRelations(),
     });
 
-    if (!project) {
+    if (!project || project.publishStatus !== 'published') {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
@@ -157,8 +197,15 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     { preValidation: [validateBody(projectSchema)], onRequest: [authenticate, requirePermission('manageProjects')] },
     async (request, reply) => {
       const body = projectSchema.parse(request.body ?? {});
+      const publishStatus = body.publishStatus ?? 'draft';
+      const publishedAt = publishStatus === 'published' ? new Date() : null;
+
       const created = await prisma.project.create({
-        data: toCreateData(body),
+        data: {
+          ...toCreateData(body),
+          publishStatus,
+          publishedAt,
+        },
         include: includeProjectRelations(),
       });
 
@@ -170,13 +217,60 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put(
     '/:id',
     { preValidation: [validateBody(projectSchema)], onRequest: [authenticate, requirePermission('manageProjects')] },
-    async (request) => {
-      const { id } = z.object({ id: z.coerce.number().int() }).parse(request.params);
+    async (request, reply) => {
+      const { id } = idParamsSchema.parse(request.params);
       const body = projectSchema.parse(request.body ?? {});
+
+      const existing = await prisma.project.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      const updateData: Record<string, unknown> = {
+        ...toCreateData(body),
+      };
+
+      if (body.publishStatus !== undefined) {
+        updateData.publishStatus = body.publishStatus;
+        if (body.publishStatus === 'published' && !existing.publishedAt) {
+          updateData.publishedAt = new Date();
+        }
+      }
 
       const updated = await prisma.project.update({
         where: { id },
-        data: toCreateData(body),
+        data: updateData,
+        include: includeProjectRelations(),
+      });
+
+      return serializeProject(updated);
+    }
+  );
+
+  // Update publish status (Admin)
+  fastify.patch(
+    '/:id/publish',
+    { preValidation: [validateBody(publishBodySchema)], onRequest: [authenticate, requirePermission('manageProjects')] },
+    async (request, reply) => {
+      const { id } = idParamsSchema.parse(request.params);
+      const body = publishBodySchema.parse(request.body ?? {});
+
+      const existing = await prisma.project.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      const updateData: { publishStatus: PublishStatus; publishedAt?: Date } = {
+        publishStatus: body.publishStatus,
+      };
+
+      if (body.publishStatus === 'published' && !existing.publishedAt) {
+        updateData.publishedAt = new Date();
+      }
+
+      const updated = await prisma.project.update({
+        where: { id },
+        data: updateData,
         include: includeProjectRelations(),
       });
 

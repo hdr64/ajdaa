@@ -2,6 +2,7 @@ export type PropertyType = 'logistics' | 'commercial' | 'office' | 'residential'
 export type PriceType = 'بيع' | 'إيجار' | 'استثمار';
 export type InterestType = 'rent' | 'buy' | 'invest' | 'general';
 export type UnitStatus = 'available' | 'reserved' | 'rented' | 'sold';
+export type PublishStatus = 'draft' | 'published' | 'hidden';
 
 export interface PropertyUnit {
   id: string;
@@ -47,6 +48,8 @@ export interface Property {
   priceTypeEn?: string;
   status?: string;
   statusEn?: string;
+  publishStatus?: PublishStatus;
+  publishedAt?: string;
   area: number;
   rooms?: number;
   bathrooms?: number;

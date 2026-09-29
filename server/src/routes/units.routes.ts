@@ -6,6 +6,7 @@ import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { serializeUnit } from '../services/serializers.js';
 import { UNIT_STATUSES, UNIT_STATUS_AR, UNIT_STATUS_EN, type UnitStatus } from '../config/constants.js';
+import { ADMINS_ROOM } from '../sockets/index.js';
 
 const statusParamsSchema = z.object({ id: z.string().min(1) });
 
@@ -41,17 +42,26 @@ type CreateUnitInput = z.infer<typeof createUnitSchema>;
 type UpdateUnitInput = z.infer<typeof updateUnitSchema>;
 
 export const unitRoutes: FastifyPluginAsync = async (fastify) => {
-  // Broadcast live WebSocket event via Socket.io so every open client re-renders.
-  const broadcastStatus = (unit: { id: string; status: string; statusAr: string; statusEn: string | null; floorId: number }) => {
+  // Broadcast live WebSocket event via Socket.io. Published projects broadcast to all,
+  // unpublished projects broadcast only to verified admin sockets.
+  const broadcastStatus = (
+    unit: { id: string; status: string; statusAr: string; statusEn: string | null; floorId: number },
+    isPublished = true
+  ) => {
     const io = fastify.io;
     if (!io) return;
-    io.emit('unit_status_updated', {
+    const payload = {
       unitId: unit.id,
       status: unit.status,
       statusAr: unit.statusAr,
       statusEn: unit.statusEn,
       floorId: unit.floorId,
-    });
+    };
+    if (isPublished) {
+      io.emit('unit_status_updated', payload);
+    } else {
+      io.to(ADMINS_ROOM).emit('unit_status_updated', payload);
+    }
   };
 
   // Update unit status & broadcast live to all clients (Admin)
@@ -62,7 +72,10 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = statusParamsSchema.parse(request.params);
       const { status } = statusBodySchema.parse(request.body) as { status: UnitStatus };
 
-      const existing = await prisma.propertyUnit.findUnique({ where: { id } });
+      const existing = await prisma.propertyUnit.findUnique({
+        where: { id },
+        include: { floor: { select: { project: { select: { publishStatus: true } } } } },
+      });
       if (!existing) {
         return reply.status(404).send({ error: 'Unit not found' });
       }
@@ -76,7 +89,8 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
-      broadcastStatus(updated);
+      const isPublished = existing.floor?.project?.publishStatus === 'published';
+      broadcastStatus(updated, isPublished);
 
       return serializeUnit(updated);
     }
@@ -89,7 +103,10 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = createUnitSchema.parse(request.body ?? {}) as CreateUnitInput;
 
-      const floor = await prisma.propertyFloor.findUnique({ where: { id: body.floorId } });
+      const floor = await prisma.propertyFloor.findUnique({
+        where: { id: body.floorId },
+        include: { project: { select: { publishStatus: true } } },
+      });
       if (!floor) {
         return reply.status(404).send({ error: 'Floor not found' });
       }
@@ -124,7 +141,8 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
-      broadcastStatus(created);
+      const isPublished = floor.project?.publishStatus === 'published';
+      broadcastStatus(created, isPublished);
 
       return reply.status(201).send(serializeUnit(created));
     }
@@ -138,7 +156,10 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = statusParamsSchema.parse(request.params);
       const body = updateUnitSchema.parse(request.body ?? {}) as UpdateUnitInput;
 
-      const existing = await prisma.propertyUnit.findUnique({ where: { id } });
+      const existing = await prisma.propertyUnit.findUnique({
+        where: { id },
+        include: { floor: { select: { project: { select: { publishStatus: true } } } } },
+      });
       if (!existing) {
         return reply.status(404).send({ error: 'Unit not found' });
       }
@@ -166,7 +187,8 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       if (status && status !== existing.status) {
-        broadcastStatus(updated);
+        const isPublished = existing.floor?.project?.publishStatus === 'published';
+        broadcastStatus(updated, isPublished);
       }
 
       return serializeUnit(updated);

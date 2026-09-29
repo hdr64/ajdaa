@@ -1,5 +1,5 @@
 import { api, resolveMediaUrl } from './api';
-import type { Property, PropertyFloor, PropertyType, PropertyUnit, UnitStatus } from '../types/property';
+import type { Property, PropertyFloor, PropertyType, PropertyUnit, UnitStatus, PublishStatus } from '../types/property';
 
 const PROPERTY_TYPES: readonly PropertyType[] = ['logistics', 'commercial', 'office', 'residential', 'hotel'];
 const PRICE_TYPES = ['بيع', 'إيجار', 'استثمار'] as const;
@@ -57,6 +57,8 @@ interface ProjectDto {
   priceTypeEn: string | null;
   status: string | null;
   statusEn: string | null;
+  publishStatus?: string;
+  publishedAt?: string | null;
   area: number;
   rooms: number | null;
   bathrooms: number | null;
@@ -86,7 +88,12 @@ export type ProjectFilters = {
   city?: string;
   type?: string;
   priceType?: string;
+  status?: string;
 };
+
+export interface ProjectRequestOptions {
+  scope?: 'admin';
+}
 
 /** Body accepted by POST/PUT /api/projects. Floors are managed by their own routes. */
 export type ProjectPayload = Omit<
@@ -95,6 +102,7 @@ export type ProjectPayload = Omit<
 > & {
   unitsCount?: string | null;
   unitsCountEn?: string | null;
+  publishStatus?: string;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -161,6 +169,8 @@ export function toProperty(dto: ProjectDto): Property {
     priceTypeEn: optional(dto.priceTypeEn),
     status: optional(dto.status),
     statusEn: optional(dto.statusEn),
+    publishStatus: (dto.publishStatus as PublishStatus) ?? undefined,
+    publishedAt: optional(dto.publishedAt),
     area: dto.area,
     rooms: dto.rooms ?? undefined,
     bathrooms: dto.bathrooms ?? undefined,
@@ -192,7 +202,7 @@ export function toProperty(dto: ProjectDto): Property {
 /* -------------------------------------------------------------------------- */
 
 export function toProjectPayload(project: Property): ProjectPayload {
-  return {
+  const payload: ProjectPayload = {
     type: project.type,
     typeAr: project.typeAr,
     typeEn: project.typeEn ?? null,
@@ -227,6 +237,10 @@ export function toProjectPayload(project: Property): ProjectPayload {
     lng: project.lng ?? null,
     brochureUrl: project.brochureUrl ?? null,
   };
+  if (project.publishStatus !== undefined) {
+    payload.publishStatus = project.publishStatus;
+  }
+  return payload;
 }
 
 export interface FloorInput {
@@ -299,13 +313,31 @@ export interface UnitRemovedEvent {
 /* -------------------------------------------------------------------------- */
 
 export const propertyService = {
-  async list(filters: ProjectFilters = {}, signal?: AbortSignal): Promise<Property[]> {
-    const projects = await api.get<ProjectDto[]>('/api/projects', { query: filters, signal });
+  async list(
+    filters: ProjectFilters = {},
+    signal?: AbortSignal,
+    options?: ProjectRequestOptions
+  ): Promise<Property[]> {
+    const query: Record<string, string | number | boolean | undefined | null> = { ...filters };
+    if (options?.scope) {
+      query.scope = options.scope;
+    }
+    const projects = await api.get<ProjectDto[]>('/api/projects', { query, signal });
     return projects.map(toProperty);
   },
 
-  async getById(id: number, signal?: AbortSignal): Promise<Property> {
-    const project = await api.get<ProjectDto>(`/api/projects/${id}`, { signal });
+  async getById(
+    id: number,
+    signal?: AbortSignal,
+    options?: ProjectRequestOptions
+  ): Promise<Property> {
+    const query = options?.scope ? { scope: options.scope } : undefined;
+    const project = await api.get<ProjectDto>(`/api/projects/${id}`, { query, signal });
+    return toProperty(project);
+  },
+
+  async setPublishStatus(id: number, publishStatus: PublishStatus): Promise<Property> {
+    const project = await api.patch<ProjectDto>(`/api/projects/${id}/publish`, { publishStatus });
     return toProperty(project);
   },
 

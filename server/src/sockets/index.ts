@@ -10,19 +10,23 @@ import type { JwtPayload } from '../types/fastify.js';
  * events stay public because the website renders live availability.
  */
 export const INQUIRIES_ROOM = 'inquiries';
+export const ADMINS_ROOM = 'admins';
 
-async function canReceiveInquiries(fastify: FastifyInstance, token: unknown): Promise<boolean> {
-  if (typeof token !== 'string' || token.length === 0) return false;
+async function resolveAuthenticatedAdmin(
+  fastify: FastifyInstance,
+  token: unknown
+): Promise<{ id: string; email: string; role: string; permissions: Record<string, boolean> } | null> {
+  if (typeof token !== 'string' || token.length === 0) return null;
 
   let payload: JwtPayload;
   try {
     payload = fastify.jwt.verify<JwtPayload>(token);
   } catch {
-    return false;
+    return null;
   }
 
   const user = await prisma.adminUser.findUnique({ where: { id: payload.id } });
-  if (!user || user.status !== 'active') return false;
+  if (!user || user.status !== 'active') return null;
 
   let permissions: Record<string, boolean> = {};
   try {
@@ -31,7 +35,7 @@ async function canReceiveInquiries(fastify: FastifyInstance, token: unknown): Pr
     // Malformed permissions grant nothing.
   }
 
-  return hasPermission({ id: user.id, email: user.email, role: user.role, permissions }, 'viewInquiries');
+  return { id: user.id, email: user.email, role: user.role, permissions };
 }
 
 export function attachSockets(fastify: FastifyInstance): SocketIOServer {
@@ -52,11 +56,15 @@ export function attachSockets(fastify: FastifyInstance): SocketIOServer {
       fastify.log.info(`[Socket.io] Client disconnected: ${socket.id}`);
     });
 
-    // Anonymous visitors stay connected for unit updates; only verified admins
-    // are admitted to the PII room.
+    // Anonymous visitors stay connected for public unit updates; only verified admins
+    // are admitted to admin and PII rooms.
     try {
-      if (await canReceiveInquiries(fastify, socket.handshake.auth?.token)) {
-        await socket.join(INQUIRIES_ROOM);
+      const admin = await resolveAuthenticatedAdmin(fastify, socket.handshake.auth?.token);
+      if (admin) {
+        await socket.join(ADMINS_ROOM);
+        if (hasPermission(admin, 'viewInquiries')) {
+          await socket.join(INQUIRIES_ROOM);
+        }
       }
     } catch (err) {
       fastify.log.error({ err }, '[Socket.io] Failed to authorize socket');

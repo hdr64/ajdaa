@@ -136,13 +136,14 @@ site content and must be backed up** (the deploy backup script at
 | GET | `/api/auth/me` | JWT | Current user |
 | GET/POST | `/api/auth/users` | JWT | List / create admin users |
 | PUT/DELETE | `/api/auth/users/:id` | JWT | Update / deactivate (no self-delete, no last `super_admin`) |
-| GET | `/api/projects` | – | Projects `?city=&type=&priceType=` |
-| GET | `/api/projects/:id` | – | Project + floors + units |
-| POST/PUT/DELETE | `/api/projects/:id` | JWT | Admin CRUD |
+| GET | `/api/projects` | – | Published projects `?city=&type=&priceType=`; admin list via `?scope=admin[&status=]` (JWT) |
+| GET | `/api/projects/:id` | – | Published project + floors + units; admin view via `?scope=admin` (JWT) |
+| POST/PUT/DELETE | `/api/projects/:id` | JWT | Admin CRUD (new projects default to draft) |
+| PATCH | `/api/projects/:id/publish` | JWT | Update project publish status (manageProjects) |
 | POST/PUT/DELETE | `/api/projects/:id/floors*` | JWT | Nested floor CRUD; deleting a floor cascades its units |
 | POST/PUT/DELETE | `/api/units*` | JWT | Unit CRUD |
 | PATCH | `/api/units/:id/status` | JWT | Update unit status (Socket.io broadcast) |
-| POST | `/api/inquiries` | – | Public inquiry (Socket.io alert) |
+| POST | `/api/inquiries` | – | Public inquiry against published project (Socket.io alert) |
 | GET | `/api/inquiries` | JWT | CRM list `?status=&projectId=` |
 | GET | `/api/inquiries/export` | JWT | Export inquiries to CSV (BOM, RFC 4180) |
 | PATCH | `/api/inquiries/:id` | JWT | CRM inquiry update (notes, status) |

@@ -39,3 +39,6 @@ export type AdminRole = (typeof ADMIN_ROLES)[number];
 
 export const CATEGORY_TYPES = ['commercial', 'office', 'logistics', 'residential', 'hotel'] as const;
 export type CategoryType = (typeof CATEGORY_TYPES)[number];
+
+export const PUBLISH_STATUSES = ['draft', 'published', 'hidden'] as const;
+export type PublishStatus = (typeof PUBLISH_STATUSES)[number];
