@@ -7,6 +7,7 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import { applyUnitStatus, removeUnit, useRealtimeUnits } from '../../hooks/useRealtimeUnits';
 import { AdminSidebar } from '../../components/admin/layout/AdminSidebar';
 import { AdminPageHeader } from '../../components/admin/layout/AdminPageHeader';
+import { newInquiryMessage, showDesktopNotification } from '../../components/admin/layout/inquiryNotifications';
 import { ConfirmDialog } from '../../components/admin/common/ConfirmDialog';
 import { NoAccess } from '../../components/admin/common/SectionState';
 import {
@@ -157,9 +158,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   useRealtimeUnits({
     onUnitStatus: useCallback((event) => setProjects((current) => applyUnitStatus(current, event)), [setProjects]),
     onUnitRemoved: useCallback((event) => setProjects((current) => removeUnit(current, event)), [setProjects]),
-    onInquiryCreated: useCallback(() => {
-      if (canViewInquiries) void reloadInquiries();
-    }, [canViewInquiries, reloadInquiries]),
+    onInquiryCreated: useCallback(
+      (payload: unknown) => {
+        if (!canViewInquiries) return;
+        void reloadInquiries();
+        showToast(newInquiryMessage(payload));
+        showDesktopNotification(payload, () => navigate({ section: 'inquiries' }));
+      },
+      [canViewInquiries, reloadInquiries, showToast, navigate]
+    ),
     onConnectionChange: useCallback((connected) => setRealtimeConnected(connected), []),
   });
 

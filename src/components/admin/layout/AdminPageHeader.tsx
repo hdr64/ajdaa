@@ -1,6 +1,7 @@
 import React from 'react';
 import { Menu, RefreshCw } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { NotificationsBell } from './NotificationsBell';
 
 interface AdminPageHeaderProps {
   title: string;
@@ -57,6 +58,8 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitl
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
         </button>
+
+        <NotificationsBell />
 
         {/* Section-owned primary actions are portalled here. */}
         <div ref={actionsSlotRef} className="flex items-center gap-2" />
