@@ -458,6 +458,13 @@ receive no CORS header; in development the loopback origins still work.
 #### Phase 8f: Gap review — what a standard modern admin has that this one lacks (2026-09-29)
 See the list under "Admin gap review" at the end of this file.
 
+#### Phase 8g: Email + OTP (requested 2026-09-30, in progress)
+- [ ] Mail service (Gmail SMTP via MAIL_* env; secrets only in server/.env, never in git), Arabic RTL templates
+- [ ] Email OTP: login verification (per-admin toggle, or LOGIN_OTP_REQUIRED for all), forgot/reset password by 6-digit code (10 min, 5 attempts, resend 60 s, rate-limited)
+- [ ] Notifications: new inquiry → admins with viewInquiries (or NOTIFY_INQUIRY_EMAILS); password changed → that admin
+- [ ] UI: login OTP step, forgot/reset password screens, OTP toggle on the profile page
+- [x] Users page layouts + role-based forms (f99b735); [ ] HR pages roles/departments (in progress)
+
 ### Working rules (from the owner)
 - Every item and note the owner sends is recorded in this file (the TODO / phase lists), not only in chat
 - `README.md` stays clean: setup, architecture and API reference only — no task lists or notes
