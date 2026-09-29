@@ -12,6 +12,9 @@ function getSocket(): Socket {
   return io({
     path: '/socket.io',
     transports: ['websocket', 'polling'],
+    // If a proxy or browser blocks the WebSocket upgrade, fall back to HTTP
+    // long-polling instead of giving up, so live updates keep working.
+    tryAllTransports: true,
     autoConnect: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 8000,
