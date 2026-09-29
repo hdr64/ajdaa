@@ -507,3 +507,66 @@ static JSX with inline Arabic/English strings.
          changes revertible by super_admin only
 5. **Tests**: log written for each write route; revert round-trips per entity; conflict 409;
    no secret leakage in log payloads
+
+## Admin gap review (2026-09-29)
+
+What a standard modern admin panel has that this one does not yet have, grouped and ordered by risk/value.
+Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email sending or error monitoring exist anywhere).
+
+### A. Security & accounts (highest risk)
+- [ ] **Rate limiting** on login and on public forms (`/api/auth/login`, `/api/inquiries`, `/api/newsletter`) — today unlimited password guessing and form spam are possible (`@fastify/rate-limit`)
+- [ ] **Spam protection** on public forms: honeypot field + time-to-submit check, optional CAPTCHA (Turnstile) for the contact/interest/newsletter forms
+- [ ] **Forgot / reset password** by email (none today — a locked-out admin needs a developer)
+- [ ] **Email delivery** (SMTP/transactional provider) — prerequisite for password reset, new-inquiry notifications, 2FA recovery
+- [ ] 2FA, passkeys, session list/revoke, password policy → Phase 8e
+- [ ] Account lockout after repeated failed logins, login history per admin
+- [ ] Audit/activity log → Phase 9
+
+### B. Shell & navigation
+- [ ] Global search / command palette (Ctrl+K): jump to a project, unit, inquiry, user, or page
+- [ ] Notifications center: bell with unread count for new inquiries (realtime event already exists), mark read
+- [ ] Breadcrumbs on nested pages (project → units / edit)
+- [ ] Collapsible sidebar, user menu dropdown (profile, settings, theme, language, logout) → Phase 8d
+- [ ] Admin UI in English too (the public site is bilingual, the admin is Arabic-only)
+- [ ] Keyboard shortcuts (new item, save, search)
+
+### C. Data management
+- [ ] Server-side pagination/search/sort for lists that will grow (inquiries, subscribers) — everything is loaded client-side today
+- [ ] Saved filters / saved views per admin
+- [ ] Import (CSV/Excel) for units and projects; export for every list (projects, units, users), not only inquiries/newsletter
+- [ ] Soft delete + **trash/recycle bin** with restore (today deletes are permanent) — overlaps Phase 9 undo
+- [ ] Duplicate project (copy with floors/units as a new draft)
+- [ ] Display order: drag to reorder projects/categories as they appear on the site
+- [ ] **Media library**: browse and reuse uploads, alt text (AR/EN), usage tracking, delete unused files (uploads are never cleaned up today)
+- [ ] Rich-text editor for project descriptions (headings, lists, links) instead of plain textareas
+- [ ] Version history per project (who changed what, restore) → Phase 9
+
+### D. CRM for inquiries (sales workflow)
+- [ ] Assign an inquiry to a sales agent; "my inquiries" filter
+- [ ] Follow-up reminders / tasks with due dates
+- [ ] Pipeline (kanban) view: new → contacted → negotiating → won / lost (today only new/contacted/closed)
+- [ ] Customer records: group several inquiries from the same phone/email into one customer
+- [ ] Lead source tracking (page, campaign/UTM, referrer) captured with each inquiry
+- [ ] Message templates for WhatsApp/email replies
+- [ ] Email/WhatsApp notification to the sales team on each new inquiry
+
+### E. Dashboard & insights
+- [ ] Date-range filter on the overview (7/30/90 days, custom)
+- [ ] Conversion metrics: inquiries → contacted → closed, response time, per project/agent
+- [ ] Site analytics (visits, top projects) — e.g. Plausible/Umami or GA4, shown in the overview
+- [ ] Scheduled email report (weekly summary)
+
+### F. Operations & reliability
+- [ ] Error monitoring for API and SPA (Sentry or similar) + structured alerting
+- [ ] Backups visible in the admin (last backup time, size) and a documented restore; uploads/ included
+- [ ] System status page (API, database, disk, realtime)
+- [ ] Maintenance mode / announcement banner for the public site
+- [ ] Redirects manager (old URLs → new), 404 log
+
+### G. UX quality details
+- [ ] Toasts: queue several instead of replacing the previous one; success/error variants with icons
+- [ ] Modals: focus trap, restore focus on close, `aria-labelledby` everywhere (partly done)
+- [ ] Skeleton loaders instead of spinners for first paint
+- [ ] Unsaved-changes guard on every form (done for the project editor only)
+- [ ] Consistent empty/error states and form validation messages across pages (mostly done)
+- [ ] Print-friendly views for a project's unit list and for inquiries
