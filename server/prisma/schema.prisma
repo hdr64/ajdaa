@@ -194,3 +194,19 @@ model AppSetting {
   updatedAt   DateTime @updatedAt
   updatedById String?
 }
+
+/// Who is told about an event (e.g. a new inquiry) and how. `config` is JSON
+/// specific to the channel; for `email`: { toInquiryViewers: boolean, emails: string[] }.
+model NotificationListener {
+  id          String   @id @default(cuid())
+  event       String
+  channel     String
+  name        String
+  enabled     Boolean  @default(true)
+  config      String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([event, enabled])
+}

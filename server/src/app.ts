@@ -20,6 +20,7 @@ import { permissionRoutes } from './routes/permissions.routes.js';
 import { roleRoutes } from './routes/roles.routes.js';
 import { departmentRoutes } from './routes/departments.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
+import { notificationRoutes } from './routes/notifications.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({ logger: true, trustProxy: config.trustProxy });
@@ -107,6 +108,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(roleRoutes, { prefix: '/api/roles' });
   await fastify.register(departmentRoutes, { prefix: '/api/departments' });
   await fastify.register(settingsRoutes, { prefix: '/api/settings' });
+  await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
 
   // Health check
   fastify.get('/api/health', async () => {

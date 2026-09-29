@@ -10,7 +10,13 @@ export interface JwtPayload {
   exp?: number;
 }
 
-export type AdminPermission = 'manageProjects' | 'manageUnits' | 'viewInquiries' | 'exportData' | 'manageUsers';
+export type AdminPermission =
+  | 'manageProjects'
+  | 'manageUnits'
+  | 'viewInquiries'
+  | 'exportData'
+  | 'manageUsers'
+  | 'manageNotifications';
 
 /** The admin as currently stored in the database, resolved by `authenticate`. */
 export interface AuthenticatedAdmin {

@@ -575,6 +575,12 @@ Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email
   hours ar/en, social links; public `GET /api/settings/site`, today's hard-coded values as fallback, replaces the
   copies in Navbar/Footer/Contact/Clients/booking) and **Mail** (below). Later tabs: SEO defaults, maintenance mode /
   announcement banner, inquiry notification recipients (NOTIFY_INQUIRY_EMAILS), OTP policy.
+- [ ] **Notification listeners** (owner request 2026-09-30): settings tab "Notifications" to choose what happens when a new
+  interest (inquiry) is created and who is emailed; new permission `manageNotifications` lets a user edit it and create
+  listeners on the `inquiry.created` event. Listener = event + channel (`email` now; WhatsApp/webhook later) + recipients
+  (admins with viewInquiries and/or an email list) + enabled. Until the first listener is created the old behaviour
+  (NOTIFY_INQUIRY_EMAILS, else viewInquiries admins) applies; after that only listeners do.
+- [x] **In-app new-inquiry notifications** (owner request 2026-09-30): toast, header bell with unread count, desktop notification.
 - [x] **Mail settings page** (owner request 2026-09-30): admin page to edit the `MAIL_*` SMTP settings and send a test email.
   Decisions: stored in an `AppSetting` table and overrides `.env` (a "reset to .env" action deletes it); SMTP password
   encrypted at rest (AES-256-GCM, key from `SETTINGS_ENCRYPTION_KEY`, else derived from `JWT_SECRET` — rotating it means

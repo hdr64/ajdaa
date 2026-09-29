@@ -1,9 +1,7 @@
 import { config } from '../config/env.js';
-import { prisma } from './prisma.js';
 import { mailBrandName, sendMail } from './mailService.js';
 import { newInquiryEmail, passwordChangedEmail } from './mailTemplates.js';
-import { hasPermission } from '../middleware/auth.js';
-import { parsePermissions } from '../config/permissions.js';
+import { activeInquiryViewerEmails, emailRecipientsFor } from './notificationListeners.js';
 
 /**
  * Outbound admin notifications.
@@ -31,28 +29,15 @@ interface InquiryMailInput {
 }
 
 /**
- * Recipients are the active admins who can actually see the inquiry, because the
- * body carries customer PII — unless `NOTIFY_INQUIRY_EMAILS` names an explicit
- * allowlist, in which case only those addresses are used.
+ * Configured listeners decide the recipients. Before any listener exists, the
+ * original rule applies: the `NOTIFY_INQUIRY_EMAILS` allowlist if set, else
+ * every active admin who can see the inquiry (the body carries customer PII).
  */
 async function inquiryRecipients(): Promise<string[]> {
-  if (config.notifyInquiryEmails.length > 0) {
-    return config.notifyInquiryEmails;
-  }
-
-  const admins = await prisma.adminUser.findMany({
-    where: { status: 'active' },
-    select: { email: true, role: true, permissions: true },
-  });
-
-  return admins
-    .filter((admin) =>
-      hasPermission(
-        { id: '', email: admin.email, role: admin.role, permissions: parsePermissions(admin.permissions) },
-        'viewInquiries'
-      )
-    )
-    .map((admin) => admin.email);
+  const configured = await emailRecipientsFor('inquiry.created');
+  if (configured !== null) return configured;
+  if (config.notifyInquiryEmails.length > 0) return config.notifyInquiryEmails;
+  return activeInquiryViewerEmails();
 }
 
 export async function notifyNewInquiry(inquiry: InquiryMailInput): Promise<number> {

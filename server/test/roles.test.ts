@@ -49,11 +49,11 @@ describe('1. Permissions catalogue', () => {
 
     const catalogue = res.json() as PermissionDef[];
     expect(Array.isArray(catalogue)).toBe(true);
-    expect(catalogue.length).toBe(5);
+    expect(catalogue.length).toBe(6);
 
     const keys = catalogue.map((c) => c.key);
     expect(keys).toEqual(
-      expect.arrayContaining(['manageProjects', 'manageUnits', 'viewInquiries', 'exportData', 'manageUsers'])
+      expect.arrayContaining(['manageProjects', 'manageUnits', 'viewInquiries', 'exportData', 'manageUsers', 'manageNotifications'])
     );
 
     for (const item of catalogue) {

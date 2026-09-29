@@ -45,6 +45,13 @@ export const PERMISSION_CATALOGUE: readonly PermissionDef[] = [
     labelEn: 'Manage Users',
     description: 'إدارة المستخدمين وتوزيع الصلاحيات',
   },
+  {
+    key: 'manageNotifications',
+    group: 'settings',
+    labelAr: 'إدارة الإشعارات',
+    labelEn: 'Manage Notifications',
+    description: 'تحديد من يُبلَّغ عند وصول طلب اهتمام جديد وإضافة مستمعين للأحداث',
+  },
 ] as const;
 
 export const PERMISSION_KEYS = [
@@ -53,6 +60,7 @@ export const PERMISSION_KEYS = [
   'viewInquiries',
   'exportData',
   'manageUsers',
+  'manageNotifications',
 ] as const;
 
 export const permissionKeySchema = z.enum(PERMISSION_KEYS);
