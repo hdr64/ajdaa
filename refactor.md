@@ -570,12 +570,12 @@ Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email
 - [ ] System status page (API, database, disk, realtime)
 - [ ] Maintenance mode / announcement banner for the public site
 - [ ] Redirects manager (old URLs → new), 404 log
-- [ ] **Settings page** `/admin/settings` (owner request 2026-09-30: "admin dashboard settings where admin can edit the
+- [x] **Settings page** `/admin/settings` (owner request 2026-09-30: "admin dashboard settings where admin can edit the
   whole website settings", not just mail). Tabs: **Contact info** (phone, WhatsApp, email, address ar/en, working
   hours ar/en, social links; public `GET /api/settings/site`, today's hard-coded values as fallback, replaces the
   copies in Navbar/Footer/Contact/Clients/booking) and **Mail** (below). Later tabs: SEO defaults, maintenance mode /
   announcement banner, inquiry notification recipients (NOTIFY_INQUIRY_EMAILS), OTP policy.
-- [ ] **Notification listeners** (owner request 2026-09-30): settings tab "Notifications" to choose what happens when a new
+- [x] **Notification listeners** (owner request 2026-09-30): settings tab "Notifications" to choose what happens when a new
   interest (inquiry) is created and who is emailed; new permission `manageNotifications` lets a user edit it and create
   listeners on the `inquiry.created` event. Listener = event + channel (`email` now; WhatsApp/webhook later) + recipients
   (admins with viewInquiries and/or an email list) + enabled. Until the first listener is created the old behaviour
