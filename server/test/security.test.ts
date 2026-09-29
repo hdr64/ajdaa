@@ -127,7 +127,7 @@ describe('Security & Account Protection', () => {
       expect(saved).toBeNull();
     });
 
-    it('silently drops too-fast submissions (< 2s after startedAt)', async () => {
+    it('silently drops too-fast submissions (elapsedMs < 2000)', async () => {
       const fastInquiryEmail = 'too.fast.inquiry@spam.test';
       const fastNewsletterEmail = 'too.fast.news@spam.test';
 
@@ -139,7 +139,7 @@ describe('Security & Account Protection', () => {
           email: fastInquiryEmail,
           interestType: 'general',
           message: 'Speedy submission',
-          startedAt: Date.now(),
+          elapsedMs: 150,
         },
       });
 
@@ -154,7 +154,7 @@ describe('Security & Account Protection', () => {
         url: '/api/newsletter',
         payload: {
           email: fastNewsletterEmail,
-          startedAt: Date.now(),
+          elapsedMs: 150,
         },
       });
 
@@ -165,6 +165,18 @@ describe('Security & Account Protection', () => {
         where: { email: fastNewsletterEmail },
       });
       expect(savedNews).toBeNull();
+    });
+
+    it('keeps a submission filled at human speed', async () => {
+      const email = 'human.pace@example.com';
+      const res = await inject({
+        method: 'POST',
+        url: '/api/inquiries',
+        payload: { name: 'Real Visitor', email, interestType: 'general', elapsedMs: 8000 },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(await prisma.customerInquiry.findFirst({ where: { email } })).not.toBeNull();
     });
   });
 

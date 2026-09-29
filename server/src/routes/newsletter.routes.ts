@@ -11,7 +11,8 @@ const subscribeSchema = z.object({
   locale: z.enum(['ar', 'en']).nullish(),
   source: z.string().trim().max(40).nullish(),
   website: z.string().nullish(),
-  startedAt: z.coerce.number().nullish(),
+  // Milliseconds the form was open, measured by the browser (no clock-skew issue).
+  elapsedMs: z.coerce.number().nullish(),
 });
 
 const listQuerySchema = z.object({
@@ -46,7 +47,7 @@ export const newsletterRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Spam protection (honeypot or too-fast submission < 2s)
       const isHoneypot = Boolean(body.website && body.website.trim().length > 0);
-      const isTooFast = body.startedAt != null && Date.now() - body.startedAt < 2000;
+      const isTooFast = body.elapsedMs != null && body.elapsedMs < 2000;
 
       if (isHoneypot || isTooFast) {
         return reply.status(200).send({ subscribed: true });

@@ -35,6 +35,10 @@ export interface InquiryInput {
   unitNumber?: string | null;
   interestType: InterestType;
   message?: string | null;
+  /** Honeypot field; must stay empty for real visitors. */
+  website?: string;
+  /** How long the form was open, in milliseconds. */
+  elapsedMs?: number;
 }
 
 export type InquiryFilters = {
@@ -81,6 +85,8 @@ function toPayload(input: InquiryInput) {
     unitNumber: input.unitNumber ?? null,
     interestType: input.interestType,
     message: input.message?.trim() || null,
+    website: input.website || null,
+    elapsedMs: input.elapsedMs ?? null,
   };
 }
 

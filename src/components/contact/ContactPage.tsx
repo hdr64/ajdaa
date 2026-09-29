@@ -170,6 +170,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
         email: form.email.trim() || undefined,
         interestType: SUBJECT_INTEREST[form.subject] ?? 'general',
         message: `[${form.subject}] ${form.message.trim()}`,
+        website,
+        elapsedMs: Date.now() - startedAt,
       });
       setSent(true);
       onSuccessToast?.(isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully');

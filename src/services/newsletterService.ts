@@ -17,10 +17,13 @@ export const newsletterService = {
   async subscribe(
     email: string,
     locale?: string | null,
-    source?: string | null
+    source?: string | null,
+    spam: { website?: string; elapsedMs?: number } = {}
   ): Promise<SubscribeResponse> {
     return api.post<SubscribeResponse>('/api/newsletter', {
       email,
+      website: spam.website || null,
+      elapsedMs: spam.elapsedMs ?? null,
       ...(locale ? { locale } : {}),
       ...(source ? { source } : {}),
     });

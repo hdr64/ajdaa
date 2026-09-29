@@ -73,7 +73,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
     }
     setSubscribing(true);
     try {
-      await newsletterService.subscribe(email, language === 'en' ? 'en' : 'ar', 'footer');
+      await newsletterService.subscribe(email, language === 'en' ? 'en' : 'ar', 'footer', {
+        website,
+        elapsedMs: Date.now() - startedAt,
+      });
       onToast(t.footer.newsletterSuccess);
       setNewsletterEmail('');
     } catch (error) {

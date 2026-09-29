@@ -85,6 +85,8 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
         unitNumber: selectedUnit?.unitNumber,
         interestType: formData.interestType,
         message: formData.message.trim() || undefined,
+        website,
+        elapsedMs: Date.now() - startedAt,
       });
 
       setStep(3);
