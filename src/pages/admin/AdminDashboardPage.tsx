@@ -22,6 +22,8 @@ import { ProjectsSection } from './sections/ProjectsSection';
 import { UnitsSection } from './sections/UnitsSection';
 import { InquiriesSection } from './sections/InquiriesSection';
 import { CategoriesSection } from './sections/CategoriesSection';
+import { RolesSection } from './sections/RolesSection';
+import { DepartmentsSection } from './sections/DepartmentsSection';
 import { ProjectShowSection } from './sections/ProjectShowSection';
 import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
@@ -49,6 +51,16 @@ const SECTION_META: Record<AdminSection, { title: string; subtitle: string; perm
   },
   categories: { title: 'التصنيفات والوسوم', subtitle: 'تصنيفات المشاريع والوسوم المعتمدة' },
   users: { title: 'المستخدمون والصلاحيات', subtitle: 'أعضاء الفريق وأذونات الوصول', permission: 'manageUsers' },
+  roles: {
+    title: 'الأدوار والصلاحيات',
+    subtitle: 'أدوار الفريق ومجموعات الصلاحيات الممنوحة لكل دور',
+    permission: 'manageUsers',
+  },
+  departments: {
+    title: 'الأقسام والإدارات',
+    subtitle: 'تنظيم أعضاء الفريق في أقسام العمل',
+    permission: 'manageUsers',
+  },
 };
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -225,6 +237,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <CategoriesSection />;
       case 'users':
         return <UsersPermissionsManager onShowToast={showToast} />;
+      case 'roles':
+        return <RolesSection />;
+      case 'departments':
+        return <DepartmentsSection />;
     }
   };
 

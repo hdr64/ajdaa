@@ -8,6 +8,8 @@ import {
   LogOut,
   ExternalLink,
   ShieldCheck,
+  KeyRound,
+  Building,
   X as CloseIcon,
   Moon,
   Sun,
@@ -51,7 +53,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'الإدارة',
-    items: [{ section: 'users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, permission: 'manageUsers' }],
+    items: [
+      { section: 'users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, permission: 'manageUsers' },
+      { section: 'roles', label: 'الأدوار والصلاحيات', icon: KeyRound, permission: 'manageUsers' },
+      { section: 'departments', label: 'الأقسام والإدارات', icon: Building, permission: 'manageUsers' },
+    ],
   },
 ];
 

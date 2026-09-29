@@ -4,6 +4,7 @@
  * section.
  *
  *   overview | projects | inquiries | categories | users
+ *   roles | departments    HR reference data behind the user accounts
  *   projects/:id            project details   (alias: projects/:id/show)
  *   projects/:id/edit       project editor
  *   projects/:id/units      floors & units    (bare `units` picks the first project)
@@ -17,7 +18,9 @@ export type AdminSection =
   | 'units'
   | 'inquiries'
   | 'categories'
-  | 'users';
+  | 'users'
+  | 'roles'
+  | 'departments';
 
 export interface AdminLocation {
   section: AdminSection;
@@ -25,7 +28,16 @@ export interface AdminLocation {
   projectId?: number;
 }
 
-const SIMPLE_SECTIONS: AdminSection[] = ['overview', 'projects', 'units', 'inquiries', 'categories', 'users'];
+const SIMPLE_SECTIONS: AdminSection[] = [
+  'overview',
+  'projects',
+  'units',
+  'inquiries',
+  'categories',
+  'users',
+  'roles',
+  'departments',
+];
 
 const PROJECT_SUBROUTES: Record<string, AdminSection> = {
   '': 'project',
