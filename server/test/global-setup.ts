@@ -6,7 +6,6 @@ import {
   requireTestEnvironment,
   tempRootFromDatabaseUrl,
   TEMP_DIR_PREFIX,
-  type TestEnvironment,
 } from './env.js';
 
 const SERVER_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));

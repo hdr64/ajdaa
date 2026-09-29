@@ -51,3 +51,9 @@ server/prisma/schema.postgresql.prisma
 /src/src.md
 md/ajda.md
 md
+
+# Local scratch notes / tooling (not part of the app)
+/a.txt
+/g.py
+/image.png
+*.log
