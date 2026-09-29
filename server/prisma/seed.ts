@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 const ADMIN_USERS = [
   {
     email: 'admin@ajdaa.sa',
-    name: 'سلطان المقرن',
+    name: 'admin',
     role: 'super_admin',
     roleAr: 'مدير عام النظام (Super Admin)',
     department: 'الإدارة التنفيذية',
@@ -23,9 +23,9 @@ const ADMIN_USERS = [
       manageUsers: true,
     },
   },
-  {
-    email: 'f.sudairy@ajdaa.sa',
-    name: 'م. فهد السديري',
+    {
+    email: 'dev@ajdaa.sa',
+    name: 'developer',
     role: 'project_manager',
     roleAr: 'مدير التطوير والمشاريع',
     department: 'التطوير الهندسي',
@@ -34,37 +34,10 @@ const ADMIN_USERS = [
       manageUnits: true,
       viewInquiries: true,
       exportData: true,
-      manageUsers: false,
+      manageUsers: true,
     },
   },
-  {
-    email: 'reem.q@ajdaa.sa',
-    name: 'ريم القحطاني',
-    role: 'sales_agent',
-    roleAr: 'مسؤول تأجير ومبيعات',
-    department: 'إدارة الاستثمار والمبيعات',
-    permissions: {
-      manageProjects: false,
-      manageUnits: true,
-      viewInquiries: true,
-      exportData: false,
-      manageUsers: false,
-    },
-  },
-  {
-    email: 'turki.d@ajdaa.sa',
-    name: 'تركي الدوسري',
-    role: 'viewer',
-    roleAr: 'محلل استثماري ومتابع',
-    department: 'التخطيط والتحليل',
-    permissions: {
-      manageProjects: false,
-      manageUnits: false,
-      viewInquiries: true,
-      exportData: true,
-      manageUsers: false,
-    },
-  },
+
 ];
 
 const CATEGORIES = [
