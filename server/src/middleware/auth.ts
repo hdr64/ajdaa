@@ -50,3 +50,10 @@ export function requirePermission(permission: AdminPermission) {
     }
   };
 }
+
+/** Must run after `authenticate`. For settings that no permission flag should unlock. */
+export async function requireSuperAdmin(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | void> {
+  if (request.admin?.role !== 'super_admin') {
+    return reply.status(403).send({ error: 'Forbidden: super admin only' });
+  }
+}

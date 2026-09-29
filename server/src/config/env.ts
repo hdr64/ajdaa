@@ -42,8 +42,12 @@ const envSchema = z.object({
   MAIL_USERNAME: z.string().trim().default(''),
   MAIL_PASSWORD: z.string().default(''),
   MAIL_ENCRYPTION: z.enum(['tls', 'ssl', 'none']).default('tls'),
-  MAIL_FROM_ADDRESS: z.string().trim().email().default(''),
+  // An empty value (`MAIL_FROM_ADDRESS=`) is allowed, like the other MAIL_* keys.
+  MAIL_FROM_ADDRESS: z.string().trim().pipe(z.union([z.literal(''), z.string().email()])).default(''),
   MAIL_FROM_NAME: z.string().trim().default(''),
+  // Key for secrets saved from the admin (the SMTP password). Unset: derived from
+  // JWT_SECRET, so rotating that secret means re-entering the SMTP password.
+  SETTINGS_ENCRYPTION_KEY: z.string().default(''),
 
   // Absolute base used for links inside emails (e.g. the admin inquiries page).
   APP_URL: z
@@ -111,6 +115,7 @@ export const config = {
   port: env.PORT,
   databaseUrl: env.DATABASE_URL,
   jwtSecret: env.JWT_SECRET,
+  settingsEncryptionKey: env.SETTINGS_ENCRYPTION_KEY,
   uploadDir: path.resolve(env.UPLOAD_DIR),
   clientOrigins,
   trustProxy: env.TRUST_PROXY,

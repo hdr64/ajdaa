@@ -186,3 +186,11 @@ model NewsletterSubscriber {
   createdAt DateTime @default(now())
 }
 
+
+/// Admin-editable settings, one JSON document per key (e.g. "mail").
+model AppSetting {
+  key         String   @id
+  value       String
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}

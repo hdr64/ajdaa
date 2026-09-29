@@ -1,6 +1,6 @@
 import { config } from '../config/env.js';
 import { prisma } from './prisma.js';
-import { sendMail } from './mailService.js';
+import { mailBrandName, sendMail } from './mailService.js';
 import { newInquiryEmail, passwordChangedEmail } from './mailTemplates.js';
 import { hasPermission } from '../middleware/auth.js';
 import { parsePermissions } from '../config/permissions.js';
@@ -60,7 +60,7 @@ export async function notifyNewInquiry(inquiry: InquiryMailInput): Promise<numbe
   if (recipients.length === 0) return 0;
 
   const content = newInquiryEmail({
-    brandName: config.mail.fromName,
+    brandName: await mailBrandName(),
     inquiry,
     dashboardUrl: inquiryDashboardUrl(),
   });
@@ -75,7 +75,7 @@ export async function notifyPasswordChanged(input: {
   via: 'self_service' | 'reset';
 }): Promise<void> {
   const content = passwordChangedEmail({
-    brandName: config.mail.fromName,
+    brandName: await mailBrandName(),
     name: input.name,
     via: input.via,
   });

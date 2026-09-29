@@ -6,7 +6,7 @@ import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { config } from '../config/env.js';
 import { loginFailureTracker } from '../services/loginFailureService.js';
-import { sendMail } from '../services/mailService.js';
+import { mailBrandName, sendMail } from '../services/mailService.js';
 import { loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
 import { notifyPasswordChanged } from '../services/notificationService.js';
 import {
@@ -133,7 +133,7 @@ function emailHint(email: string): string {
 
 async function sendLoginOtpMail(user: OtpUser, code: string): Promise<void> {
   const content = loginOtpEmail({
-    brandName: config.mail.fromName,
+    brandName: await mailBrandName(),
     name: user.name,
     code,
     expiresInMinutes: ttlMinutes(),
@@ -143,7 +143,7 @@ async function sendLoginOtpMail(user: OtpUser, code: string): Promise<void> {
 
 async function sendPasswordResetMail(user: OtpUser, code: string): Promise<void> {
   const content = passwordResetEmail({
-    brandName: config.mail.fromName,
+    brandName: await mailBrandName(),
     name: user.name,
     code,
     expiresInMinutes: ttlMinutes(),

@@ -13,7 +13,7 @@
  * can name the template in a log line without copying any user-supplied text.
  */
 
-export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'password-changed';
+export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'password-changed' | 'test';
 
 export interface MailContent {
   kind: MailKind;
@@ -288,6 +288,33 @@ export function passwordChangedEmail(options: {
       '',
       'إذا لم تقم بتغيير كلمة المرور هذه، فعّلها الآن عبر "نسيت كلمة المرور" وتواصل مع مدير النظام فوراً.',
       'لأسباب أمنية، تم إنهاء الجلسات المفتوحة على الأجهزة الأخرى.',
+    ].join('\n'),
+  };
+}
+
+/** Sent from the admin mail settings page to prove the SMTP settings work. */
+export function testEmail(options: { brandName: string; host: string }): MailContent {
+  const { brandName, host } = options;
+
+  return {
+    kind: 'test',
+    subject: `${brandName} — رسالة تجريبية / Test email`,
+    html: shell({
+      brandName,
+      heading: 'رسالة تجريبية',
+      intro: 'وصلت هذه الرسالة، إذن إعدادات البريد تعمل. This message arrived, so the mail settings work.',
+      bodyHtml: `<p style="margin:0;color:${COLORS.muted};font-size:14px;line-height:1.9;">
+                   خادم SMTP: <span dir="ltr" style="font-family:monospace;color:${COLORS.ink};">${escapeHtml(host)}</span>
+                 </p>`,
+      footnote: 'أُرسلت من صفحة إعدادات البريد في لوحة التحكم.',
+    }),
+    text: [
+      `${brandName} — رسالة تجريبية / Test email`,
+      '',
+      'وصلت هذه الرسالة، إذن إعدادات البريد تعمل.',
+      'This message arrived, so the mail settings work.',
+      '',
+      `SMTP: ${host}`,
     ].join('\n'),
   };
 }
