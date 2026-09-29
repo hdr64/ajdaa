@@ -1,33 +1,33 @@
-# Resume note for the next agent (written 2026-09-29, session ran out of budget)
+# Resume note (updated 2026-09-30) — read this first
 
-Branch: `feat/backend-admin` (pushed). Plan + every owner request: `refactor.md` (Phase 8 → 9, "Admin gap review" at the end). `README.md` = setup/API only — keep it clean.
+Branch `feat/backend-admin` (pushed, last code commit `d443ddb`). Not merged to `main` — owner merges when ready.
+Plan and every owner request: `refactor.md` (Phases 8–9, "Admin gap review" at the end). `README.md` = setup/API only.
 
 ## Owner working rules (also in auto-memory)
-- Record every request/note in `refactor.md`; tick `[x]` when shipped.
-- Don't pause between items; delegate in parallel to **agy** (agy-delegate skill, `--dangerously-skip-permissions` approved) and **Big Pickle** (opencode-delegate, `--model opencode/big-pickle`), file-disjoint briefs; review every diff, re-run gates, verify in a browser, then commit.
-- Consultant tone, no filler.
+- Record every request/note in `refactor.md`; tick `[x]` when shipped. Keep README clean.
+- Don't pause between items; delegate in parallel, review every diff, run gates, commit + push.
+- Save tokens: prefer delegating implementation.
 
-## State at handoff
-Last commit: `d028a9e` (sidebar). All committed work is verified (tsc, oxlint, server vitest, Playwright screenshots).
+## Delegation setup
+- **Big Pickle**: opencode-delegate skill, `--model opencode/big-pickle`. Two sessions can run at once on disjoint files.
+- **agy**: the relay's `agy` on the Git Bash PATH is **1.2.12** and its login keeps expiring (headless OAuth opens Chrome and times out). The owner's terminal has **1.2.13**, signed in. Until fixed (`which -a agy`), write the task to `agy-task.md` in the repo root, the owner runs it in their terminal, and agy writes its report to `agy-response.md`; then review + commit and delete both files.
+- **Recommended next**: one **git worktree per agent task** (own folder + own branch, e.g. `../ajda-otp-ui` on `feat/otp-ui`), agents commit there; the orchestrator reviews and merges each branch into `feat/backend-admin` one at a time with the full test suite after each merge.
 
-### COMMITTED FOR A DEMO DEPLOY, STILL NEEDS REVIEW (b91fbe8, 9729fb6)
-> Status at handoff: agy and Big Pickle both **finished**. Gates on the combined working tree are green (server tsc 0, vitest 11 files / 77 tests, root tsc 0). Remaining job: **review the diffs** (agy report: task output of the roles relay; `git diff` + new files) and **browser-check** the inquiries page, Owner committed/pushed them on 2026-09-29 to demo progress; do the review now and fix forward.
-1. **agy: roles / departments / permissions backend (Phase 8b)** — brief: see "brief-roles" design in refactor.md Phase 8b. Files: `server/prisma/schema.prisma`, `seed.ts`, `server/src/app.ts`, `routes/auth.routes.ts`, new `routes/{roles,departments,permissions}.routes.ts`, `config/permissions.ts`, migration `20260929210000_roles_departments`, `test/roles.test.ts`, `src/types/admin.ts`, `src/services/authService.ts` (+ probably `rolesService.ts`, `adminStorage.ts`).
-   - May be half-done. Check `git status`, then run: `cd server && npx tsc --noEmit && npx vitest run` and root `npx tsc -b --noEmit`.
-   - Review hard: escalation guards must still key off `role === 'super_admin'`; migration must NOT change any user's `permissions`; system role ids `role_super_admin` etc.; `applyToUsers` in one transaction. Existing authz/escalation tests must pass unchanged.
-2. **Big Pickle: Inquiries page on DataTable** — `src/pages/admin/sections/InquiriesSection.tsx` only (table view via `DataTable`, list view = cards, ViewSwitcher in header, bulk status/delete/export-selected). Review + gates + browser check before committing.
-3. **Known bug to fix right after agy is done** (same file agy may edit): `src/services/adminStorage.ts` admin helpers `addFloorToProject`, `deleteFloorFromProject`, `addUnitToProject`, `updateUnitInProject`, `deleteUnitFromProject` reload with public `propertyService.getById(projectId)`, which returns **404 for draft/hidden projects** → floor/unit edits on drafts will look like failures. Change those calls to `propertyService.getById(projectId, undefined, { scope: 'admin' })`.
+## Environments
+- Local: `npm run dev:all`. After pulling schema changes: `cd server && npx prisma generate && npm run db:push && npm run db:seed` (seed is safe to re-run; it keeps projects). `npm run db:gen:prod` swaps the Prisma client to Postgres — run `npx prisma generate` afterwards for local dev/tests.
+- Tests: `cd server && npx vitest run` (temp SQLite, `SEED_TEST_FIXTURES=1` adds the 4 fixture admins). If `prisma generate` fails with EPERM, the owner's dev API holds the DLL — stop it first. Last full run: 13 files / 99 tests green.
+- Review copy `D:\projects\html\ajda-review` (git worktree, own node_modules, `.env` DATABASE_URL absolute → `review.db`, API :4100 / Vite :5190) for Playwright checks (`playwright-core` + `channel: 'msedge'`). Verify the resolved DB path before any seed. Can be removed with `git worktree remove ../ajda-review --force` when no longer needed.
+- Production (VPS `/srv/ajda/app`, Caddy + Cloudflare, systemd `ajda-api`): deploy = `git pull` → `cd server && npm ci && npm run db:gen:prod && npm run db:migrate && npm run build` → restart `ajda-api` → root `npm ci && npm run build`. `.env` needs `TRUST_PROXY=true`, `APP_URL`, `MAIL_*` (Gmail app password — owner should rotate it, it was shared in chat). WebSockets verified working (101) through Cloudflare.
 
-### Owner's local environment
-- Dev DB needs the new tables/columns: `cd server && npm run db:push` (newsletter, publishStatus, roles once merged). Start both servers: `npm run dev:all`.
-- **Never** point destructive seeds at `server/prisma/dev.db` by accident. The review copy `D:\projects\html\ajda-review` (git worktree, own `node_modules`, `.env` DATABASE_URL absolute `review.db`) runs API :4100 / Vite :5190 for Playwright checks. Verify the resolved DB path before any seed/reset. (An earlier session wiped dev.db this way; it was restored.)
-- Playwright: `playwright-core` in the session scratchpad, `chromium.launch({ channel: 'msedge' })`.
+## Unreviewed-in-browser (gates green, committed)
+- Users page (`f99b735`), HR roles/departments pages (`25e9d7e`), Inquiries DataTable (`b91fbe8`): do a Playwright pass.
 
-## Next queue (in order, owner-approved)
-1. Finish/commit items 1–3 above.
-2. Phase 8b UI: users page layouts (table/grid/stack via DataTable + ViewSwitcher), user create/edit forms, roles/permissions/departments HR pages (on agy's API), confirm dialogs with "don't ask again" (per admin, server-side prefs).
-3. Wire DataTable + ViewSwitcher into projects, categories, users, newsletter (new admin page for `/api/newsletter`).
-4. Phase 8e: profile page, change password, user settings, system settings, 2FA TOTP, passkeys (new deps need approval), sessions.
-5. Phase 8c remainder: 3D model upload, image editor + format choice, SEO (decide server-side meta injection first), drafts for other forms.
-6. Gap review items: rate limiting + spam protection + password reset/email are the highest-risk gaps.
-7. Phase 7 deploy (needs owner/VPS) and Phase 9 CMS + activity log with undo.
+## Next queue
+1. **OTP / password UI** (API done in `d443ddb`): login OTP step (`AdminStorage.startLogin` → `verifyLoginOtp` / `resendLoginOtp`), "forgot password" + reset-by-code screens on the admin login, OTP toggle + change password on a new **profile page** `/admin/profile` (`authService.updateProfile`, `changePassword`, `setLoginOtp`).
+2. Small follow-up: `src/services/inquiryService.ts` (`InquiryInput`/`toPayload`) and `newsletterService.subscribe` must forward `website` + `startedAt` so the server-side spam check sees them (the forms already send them to the service).
+3. Newsletter subscribers admin page (API `/api/newsletter` done).
+4. DataTable + ViewSwitcher on projects and categories; "don't ask again" confirm preferences stored per admin (server-side).
+5. Phase 8c: 3D model upload, image editor + format choice, SEO (decide server-side meta injection first), drafts for other forms.
+6. Remaining gap-review items (error monitoring, backups visibility, media library, CRM features), Phase 9 CMS + activity log with undo.
+
+Local uncommitted files that belong to the owner (do not commit without asking): `deploy/Caddyfile`, root `package.json`/`package-lock.json` (wrangler bump).
