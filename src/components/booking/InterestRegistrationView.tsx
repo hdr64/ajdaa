@@ -9,7 +9,7 @@ import { useLanguage } from '../../hooks/useLanguage';
 
 interface InterestRegistrationViewProps {
   selectedProperty: Property | null;
-  onSelectProperty: (property: Property) => void;
+  onSelectProperty: (property: Property | null) => void;
   onSuccessToast: (msg: string) => void;
   initialUnit?: PropertyUnit | null;
 }
@@ -30,9 +30,14 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
     []
   );
 
-  const [step, setStep] = useState<number>(selectedProperty ? 2 : 1);
+  const [step, setStep] = useState<number>(2);
   const [filter, setFilter] = useState<string>('all');
-  const [selectedUnit] = useState<PropertyUnit | null>(initialUnit || null);
+  const [initialUnitState] = useState<PropertyUnit | null>(initialUnit || null);
+  const [unitProjectId] = useState<number | undefined>(selectedProperty?.id);
+  // The unit only applies while its own project is selected; after "Remove" or
+  // "Change" it must not be submitted against a different (or no) project.
+  const selectedUnit =
+    initialUnitState && selectedProperty && selectedProperty.id === unitProjectId ? initialUnitState : null;
 
   const [formData, setFormData] = useState({
     name: '',
@@ -80,12 +85,12 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
 
   const steps = isAr
     ? [
-        { num: 1, label: 'اختيار المشروع' },
+        { num: 1, label: 'اختيار المشروع (اختياري)' },
         { num: 2, label: 'تسجيل الاهتمام' },
         { num: 3, label: 'تأكيد التسجيل' },
       ]
     : [
-        { num: 1, label: 'Select Project' },
+        { num: 1, label: 'Select Project (Optional)' },
         { num: 2, label: 'Express Interest' },
         { num: 3, label: 'Confirmation' },
       ];
@@ -96,12 +101,16 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
         { key: 'commercial', label: 'مراكز ومحلات تجارية' },
         { key: 'office', label: 'مكاتب ومراكز أعمال' },
         { key: 'logistics', label: 'مستودعات لوجستية' },
+        { key: 'residential', label: 'سكني' },
+        { key: 'hotel', label: 'فنادق' },
       ]
     : [
         { key: 'all', label: 'All Projects' },
         { key: 'commercial', label: 'Commercial & Retail' },
         { key: 'office', label: 'Offices & Business Hubs' },
         { key: 'logistics', label: 'Logistics Warehouses' },
+        { key: 'residential', label: 'Residential' },
+        { key: 'hotel', label: 'Hotels' },
       ];
 
   return (
@@ -224,39 +233,81 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
               </div>
             ))}
           </div>
+
+          <div className="flex flex-col items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="brand-btn-secondary text-xs font-bold px-6 py-3 rounded-xl cursor-pointer"
+            >
+              {isAr ? 'تخطي' : 'Skip'}
+            </button>
+            <p className="text-[11px] text-neutral-text/55 text-center">
+              {isAr
+                ? 'يمكنك إرسال طلبك دون تحديد مشروع.'
+                : 'You can submit your inquiry without choosing a project.'}
+            </p>
+          </div>
         </div>
       )}
 
       {/* Step 2: Register Interest Form */}
-      {step === 2 && selectedProperty && (
+      {step === 2 && (
         <div className="max-w-2xl mx-auto rounded-3xl bg-surface/90 border border-muted-border/40 p-6 sm:p-10 shadow-sm">
           {/* Selected Project Pill */}
-          <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-canvas/70 border border-muted-border/40 mb-6">
-            <div className="flex items-center gap-3">
-              <img
-                src={selectedProperty.image}
-                alt=""
-                className="w-14 h-14 rounded-xl object-cover"
-              />
-              <div>
-                <span className="text-[10px] font-bold text-accent block">{selectedProperty.typeAr}</span>
-                <h4 className="text-sm font-black text-heading">{selectedProperty.title}</h4>
-                <div className="flex items-center gap-2 text-[11px] text-neutral-text/60 mt-0.5">
-                  <MapPin className="w-3 h-3 text-accent" />
-                  <span>{selectedProperty.city}</span>
-                  {selectedUnit && (
-                    <span className="font-bold text-accent">({selectedUnit.unitNumber})</span>
-                  )}
+          {selectedProperty ? (
+            <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-canvas/70 border border-muted-border/40 mb-6">
+              <div className="flex items-center gap-3">
+                <img
+                  src={selectedProperty.image}
+                  alt=""
+                  className="w-14 h-14 rounded-xl object-cover"
+                />
+                <div>
+                  <span className="text-[10px] font-bold text-accent block">{selectedProperty.typeAr}</span>
+                  <h4 className="text-sm font-black text-heading">{selectedProperty.title}</h4>
+                  <div className="flex items-center gap-2 text-[11px] text-neutral-text/60 mt-0.5">
+                    <MapPin className="w-3 h-3 text-accent" />
+                    <span>{selectedProperty.city}</span>
+                    {selectedUnit && (
+                      <span className="font-bold text-accent">({selectedUnit.unitNumber})</span>
+                    )}
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectProperty(null);
+                  }}
+                  className="text-xs text-neutral-text/60 font-bold hover:text-red-400 hover:underline cursor-pointer"
+                >
+                  {isAr ? 'إزالة' : 'Remove'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-xs text-accent font-bold hover:underline cursor-pointer"
+                >
+                  {isAr ? 'تغيير' : 'Change'}
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => setStep(1)}
-              className="text-xs text-accent font-bold hover:underline cursor-pointer shrink-0"
-            >
-              {isAr ? 'تغيير' : 'Change'}
-            </button>
-          </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-canvas/70 border border-dashed border-muted-border/50 mb-6">
+              <span className="text-xs text-neutral-text/65 font-bold">
+                {isAr ? 'لم تحدد مشروعاً (اختياري)' : 'No project selected (optional)'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-xs text-accent font-bold hover:underline cursor-pointer"
+              >
+                {isAr ? 'اختيار مشروع' : 'Choose a project'}
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name */}
@@ -357,7 +408,7 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
                 onClick={() => setStep(1)}
                 className="brand-btn-secondary text-xs font-bold px-5 py-3 rounded-xl cursor-pointer"
               >
-                {isAr ? 'رجوع' : 'Back'}
+                {isAr ? 'اختيار مشروع' : 'Choose a Project'}
               </button>
 
               <button
@@ -386,14 +437,18 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
 
           <p className="text-xs sm:text-sm text-neutral-text/70 leading-relaxed max-w-md mx-auto mb-8">
             {isAr
-              ? `شكراً لتواصلك مع أجدا العقارية بخصوص ${selectedProperty?.title || 'المشروع'}. تم استلام طلبك وسيتواصل معك مستشار التطوير العقاري في أقرب وقت.`
-              : `Thank you for your interest in ${selectedProperty?.title || 'the project'}. Our development team will review your inquiry and contact you shortly.`}
+              ? selectedProperty
+                ? `شكراً لتواصلك مع أجدا العقارية بخصوص ${selectedProperty.title}. تم استلام طلبك وسيتواصل معك مستشار التطوير العقاري في أقرب وقت.`
+                : 'شكراً لتواصلك مع أجدا العقارية. تم استلام طلبك وسيتواصل معك مستشار التطوير العقاري في أقرب وقت.'
+              : selectedProperty
+                ? `Thank you for your interest in ${selectedProperty.title}. Our development team will review your inquiry and contact you shortly.`
+                : 'Thank you for your interest. Our team will review your inquiry and contact you shortly.'}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={() => {
-                setStep(1);
+                setStep(2);
                 setFormData({ name: '', phone: '', email: '', interestType: 'rent', message: '' });
               }}
               className="w-full sm:w-auto brand-btn-secondary font-bold text-xs px-6 py-3 rounded-xl cursor-pointer"
