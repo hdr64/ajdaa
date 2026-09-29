@@ -357,3 +357,63 @@ Found while writing the deploy config, both in `server/src/config/env.ts`:
 Verified by running the API in both modes: in production both configured origins
 receive `Access-Control-Allow-Origin` while `localhost:5173` and an unknown origin
 receive no CORS header; in development the loopback origins still work.
+
+### Phase 8: Admin dashboard overhaul (in progress)
+- [x] Edit existing projects (ProjectEditorModal; any YouTube link form normalized)
+- [x] Sidebar shows the signed-in admin; unique generated unit ids
+- [ ] Admin URLs: `/admin/overview`, `/admin/projects`, `/admin/projects/:id/units`, `/admin/inquiries`, `/admin/categories`, `/admin/users`
+- [ ] Fixed-height header on every page (was collapsing to 39px on long pages); per-page header actions instead of a global "new project"
+- [ ] Split `AdminDashboardPage.tsx` (~1550 lines) into a layout + one file per section
+- [ ] Permission-aware UI (hide tabs/actions the admin cannot use; one failing resource must not blank the whole dashboard)
+- [ ] Mobile drawer navigation; card layout for tables on small screens
+- [ ] Inquiries: search, notes, delete (super admin), CSV export
+- [ ] Categories: API-backed CRUD, tag removal, "new category" in the header
+- [ ] Project brochure persisted (`Project.brochureUrl`)
+- [ ] Seed images copied to `uploads/seed/` (source paths 404 at runtime); seed no longer wipes projects on re-run
+- [ ] Remaining UI review items (empty states, styled confirm dialog, date formatting, users "last active", overview charts)
+
+### Phase 9: Full site CMS + activity log with undo (planned)
+
+**Goal:** every piece of public-site content is editable from the admin dashboard, every
+change is recorded with who made it, and any change can be undone.
+
+Scope has to be pinned down before building: "anything on any page" means turning all
+hard-coded copy, images, links and section layout into database content. Today most
+public pages (home hero, about, clients, video section, contact, footer, navbar) are
+static JSX with inline Arabic/English strings.
+
+1. **Content model**
+   - [ ] Inventory every public page/section and each editable field (text AR/EN, image,
+         link, video, list items, visibility/order of sections)
+   - [ ] `SiteContent` model: `{ key (e.g. home.hero.title), locale|null, type
+         (text|richtext|image|url|json), value, updatedAt, updatedBy }`; lists
+         (clients, stats, FAQs, social links) as typed JSON blocks with a zod schema per key
+   - [ ] Section registry: per page, ordered sections with `visible` flag
+   - [ ] Public read API with caching (`GET /api/content?page=home`), admin write API
+         (new permission `manageContent`)
+2. **Frontend refactor**
+   - [ ] `useContent(key, fallback)` hook; replace hard-coded strings/images page by page
+         (current values become the seed + fallback so the site never renders blank)
+   - [ ] Admin "Site content" section: page → section → fields editor, image upload,
+         live preview of the public page
+3. **Activity log**
+   - [ ] `ActivityLog` model: `{ id, at, actorId, actorName (snapshot), action
+         (create|update|delete|status|restore), entityType, entityId, before JSON,
+         after JSON, revertedById? }`
+   - [ ] Written inside the same DB transaction as the change, for every admin write:
+         projects, floors, units, unit status, inquiries, categories, users, media,
+         site content. Passwords/hashes are never stored in `before/after`
+   - [ ] Admin "Activity log" page: filter by user / entity / date, diff view (before → after)
+4. **Undo**
+   - [ ] `POST /api/activity/:id/revert` re-applies `before` (update), re-creates
+         (delete), or deletes (create) — itself logged as a new entry, so undo is undoable
+   - [ ] Conflict rule: refuse (409) if the entity changed after that entry, unless the
+         admin reverts the newer entries first; show why in the UI
+   - [ ] Deletes become recoverable: keep the full `before` snapshot incl. children
+         (a project delete must restore its floors and units; inquiries linked to it)
+   - [ ] Limits: media files are not deleted from disk on delete (so image undo works);
+         define retention for log rows
+   - [ ] Permission: reverting requires the permission of the original action; user-account
+         changes revertible by super_admin only
+5. **Tests**: log written for each write route; revert round-trips per entity; conflict 409;
+   no secret leakage in log payloads
