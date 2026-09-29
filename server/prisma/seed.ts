@@ -94,6 +94,13 @@ const CATEGORIES = [
     type: 'residential',
     tags: ['شقق فاخرة', 'أدوار متكررة', 'بنتهاوس', 'مسابح وحدائق', 'مواقف خاصة'],
   },
+  {
+    id: 'cat-hotel',
+    nameAr: 'فنادق وأجنحة فندقية',
+    nameEn: 'Hotels & Hotel Suites',
+    type: 'hotel',
+    tags: ['أجنحة فندقية', 'غرف ضيافة', 'مرافق رياضية', 'مطاعم', 'واي فاي مجاني'],
+  },
 ];
 
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'password';
