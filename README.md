@@ -152,6 +152,10 @@ site content and must be backed up** (the deploy backup script at
 | POST | `/api/categories` | JWT | Create category (manageProjects) |
 | PUT | `/api/categories/:id` | JWT | Update category (manageProjects) |
 | DELETE | `/api/categories/:id` | JWT | Delete category (manageProjects) |
+| POST | `/api/newsletter` | – | Subscribe to newsletter (idempotent, 200) |
+| GET | `/api/newsletter` | JWT | List subscribers newest first (exportData, ?q=) |
+| GET | `/api/newsletter/export` | JWT | Export subscribers to CSV (exportData, BOM, RFC 4180) |
+| DELETE | `/api/newsletter/:id` | JWT | Unsubscribe / remove subscriber (exportData) |
 | POST | `/api/media/upload` | JWT | Image → WebP (sharp, 2400px q82) or PDF |
 | GET | `/api/health` | – | Health check |
 

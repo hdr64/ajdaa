@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Phone, Mail, MapPin, Clock, Send, CheckCircle2, Zap, ShieldCheck, Headphones, MessageCircleMore } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
+import { AdminStorage } from '../../services/adminStorage';
+import { getErrorMessage } from '../../services/api';
 
 interface ContactPageProps {
   onSuccessToast?: (msg: string) => void;
@@ -67,6 +69,15 @@ const subjects = [
   'فرص استثمار وشراكات'
 ];
 
+/** Maps the form subject to the CRM interest type. */
+const SUBJECT_INTEREST: Record<string, 'rent' | 'buy' | 'invest' | 'general'> = {
+  'استفسار عام': 'general',
+  'حجز / استفسار عن مستودع لوجستي': 'rent',
+  'حجز / استفسار عن محل أو معرض تجاري': 'rent',
+  'استفسار عن مكاتب إدارية': 'rent',
+  'فرص استثمار وشراكات': 'invest',
+};
+
 interface FieldProps {
   label: string;
   error?: string;
@@ -103,15 +114,27 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
     return Object.keys(next).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Contact messages land in the admin inquiries list (one inbox for the team).
+  // The subject is kept at the top of the message so it stays visible there.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
-    window.setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await AdminStorage.addInquiry({
+        name: form.name.trim(),
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
+        interestType: SUBJECT_INTEREST[form.subject] ?? 'general',
+        message: `[${form.subject}] ${form.message.trim()}`,
+      });
       setSent(true);
       onSuccessToast?.('تم إرسال رسالتك بنجاح');
-    }, 900);
+    } catch (caught) {
+      onSuccessToast?.(getErrorMessage(caught, 'تعذر إرسال الرسالة، يرجى المحاولة مرة أخرى أو التواصل عبر واتساب'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {

@@ -126,3 +126,12 @@ model CategoryItem {
   type   String
   tags   String // JSON string array
 }
+
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  locale    String?
+  source    String?
+  createdAt DateTime @default(now())
+}
+

@@ -12,6 +12,7 @@ import {
   type InterestType,
 } from '../config/constants.js';
 import { INQUIRIES_ROOM } from '../sockets/index.js';
+import { escapeCsvCell } from '../services/csv.js';
 
 const createInquirySchema = z.object({
   name: z.string().trim().min(1),
@@ -45,22 +46,6 @@ const updateInquiryBodySchema = z
     message: 'At least one field must be provided',
   });
 
-function escapeCsvCell(value: string | null | undefined): string {
-  if (value == null) return '';
-  let str = String(value);
-
-  // CSV/formula-injection defense: prefix a single quote to any cell starting with = + - @ TAB or CR
-  if (/^[=+\-@\t\r]/.test(str)) {
-    str = `'${str}`;
-  }
-
-  // RFC 4180 quoting: quote fields containing comma, quote, CR/LF; double inner quotes
-  if (/[",\r\n]/.test(str)) {
-    str = `"${str.replace(/"/g, '""')}"`;
-  }
-
-  return str;
-}
 
 export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
   // Export inquiries to CSV (Admin) - registered before :id routes to prevent shadowing

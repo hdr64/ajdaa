@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Mail, MapPin, Clock, Send, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Reveal } from './Reveal';
 import { useLanguage } from '../../hooks/useLanguage';
+import { newsletterService } from '../../services/newsletterService';
+import { getErrorMessage } from '../../services/api';
 import { useTheme } from '../../hooks/useTheme';
 
 import logoArLight from '../../assets/logos/ar-1.png';
@@ -51,11 +53,22 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
     ? logoArLight
     : logoEnLight;
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
+  const [subscribing, setSubscribing] = useState(false);
+
+  // Stores the subscriber (it used to only show the toast and drop the email).
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newsletterEmail.trim()) {
+    const email = newsletterEmail.trim();
+    if (!email || subscribing) return;
+    setSubscribing(true);
+    try {
+      await newsletterService.subscribe(email, language === 'en' ? 'en' : 'ar', 'footer');
       onToast(t.footer.newsletterSuccess);
       setNewsletterEmail('');
+    } catch (error) {
+      onToast(getErrorMessage(error, language === 'ar' ? 'تعذر الاشتراك، تحقق من البريد الإلكتروني' : 'Could not subscribe, please check the email'));
+    } finally {
+      setSubscribing(false);
     }
   };
 

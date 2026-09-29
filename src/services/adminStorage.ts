@@ -6,6 +6,7 @@ import {
   type UnitInput,
 } from './propertyService';
 import { categoryService, type CategoryInput } from './categoryService';
+import { newsletterService, type NewsletterSubscriber } from './newsletterService';
 import { ApiError } from './api';
 import type {
   CustomerInquiry,
@@ -17,6 +18,7 @@ import type {
 import type { AdminUser, AdminUserInput, CategoryItem, AdminStatus } from '../types/admin';
 
 export type { AdminUser, AdminUserInput, CategoryItem, AdminStatus } from '../types/admin';
+export type { NewsletterSubscriber } from './newsletterService';
 
 const CATEGORIES_KEY = 'ajdaa_categories';
 
@@ -258,5 +260,23 @@ export const AdminStorage = {
 
   setUserStatus(userId: string, status: AdminStatus): Promise<AdminUser> {
     return authService.setUserStatus(userId, status);
+  },
+
+  /* ---------------------------- Newsletter ------------------------------- */
+
+  subscribeNewsletter(email: string, locale?: string | null, source?: string | null): Promise<{ subscribed: boolean }> {
+    return newsletterService.subscribe(email, locale, source);
+  },
+
+  listNewsletterSubscribers(q?: string, signal?: AbortSignal): Promise<NewsletterSubscriber[]> {
+    return newsletterService.list(q, signal);
+  },
+
+  deleteNewsletterSubscriber(id: string): Promise<void> {
+    return newsletterService.remove(id);
+  },
+
+  exportNewsletterCsv(): Promise<void> {
+    return newsletterService.exportCsv();
   },
 };
