@@ -10,6 +10,11 @@ import { SectionError, SectionLoading } from '../../../components/admin/common/S
 import { ProjectCreateModal } from '../../../components/admin/ProjectCreateModal';
 import { PUBLISH_STATUS_LABELS_AR, publishStatusOf } from '../projectLabels';
 import { usePublishProject } from './usePublishProject';
+import { ViewSwitcher } from '../../../components/admin/common/ViewSwitcher';
+import { isViewMode, type ViewMode } from '../../../components/admin/common/viewModes';
+import { usePersistentState } from '../../../hooks/usePersistentState';
+import { ProjectsTable } from '../../../components/admin/projects/ProjectsTable';
+import { ProjectsList } from '../../../components/admin/projects/ProjectsList';
 
 const TYPE_FILTERS: { key: string; label: string }[] = [
   { key: 'all', label: 'الكل' },
@@ -63,6 +68,7 @@ export const ProjectsSection: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | PublishStatus>('all');
   const [draftBannerDismissed, setDraftBannerDismissed] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [view, setView] = usePersistentState<ViewMode>('ajda.admin.projects.view', 'grid', isViewMode);
   const { publish, hide, busyId } = usePublishProject();
 
   const statusCounts = useMemo(() => {
@@ -106,15 +112,18 @@ export const ProjectsSection: React.FC = () => {
     }
   };
 
-  const header = canManage && (
+  const header = (
     <AdminHeaderActions>
-      <button
-        onClick={() => setCreating(true)}
-        className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
-      >
-        <Plus className="w-4 h-4" />
-        <span className="hidden sm:inline">مشروع جديد</span>
-      </button>
+      <ViewSwitcher value={view} onChange={setView} modes={['table', 'list', 'grid']} />
+      {canManage && (
+        <button
+          onClick={() => setCreating(true)}
+          className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
+        >
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">مشروع جديد</span>
+        </button>
+      )}
     </AdminHeaderActions>
   );
 
@@ -269,6 +278,30 @@ export const ProjectsSection: React.FC = () => {
               مسح عوامل التصفية
             </button>
           }
+        />
+      ) : view === 'table' ? (
+        <ProjectsTable
+          projects={filtered}
+          canManage={canManage}
+          busyId={busyId}
+          onOpen={(p) => navigate({ section: 'project', projectId: p.id })}
+          onManageUnits={(p) => navigate({ section: 'units', projectId: p.id })}
+          onPublish={(p) => void publish(p)}
+          onHide={(p) => void hide(p)}
+          onEdit={(p) => navigate({ section: 'projectEdit', projectId: p.id })}
+          onDelete={(p) => void handleDelete(p)}
+        />
+      ) : view === 'list' ? (
+        <ProjectsList
+          projects={filtered}
+          canManage={canManage}
+          busyId={busyId}
+          onOpen={(p) => navigate({ section: 'project', projectId: p.id })}
+          onManageUnits={(p) => navigate({ section: 'units', projectId: p.id })}
+          onPublish={(p) => void publish(p)}
+          onHide={(p) => void hide(p)}
+          onEdit={(p) => navigate({ section: 'projectEdit', projectId: p.id })}
+          onDelete={(p) => void handleDelete(p)}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

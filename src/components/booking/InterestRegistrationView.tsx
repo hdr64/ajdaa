@@ -6,6 +6,7 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import { PropertyCard } from '../common/PropertyCard';
 import { CheckCircle2, ArrowRight, ArrowLeft, Sparkles, Send, MapPin, AlertCircle, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
 
 interface InterestRegistrationViewProps {
   selectedProperty: Property | null;
@@ -23,6 +24,8 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
   const { language, isRTL } = useLanguage();
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
+  const { settings } = useSiteSettings();
+  const whatsappHref = whatsappUrl(settings.whatsapp);
 
   const { data: allProjects, loading, error } = useAsyncData<Property[]>(
     useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
@@ -490,15 +493,17 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
             >
               {isAr ? 'تسجيل اهتمام بمشروع آخر' : 'Explore Another Project'}
             </button>
-            <a
-              href="https://wa.me/966580484528"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto brand-btn-primary font-bold text-xs px-6 py-3 rounded-xl flex items-center justify-center gap-2"
-            >
-              <span>{isAr ? 'محادثة فورية عبر واتساب' : 'WhatsApp Support'}</span>
-              <ArrowIcon className="w-4 h-4" />
-            </a>
+            {whatsappHref && (
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto brand-btn-primary font-bold text-xs px-6 py-3 rounded-xl flex items-center justify-center gap-2"
+              >
+                <span>{isAr ? 'محادثة فورية عبر واتساب' : 'WhatsApp Support'}</span>
+                <ArrowIcon className="w-4 h-4" />
+              </a>
+            )}
           </div>
         </div>
       )}

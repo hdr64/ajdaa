@@ -2,6 +2,7 @@ import React from 'react';
 import { Handshake, Building2, ExternalLink } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
 
 import almaneaLogo from '../../assets/clients/شعار-المنيع-1024x569.webp';
 import artktLogo from '../../assets/clients/Frame-1261154210.png';
@@ -73,6 +74,8 @@ const CLIENTS: ClientItem[] = [
 export const ClientsSection: React.FC = () => {
   const { language, t } = useLanguage();
   const isAr = language === 'ar';
+  const { settings } = useSiteSettings();
+  const whatsappHref = whatsappUrl(settings.whatsapp);
 
   return (
     <section className="relative py-20 lg:py-28 overflow-hidden" id="clients">
@@ -157,15 +160,17 @@ export const ClientsSection: React.FC = () => {
               </div>
             </div>
 
-            <a
-              href="https://wa.me/966580484528"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="brand-btn-secondary text-xs font-bold px-4 py-2.5 rounded-xl shrink-0 inline-flex items-center gap-2 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
-            >
-              <span>{isAr ? 'انضم لشركائنا' : 'Partner With Us'}</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            {whatsappHref && (
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="brand-btn-secondary text-xs font-bold px-4 py-2.5 rounded-xl shrink-0 inline-flex items-center gap-2 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
+              >
+                <span>{isAr ? 'انضم لشركائنا' : 'Partner With Us'}</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
         </Reveal>
       </div>

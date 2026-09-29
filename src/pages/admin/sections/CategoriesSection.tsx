@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Pencil,
@@ -6,10 +6,6 @@ import {
   Trash2,
   X as CloseIcon,
   RefreshCw,
-  LayoutGrid,
-  Rows3,
-  Table2,
-  type LucideIcon,
 } from 'lucide-react';
 import type { CategoryItem } from '../../../types/admin';
 import type { PropertyType } from '../../../types/property';
@@ -21,6 +17,17 @@ import { useAdmin } from '../adminContextDef';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
+import { DataTable } from '../../../components/admin/common/DataTable';
+import { ViewSwitcher } from '../../../components/admin/common/ViewSwitcher';
+import type { Column } from '../../../components/admin/common/dataTableTypes';
+import {
+  GRID_COLUMN_OPTIONS,
+  type GridColumns,
+  gridColumnsClass,
+  isGridColumns,
+  isViewMode,
+  type ViewMode,
+} from '../../../components/admin/common/viewModes';
 
 const TYPE_OPTIONS: { value: PropertyType; label: string }[] = [
   { value: 'commercial', label: 'تجاري' },
@@ -31,37 +38,22 @@ const TYPE_OPTIONS: { value: PropertyType; label: string }[] = [
 ];
 const TYPE_LABEL = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label])) as Record<string, string>;
 
-/* ------------------------------ View layouts ------------------------------ */
+/* ------------------------------ View persistence & migration ------------------------------ */
 
-type CategoryLayout = 'grid' | 'list' | 'compact';
+const CATEGORIES_VIEW_STORAGE_KEY = 'ajda.admin.categories.layout';
 
-const isCategoryLayout = (value: unknown): value is CategoryLayout =>
-  value === 'grid' || value === 'list' || value === 'compact';
-
-const LAYOUT_OPTIONS: { value: CategoryLayout; label: string; icon: LucideIcon }[] = [
-  { value: 'grid', label: 'شبكة', icon: LayoutGrid },
-  { value: 'list', label: 'قائمة', icon: Rows3 },
-  { value: 'compact', label: 'جدول', icon: Table2 },
-];
-
-type CategoryColumns = 1 | 2 | 3 | 4;
-
-const isCategoryColumns = (value: unknown): value is CategoryColumns =>
-  value === 1 || value === 2 || value === 3 || value === 4;
-
-const COLUMN_OPTIONS: CategoryColumns[] = [1, 2, 3, 4];
-
-/**
- * Tailwind only sees class names that appear literally in the source, so the
- * column count is mapped through a static table instead of interpolation.
- * Columns kick in at `lg`; phones keep one column and `md` keeps two.
- */
-const GRID_COLUMN_CLASSES: Record<CategoryColumns, string> = {
-  1: 'lg:grid-cols-1',
-  2: 'lg:grid-cols-2',
-  3: 'lg:grid-cols-3',
-  4: 'lg:grid-cols-4',
-};
+// Migrate legacy stored preference: if it holds 'compact', treat as 'list'
+function migrateCategoryViewPreference(): void {
+  try {
+    const raw = window.localStorage.getItem(CATEGORIES_VIEW_STORAGE_KEY);
+    if (raw !== null && JSON.parse(raw) === 'compact') {
+      window.localStorage.setItem(CATEGORIES_VIEW_STORAGE_KEY, JSON.stringify('list'));
+    }
+  } catch {
+    // Preference read/write may fail in restricted browser environments
+  }
+}
+migrateCategoryViewPreference();
 
 interface CategoryFormState {
   nameAr: string;
@@ -272,12 +264,12 @@ const CategoryTagForm: React.FC<{ draft: string; onDraftChange: (value: string) 
 
 const CategoriesGrid: React.FC<{
   categories: CategoryItem[];
-  columns: CategoryColumns;
+  columns: GridColumns;
   canManage: boolean;
   drafts: Record<string, string>;
   handlers: CategoryHandlers;
 }> = ({ categories, columns, canManage, drafts, handlers }) => (
-  <div className={`grid grid-cols-1 md:grid-cols-2 gap-5 ${GRID_COLUMN_CLASSES[columns]}`}>
+  <div className={`grid gap-5 ${gridColumnsClass(columns)}`}>
     {categories.map((cat) => (
       <div key={cat.id} className="p-5 sm:p-6 rounded-3xl bg-surface border border-muted-border/40 shadow-xs flex flex-col">
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -353,130 +345,110 @@ const CategoriesList: React.FC<{
   </div>
 );
 
-const COMPACT_TAG_PREVIEW = 4;
+const categorySearchText = (cat: CategoryItem): string =>
+  [cat.nameAr, cat.nameEn, TYPE_LABEL[cat.type] ?? cat.type, ...cat.tags].filter(Boolean).join(' ');
 
 const CategoriesTable: React.FC<{
   categories: CategoryItem[];
   canManage: boolean;
   handlers: CategoryHandlers;
-}> = ({ categories, canManage, handlers }) => (
-  <div className="rounded-2xl border border-muted-border/40 bg-surface overflow-hidden">
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-xs">
-        <caption className="sr-only">التصنيفات</caption>
-        <thead className="bg-canvas/60">
-          <tr className="text-[11px] text-neutral-text/55">
-            <th scope="col" className="px-3 py-2.5 text-start font-bold">
-              الاسم بالعربية
-            </th>
-            <th scope="col" className="px-3 py-2.5 text-start font-bold">
-              الاسم بالإنجليزية
-            </th>
-            <th scope="col" className="px-3 py-2.5 text-start font-bold">
-              النوع
-            </th>
-            <th scope="col" className="px-3 py-2.5 text-start font-bold">
-              الوسوم
-            </th>
-            <th scope="col" className="px-3 py-2.5 text-start font-bold tabular-nums">
-              العدد
-            </th>
-            {canManage && (
-              <th scope="col" className="px-3 py-2.5 text-end font-bold">
-                إجراءات
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-muted-border/15">
-          {categories.map((cat) => {
-            const preview = cat.tags.slice(0, COMPACT_TAG_PREVIEW);
-            const hidden = cat.tags.length - preview.length;
-            return (
-              <tr
-                key={cat.id}
-                onClick={canManage ? () => handlers.edit(cat) : undefined}
-                className={canManage ? 'cursor-pointer hover:bg-canvas/60 transition-colors' : undefined}
+}> = ({ categories, canManage, handlers }) => {
+  const columns = useMemo<Column<CategoryItem>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'التصنيف',
+        width: '220px',
+        sortValue: (cat) => cat.nameAr,
+        cell: (cat) => (
+          <div className="min-w-0">
+            {canManage ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlers.edit(cat);
+                }}
+                className="font-bold text-xs text-heading hover:text-accent cursor-pointer truncate block text-start"
               >
-                <td className="px-3 py-2 text-start">
-                  {canManage ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlers.edit(cat);
-                      }}
-                      className="font-bold text-heading hover:text-accent cursor-pointer"
-                    >
-                      {cat.nameAr}
-                    </button>
-                  ) : (
-                    <span className="font-bold text-heading">{cat.nameAr}</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-start text-accent font-bold" dir="ltr">
-                  {cat.nameEn}
-                </td>
-                <td className="px-3 py-2 text-start">
-                  <TypeBadge type={cat.type} />
-                </td>
-                <td className="px-3 py-2 text-start">
-                  {cat.tags.length === 0 ? (
-                    <span className="text-neutral-text/45">—</span>
-                  ) : (
-                    <span className="flex flex-wrap items-center gap-1">
-                      {preview.map((tag) => (
-                        <span key={tag} className="text-[10px] font-bold ps-2 pe-1.5 py-0.5 rounded-md bg-canvas border border-muted-border/40 text-heading">
-                          #{tag}
-                        </span>
-                      ))}
-                      {hidden > 0 && <span className="text-[10px] font-bold text-neutral-text/55">+{hidden}</span>}
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-start tabular-nums text-neutral-text/80">{cat.tags.length}</td>
-                {canManage && (
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-end">
-                      <CategoryActions onEdit={() => handlers.edit(cat)} onDelete={() => handlers.remove(cat)} />
-                    </div>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
+                {cat.nameAr}
+              </button>
+            ) : (
+              <span className="font-bold text-xs text-heading truncate block">{cat.nameAr}</span>
+            )}
+            <span className="text-[10px] text-accent font-bold font-mono block truncate" dir="ltr">
+              {cat.nameEn}
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: 'type',
+        header: 'نوع المشاريع',
+        width: '160px',
+        sortValue: (cat) => TYPE_LABEL[cat.type] ?? cat.type,
+        filter: {
+          type: 'select',
+          options: TYPE_OPTIONS,
+          value: (cat) => cat.type,
+        },
+        cell: (cat) => <TypeBadge type={cat.type} />,
+      },
+      {
+        id: 'tags',
+        header: 'الوسوم',
+        sortValue: (cat) => cat.tags.length,
+        cell: (cat) => (
+          <div className="flex flex-wrap items-center gap-1">
+            {cat.tags.slice(0, 4).map((tag) => (
+              <span
+                key={tag}
+                className="text-[10px] font-bold ps-2 pe-1.5 py-0.5 rounded-md bg-canvas border border-muted-border/40 text-heading"
+              >
+                #{tag}
+              </span>
+            ))}
+            {cat.tags.length > 4 && (
+              <span className="text-[10px] font-bold text-neutral-text/55">+{cat.tags.length - 4}</span>
+            )}
+            {cat.tags.length === 0 && <span className="text-neutral-text/45">—</span>}
+          </div>
+        ),
+      },
+      {
+        id: 'count',
+        header: 'عدد الوسوم',
+        width: '110px',
+        sortValue: (cat) => cat.tags.length,
+        cell: (cat) => <span className="tabular-nums font-bold text-neutral-text/80">{cat.tags.length}</span>,
+      },
+    ],
+    [canManage, handlers]
+  );
 
-/* ------------------------------- Switchers ------------------------------- */
+  return (
+    <DataTable
+      storageKey="ajda.admin.categories"
+      rows={categories}
+      getRowId={(cat) => cat.id}
+      columns={columns}
+      searchText={categorySearchText}
+      initialSort={{ columnId: 'name', direction: 'asc' }}
+      onRowClick={canManage ? (cat) => handlers.edit(cat) : undefined}
+      rowActions={
+        canManage
+          ? (cat) => <CategoryActions onEdit={() => handlers.edit(cat)} onDelete={() => handlers.remove(cat)} />
+          : undefined
+      }
+    />
+  );
+};
 
-const LayoutSwitcher: React.FC<{ value: CategoryLayout; onChange: (layout: CategoryLayout) => void }> = ({ value, onChange }) => (
-  <div className="inline-flex rounded-xl border border-muted-border/40 p-0.5 bg-canvas" role="group" aria-label="طريقة عرض التصنيفات">
-    {LAYOUT_OPTIONS.map(({ value: option, label, icon: Icon }) => (
-      <button
-        key={option}
-        type="button"
-        onClick={() => onChange(option)}
-        aria-pressed={value === option}
-        aria-label={label}
-        title={label}
-        className={`p-1.5 rounded-lg cursor-pointer transition ${
-          value === option ? 'bg-surface text-accent shadow-xs' : 'text-neutral-text/55 hover:text-heading'
-        }`}
-      >
-        <Icon className="w-4 h-4" />
-      </button>
-    ))}
-  </div>
-);
-
-const ColumnSwitcher: React.FC<{ value: CategoryColumns; onChange: (columns: CategoryColumns) => void }> = ({ value, onChange }) => (
+const ColumnSwitcher: React.FC<{ value: GridColumns; onChange: (columns: GridColumns) => void }> = ({ value, onChange }) => (
   <div className="hidden lg:flex items-center gap-2">
     <span className="text-[11px] font-bold text-neutral-text/60">الأعمدة</span>
     <div className="inline-flex rounded-xl border border-muted-border/40 p-0.5 bg-canvas" role="group" aria-label="الأعمدة">
-      {COLUMN_OPTIONS.map((option) => (
+      {GRID_COLUMN_OPTIONS.map((option) => (
         <button
           key={option}
           type="button"
@@ -497,8 +469,8 @@ const ColumnSwitcher: React.FC<{ value: CategoryColumns; onChange: (columns: Cat
 export const CategoriesSection: React.FC = () => {
   const { can, showToast, confirm } = useAdmin();
   const canManage = can('manageProjects');
-  const [layout, setLayout] = usePersistentState<CategoryLayout>('ajda.admin.categories.layout', 'grid', isCategoryLayout);
-  const [columns, setColumns] = usePersistentState<CategoryColumns>('ajda.admin.categories.columns', 3, isCategoryColumns);
+  const [view, setView] = usePersistentState<ViewMode>(CATEGORIES_VIEW_STORAGE_KEY, 'grid', isViewMode);
+  const [columns, setColumns] = usePersistentState<GridColumns>('ajda.admin.categories.columns', 3, isGridColumns);
   const categories = useAsyncData<CategoryItem[]>(
     useCallback((signal) => AdminStorage.listCategories(signal), []),
     [],
@@ -564,7 +536,7 @@ export const CategoriesSection: React.FC = () => {
 
   const header = (
     <AdminHeaderActions>
-      <LayoutSwitcher value={layout} onChange={setLayout} />
+      <ViewSwitcher value={view} onChange={setView} modes={['table', 'list', 'grid']} />
       {canManage && (
         <button
           onClick={() => setDialog({ category: null })}
@@ -605,10 +577,10 @@ export const CategoriesSection: React.FC = () => {
         <EmptyState icon={Tags} title="لا توجد تصنيفات" description="أنشئ أول تصنيف من زر «تصنيف جديد» في الأعلى." />
       ) : (
         <>
-          {layout === 'grid' && <ColumnSwitcher value={columns} onChange={setColumns} />}
-          {layout === 'grid' && <CategoriesGrid categories={categories.data} columns={columns} canManage={canManage} drafts={tagDrafts} handlers={handlers} />}
-          {layout === 'list' && <CategoriesList categories={categories.data} canManage={canManage} drafts={tagDrafts} handlers={handlers} />}
-          {layout === 'compact' && <CategoriesTable categories={categories.data} canManage={canManage} handlers={handlers} />}
+          {view === 'grid' && <ColumnSwitcher value={columns} onChange={setColumns} />}
+          {view === 'grid' && <CategoriesGrid categories={categories.data} columns={columns} canManage={canManage} drafts={tagDrafts} handlers={handlers} />}
+          {view === 'list' && <CategoriesList categories={categories.data} canManage={canManage} drafts={tagDrafts} handlers={handlers} />}
+          {view === 'table' && <CategoriesTable categories={categories.data} canManage={canManage} handlers={handlers} />}
         </>
       )}
       {dialogNode}

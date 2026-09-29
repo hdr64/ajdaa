@@ -2,6 +2,7 @@ import React from 'react';
 import { Handshake, Building2, CheckCircle2, Award, TrendingUp, ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
 import { Reveal } from '../components/common/Reveal';
 import { useLanguage } from '../hooks/useLanguage';
+import { useSiteSettings, whatsappUrl } from '../hooks/useSiteSettings';
 
 import almaneaLogo from '../assets/clients/شعار-المنيع-1024x569.webp';
 import artktLogo from '../assets/clients/Frame-1261154210.png';
@@ -106,6 +107,8 @@ export const ClientsPage: React.FC<ClientsPageProps> = ({ onNavigate }) => {
   const { language, isRTL } = useLanguage();
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
+  const { settings } = useSiteSettings();
+  const whatsappHref = whatsappUrl(settings.whatsapp);
 
   return (
     <div className="pt-28 sm:pt-36 pb-24 min-h-screen relative">
@@ -229,15 +232,17 @@ export const ClientsPage: React.FC<ClientsPageProps> = ({ onNavigate }) => {
                 <span>{isAr ? 'تواصل مع فريق التطوير' : 'Contact Development Team'}</span>
                 <ArrowIcon className="w-4 h-4" />
               </button>
-              <a
-                href="https://wa.me/966580484528"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto brand-btn-secondary font-bold text-xs sm:text-sm px-6 py-3.5 rounded-full flex items-center justify-center gap-2"
-              >
-                <span>{isAr ? 'واتساب مباشر' : 'WhatsApp Us'}</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
+              {whatsappHref && (
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto brand-btn-secondary font-bold text-xs sm:text-sm px-6 py-3.5 rounded-full flex items-center justify-center gap-2"
+                >
+                  <span>{isAr ? 'واتساب مباشر' : 'WhatsApp Us'}</span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
             </div>
           </div>
         </Reveal>
