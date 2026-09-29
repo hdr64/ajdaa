@@ -9,6 +9,7 @@ import { applyUnitStatus, removeUnit, useRealtimeUnits } from '../../hooks/useRe
 import { useLanguage } from '../../hooks/useLanguage';
 import { BuildingVisualizer } from '../../components/admin/BuildingVisualizer';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
+import { ProjectEditorModal } from '../../components/admin/ProjectEditorModal';
 import {
   LayoutDashboard,
   Building2,
@@ -26,6 +27,7 @@ import {
   MessageCircle,
   Phone,
   Trash2,
+  Pencil,
   ArrowUpRight,
   AlertCircle,
   ImageUp,
@@ -101,6 +103,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<'image' | 'brochure'>('image');
 
+  // Edit project modal state
+  const [editingProject, setEditingProject] = useState<Property | null>(null);
+
   // Category new tag state
   const [newTagText, setNewTagText] = useState('');
   const [activeCategoryForTag, setActiveCategoryForTag] = useState<string>('cat-commercial');
@@ -147,6 +152,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const dataError = projectsResource.error ?? inquiriesResource.error;
   const dataLoading = projectsResource.loading || inquiriesResource.loading;
+
+  // Avatar initials from the signed-in admin: first letter of the first two words.
+  const adminInitials = useMemo(() => {
+    if (!currentUser) return '...';
+    const words = currentUser.name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return '...';
+    return words
+      .slice(0, 2)
+      .map((word) => word.charAt(0))
+      .join('')
+      .toUpperCase();
+  }, [currentUser]);
 
   // Portfolio Stats Calculations
   const totalProjects = projects.length;
@@ -242,6 +259,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (!newProjectData.title.trim()) return;
 
     setCreatingProject(true);
+    // Keep in sync with PROJECT_TYPE_LABELS_AR in components/admin/ProjectEditorModal.tsx.
     const typeArMap: Record<PropertyType, string> = {
       commercial: 'مجمع ومراكز تجارية',
       residential: 'مجمع سكني فاخر',
@@ -286,7 +304,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             : 'مكتب إداري';
 
         return {
-          id: `p-${newProjectData.title.trim().slice(0, 12)}-${fIdx}-${uIdx}`.replace(/\s+/g, '-'),
+          // Unit ids are globally unique on the server, so a random component is
+          // required: titles are not unique and would otherwise collide with 409.
+          id: `u-${crypto.randomUUID()}`,
           unitNumber: `وحدة ${uNum}`,
           floorNumber: fIdx,
           floorNameAr,
@@ -413,11 +433,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {/* Active Administrator Card */}
           <div className="p-3 rounded-2xl bg-canvas/70 border border-muted-border/30 mb-5 flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-black text-xs shrink-0 border border-accent/25">
-              SM
+              {adminInitials}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold text-heading truncate">سلطان المقرن</div>
-              <div className="text-[10px] text-gold font-medium truncate">مدير عام النظام (Super Admin)</div>
+              <div className="text-xs font-bold text-heading truncate">
+                {currentUser ? currentUser.name : '...'}
+              </div>
+              <div className="text-[10px] text-gold font-medium truncate">
+                {currentUser ? currentUser.roleAr : '...'}
+              </div>
             </div>
           </div>
 
@@ -1039,6 +1063,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         </button>
 
                         <button
+                          onClick={() => setEditingProject(proj)}
+                          title="تعديل المشروع"
+                          aria-label={`تعديل المشروع ${proj.title}`}
+                          className="p-2.5 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
                           onClick={() => void handleDeleteProject(proj.id, proj.title)}
                           title="حذف المشروع"
                           className="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition cursor-pointer"
@@ -1296,7 +1329,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         </div>
       </main>
 
-      {/* 3. LUXURY MODAL: ADD NEW PROJECT */}
+      {/* 3. LUXURY MODAL: EDIT EXISTING PROJECT */}
+      {editingProject && (
+        <ProjectEditorModal
+          key={editingProject.id}
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSaved={async () => {
+            await projectsResource.reload();
+          }}
+          onShowToast={onShowToast}
+        />
+      )}
+
+      {/* 4. LUXURY MODAL: ADD NEW PROJECT */}
       {newProjectModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="relative w-full max-w-lg bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 sm:p-8 my-8">
