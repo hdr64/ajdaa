@@ -10,6 +10,7 @@ export interface AdminPermissions {
   viewInquiries: boolean;
   exportData: boolean;
   manageUsers: boolean;
+  manageNotifications: boolean;
 }
 
 export interface PermissionDef {

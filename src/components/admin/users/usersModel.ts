@@ -44,6 +44,7 @@ export const PERMISSION_KEYS: readonly (keyof AdminPermissions)[] = [
   'viewInquiries',
   'exportData',
   'manageUsers',
+  'manageNotifications',
 ];
 
 export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
@@ -52,6 +53,7 @@ export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
   viewInquiries: 'متابعة الطلبات',
   exportData: 'تصدير التقارير',
   manageUsers: 'إدارة المستخدمين',
+  manageNotifications: 'إدارة الإشعارات',
 };
 
 /** `PermissionDef.group` is an English slug on the server; show an Arabic heading. */
@@ -61,6 +63,7 @@ const PERMISSION_GROUP_LABELS: Record<string, string> = {
   inquiries: 'طلبات الاهتمام',
   reports: 'التقارير',
   users: 'المستخدمون',
+  settings: 'الإعدادات',
 };
 
 export const STATUS_LABELS: Record<AdminStatus, string> = {
@@ -93,6 +96,7 @@ export const emptyPermissions = (): AdminPermissions => ({
   viewInquiries: false,
   exportData: false,
   manageUsers: false,
+  manageNotifications: false,
 });
 
 /** Pre-fills the checkboxes from a role, leaving every other permission off. */

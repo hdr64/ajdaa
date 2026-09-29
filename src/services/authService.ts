@@ -54,6 +54,7 @@ export const DEFAULT_PERMISSIONS = {
   viewInquiries: false,
   exportData: false,
   manageUsers: false,
+  manageNotifications: false,
 } as const;
 
 /** The server stores an open-ended permission map; the UI needs a fixed shape. */
@@ -65,6 +66,7 @@ function normalizePermissions(raw: Record<string, boolean> | null | undefined) {
     viewInquiries: source.viewInquiries ?? false,
     exportData: source.exportData ?? false,
     manageUsers: source.manageUsers ?? false,
+    manageNotifications: source.manageNotifications ?? false,
   };
 }
 
