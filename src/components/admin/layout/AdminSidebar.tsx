@@ -9,11 +9,18 @@ import {
   ExternalLink,
   ShieldCheck,
   X as CloseIcon,
+  Moon,
+  Sun,
+  Sparkles,
+  PanelRightClose,
+  PanelRightOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { useAdmin, type AdminPermission } from '../../../pages/admin/adminContextDef';
 import { navSectionOf, type AdminSection } from '../../../pages/admin/adminRoutes';
 import { publicSiteUrl } from '../../../pages/admin/projectLabels';
+import { usePersistentState } from '../../../hooks/usePersistentState';
+import { useTheme } from '../../../hooks/useTheme';
 
 interface NavItem {
   section: AdminSection;
@@ -23,18 +30,30 @@ interface NavItem {
   permission?: AdminPermission;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { section: 'overview', label: 'نظرة عامة ومؤشرات الأداء', icon: LayoutDashboard },
-  { section: 'projects', label: 'إدارة المشاريع العقارية', icon: Building2 },
-  { section: 'units', label: 'المخطط البصري للأدوار', icon: Layers },
-  { section: 'inquiries', label: 'طلبات الاهتمام والعملاء', icon: Users, permission: 'viewInquiries' },
-  { section: 'categories', label: 'التصنيفات والوسوم', icon: Tags },
-  { section: 'users', label: 'المستخدمين والصلاحيات', icon: ShieldCheck, permission: 'manageUsers' },
-];
-
-function visibleNavItems(can: (permission: AdminPermission) => boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) => !item.permission || can(item.permission));
+interface NavGroup {
+  label: string;
+  items: NavItem[];
 }
+
+const NAV_GROUPS: NavGroup[] = [
+  { label: 'الرئيسية', items: [{ section: 'overview', label: 'نظرة عامة', icon: LayoutDashboard }] },
+  {
+    label: 'المحفظة العقارية',
+    items: [
+      { section: 'projects', label: 'المشاريع', icon: Building2 },
+      { section: 'units', label: 'المخطط البصري', icon: Layers },
+      { section: 'categories', label: 'التصنيفات', icon: Tags },
+    ],
+  },
+  {
+    label: 'العملاء',
+    items: [{ section: 'inquiries', label: 'طلبات الاهتمام', icon: Users, permission: 'viewInquiries' }],
+  },
+  {
+    label: 'الإدارة',
+    items: [{ section: 'users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, permission: 'manageUsers' }],
+  },
+];
 
 interface AdminSidebarProps {
   open: boolean;
@@ -50,21 +69,40 @@ function initialsOf(name: string): string {
   return name.trim().charAt(0).toUpperCase() || '…';
 }
 
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
+
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLogout }) => {
   const { can, currentUser, location, navigate, projects, inquiries } = useAdmin();
-  const items = useMemo(() => visibleNavItems(can), [can]);
+  const { theme, toggleTheme, variant, toggleVariant } = useTheme();
+  // Desktop only: an icon rail that leaves more room for wide tables and the floor plan.
+  const [collapsed, setCollapsed] = usePersistentState<boolean>('ajda.admin.sidebar.collapsed', false, isBoolean);
+  const rail = collapsed && !open;
+
+  const groups = useMemo(
+    () =>
+      NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !item.permission || can(item.permission)),
+      })).filter((group) => group.items.length > 0),
+    [can]
+  );
 
   const totalUnits = useMemo(
     () => projects.data.reduce((sum, p) => sum + (p.floors ?? []).reduce((s, f) => s + f.units.length, 0), 0),
     [projects.data]
   );
+  const drafts = useMemo(() => projects.data.filter((p) => p.publishStatus === 'draft').length, [projects.data]);
   const newInquiries = useMemo(() => inquiries.data.filter((i) => i.status === 'new').length, [inquiries.data]);
 
-  const badgeFor = (section: AdminSection): React.ReactNode => {
-    if (section === 'projects') return projects.data.length || null;
-    if (section === 'units') return totalUnits || null;
+  /** A number shown next to the label; `alert` ones are coloured and survive in rail mode as a dot. */
+  const badgeFor = (section: AdminSection): { value: number; alert?: boolean; title?: string } | null => {
+    if (section === 'projects') return drafts > 0 ? { value: drafts, alert: true, title: `${drafts} مسودة` } : { value: projects.data.length };
+    if (section === 'units') return totalUnits ? { value: totalUnits } : null;
+    if (section === 'inquiries') return newInquiries ? { value: newInquiries, alert: true, title: `${newInquiries} طلب جديد` } : null;
     return null;
   };
+
+  const activeNav = navSectionOf(location.section);
 
   return (
     <>
@@ -78,105 +116,153 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
       />
 
       <aside
-        className={`fixed md:sticky top-0 z-50 md:z-auto h-screen w-72 shrink-0 bg-surface border-e border-muted-border/40 flex flex-col justify-between p-4 shadow-sm overflow-y-auto transition-transform duration-300 start-0 ${
-          open ? 'translate-x-0' : 'max-md:ltr:-translate-x-full max-md:rtl:translate-x-full'
-        }`}
+        className={`fixed md:sticky top-0 z-50 md:z-auto h-screen shrink-0 bg-surface border-e border-muted-border/40 flex flex-col transition-[width,transform] duration-300 start-0 ${
+          rail ? 'md:w-[76px] w-72' : 'w-72'
+        } ${open ? 'translate-x-0' : 'max-md:ltr:-translate-x-full max-md:rtl:translate-x-full'}`}
         aria-label="قائمة لوحة التحكم"
       >
-        <div>
-          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-gradient-to-br from-surface to-surface-hover border border-muted-border/50 shadow-xs mb-5">
-            <div className="w-10 h-10 rounded-xl brand-fill text-canvas flex items-center justify-center font-black text-sm shadow-md ring-2 ring-accent/20 shrink-0">
-              أجدا
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xs font-black text-heading truncate">أجدا للتطوير العقاري</h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] text-accent font-bold">بوابة الإدارة التنفيذية</span>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="md:hidden p-1.5 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer"
-              aria-label="إغلاق القائمة"
-            >
-              <CloseIcon className="w-4 h-4" />
-            </button>
+        {/* Brand */}
+        <div className={`flex items-center gap-3 border-b border-muted-border/30 ${rail ? 'md:justify-center md:px-2 px-4' : 'px-4'} h-16 sm:h-20 shrink-0`}>
+          <div className="w-10 h-10 rounded-xl brand-fill text-canvas flex items-center justify-center font-black text-sm shadow-md shrink-0">
+            أجدا
           </div>
-
-          {/* Signed-in admin */}
-          <div className="p-3 rounded-2xl bg-canvas/70 border border-muted-border/30 mb-5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-black text-xs shrink-0 border border-accent/25">
-              {currentUser ? initialsOf(currentUser.name) : '…'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold text-heading truncate">{currentUser?.name ?? '…'}</div>
-              <div className="text-[10px] text-gold font-medium truncate">{currentUser?.roleAr ?? '…'}</div>
-            </div>
+          <div className={`min-w-0 flex-1 ${rail ? 'md:hidden' : ''}`}>
+            <div className="text-xs font-black text-heading truncate">أجدا للتطوير العقاري</div>
+            <div className="text-[10px] text-accent font-bold">لوحة الإدارة</div>
           </div>
-
-          <nav className="space-y-1.5 font-bold">
-            {items.map((item) => {
-              const active = navSectionOf(location.section) === item.section;
-              const badge = badgeFor(item.section);
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.section}
-                  onClick={() => {
-                    navigate({ section: item.section });
-                    onClose();
-                  }}
-                  aria-current={active ? 'page' : undefined}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer text-xs ${
-                    active
-                      ? 'brand-fill text-canvas shadow-md'
-                      : 'text-neutral-text/75 hover:bg-surface-hover hover:text-heading'
-                  }`}
-                >
-                  <span className="flex items-center gap-3">
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                  </span>
-                  {item.section === 'inquiries' && newInquiries > 0 ? (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500 text-white">
-                      {newInquiries} جديد
-                    </span>
-                  ) : (
-                    badge !== null && (
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                          active ? 'bg-canvas/20 text-canvas' : 'bg-canvas border border-muted-border/40 text-neutral-text/70'
-                        }`}
-                      >
-                        {badge}
-                      </span>
-                    )
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+          <button
+            onClick={onClose}
+            className="md:hidden p-1.5 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer"
+            aria-label="إغلاق القائمة"
+          >
+            <CloseIcon className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className="pt-4 mt-6 border-t border-muted-border/30 space-y-2 text-xs">
-          {/* New tab: the admin session and any unsaved edit stay open. */}
-          <a
-            href={publicSiteUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:bg-accent/5 flex items-center justify-center gap-2 text-neutral-text/80 hover:text-accent font-bold transition"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>عرض الموقع الحي</span>
-          </a>
-          <button
-            onClick={onLogout}
-            className="w-full p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center gap-2 font-bold transition cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>تسجيل الخروج الآمن</span>
-          </button>
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+          {groups.map((group) => (
+            <div key={group.label}>
+              <div className={`px-3 mb-1.5 text-[10px] font-black uppercase tracking-wide text-neutral-text/40 ${rail ? 'md:hidden' : ''}`}>
+                {group.label}
+              </div>
+              {rail && <div className="hidden md:block mx-3 mb-2 border-t border-muted-border/30" aria-hidden="true" />}
+              <ul className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = activeNav === item.section;
+                  const badge = badgeFor(item.section);
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.section}>
+                      <button
+                        onClick={() => {
+                          navigate({ section: item.section });
+                          onClose();
+                        }}
+                        aria-current={active ? 'page' : undefined}
+                        title={rail ? `${item.label}${badge?.title ? ` · ${badge.title}` : ''}` : badge?.title}
+                        className={`relative w-full flex items-center gap-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                          rail ? 'md:justify-center md:px-0 md:py-2.5 px-3 py-2.5' : 'px-3 py-2.5'
+                        } ${
+                          active
+                            ? 'bg-accent/12 text-accent'
+                            : 'text-neutral-text/70 hover:bg-surface-hover hover:text-heading'
+                        }`}
+                      >
+                        {/* Active marker on the inline-start edge */}
+                        {active && <span className="absolute inset-y-2 start-0 w-1 rounded-e-full bg-accent" aria-hidden="true" />}
+                        <Icon className="w-[18px] h-[18px] shrink-0" />
+                        <span className={`flex-1 text-start truncate ${rail ? 'md:hidden' : ''}`}>{item.label}</span>
+                        {badge && (
+                          <span
+                            className={`${rail ? 'md:hidden' : ''} min-w-6 px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums text-center ${
+                              badge.alert ? 'bg-amber-500 text-neutral-950' : 'bg-canvas border border-muted-border/40 text-neutral-text/60'
+                            }`}
+                          >
+                            {badge.value}
+                          </span>
+                        )}
+                        {rail && badge?.alert && (
+                          <span className="hidden md:block absolute top-1.5 end-3 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-surface" aria-hidden="true" />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer: user card + quick actions */}
+        <div className="border-t border-muted-border/30 p-3 space-y-2 shrink-0">
+          <div className={`flex items-center gap-2.5 p-2 rounded-xl bg-canvas/70 ${rail ? 'md:justify-center' : ''}`}>
+            <div
+              className="w-9 h-9 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-black text-xs shrink-0 border border-accent/25"
+              title={rail ? `${currentUser?.name ?? ''} · ${currentUser?.roleAr ?? ''}` : undefined}
+            >
+              {currentUser ? initialsOf(currentUser.name) : '…'}
+            </div>
+            <div className={`min-w-0 flex-1 ${rail ? 'md:hidden' : ''}`}>
+              <div className="text-xs font-bold text-heading truncate">{currentUser?.name ?? '…'}</div>
+              <div className="text-[10px] text-neutral-text/55 truncate">{currentUser?.roleAr ?? '…'}</div>
+            </div>
+          </div>
+
+          <div className={`grid gap-1 ${rail ? 'md:grid-cols-1 grid-cols-5' : 'grid-cols-5'}`}>
+            {[
+              {
+                key: 'theme',
+                label: theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن',
+                icon: theme === 'dark' ? Sun : Moon,
+                onClick: toggleTheme,
+              },
+              {
+                key: 'variant',
+                label: variant === 'prime' ? 'الهوية الكلاسيكية' : 'هوية أجدا برايم',
+                icon: Sparkles,
+                onClick: toggleVariant,
+              },
+              {
+                key: 'collapse',
+                label: collapsed ? 'توسيع القائمة' : 'طي القائمة',
+                icon: collapsed ? PanelRightOpen : PanelRightClose,
+                onClick: () => setCollapsed(!collapsed),
+                desktopOnly: true,
+              },
+            ].map(({ key, label, icon: Icon, onClick, desktopOnly }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={onClick}
+                title={label}
+                aria-label={label}
+                className={`${desktopOnly ? 'hidden md:flex' : 'flex'} items-center justify-center p-2 rounded-lg text-neutral-text/60 hover:text-accent hover:bg-surface-hover cursor-pointer`}
+              >
+                <Icon className="w-4 h-4 ltr:rotate-180" />
+              </button>
+            ))}
+            {/* New tab: the admin session and any unsaved edit stay open. */}
+            <a
+              href={publicSiteUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="عرض الموقع الحي"
+              aria-label="عرض الموقع الحي"
+              className="flex items-center justify-center p-2 rounded-lg text-neutral-text/60 hover:text-accent hover:bg-surface-hover"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+            <button
+              type="button"
+              onClick={onLogout}
+              title="تسجيل الخروج"
+              aria-label="تسجيل الخروج"
+              className="flex items-center justify-center p-2 rounded-lg text-red-500/80 hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 ltr:rotate-180" />
+            </button>
+          </div>
         </div>
       </aside>
     </>
