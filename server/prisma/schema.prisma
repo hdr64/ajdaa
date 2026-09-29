@@ -55,6 +55,7 @@ model Project {
   locationHighlightsEn   String? // JSON string array
   lat                    Float?
   lng                    Float?
+  brochureUrl            String?
   floors                 PropertyFloor[]
   inquiries              CustomerInquiry[]
   createdAt              DateTime          @default(now())
@@ -112,8 +113,10 @@ model CustomerInquiry {
   interestType   String // rent | buy | invest | general
   interestTypeAr String
   message        String?
+  notes          String?
   status         String        @default("new") // new | contacted | closed
   statusAr       String        @default("جديد")
+  updatedAt      DateTime      @updatedAt
 }
 
 model CategoryItem {

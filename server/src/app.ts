@@ -13,6 +13,7 @@ import { projectRoutes } from './routes/projects.routes.js';
 import { unitRoutes } from './routes/units.routes.js';
 import { inquiryRoutes } from './routes/inquiries.routes.js';
 import { mediaRoutes } from './routes/media.routes.js';
+import { categoryRoutes } from './routes/categories.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({ logger: true });
@@ -89,6 +90,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(unitRoutes, { prefix: '/api/units' });
   await fastify.register(inquiryRoutes, { prefix: '/api/inquiries' });
   await fastify.register(mediaRoutes, { prefix: '/api/media' });
+  await fastify.register(categoryRoutes, { prefix: '/api/categories' });
 
   // Health check
   fastify.get('/api/health', async () => {

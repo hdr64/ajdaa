@@ -56,7 +56,7 @@ The **database is the source of truth** for projects, floors, units, and inquiri
 | Concern | Owner |
 |---|---|
 | Projects / floors / units / inquiries / admin users | API + Prisma |
-| Categories | Browser `localStorage` (no category endpoint yet; the `CategoryItem` model is seeded but unexposed) |
+| Categories | API (`/api/categories`); the admin Categories tab is being migrated off browser `localStorage` |
 | Auth token | `localStorage`, sent as `Authorization: Bearer` |
 | UI loading / error / reload state | `useAsyncData` |
 | Live unit-status sync | `useRealtimeUnits` (Socket.io) |
@@ -103,6 +103,31 @@ database are. Once the API is live, projects are created and edited through
 npm run db:sync-data   # optional: regenerate the bootstrap seed, then npm run db:seed
 ```
 
+**Safe to re-run.** The seed upserts admin users and categories, and seeds projects
+*only when the `Project` table is empty*. On a database that already has projects it
+logs `Projects already present (N) — skipping project seed.` and leaves everything
+alone, so re-running it after a deploy never destroys dashboard edits. To force a
+wipe-and-reseed of projects/floors/units:
+
+```bash
+SEED_RESET_PROJECTS=1 npm run db:seed
+```
+
+### Seed images and `uploads/`
+
+The generated seed stores image paths as frontend source paths (`assets/ajda/...`,
+relative to `src/`). Those are content-hashed by a production Vite build, so the
+paths 404 once built. Before creating projects, `db:seed` therefore copies every
+referenced file from `src/<path>` into `UPLOAD_DIR/seed/<path without "assets/">`
+and stores the served URL (`/uploads/seed/ajda/prime/prime1.webp`) in the database.
+Absolute `http(s)` URLs and paths already starting with `/uploads/` are stored
+unchanged, and identical files are skipped on re-runs. If a source asset is missing
+the seed fails and lists the missing files rather than storing a broken URL.
+
+Because seed media now lives in the upload directory, **`server/uploads/` holds real
+site content and must be backed up** (the deploy backup script at
+`deploy/README-deploy.md` does not include it by default).
+
 ## API Overview
 
 | Method | Path | Auth | Description |
@@ -119,7 +144,14 @@ npm run db:sync-data   # optional: regenerate the bootstrap seed, then npm run d
 | PATCH | `/api/units/:id/status` | JWT | Update unit status (Socket.io broadcast) |
 | POST | `/api/inquiries` | – | Public inquiry (Socket.io alert) |
 | GET | `/api/inquiries` | JWT | CRM list `?status=&projectId=` |
+| GET | `/api/inquiries/export` | JWT | Export inquiries to CSV (BOM, RFC 4180) |
+| PATCH | `/api/inquiries/:id` | JWT | CRM inquiry update (notes, status) |
 | PATCH | `/api/inquiries/:id/status` | JWT | CRM status change |
+| DELETE | `/api/inquiries/:id` | JWT | Delete inquiry (super_admin only) |
+| GET | `/api/categories` | – | List categories sorted by id |
+| POST | `/api/categories` | JWT | Create category (manageProjects) |
+| PUT | `/api/categories/:id` | JWT | Update category (manageProjects) |
+| DELETE | `/api/categories/:id` | JWT | Delete category (manageProjects) |
 | POST | `/api/media/upload` | JWT | Image → WebP (sharp, 2400px q82) or PDF |
 | GET | `/api/health` | – | Health check |
 

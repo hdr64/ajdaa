@@ -78,6 +78,7 @@ interface ProjectDto {
   locationHighlightsEn: string[] | null;
   lat: number | null;
   lng: number | null;
+  brochureUrl: string | null;
   floors: FloorDto[];
 }
 
@@ -182,6 +183,7 @@ export function toProperty(dto: ProjectDto): Property {
     floors: dto.floors.map(toPropertyFloor),
     lat: dto.lat ?? undefined,
     lng: dto.lng ?? undefined,
+    brochureUrl: dto.brochureUrl ? resolveMediaUrl(dto.brochureUrl) : undefined,
   };
 }
 
@@ -223,6 +225,7 @@ export function toProjectPayload(project: Property): ProjectPayload {
     locationHighlightsEn: project.locationHighlightsEn ?? [],
     lat: project.lat ?? null,
     lng: project.lng ?? null,
+    brochureUrl: project.brochureUrl ?? null,
   };
 }
 

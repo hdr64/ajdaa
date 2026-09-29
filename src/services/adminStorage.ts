@@ -5,6 +5,7 @@ import {
   toUnitInput,
   type UnitInput,
 } from './propertyService';
+import { categoryService, type CategoryInput } from './categoryService';
 import { ApiError } from './api';
 import type {
   CustomerInquiry,
@@ -195,6 +196,18 @@ export const AdminStorage = {
     await inquiryService.updateStatus(id, status);
   },
 
+  updateInquiry(id: string, data: { notes?: string | null; status?: InquiryStatus }): Promise<CustomerInquiry> {
+    return inquiryService.updateInquiry(id, data);
+  },
+
+  deleteInquiry(id: string): Promise<void> {
+    return inquiryService.remove(id);
+  },
+
+  exportInquiriesCsv(filters?: InquiryFilters): Promise<void> {
+    return inquiryService.exportCsv(filters);
+  },
+
   /* ---------------------- Categories (local only) ------------------------ */
 
   getCategories(): CategoryItem[] {
@@ -207,6 +220,22 @@ export const AdminStorage = {
     } catch {
       // Storage unavailable: keep the in-memory value the caller already has.
     }
+  },
+
+  listCategories(signal?: AbortSignal): Promise<CategoryItem[]> {
+    return categoryService.list(signal);
+  },
+
+  createCategory(category: CategoryInput): Promise<CategoryItem> {
+    return categoryService.create(category);
+  },
+
+  updateCategory(id: string, category: CategoryInput): Promise<CategoryItem> {
+    return categoryService.update(id, category);
+  },
+
+  deleteCategory(id: string): Promise<void> {
+    return categoryService.remove(id);
   },
 
   /* ------------------------------- Users --------------------------------- */

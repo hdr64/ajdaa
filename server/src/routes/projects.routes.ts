@@ -38,6 +38,7 @@ const projectSchema = z.object({
   locationHighlightsEn: z.array(z.string()).default([]),
   lat: z.number().nullish(),
   lng: z.number().nullish(),
+  brochureUrl: z.string().nullish(),
 });
 
 type ProjectInput = z.infer<typeof projectSchema>;
@@ -111,6 +112,7 @@ function toCreateData(input: ProjectInput) {
     locationHighlightsEn: JSON.stringify(input.locationHighlightsEn),
     lat: input.lat,
     lng: input.lng,
+    brochureUrl: input.brochureUrl,
   };
 }
 

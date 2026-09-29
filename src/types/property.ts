@@ -70,11 +70,13 @@ export interface Property {
   floors?: PropertyFloor[];
   lat?: number;
   lng?: number;
+  brochureUrl?: string;
 }
 
 export interface CustomerInquiry {
   id: string;
   createdAt: string;
+  updatedAt?: string;
   name: string;
   phone?: string;
   email?: string;
@@ -85,6 +87,7 @@ export interface CustomerInquiry {
   interestType: InterestType;
   interestTypeAr: string;
   message?: string;
+  notes?: string | null;
   status: 'new' | 'contacted' | 'closed';
   statusAr: string;
 }

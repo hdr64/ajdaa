@@ -36,3 +36,6 @@ export const INTEREST_TYPE_AR: Record<InterestType, string> = {
 
 export const ADMIN_ROLES = ['super_admin', 'project_manager', 'sales_agent', 'viewer'] as const;
 export type AdminRole = (typeof ADMIN_ROLES)[number];
+
+export const CATEGORY_TYPES = ['commercial', 'office', 'logistics', 'residential', 'hotel'] as const;
+export type CategoryType = (typeof CATEGORY_TYPES)[number];

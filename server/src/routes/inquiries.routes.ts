@@ -36,7 +36,83 @@ const listQuerySchema = z.object({
   projectId: z.coerce.number().int().optional(),
 });
 
+const updateInquiryBodySchema = z
+  .object({
+    notes: z.string().nullable().optional(),
+    status: z.enum(INQUIRY_STATUSES).optional(),
+  })
+  .refine((data) => data.notes !== undefined || data.status !== undefined, {
+    message: 'At least one field must be provided',
+  });
+
+function escapeCsvCell(value: string | null | undefined): string {
+  if (value == null) return '';
+  let str = String(value);
+
+  // CSV/formula-injection defense: prefix a single quote to any cell starting with = + - @ TAB or CR
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+
+  // RFC 4180 quoting: quote fields containing comma, quote, CR/LF; double inner quotes
+  if (/[",\r\n]/.test(str)) {
+    str = `"${str.replace(/"/g, '""')}"`;
+  }
+
+  return str;
+}
+
 export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
+  // Export inquiries to CSV (Admin) - registered before :id routes to prevent shadowing
+  fastify.get('/export', { onRequest: [authenticate, requirePermission('exportData')] }, async (request, reply) => {
+    const query = listQuerySchema.parse(request.query ?? {});
+
+    const where: Record<string, unknown> = {};
+    if (query.status) where.status = query.status;
+    if (query.projectId) where.projectId = query.projectId;
+
+    const inquiries = await prisma.customerInquiry.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const headers = [
+      'createdAt',
+      'name',
+      'phone',
+      'email',
+      'projectTitle',
+      'unitNumber',
+      'interestTypeAr',
+      'status',
+      'message',
+      'notes',
+    ];
+
+    const rows = inquiries.map((inq) => [
+      escapeCsvCell(inq.createdAt.toISOString()),
+      escapeCsvCell(inq.name),
+      escapeCsvCell(inq.phone),
+      escapeCsvCell(inq.email),
+      escapeCsvCell(inq.projectTitle),
+      escapeCsvCell(inq.unitNumber),
+      escapeCsvCell(inq.interestTypeAr),
+      escapeCsvCell(inq.statusAr),
+      escapeCsvCell(inq.message),
+      escapeCsvCell(inq.notes),
+    ]);
+
+    const headerLine = headers.join(',');
+    const dataLines = rows.map((r) => r.join(','));
+    const csv = '\uFEFF' + [headerLine, ...dataLines].join('\r\n') + '\r\n';
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header('Content-Disposition', `attachment; filename="inquiries-${dateStr}.csv"`);
+
+    return reply.send(csv);
+  });
+
   // Submit new customer inquiry (Public)
   fastify.post(
     '/',
@@ -97,7 +173,33 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
     return inquiries;
   });
 
-  // Update inquiry status (Admin)
+  // Update inquiry notes / status (Admin)
+  fastify.patch(
+    '/:id',
+    { preValidation: [validateBody(updateInquiryBodySchema)], onRequest: [authenticate, requirePermission('viewInquiries')] },
+    async (request) => {
+      const { id } = inquiryStatusParamsSchema.parse(request.params);
+      const body = updateInquiryBodySchema.parse(request.body ?? {});
+
+      const data: { notes?: string | null; status?: InquiryStatus; statusAr?: string } = {};
+      if (body.notes !== undefined) {
+        data.notes = body.notes;
+      }
+      if (body.status !== undefined) {
+        data.status = body.status;
+        data.statusAr = INQUIRY_STATUS_AR[body.status];
+      }
+
+      const updated = await prisma.customerInquiry.update({
+        where: { id },
+        data,
+      });
+
+      return updated;
+    }
+  );
+
+  // Update inquiry status (Admin) - legacy endpoint kept for compatibility
   fastify.patch(
     '/:id/status',
     { preValidation: [validateBody(inquiryStatusBodySchema)], onRequest: [authenticate, requirePermission('viewInquiries')] },
@@ -114,6 +216,22 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       return updated;
+    }
+  );
+
+  // Delete customer inquiry (Super Admin only - PII protection)
+  fastify.delete(
+    '/:id',
+    { onRequest: [authenticate] },
+    async (request, reply) => {
+      if (request.admin?.role !== 'super_admin') {
+        return reply.status(403).send({ error: 'Forbidden: super_admin required' });
+      }
+
+      const { id } = inquiryStatusParamsSchema.parse(request.params);
+      await prisma.customerInquiry.delete({ where: { id } });
+
+      return reply.status(200).send({ success: true });
     }
   );
 };
