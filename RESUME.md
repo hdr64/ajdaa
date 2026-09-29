@@ -1,6 +1,6 @@
 # Resume note (updated 2026-09-30, late) — read this first
 
-Branch `feat/backend-admin` (pushed, last code commit `d443ddb`). Not merged to `main` — owner merges when ready.
+Branch `feat/backend-admin` (pushed, last code commit `0e69c06`). Not merged to `main` — owner merges when ready.
 Plan and every owner request: `refactor.md` (Phases 8–9, "Admin gap review" at the end). `README.md` = setup/API only.
 
 ## Owner working rules (also in auto-memory)
