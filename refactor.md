@@ -380,6 +380,72 @@ receive no CORS header; in development the loopback origins still work.
 - [ ] Project types CRUD: admin creates / renames / deletes project types (currently تجاري، سكني، فنادق، لوجستي + إداري). Today `type` is a fixed 5-value union in code and in the public filters/map legend. Plan: make the existing `CategoryItem` table the source of truth for types (slug, nameAr, nameEn, icon/colour, sort order), load it in the public filters and map, and block deleting a type still used by projects (or require reassigning them first). Decide whether `office` (إداري) stays — the request lists only 4.
 - [ ] Sub-categories: admin creates sub-categories under a project type (e.g. تجاري → محلات، معارض، مكاتب). Needs a `parentId` on the type table (one level deep), an optional sub-category on projects (must belong to the project's type), and a filter on the public works page. Replaces or absorbs today's free-text category "tags" — decide which.
 
+#### Phase 8 follow-ups — floor plan & categories (requested 2026-09-29, done)
+- [x] Rename floors (AR/EN) from the floor plan; server now also updates the floor name copied onto its units
+- [x] Floor plan: projects as a horizontal picker strip instead of a dropdown
+- [x] Floor plan: floors display as sidebar list or grid; unit grid columns auto / 2 / 3 / 4 / 5; resizable floor panel (remembered per browser)
+- [x] Categories page: grid (1–4 columns) / list / compact table layouts (remembered per browser)
+- [x] Contact form sends a real inquiry (was discarded); newsletter subscribers stored via `/api/newsletter` from the footer form
+- [x] Project page `/admin/projects/:id`: tabs overview / units / inquiries; units grouped by expandable floor rows with a direct status select
+- [x] "عرض الموقع الحي" opens the public site in a new tab
+
+#### Phase 8b: Users, roles & admin preferences (requested 2026-09-29, planned)
+- [ ] Users page layouts: table / grid / stack (top-to-bottom list), remembered per browser
+- [ ] User create & edit as proper forms (page or full dialog): name, email, department, role, status, password reset
+- [ ] Confirmation dialog before every on/off action (activate/deactivate user, enable/disable, status toggles) with a "لا تسألني مرة أخرى" checkbox; the choice is stored per admin and per action type, and can be reset from the settings page
+- [ ] Admin settings page (`/admin/settings`): profile (name, email), change password, theme + language, default layouts, reset "don't ask again" choices. Preferences stored **server-side per admin** (new `AdminPreference` JSON column or table) so they follow the admin across browsers
+- [ ] HR pages: CRUD for **roles**, **permissions** and **departments**
+  - Today `role` is a fixed 4-value string and permissions are 5 hard-coded booleans on each user, checked by name in every server route (`requirePermission('manageProjects')`)
+  - Target: `Role { id, nameAr, nameEn, permissions[] }`, `Department { id, nameAr, nameEn }`, users reference a role + department; a user's effective permissions come from the role (optionally with per-user overrides)
+  - Permissions stay a **fixed catalogue defined in code** (they must match what the server checks); admins compose roles from it rather than inventing new permission names that no route enforces
+  - Guards: `super_admin` role cannot be deleted or stripped; a role or department in use cannot be deleted without reassigning; nobody can escalate their own role (existing rule)
+  - Migration: map the 4 existing roles to seeded Role rows and each user's current booleans to a role (or overrides), so no user loses or gains access
+
+#### Phase 8c: Publishing, data tables, drafts, media & SEO (requested 2026-09-29, planned)
+
+**Publishing**
+- [ ] Projects: published / unpublished toggle on `/admin/projects` (card + table + project page). Unpublished projects are hidden from the public site (list, map, detail page returns 404) but stay fully editable in the admin
+  - Server: `Project.publishStatus` (`draft` | `published` | `hidden`) + `publishedAt`; public `GET /api/projects` returns only `published`; admin reads use an authenticated endpoint/flag that includes all
+  - Migration default `published` for existing rows so nothing disappears on deploy
+  - Toggle goes through the confirm dialog (with "don't ask again", see Phase 8b)
+
+**View switcher on every list page** (the table / list / grid control from the categories page)
+- [ ] Shared `ViewSwitcher` component + per-page remembered choice (`usePersistentState`): projects, inquiries, users, categories, units, newsletter subscribers
+- [ ] Each page defines what table / list / grid mean for its data; grid supports a column-count choice where it helps
+
+**Data table** (replace the plain compact tables)
+- [ ] Shared `DataTable` component used by every table view: column sorting (click header, asc/desc, RTL-aware icons), per-column filters + global search, row selection with bulk actions (delete, publish/unpublish, change status, export selected), sticky header, column show/hide, density (comfortable/compact), pagination or virtual scroll for long lists, empty/loading/error states, keyboard navigation, remembered sort/columns per page
+- [ ] Visual redesign: clear header row, zebra/hover states, aligned numeric columns, truncated long cells with tooltip, status as chips, row actions grouped in a menu on narrow screens
+
+**Drafts**
+- [ ] Projects: "save as draft" (a project can be saved incomplete; required-for-publish checks run only on publish). Uses `publishStatus = draft`
+- [ ] Other forms (users, categories, units, content): local auto-saved drafts of unsaved forms, restored on return ("لديك مسودة غير محفوظة — استعادة / تجاهل")
+- [ ] How drafts surface (chosen approach): **status filter chips on each list** (الكل / جاهز / مسودة, with counts) **plus a dismissible banner at the top** of the page when drafts exist ("3 مشاريع في وضع المسودة — عرضها")
+- [ ] Users: "draft" maps to an **invited / pending** account state (created but not activated), not a half-typed form
+
+**Project page: 3D model**
+- [ ] Upload a 3D model per project (`.glb` preferred, `.gltf`); media allowlist extended with magic-byte check for glTF/GLB, separate size limit (e.g. 50 MB), stored under `uploads/models/`
+- [ ] Preview in the admin and a real viewer on the public project page, replacing the "3D tour coming soon" button (three.js is already a dependency; `<model-viewer>` is the lighter alternative)
+- [ ] `Project.model3dUrl`; `virtualTour3dAvailable` becomes derived from it
+
+**Project page: image editor & format**
+- [ ] In-browser image editor before upload and for existing gallery images: crop (free + preset ratios 16:9, 4:3, 1:1), rotate/flip, resize, brightness/contrast, text overlay, watermark. Library candidates: Filerobot Image Editor (crop + annotate + text + filters) or a lighter crop-only tool plus canvas text
+- [ ] Output format choice: WebP (default), AVIF, JPEG, with quality slider; the server already re-encodes every image with sharp, so the chosen format + quality are passed as upload options and validated server-side
+- [ ] Keep the original upload (so edits are non-destructive and undoable — ties into Phase 9 activity log)
+
+**SEO**
+- [ ] Per-project SEO panel in the project editor: slug (Arabic-friendly), meta title + description (AR/EN, with length counters and a Google-style preview), OG/share image, keywords, canonical, noindex toggle
+- [ ] Site-wide SEO in the admin (part of Phase 9 CMS): default title template, per-page meta for every public page, Organization + RealEstateListing JSON-LD, `sitemap.xml` (projects + pages, AR/EN `hreflang`), `robots.txt`, favicon/app icons, social profiles
+- [ ] SEO checklist per project/page (missing description, title too long, no share image, duplicate titles)
+- [ ] **Caveat:** the site is a client-rendered SPA. Meta tags set in the browser are not read by social-media link previews and only partly by some crawlers. To make SEO real, the server must return the right `<title>`/meta/OG/JSON-LD in the HTML for each URL: either Fastify renders the SPA `index.html` with injected tags for `/projects/:id` and pages (smallest change, works with Caddy), or pre-render at build/publish time. Decide before building the SEO UI
+
+**Newsletter admin**
+- [ ] Admin screen for newsletter subscribers (list, search, delete, CSV export) — backend and service are done (`/api/newsletter`)
+
+### Working rules (from the owner)
+- Every item and note the owner sends is recorded in this file (the TODO / phase lists), not only in chat
+- `README.md` stays clean: setup, architecture and API reference only — no task lists or notes
+
 ### Phase 9: Full site CMS + activity log with undo (planned)
 
 **Goal:** every piece of public-site content is editable from the admin dashboard, every
