@@ -24,14 +24,20 @@ export type PageKey = NavPageKey;
 interface RouteState {
   page: PageKey;
   projectId?: number;
+  /** Admin sub-route after `/admin/`, e.g. "projects/206/units". */
+  adminPath?: string;
 }
+
+// Matches `/admin` and everything below it except the login portal.
+const ADMIN_PATH_RE = /\/admin(?:\/(.*))?$/;
 
 const parsePath = (pathname: string): RouteState => {
   const clean = pathname.replace(/\/$/, '').toLowerCase();
 
   if (clean.includes('/admin/login')) return { page: 'admin_login' };
-  if (clean.endsWith('/admin')) {
-    return AdminStorage.isAuthenticated() ? { page: 'admin' } : { page: 'admin_login' };
+  const adminMatch = clean.match(ADMIN_PATH_RE);
+  if (adminMatch) {
+    return AdminStorage.isAuthenticated() ? { page: 'admin', adminPath: adminMatch[1] ?? '' } : { page: 'admin_login' };
   }
   if (clean.endsWith('/clients')) return { page: 'clients' };
   if (clean.endsWith('/works')) return { page: 'works' };
@@ -49,7 +55,8 @@ const parsePath = (pathname: string): RouteState => {
 
 const getPathForRoute = (route: RouteState): string => {
   const pathname = window.location.pathname;
-  let basePath = pathname;
+  // Strip any /admin/... sub-route first (it can have several segments).
+  let basePath = pathname.replace(/\/$/, '').replace(/\/admin(?:\/.*)?$/i, '');
   ['/works', '/clients', '/booking', '/register-interest', '/contact', '/admin/login', '/admin'].forEach((p) => {
     if (basePath.endsWith(p)) {
       basePath = basePath.slice(0, -p.length);
@@ -73,7 +80,7 @@ const getPathForRoute = (route: RouteState): string => {
     case 'admin_login':
       return `${basePath}/admin/login`;
     case 'admin':
-      return `${basePath}/admin`;
+      return `${basePath}/admin${route.adminPath ? `/${route.adminPath}` : ''}`;
     case 'booking':
       return `${basePath}/booking`;
     default:
@@ -186,6 +193,15 @@ export function App() {
     });
   };
 
+  // Admin sections change without the page transition; the dashboard is one screen.
+  const navigateAdmin = (adminPath: string, options?: { replace?: boolean }) => {
+    const nextRoute: RouteState = { page: 'admin', adminPath };
+    setRoute(nextRoute);
+    const url = getPathForRoute(nextRoute);
+    if (options?.replace) window.history.replaceState({ route: nextRoute, scrollY: 0 }, '', url);
+    else window.history.pushState({ route: nextRoute, scrollY: 0 }, '', url);
+  };
+
   const handleHeroExplore = (filters?: { city?: string; type?: string; priceType?: string }) => {
     setInitialFilters(filters);
     navigateTo('works');
@@ -233,6 +249,8 @@ export function App() {
     return (
       <ThemeProvider>
         <AdminDashboardPage
+          adminPath={route.adminPath}
+          onAdminNavigate={navigateAdmin}
           onLogout={() => {
             AdminStorage.logout();
             navigateTo('home');

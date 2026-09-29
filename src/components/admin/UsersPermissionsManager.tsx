@@ -2,8 +2,10 @@ import React, { useCallback, useState } from 'react';
 import { AdminStorage, type AdminUser } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { useAdmin } from '../../pages/admin/adminContextDef';
+import { formatRelativeTime } from '../../pages/admin/adminFormat';
+import { AdminHeaderActions } from './layout/AdminHeaderActions';
 import {
-  ShieldCheck,
   UserPlus,
   Edit2,
   Trash2,
@@ -18,6 +20,7 @@ interface UsersPermissionsManagerProps {
 }
 
 export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = ({ onShowToast }) => {
+  const { confirm } = useAdmin();
   const {
     data: users,
     loading,
@@ -128,7 +131,13 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
   };
 
   const handleDelete = async (user: AdminUser) => {
-    if (!confirm(`هل أنت متأكد من حذف المستخدم (${user.name})؟`)) return;
+    const ok = await confirm({
+      title: `حذف المستخدم "${user.name}"؟`,
+      message: 'سيفقد هذا الحساب الوصول إلى لوحة التحكم فوراً.',
+      confirmLabel: 'حذف المستخدم',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await AdminStorage.deleteUser(user.id);
       await refreshUsers();
@@ -140,29 +149,16 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="p-5 rounded-3xl bg-surface border border-muted-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-accent/15 text-accent mb-2 inline-block">
-            الأمان والصلاحيات
-          </span>
-          <h3 className="text-base font-black text-heading flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-accent" />
-            <span>إدارة المستخدمين وصلاحيات الوصول</span>
-          </h3>
-          <p className="text-xs text-neutral-text/60 mt-0.5">
-            التحكم في أعضاء الفريق وتحديد أذونات إدارة المشاريع، تعديل الوحدات، والاطلاع على طلبات العملاء
-          </p>
-        </div>
-
+      {/* Primary action lives in the page header. */}
+      <AdminHeaderActions>
         <button
           onClick={handleOpenAdd}
-          className="brand-btn-primary text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+          className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
         >
           <UserPlus className="w-4 h-4" />
-          <span>إضافة مستخدم جديد</span>
+          <span className="hidden sm:inline">مستخدم جديد</span>
         </button>
-      </div>
+      </AdminHeaderActions>
 
       {/* Users Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -234,7 +230,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-neutral-text/50 text-[10px]">آخر نشاط:</span>
-                  <span className="text-neutral-text/60">{user.lastLogin || 'الآن'}</span>
+                  <span className="text-neutral-text/60">{user.lastLogin ? formatRelativeTime(user.lastLogin) : 'لم يسجل الدخول بعد'}</span>
                 </div>
               </div>
 
@@ -266,6 +262,9 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
                     <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-surface border border-muted-border/40 text-heading flex items-center gap-1">
                       <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> إدارة المستخدمين
                     </span>
+                  )}
+                  {user.role !== 'super_admin' && !Object.values(user.permissions).some(Boolean) && (
+                    <span className="text-[10px] text-neutral-text/50">لا توجد صلاحيات — عرض فقط</span>
                   )}
                 </div>
               </div>
