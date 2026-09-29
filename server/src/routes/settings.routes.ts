@@ -4,6 +4,7 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { sendTestMail } from '../services/mailService.js';
 import { config } from '../config/env.js';
+import { getSiteSettings, saveSiteSettings, type SiteSettings } from '../services/siteSettings.js';
 import {
   getEffectiveMailSettings,
   resetMailSettings,
@@ -33,6 +34,27 @@ const testMailSchema = z.object({
   settings: mailSettingsSchema.optional(),
 });
 
+/** Rendered as links on public pages, so only https URLs (or empty, to hide one). */
+const publicUrl = z.union([z.literal(''), z.string().trim().max(300).url().startsWith('https://')]);
+
+const siteSettingsSchema = z.object({
+  phone: z.string().trim().max(40),
+  whatsapp: z.union([z.literal(''), z.string().trim().regex(/^\d{8,15}$/, 'International digits only, e.g. 966580484528')]),
+  email: z.union([z.literal(''), z.string().trim().email().max(255)]),
+  addressAr: z.string().trim().max(200),
+  addressEn: z.string().trim().max(200),
+  hoursAr: z.string().trim().max(120),
+  hoursEn: z.string().trim().max(120),
+  socials: z.object({
+    x: publicUrl,
+    instagram: publicUrl,
+    tiktok: publicUrl,
+    snapchat: publicUrl,
+    linkedin: publicUrl,
+    youtube: publicUrl,
+  }) satisfies z.ZodType<SiteSettings['socials']>,
+});
+
 /** Long enough for a useful SMTP error, short enough not to echo a server banner dump. */
 const MAX_ERROR_LENGTH = 300;
 
@@ -40,6 +62,15 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   // A fresh array per route: @fastify/rate-limit appends its hook to the route's
   // onRequest array, so a shared one would apply the test-mail limit everywhere.
   const guards = () => ({ onRequest: [authenticate, requireSuperAdmin] });
+
+  // Public: the website reads its contact details and social links from here.
+  fastify.get('/site', async () => getSiteSettings());
+
+  fastify.put(
+    '/site',
+    { ...guards(), preValidation: [validateBody(siteSettingsSchema)] },
+    async (request) => saveSiteSettings(siteSettingsSchema.parse(request.body), request.admin!.id)
+  );
 
   fastify.get('/mail', guards(), async () => toPublicView(await getEffectiveMailSettings()));
 

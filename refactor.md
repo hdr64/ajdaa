@@ -570,7 +570,12 @@ Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email
 - [ ] System status page (API, database, disk, realtime)
 - [ ] Maintenance mode / announcement banner for the public site
 - [ ] Redirects manager (old URLs → new), 404 log
-- [ ] **Mail settings page** (owner request 2026-09-30): admin page to edit the `MAIL_*` SMTP settings and send a test email.
+- [ ] **Settings page** `/admin/settings` (owner request 2026-09-30: "admin dashboard settings where admin can edit the
+  whole website settings", not just mail). Tabs: **Contact info** (phone, WhatsApp, email, address ar/en, working
+  hours ar/en, social links; public `GET /api/settings/site`, today's hard-coded values as fallback, replaces the
+  copies in Navbar/Footer/Contact/Clients/booking) and **Mail** (below). Later tabs: SEO defaults, maintenance mode /
+  announcement banner, inquiry notification recipients (NOTIFY_INQUIRY_EMAILS), OTP policy.
+- [x] **Mail settings page** (owner request 2026-09-30): admin page to edit the `MAIL_*` SMTP settings and send a test email.
   Decisions: stored in an `AppSetting` table and overrides `.env` (a "reset to .env" action deletes it); SMTP password
   encrypted at rest (AES-256-GCM, key from `SETTINGS_ENCRYPTION_KEY`, else derived from `JWT_SECRET` — rotating it means
   re-entering the password) and never returned to the browser (`passwordSet` only); super_admin only; the test email uses

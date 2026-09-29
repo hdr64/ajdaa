@@ -164,3 +164,58 @@ describe('Test email (/api/settings/mail/test)', () => {
     expect(statuses).toContain(429);
   });
 });
+
+describe('Site settings (/api/settings/site)', () => {
+  const siteSettings = {
+    phone: '+966 50 000 0000',
+    whatsapp: '966500000000',
+    email: 'hello@example.com',
+    addressAr: 'جدة',
+    addressEn: 'Jeddah',
+    hoursAr: 'يومياً',
+    hoursEn: 'Daily',
+    socials: {
+      x: 'https://x.com/example',
+      instagram: '',
+      tiktok: '',
+      snapchat: '',
+      linkedin: 'https://www.linkedin.com/company/example',
+      youtube: '',
+    },
+  };
+  const putSite = (token: string, payload: unknown) =>
+    authInject(token, { method: 'PUT', url: '/api/settings/site', payload });
+
+  afterAll(async () => {
+    await prisma.appSetting.deleteMany({ where: { key: 'site' } });
+  });
+
+  it('is public to read and falls back to the built-in values', async () => {
+    await prisma.appSetting.deleteMany({ where: { key: 'site' } });
+
+    const response = await inject({ method: 'GET', url: '/api/settings/site' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ whatsapp: '966580484528', email: 'info@ajdaa.sa' });
+  });
+
+  it('only a super admin can change it', async () => {
+    expect((await inject({ method: 'PUT', url: '/api/settings/site', payload: siteSettings })).statusCode).toBe(401);
+    expect((await putSite(managerToken, siteSettings)).statusCode).toBe(403);
+
+    const saved = await putSite(superToken, siteSettings);
+    expect(saved.statusCode).toBe(200);
+
+    const reread = await inject({ method: 'GET', url: '/api/settings/site' });
+    expect(reread.json()).toEqual(siteSettings);
+  });
+
+  it('rejects links that are not https and a malformed WhatsApp number', async () => {
+    const scriptLink = { ...siteSettings, socials: { ...siteSettings.socials, x: 'javascript:alert(1)' } };
+    const plainHttp = { ...siteSettings, socials: { ...siteSettings.socials, x: 'http://x.com/example' } };
+
+    expect((await putSite(superToken, scriptLink)).statusCode).toBe(400);
+    expect((await putSite(superToken, plainHttp)).statusCode).toBe(400);
+    expect((await putSite(superToken, { ...siteSettings, whatsapp: '+966 50' })).statusCode).toBe(400);
+  });
+});
