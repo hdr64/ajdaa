@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { ConfirmAction } from '../../services/authService';
 import type { Property, CustomerInquiry } from '../../types/property';
 import type { AdminPermissions, AdminUser } from '../../types/admin';
 import type { AsyncResource } from '../../hooks/useAsyncData';
@@ -12,6 +13,12 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   /** Destructive actions get a red confirm button. */
   danger?: boolean;
+  /**
+   * Offers "don't ask again" for this reversible action type. Once chosen, later
+   * confirms with the same key resolve true without a dialog. Never pass it for
+   * permanent deletes (the server only accepts the reversible toggles anyway).
+   */
+  rememberKey?: ConfirmAction;
 }
 
 export interface AdminContextValue {
@@ -29,6 +36,9 @@ export interface AdminContextValue {
 
   showToast: (message: string) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  /** Actions this admin chose "don't ask again" for; the profile page can reset them. */
+  skipConfirm: ConfirmAction[];
+  setSkipConfirm: (actions: ConfirmAction[]) => Promise<void>;
   refreshAll: () => Promise<void>;
   refreshUser: () => Promise<void>;
   setCurrentUser: (user: AdminUser | null) => void;

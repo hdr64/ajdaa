@@ -102,6 +102,7 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
         message: copy.message,
         confirmLabel: copy.confirmLabel,
         danger: copy.danger,
+        rememberKey: 'user.status',
       });
       if (!ok) return;
       try {

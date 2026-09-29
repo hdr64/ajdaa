@@ -35,6 +35,7 @@ export function usePublishProject() {
         ? `سيظهر المشروع للزوار فوراً، لكن تنقصه بيانات: ${issues.join('، ')}.`
         : 'سيظهر المشروع للزوار في قائمة المشاريع والخريطة فوراً.',
       confirmLabel: issues.length ? 'نشر رغم النواقص' : 'نشر المشروع',
+      rememberKey: 'project.publish',
     });
     if (ok) await apply(project, 'published', 'تم نشر المشروع');
   };
@@ -45,6 +46,7 @@ export function usePublishProject() {
       message: 'سيختفي المشروع من الموقع والخريطة فوراً، ويبقى متاحاً للتعديل هنا. يمكنك نشره مرة أخرى في أي وقت.',
       confirmLabel: 'إخفاء المشروع',
       danger: true,
+      rememberKey: 'project.publish',
     });
     if (ok) await apply(project, 'hidden', 'تم إخفاء المشروع من الموقع');
   };

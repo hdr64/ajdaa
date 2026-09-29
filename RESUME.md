@@ -30,7 +30,7 @@ Plan and every owner request: `refactor.md` (Phases 8–9, "Admin gap review" at
 - Still to do in the browser: Users, HR, Inquiries, Settings tabs, Projects/Categories views, OTP login.
 
 ## Next queue
-1. "Don't ask again" confirm preferences stored per admin (server-side).
+1. Browser pass over everything shipped 2026-09-30.
 2. Settings tabs still planned: SEO defaults, maintenance mode / announcement banner, OTP policy.
 3. Phase 8c: 3D model upload, image editor + format choice, SEO (decide server-side meta injection first), drafts for other forms.
 4. Remaining gap-review items (error monitoring, backups visibility, media library, CRM features), Phase 9 CMS + activity log with undo.

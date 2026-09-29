@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Property, CustomerInquiry } from '../../types/property';
 import type { AdminUser } from '../../types/admin';
 import { AdminStorage } from '../../services/adminStorage';
+import { preferencesService, type ConfirmAction } from '../../services/authService';
 import { getErrorMessage } from '../../services/api';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { applyUnitStatus, removeUnit, useRealtimeUnits } from '../../hooks/useRealtimeUnits';
@@ -188,16 +189,45 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     resolve: (value: boolean) => void;
   } | null>(null);
 
+  // "Don't ask again" choices follow the admin across browsers (stored server-side).
+  const [skipConfirm, setSkipConfirmState] = useState<ConfirmAction[]>([]);
+  const currentUserId = currentUser?.id;
+  useEffect(() => {
+    if (!currentUserId) return;
+    const controller = new AbortController();
+    preferencesService
+      .get(controller.signal)
+      .then((preferences) => setSkipConfirmState(preferences.skipConfirm))
+      .catch(() => {
+        // Without preferences every confirm simply asks, which is the safe default.
+      });
+    return () => controller.abort();
+  }, [currentUserId]);
+
+  const setSkipConfirm = useCallback(async (actions: ConfirmAction[]) => {
+    const saved = await preferencesService.save({ skipConfirm: actions });
+    setSkipConfirmState(saved.skipConfirm);
+  }, []);
+
   const confirm = useCallback(
-    (options: ConfirmOptions) => new Promise<boolean>((resolve) => setPendingConfirm({ options, resolve })),
-    []
+    (options: ConfirmOptions) => {
+      if (options.rememberKey && skipConfirm.includes(options.rememberKey)) return Promise.resolve(true);
+      return new Promise<boolean>((resolve) => setPendingConfirm({ options, resolve }));
+    },
+    [skipConfirm]
   );
   const resolveConfirm = useCallback(
-    (value: boolean) => {
+    (value: boolean, remember: boolean) => {
+      const key = pendingConfirm?.options.rememberKey;
       pendingConfirm?.resolve(value);
       setPendingConfirm(null);
+      if (value && remember && key && !skipConfirm.includes(key)) {
+        setSkipConfirm([...skipConfirm, key]).catch((error) =>
+          showToast(getErrorMessage(error, 'تعذر حفظ اختيار «لا تسألني مرة أخرى»'))
+        );
+      }
     },
-    [pendingConfirm]
+    [pendingConfirm, skipConfirm, setSkipConfirm, showToast]
   );
 
   /* ------------------------------- Layout ------------------------------- */
@@ -244,11 +274,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       navigate,
       showToast,
       confirm,
+      skipConfirm,
+      setSkipConfirm,
       refreshAll,
       refreshUser,
       setCurrentUser,
     }),
-    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, location, navigate, showToast, confirm, refreshAll, refreshUser]
+    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, location, navigate, showToast, confirm, skipConfirm, setSkipConfirm, refreshAll, refreshUser]
   );
 
   const renderSection = () => {

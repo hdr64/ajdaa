@@ -17,9 +17,15 @@ const STATUS_CLASS: Record<InquiryStatus, string> = {
 
 /** Status dropdown with an optimistic update, rolled back if the server rejects it. */
 export const InquiryStatusSelect: React.FC<{ inquiry: CustomerInquiry }> = ({ inquiry }) => {
-  const { inquiries, showToast } = useAdmin();
+  const { inquiries, showToast, confirm } = useAdmin();
 
   const change = async (status: InquiryStatus) => {
+    const ok = await confirm({
+      title: `تغيير حالة طلب "${inquiry.name}" إلى «${STATUS_AR[status]}»؟`,
+      confirmLabel: 'تغيير الحالة',
+      rememberKey: 'inquiry.status',
+    });
+    if (!ok) return;
     const previous = inquiries.data;
     inquiries.setData((current) =>
       current.map((item) => (item.id === inquiry.id ? { ...item, status, statusAr: STATUS_AR[status] } : item))

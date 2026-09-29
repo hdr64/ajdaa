@@ -219,3 +219,20 @@ export const forgotPassword = authService.forgotPassword.bind(authService);
 export const resetPassword = authService.resetPassword.bind(authService);
 export const setLoginOtp = authService.setLoginOtp.bind(authService);
 
+
+/** Reversible on/off actions an admin may choose "don't ask again" for (the server rejects any other). */
+export type ConfirmAction = 'user.status' | 'project.publish' | 'inquiry.status' | 'listener.enabled';
+
+export interface AdminPreferences {
+  skipConfirm: ConfirmAction[];
+}
+
+export const preferencesService = {
+  get(signal?: AbortSignal): Promise<AdminPreferences> {
+    return api.get<AdminPreferences>('/api/auth/me/preferences', { signal });
+  },
+
+  save(preferences: AdminPreferences): Promise<AdminPreferences> {
+    return api.put<AdminPreferences>('/api/auth/me/preferences', preferences);
+  },
+};

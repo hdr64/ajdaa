@@ -222,9 +222,16 @@ export const NotificationListenersPanel: React.FC = () => {
     }
   };
 
-  const toggle = (listener: NotificationListener) => {
+  const toggle = async (listener: NotificationListener) => {
+    const ok = await confirm({
+      title: listener.enabled ? `إيقاف المستمع «${listener.name}»؟` : `تفعيل المستمع «${listener.name}»؟`,
+      message: listener.enabled ? 'لن يتلقى مستلموه إشعارات حتى تعيد تفعيله.' : undefined,
+      confirmLabel: listener.enabled ? 'إيقاف' : 'تفعيل',
+      rememberKey: 'listener.enabled',
+    });
+    if (!ok) return;
     const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...input } = listener;
-    void save({ ...input, enabled: !listener.enabled }, id);
+    await save({ ...input, enabled: !listener.enabled }, id);
   };
 
   const remove = async (listener: NotificationListener) => {
@@ -315,7 +322,7 @@ export const NotificationListenersPanel: React.FC = () => {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => toggle(listener)}
+                onClick={() => void toggle(listener)}
                 disabled={saving}
                 className="px-2.5 py-1.5 rounded-lg border border-muted-border/40 text-[11px] font-bold cursor-pointer hover:border-accent disabled:opacity-50"
               >

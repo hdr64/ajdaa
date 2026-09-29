@@ -1,21 +1,23 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { ConfirmOptions } from '../../../pages/admin/adminContextDef';
 
 interface ConfirmDialogProps {
   options: ConfirmOptions;
-  onResolve: (confirmed: boolean) => void;
+  /** `remember` is the "don't ask again" checkbox, only shown for `options.rememberKey`. */
+  onResolve: (confirmed: boolean, remember: boolean) => void;
 }
 
 /** Styled replacement for window.confirm, driven by `useAdmin().confirm()`. */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ options, onResolve }) => {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const [remember, setRemember] = useState(false);
 
   useEffect(() => {
     // Default focus on the safe choice.
     cancelRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onResolve(false);
+      if (event.key === 'Escape') onResolve(false, false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -25,7 +27,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ options, onResolve
     <div
       className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onResolve(false);
+        if (event.target === event.currentTarget) onResolve(false, false);
       }}
     >
       <div
@@ -52,18 +54,30 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ options, onResolve
           </div>
         </div>
 
+        {options.rememberKey && (
+          <label className="mt-5 flex items-center gap-2 text-xs text-neutral-text/70 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(event) => setRemember(event.target.checked)}
+              className="w-3.5 h-3.5 cursor-pointer"
+            />
+            لا تسألني مرة أخرى عن هذا الإجراء
+          </label>
+        )}
+
         <div className="flex items-center justify-end gap-2 mt-6">
           <button
             ref={cancelRef}
             type="button"
-            onClick={() => onResolve(false)}
+            onClick={() => onResolve(false, false)}
             className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
           >
             إلغاء
           </button>
           <button
             type="button"
-            onClick={() => onResolve(true)}
+            onClick={() => onResolve(true, remember)}
             className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer ${
               options.danger ? 'bg-red-500 hover:bg-red-600 text-white' : 'brand-btn-primary'
             }`}
