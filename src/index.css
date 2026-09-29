@@ -997,3 +997,24 @@
       animation: none !important;
     }
   }
+
+/* ==========================================================
+   Admin chart palette — unit status series (validated with the
+   dataviz checker against #ffffff, #1c2c3b and #07152b surfaces).
+   Order is fixed: available, reserved, rented, sold.
+   ========================================================== */
+:root,
+[data-theme="light"] {
+  --viz-available: #1baf7a;
+  --viz-reserved: #eda100;
+  --viz-rented: #2a78d6;
+  --viz-sold: #e87ba4;
+  --viz-grid: color-mix(in srgb, var(--neutral-text, #64748b) 14%, transparent);
+}
+[data-theme="dark"] {
+  --viz-available: #199e70;
+  --viz-reserved: #c98500;
+  --viz-rented: #3987e5;
+  --viz-sold: #d55181;
+  --viz-grid: color-mix(in srgb, #ffffff 9%, transparent);
+}

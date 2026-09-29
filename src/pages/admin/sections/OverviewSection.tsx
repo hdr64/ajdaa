@@ -5,6 +5,8 @@ import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { InquiryStatusSelect, WhatsAppLink } from './inquiryUi';
 import { formatAdminDate } from '../adminFormat';
+import { InquiriesTrendChart } from '../../../components/admin/charts/InquiriesTrendChart';
+import { UnitStatusChart } from '../../../components/admin/charts/UnitStatusChart';
 
 const TYPE_LABEL_AR: Record<string, string> = {
   commercial: 'تجاري',
@@ -142,6 +144,14 @@ export const OverviewSection: React.FC = () => {
             فتح المخطط البصري للأدوار
           </button>
         </div>
+      </div>
+
+      <div className={`grid grid-cols-1 gap-4 ${canViewInquiries ? 'xl:grid-cols-2' : ''}`}>
+        {canViewInquiries && <InquiriesTrendChart inquiries={inquiries.data} />}
+        <UnitStatusChart
+          projects={projects.data}
+          onOpenProject={(projectId) => navigate({ section: 'project', projectId })}
+        />
       </div>
 
       {canViewInquiries && (
