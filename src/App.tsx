@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Property } from './types/property';
 import { Navbar, type NavPageKey } from './components/common/Navbar';
-import { PropertyModal } from './components/common/PropertyModal';
 import { Footer } from './components/common/Footer';
 import { BackgroundDecor } from './components/common/BackgroundDecor';
 import { ThemeProvider } from './context/ThemeProvider';
@@ -94,7 +93,6 @@ const TRANSITION_ENTER_MS = 220;
 export function App() {
   const [route, setRoute] = useState<RouteState>(() => parsePath(window.location.pathname));
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [selectedModalProperty, setSelectedModalProperty] = useState<Property | null>(null);
   const [initialFilters, setInitialFilters] = useState<{ city?: string; type?: string; priceType?: string } | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [transition, setTransition] = useState<'idle' | 'out' | 'in'>('idle');
@@ -320,21 +318,6 @@ export function App() {
             )}
           </div>
         </main>
-
-        {/* Property Details Quick View Modal */}
-        <PropertyModal
-          property={selectedModalProperty}
-          onClose={() => setSelectedModalProperty(null)}
-          onBook={(prop) => {
-            setSelectedProperty(prop);
-            navigateTo('booking');
-          }}
-          onViewProjectPage={(prop) => {
-            setSelectedModalProperty(null);
-            navigateTo('project', true, { projectId: prop.id });
-          }}
-          onToast={showToast}
-        />
 
         <Footer onNavigate={navigateTo} onToast={showToast} />
 

@@ -49,12 +49,27 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Spam protection state
+  const [startedAt] = useState<number>(() => Date.now());
+  const [website, setWebsite] = useState('');
+
   const filtered = filter === 'all' ? allProjects : allProjects.filter((p) => p.type === filter);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
       onSuccessToast(isAr ? 'يرجى إدخال اسمك' : 'Please enter your name');
+      return;
+    }
+
+    // Spam protection check (honeypot or submission faster than 2 seconds)
+    const isHoneypot = Boolean(website && website.trim().length > 0);
+    const isTooFast = Date.now() - startedAt < 2000;
+    if (isHoneypot || isTooFast) {
+      setStep(3);
+      onSuccessToast(
+        isAr ? 'تم تسجيل اهتمامك بنجاح! سيتواصل معك فريقنا قريباً.' : 'Your interest has been submitted successfully!'
+      );
       return;
     }
 
@@ -310,6 +325,24 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Honeypot field for bot spam prevention */}
+            <div
+              className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
+              aria-hidden="true"
+              tabIndex={-1}
+            >
+              <label htmlFor="interest-website">Website</label>
+              <input
+                id="interest-website"
+                type="text"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+              />
+            </div>
+
             {/* Name */}
             <div>
               <label className="block text-xs font-bold text-neutral-text/70 mb-1.5">

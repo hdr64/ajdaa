@@ -3,6 +3,7 @@ import { Phone, Mail, MapPin, Clock, Send, CheckCircle2, Zap, ShieldCheck, Headp
 import { Reveal } from '../common/Reveal';
 import { AdminStorage } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface ContactPageProps {
   onSuccessToast?: (msg: string) => void;
@@ -17,20 +18,6 @@ interface FormState {
 }
 
 const initialForm: FormState = { name: '', phone: '', email: '', subject: 'استفسار عام', message: '' };
-
-const contactItems = [
-  { icon: MapPin, label: 'العنوان', value: 'الرياض، طريق الملك فهد', dir: 'rtl' as const },
-  {
-    icon: Phone,
-    label: 'واتساب والمحادثة المباشرة',
-    value: '+966 58 048 4528',
-    dir: 'ltr' as const,
-    href: 'https://wa.me/966580484528',
-    isExternal: true,
-  },
-  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajdaa.sa', dir: 'ltr' as const, href: 'mailto:info@ajdaa.sa' },
-  { icon: Clock, label: 'ساعات العمل', value: 'الأحد – الخميس، 8ص – 4م', dir: 'rtl' as const },
-];
 
 const socialLinks = [
   {
@@ -55,18 +42,12 @@ const socialLinks = [
   },
 ];
 
-const highlights = [
-  { icon: Zap, text: 'رد سريع خلال 24 ساعة' },
-  { icon: ShieldCheck, text: 'خصوصية وأمان لبياناتك' },
-  { icon: Headphones, text: 'دعم استشاري واستثماري مستمر' },
-];
-
 const subjects = [
-  'استفسار عام',
-  'حجز / استفسار عن مستودع لوجستي',
-  'حجز / استفسار عن محل أو معرض تجاري',
-  'استفسار عن مكاتب إدارية',
-  'فرص استثمار وشراكات'
+  { value: 'استفسار عام', labelAr: 'استفسار عام', labelEn: 'General Inquiry' },
+  { value: 'حجز / استفسار عن مستودع لوجستي', labelAr: 'حجز / استفسار عن مستودع لوجستي', labelEn: 'Inquiry / Booking: Logistics Warehouse' },
+  { value: 'حجز / استفسار عن محل أو معرض تجاري', labelAr: 'حجز / استفسار عن محل أو معرض تجاري', labelEn: 'Inquiry / Booking: Retail Store or Showroom' },
+  { value: 'استفسار عن مكاتب إدارية', labelAr: 'استفسار عن مكاتب إدارية', labelEn: 'Inquiry about Administrative Offices' },
+  { value: 'فرص استثمار وشراكات', labelAr: 'فرص استثمار وشراكات', labelEn: 'Investment Opportunities & Partnerships' },
 ];
 
 /** Maps the form subject to the CRM interest type. */
@@ -93,10 +74,53 @@ const Field: React.FC<FieldProps> = ({ label, error, children }) => (
 );
 
 export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
+  const { language } = useLanguage();
+  const isAr = language === 'ar';
+
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Spam protection state
+  const [startedAt, setStartedAt] = useState<number>(() => Date.now());
+  const [website, setWebsite] = useState('');
+
+  const contactItems = [
+    {
+      icon: MapPin,
+      label: isAr ? 'العنوان' : 'Address',
+      value: isAr ? 'الرياض، طريق الملك فهد' : 'Riyadh, King Fahd Road',
+      dir: (isAr ? 'rtl' : 'ltr') as 'rtl' | 'ltr',
+    },
+    {
+      icon: Phone,
+      label: isAr ? 'واتساب والمحادثة المباشرة' : 'WhatsApp & Live Chat',
+      value: '+966 58 048 4528',
+      dir: 'ltr' as const,
+      href: 'https://wa.me/966580484528',
+      isExternal: true,
+    },
+    {
+      icon: Mail,
+      label: isAr ? 'البريد الإلكتروني' : 'Email Address',
+      value: 'info@ajdaa.sa',
+      dir: 'ltr' as const,
+      href: 'mailto:info@ajdaa.sa',
+    },
+    {
+      icon: Clock,
+      label: isAr ? 'ساعات العمل' : 'Working Hours',
+      value: isAr ? 'الأحد – الخميس، 8ص – 4م' : 'Sun – Thu, 8AM – 4PM',
+      dir: (isAr ? 'rtl' : 'ltr') as 'rtl' | 'ltr',
+    },
+  ];
+
+  const highlights = [
+    { icon: Zap, text: isAr ? 'رد سريع خلال 24 ساعة' : 'Prompt response within 24 hours' },
+    { icon: ShieldCheck, text: isAr ? 'خصوصية وأمان لبياناتك' : 'Data privacy & security guaranteed' },
+    { icon: Headphones, text: isAr ? 'دعم استشاري واستثماري مستمر' : 'Continuous advisory & investment support' },
+  ];
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -105,11 +129,20 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
-    if (!form.name.trim()) next.name = 'يرجى إدخال الاسم';
-    if (!form.phone.trim()) next.phone = 'يرجى إدخال رقم الجوال';
-    else if (!/^[0-9+()\s-]{7,}$/.test(form.phone.trim())) next.phone = 'رقم الجوال غير صالح';
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = 'البريد الإلكتروني غير صالح';
-    if (form.message.trim().length < 10) next.message = 'اكتب رسالة لا تقل عن 10 أحرف';
+    if (!form.name.trim()) {
+      next.name = isAr ? 'يرجى إدخال الاسم' : 'Please enter your name';
+    }
+    if (!form.phone.trim()) {
+      next.phone = isAr ? 'يرجى إدخال رقم الجوال' : 'Please enter your mobile phone number';
+    } else if (!/^[0-9+()\s-]{7,}$/.test(form.phone.trim())) {
+      next.phone = isAr ? 'رقم الجوال غير صالح' : 'Invalid phone number';
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      next.email = isAr ? 'البريد الإلكتروني غير صالح' : 'Invalid email address';
+    }
+    if (form.message.trim().length < 10) {
+      next.message = isAr ? 'اكتب رسالة لا تقل عن 10 أحرف' : 'Please write a message of at least 10 characters';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -119,6 +152,16 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // Spam protection check (honeypot or submission faster than 2 seconds)
+    const isHoneypot = Boolean(website && website.trim().length > 0);
+    const isTooFast = Date.now() - startedAt < 2000;
+    if (isHoneypot || isTooFast) {
+      setSent(true);
+      onSuccessToast?.(isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await AdminStorage.addInquiry({
@@ -129,9 +172,16 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
         message: `[${form.subject}] ${form.message.trim()}`,
       });
       setSent(true);
-      onSuccessToast?.('تم إرسال رسالتك بنجاح');
+      onSuccessToast?.(isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully');
     } catch (caught) {
-      onSuccessToast?.(getErrorMessage(caught, 'تعذر إرسال الرسالة، يرجى المحاولة مرة أخرى أو التواصل عبر واتساب'));
+      onSuccessToast?.(
+        getErrorMessage(
+          caught,
+          isAr
+            ? 'تعذر إرسال الرسالة، يرجى المحاولة مرة أخرى أو التواصل عبر واتساب'
+            : 'Could not send the message. Please try again or contact us via WhatsApp'
+        )
+      );
     } finally {
       setSubmitting(false);
     }
@@ -141,6 +191,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
     setForm(initialForm);
     setErrors({});
     setSent(false);
+    setWebsite('');
+    setStartedAt(Date.now());
   };
 
   return (
@@ -148,26 +200,31 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
       <div aria-hidden className="absolute top-40 right-1/4 w-[480px] h-[320px] bg-gold/8 blur-[130px] rounded-full pointer-events-none -z-10" />
       <div aria-hidden className="absolute top-[640px] -left-32 w-[460px] h-[380px] bg-accent/10 blur-[130px] rounded-full pointer-events-none -z-10" />
       <div aria-hidden className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11rem] md:text-[15rem] font-black text-heading/[0.015] select-none pointer-events-none leading-none">
-        تواصل
+        {isAr ? 'تواصل' : 'Contact'}
       </div>
 
       <div className="relative text-center mb-14 stagger-anim" style={{ animationDelay: '80ms' }}>
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full">
           <MessageCircleMore className="w-3.5 h-3.5 text-accent-light" />
-          تواصل معنا
+          {isAr ? 'تواصل معنا' : 'Contact Us'}
         </span>
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-black mt-6">
-          نحن هنا <span className="brand-gradient-text">لخدمتك</span>
+          {isAr ? 'نحن هنا ' : 'We Are Here to '}
+          <span className="brand-gradient-text">{isAr ? 'لخدمتك' : 'Serve You'}</span>
         </h1>
         <p className="text-sm md:text-base text-neutral-text/60 max-w-xl mx-auto mt-4 leading-relaxed">
-          فريقنا جاهز للإجابة على استفساراتك وتقديم الاستشارة العقارية المناسبة لاحتياجاتك
+          {isAr
+            ? 'فريقنا جاهز للإجابة على استفساراتك وتقديم الاستشارة العقارية المناسبة لاحتياجاتك'
+            : 'Our team is ready to answer your inquiries and provide tailored real estate consultation for your needs'}
         </p>
       </div>
 
       <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
         <Reveal direction="right" className="lg:col-span-2">
           <div className="glass-card h-full rounded-3xl p-8 flex flex-col">
-            <h3 className="text-lg font-black text-heading mb-6">معلومات التواصل</h3>
+            <h3 className="text-lg font-black text-heading mb-6">
+              {isAr ? 'معلومات التواصل' : 'Contact Information'}
+            </h3>
 
             <div className="flex flex-col gap-4 mb-8">
               {contactItems.map((item) => {
@@ -179,7 +236,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                     </div>
                     <div className="min-w-0">
                       <div className="text-[11px] text-neutral-text/50 mb-0.5">{item.label}</div>
-                      <div dir={item.dir} className="text-sm font-bold text-heading truncate group-hover:text-accent transition-colors">{item.value}</div>
+                      <div dir={item.dir} className="text-sm font-bold text-heading truncate group-hover:text-accent transition-colors">
+                        {item.value}
+                      </div>
                     </div>
                   </>
                 );
@@ -208,7 +267,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
 
             <div className="border-t border-muted-border/20 pt-6 mt-auto">
               <div className="mb-6">
-                <span className="text-[11px] font-bold text-neutral-text/60 block mb-2.5">تابعنا على منصات التواصل:</span>
+                <span className="text-[11px] font-bold text-neutral-text/60 block mb-2.5">
+                  {isAr ? 'تابعنا على منصات التواصل:' : 'Follow us on social platforms:'}
+                </span>
                 <div className="flex items-center gap-2">
                   {socialLinks.map((s) => (
                     <a
@@ -252,31 +313,53 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                 <div className="w-20 h-20 rounded-full bg-success/15 border border-success/40 flex items-center justify-center mb-7 pop-in">
                   <CheckCircle2 className="w-10 h-10 text-success" />
                 </div>
-                <h3 className="text-2xl font-black text-heading mb-3">تم إرسال رسالتك بنجاح</h3>
+                <h3 className="text-2xl font-black text-heading mb-3">
+                  {isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully'}
+                </h3>
                 <p className="text-sm text-neutral-text/60 max-w-sm leading-relaxed mb-8">
-                  شكراً لتواصلك معنا، سيتواصل معك أحد مستشارينا في أقرب وقت ممكن
+                  {isAr
+                    ? 'شكراً لتواصلك معنا، سيتواصل معك أحد مستشارينا في أقرب وقت ممكن'
+                    : 'Thank you for reaching out to us. One of our consultants will contact you as soon as possible.'}
                 </p>
                 <button
                   onClick={resetForm}
                   className="brand-btn-secondary text-xs font-bold px-6 py-2.5 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
                 >
-                  إرسال رسالة أخرى
+                  {isAr ? 'إرسال رسالة أخرى' : 'Send Another Message'}
                 </button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} noValidate className="relative grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="الاسم الكامل" error={errors.name}>
+                {/* Honeypot field for bot spam prevention */}
+                <div
+                  className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                >
+                  <label htmlFor="contact-website">Website</label>
+                  <input
+                    id="contact-website"
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                  />
+                </div>
+
+                <Field label={isAr ? 'الاسم الكامل' : 'Full Name'} error={errors.name}>
                   <div className={`field-shell ${errors.name ? '!border-red-400/70' : ''}`}>
                     <input
                       value={form.name}
                       onChange={set('name')}
-                      placeholder="مثال: أحمد محمد"
+                      placeholder={isAr ? 'مثال: أحمد محمد' : 'e.g. Ahmed Mohammed'}
                       className="w-full min-w-0 bg-transparent text-sm text-heading outline-none placeholder:text-neutral-text/40"
                     />
                   </div>
                 </Field>
 
-                <Field label="رقم الجوال" error={errors.phone}>
+                <Field label={isAr ? 'رقم الجوال' : 'Mobile Phone'} error={errors.phone}>
                   <div className={`field-shell ${errors.phone ? '!border-red-400/70' : ''}`}>
                     <input
                       type="tel"
@@ -289,7 +372,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                   </div>
                 </Field>
 
-                <Field label="البريد الإلكتروني (اختياري)" error={errors.email}>
+                <Field label={isAr ? 'البريد الإلكتروني (اختياري)' : 'Email (Optional)'} error={errors.email}>
                   <div className={`field-shell ${errors.email ? '!border-red-400/70' : ''}`}>
                     <input
                       type="email"
@@ -302,24 +385,26 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                   </div>
                 </Field>
 
-                <Field label="الموضوع">
+                <Field label={isAr ? 'الموضوع' : 'Subject'}>
                   <div className="field-shell">
                     <select value={form.subject} onChange={set('subject')} className="field-select">
                       {subjects.map((s) => (
-                        <option key={s} value={s}>{s}</option>
+                        <option key={s.value} value={s.value}>
+                          {isAr ? s.labelAr : s.labelEn}
+                        </option>
                       ))}
                     </select>
                   </div>
                 </Field>
 
                 <div className="sm:col-span-2">
-                  <Field label="الرسالة" error={errors.message}>
+                  <Field label={isAr ? 'الرسالة' : 'Message'} error={errors.message}>
                     <div className={`field-shell ${errors.message ? '!border-red-400/70' : ''}`}>
                       <textarea
                         rows={4}
                         value={form.message}
                         onChange={set('message')}
-                        placeholder="اكتب رسالتك هنا..."
+                        placeholder={isAr ? 'اكتب رسالتك هنا...' : 'Write your message here...'}
                         className="w-full min-w-0 bg-transparent text-sm text-heading outline-none placeholder:text-neutral-text/40 resize-none"
                       />
                     </div>
@@ -328,7 +413,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
 
                 <div className="sm:col-span-2 flex flex-col sm:flex-row items-center justify-between gap-4 pt-1">
                   <p className="text-[11px] text-neutral-text/45">
-                    بالضغط على إرسال أنت توافق على سياسة الخصوصية الخاصة بنا
+                    {isAr
+                      ? 'بالضغط على إرسال أنت توافق على سياسة الخصوصية الخاصة بنا'
+                      : 'By clicking submit, you agree to our privacy policy'}
                   </p>
                   <button
                     type="submit"
@@ -338,11 +425,11 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                     {submitting ? (
                       <>
                         <span className="w-4 h-4 border-2 border-canvas/40 border-t-canvas rounded-full animate-spin" />
-                        جاري الإرسال...
+                        {isAr ? 'جاري الإرسال...' : 'Sending...'}
                       </>
                     ) : (
                       <>
-                        إرسال الرسالة
+                        {isAr ? 'إرسال الرسالة' : 'Send Message'}
                         <Send className="w-4 h-4" />
                       </>
                     )}
@@ -356,3 +443,4 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
     </div>
   );
 };
+

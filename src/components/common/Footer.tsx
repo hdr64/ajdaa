@@ -54,12 +54,23 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
     : logoEnLight;
 
   const [subscribing, setSubscribing] = useState(false);
+  const [startedAt] = useState<number>(() => Date.now());
+  const [website, setWebsite] = useState('');
 
   // Stores the subscriber (it used to only show the toast and drop the email).
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const email = newsletterEmail.trim();
     if (!email || subscribing) return;
+
+    // Spam protection check (honeypot or submission faster than 2 seconds)
+    const isHoneypot = Boolean(website && website.trim().length > 0);
+    const isTooFast = Date.now() - startedAt < 2000;
+    if (isHoneypot || isTooFast) {
+      onToast(t.footer.newsletterSuccess);
+      setNewsletterEmail('');
+      return;
+    }
     setSubscribing(true);
     try {
       await newsletterService.subscribe(email, language === 'en' ? 'en' : 'ar', 'footer');
@@ -217,8 +228,25 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
             <h4 className="text-sm font-bold text-heading mb-3">{t.footer.newsletterTitle}</h4>
             <form
               onSubmit={handleNewsletterSubmit}
-              className="flex items-center gap-2 bg-surface/80 border border-muted-border/40 rounded-xl p-1.5 focus-within:border-accent transition shadow-xs"
+              className="relative flex items-center gap-2 bg-surface/80 border border-muted-border/40 rounded-xl p-1.5 focus-within:border-accent transition shadow-xs"
             >
+              {/* Honeypot field for bot spam prevention */}
+              <div
+                className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
+                aria-hidden="true"
+                tabIndex={-1}
+              >
+                <label htmlFor="newsletter-website">Website</label>
+                <input
+                  id="newsletter-website"
+                  type="text"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                />
+              </div>
               <input
                 type="email"
                 required
