@@ -183,7 +183,7 @@ export const AdminStorage = {
   /* ------------------------------ Floors --------------------------------- */
 
   async addFloorToProject(projectId: number, floorName: string): Promise<Property> {
-    const project = await propertyService.getById(projectId);
+    const project = await propertyService.getById(projectId, undefined, { scope: 'admin' });
     const nextNumber = (project.floors ?? []).reduce((max, floor) => Math.max(max, floor.floorNumber), -1) + 1;
 
     await propertyService.createFloor(projectId, {
@@ -192,12 +192,12 @@ export const AdminStorage = {
       floorNameEn: `Floor ${nextNumber}`,
     });
 
-    return propertyService.getById(projectId);
+    return propertyService.getById(projectId, undefined, { scope: 'admin' });
   },
 
   async deleteFloorFromProject(projectId: number, floorNumber: number): Promise<Property> {
     await propertyService.removeFloor(projectId, floorNumber);
-    return propertyService.getById(projectId);
+    return propertyService.getById(projectId, undefined, { scope: 'admin' });
   },
 
   /* ------------------------------- Units --------------------------------- */
@@ -207,7 +207,7 @@ export const AdminStorage = {
       throw new Error('Cannot add a unit to a floor that has not been saved yet.');
     }
     await propertyService.createUnit(toUnitInput(unit, floor.id));
-    return propertyService.getById(projectId);
+    return propertyService.getById(projectId, undefined, { scope: 'admin' });
   },
 
   async updateUnitInProject(projectId: number, floor: PropertyFloor, unit: PropertyUnit): Promise<Property> {
@@ -218,12 +218,12 @@ export const AdminStorage = {
     delete payload.id;
     delete payload.floorId;
     await propertyService.updateUnit(unit.id, payload);
-    return propertyService.getById(projectId);
+    return propertyService.getById(projectId, undefined, { scope: 'admin' });
   },
 
   async deleteUnitFromProject(projectId: number, unitId: string): Promise<Property> {
     await propertyService.removeUnit(unitId);
-    return propertyService.getById(projectId);
+    return propertyService.getById(projectId, undefined, { scope: 'admin' });
   },
 
   /** Persists the status server-side; the server then broadcasts it to every tab. */
