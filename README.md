@@ -47,6 +47,65 @@ One canonical schema, two generated schemas — no Docker required.
 > Prisma cannot read `provider` from an env var (error P1012). The prod schema is
 > generated from the canonical one — see `npm run db:gen:prod`.
 
+### Creating PostgreSQL Database & User
+
+To set up a fresh PostgreSQL database and dedicated user (e.g. on Ubuntu/Debian VPS):
+
+1. **Open the PostgreSQL CLI as the `postgres` superuser**:
+   ```bash
+   sudo -u postgres psql
+   ```
+
+2. **Create the user (role), database, and grant privileges**:
+   ```sql
+   -- 1. Create role with login credentials:
+   CREATE ROLE ajda WITH LOGIN PASSWORD 'YOUR_STRONG_PASSWORD';
+
+   -- 2. Create database owned by this user:
+   CREATE DATABASE ajda OWNER ajda ENCODING 'UTF8';
+
+   -- 3. Grant privileges on the database:
+   GRANT ALL PRIVILEGES ON DATABASE ajda TO ajda;
+
+   -- 4. Switch to the ajda database and ensure public schema ownership (PostgreSQL 15+):
+   \c ajda
+   GRANT ALL ON SCHEMA public TO ajda;
+   ALTER SCHEMA public OWNER TO ajda;
+
+   -- Exit psql
+   \q
+   ```
+
+   *Alternatively, run all at once in bash:*
+   ```bash
+   sudo -u postgres psql <<'SQL'
+   CREATE ROLE ajda WITH LOGIN PASSWORD 'YOUR_STRONG_PASSWORD';
+   CREATE DATABASE ajda OWNER ajda ENCODING 'UTF8';
+   GRANT ALL PRIVILEGES ON DATABASE ajda TO ajda;
+   \c ajda
+   GRANT ALL ON SCHEMA public TO ajda;
+   ALTER SCHEMA public OWNER TO ajda;
+   SQL
+   ```
+
+3. **Set `DATABASE_URL` in `server/.env`**:
+   ```dotenv
+   DATABASE_URL="postgresql://ajda:YOUR_STRONG_PASSWORD@localhost:5432/ajda?schema=public"
+   ```
+
+4. **Verify connection (optional)**:
+   ```bash
+   psql -U ajda -d ajda -h localhost -W
+   ```
+
+5. **Generate client and apply migrations**:
+   ```bash
+   cd server
+   npm run db:gen:prod   # generates PostgreSQL schema & compiles Prisma Client
+   npm run db:migrate    # applies migrations via prisma migrate deploy
+   npm run db:seed       # seeds initial admin user & catalogue
+   ```
+
 ## Data Source of Truth
 
 The **database is the source of truth** for projects, floors, units, and inquiries.
@@ -182,7 +241,7 @@ Notable server-side guarantees:
 
 ## Production Checklist
 
-- [ ] PostgreSQL 16 user + database; `DATABASE_URL` → `postgresql://...` in `server/.env`
+- [ ] PostgreSQL 16 user + database (see [Creating PostgreSQL Database & User](#creating-postgresql-database--user)); `DATABASE_URL` → `postgresql://...` in `server/.env`
 - [ ] `JWT_SECRET` = `openssl rand -base64 32`
 - [ ] `CLIENT_ORIGIN` = production origin (e.g. `https://ajda.weghetk.com`)
 - [ ] `npm run db:migrate` → applies committed Postgres migrations

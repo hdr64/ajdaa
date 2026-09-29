@@ -93,7 +93,7 @@ EOF
 
 ```bash
 cd /opt/ajda
-sudo -u ajda npm --prefix server run db:gen:prod   # generates the Postgres schema
+sudo -u ajda npm --prefix server run db:gen:prod   # generates Postgres schema & Prisma client
 sudo -u ajda npm run build                        # SPA -> dist/
 sudo -u ajda npm --prefix server run build         # API -> server/dist/
 sudo -u ajda npm --prefix server run db:migrate    # apply migrations
