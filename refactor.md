@@ -377,6 +377,8 @@ receive no CORS header; in development the loopback origins still work.
 - [ ] Cities list: a curated list of the main Saudi cities (AR + EN names, region, center coordinates) used by the project create/edit forms and public filters instead of free text
 - [ ] Map location picker in the project editor: click or drag a pin on the map to set lat/lng (reuse the Google Maps loader the public map already uses); search box to jump to a city/place
 - [ ] Theme (light/dark, classic/prime) and language (AR/EN) switchers inside the admin dashboard header
+- [ ] Project types CRUD: admin creates / renames / deletes project types (currently تجاري، سكني، فنادق، لوجستي + إداري). Today `type` is a fixed 5-value union in code and in the public filters/map legend. Plan: make the existing `CategoryItem` table the source of truth for types (slug, nameAr, nameEn, icon/colour, sort order), load it in the public filters and map, and block deleting a type still used by projects (or require reassigning them first). Decide whether `office` (إداري) stays — the request lists only 4.
+- [ ] Sub-categories: admin creates sub-categories under a project type (e.g. تجاري → محلات، معارض، مكاتب). Needs a `parentId` on the type table (one level deep), an optional sub-category on projects (must belong to the project's type), and a filter on the public works page. Replaces or absorbs today's free-text category "tags" — decide which.
 
 ### Phase 9: Full site CMS + activity log with undo (planned)
 
