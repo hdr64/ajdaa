@@ -4,6 +4,7 @@ import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { loadGoogleMaps, MapsConfigError, type GoogleMapsBundle } from '../../services/googleMaps';
 import { useLanguage } from '../../hooks/useLanguage';
+import { toYoutubeEmbedUrl } from '../../services/youtube';
 import {
   MapPin,
   Play,
@@ -34,11 +35,9 @@ interface InteractiveProjectsMapProps {
 
 const getYouTubeEmbedUrl = (url?: string, autoplay: boolean = true): string => {
   if (!url) return '';
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-  if (match && match[1]) {
-    return `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=${autoplay ? '1' : '0'}&rel=0&modestbranding=1`;
-  }
-  return url;
+  const embedUrl = toYoutubeEmbedUrl(url);
+  if (!embedUrl) return '';
+  return `${embedUrl}&autoplay=${autoplay ? '1' : '0'}`;
 };
 
 type BasemapStyle = 'dark' | 'satellite';

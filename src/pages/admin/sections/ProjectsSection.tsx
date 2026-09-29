@@ -8,7 +8,6 @@ import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeader
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { ProjectCreateModal } from '../../../components/admin/ProjectCreateModal';
-import { ProjectEditorModal } from '../../../components/admin/ProjectEditorModal';
 
 const TYPE_FILTERS: { key: string; label: string }[] = [
   { key: 'all', label: 'الكل' },
@@ -60,7 +59,6 @@ export const ProjectsSection: React.FC = () => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<Property | null>(null);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = { all: projects.data.length };
@@ -117,19 +115,9 @@ export const ProjectsSection: React.FC = () => {
           onCreated={async (created) => {
             setCreating(false);
             await projects.reload();
-            navigate({ section: 'units', projectId: created.id });
+            // Straight to the full editor to add location, video and English copy.
+            navigate({ section: 'projectEdit', projectId: created.id });
           }}
-        />
-      )}
-      {editing && (
-        <ProjectEditorModal
-          key={editing.id}
-          project={editing}
-          onClose={() => setEditing(null)}
-          onSaved={async () => {
-            await projects.reload();
-          }}
-          onShowToast={showToast}
         />
       )}
     </>
@@ -245,7 +233,12 @@ export const ProjectsSection: React.FC = () => {
                 className="rounded-3xl bg-surface border border-muted-border/40 overflow-hidden shadow-xs hover:shadow-md hover:border-accent/40 transition-all flex flex-col justify-between group"
               >
                 <div>
-                  <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-900">
+                  <button
+                    type="button"
+                    onClick={() => navigate({ section: 'project', projectId: project.id })}
+                    className="block relative aspect-[16/9] w-full overflow-hidden bg-neutral-900 cursor-pointer text-start"
+                    aria-label={`عرض تفاصيل ${project.title}`}
+                  >
                     <ProjectImage src={project.image} alt={project.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
                     <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-2">
@@ -265,11 +258,17 @@ export const ProjectsSection: React.FC = () => {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
 
                   <div className="p-5">
                     <h4 className="text-sm font-black text-heading mb-1.5 line-clamp-1" title={project.title}>
-                      {project.title}
+                      <button
+                        type="button"
+                        onClick={() => navigate({ section: 'project', projectId: project.id })}
+                        className="hover:text-accent cursor-pointer text-start"
+                      >
+                        {project.title}
+                      </button>
                     </h4>
                     <p className="text-[11px] text-neutral-text/60 line-clamp-2 mb-4 leading-relaxed min-h-[2.5em]">
                       {project.description || '—'}
@@ -315,7 +314,7 @@ export const ProjectsSection: React.FC = () => {
                   {canManage && (
                     <>
                       <button
-                        onClick={() => setEditing(project)}
+                        onClick={() => navigate({ section: 'projectEdit', projectId: project.id })}
                         title="تعديل المشروع"
                         aria-label={`تعديل المشروع ${project.title}`}
                         className="p-2.5 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition cursor-pointer"

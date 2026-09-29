@@ -7,7 +7,7 @@ import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 
 export const UnitsSection: React.FC = () => {
-  const { projects, location, navigate, showToast } = useAdmin();
+  const { projects, location, navigate, showToast, can } = useAdmin();
 
   const selected = projects.data.find((p) => p.id === location.projectId) ?? null;
 
@@ -65,6 +65,7 @@ export const UnitsSection: React.FC = () => {
             await projects.reload();
           }}
           onShowToast={showToast}
+          canEdit={can('manageUnits')}
         />
       ) : (
         <SectionLoading />

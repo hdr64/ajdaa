@@ -22,6 +22,8 @@ import { ProjectsSection } from './sections/ProjectsSection';
 import { UnitsSection } from './sections/UnitsSection';
 import { InquiriesSection } from './sections/InquiriesSection';
 import { CategoriesSection } from './sections/CategoriesSection';
+import { ProjectShowSection } from './sections/ProjectShowSection';
+import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
 
 interface AdminDashboardPageProps {
@@ -36,6 +38,8 @@ interface AdminDashboardPageProps {
 const SECTION_META: Record<AdminSection, { title: string; subtitle: string; permission?: AdminPermission }> = {
   overview: { title: 'لوحة التحكم والمؤشرات', subtitle: 'متابعة المحفظة العقارية، نسب الإشغال وطلبات العملاء' },
   projects: { title: 'المشاريع العقارية', subtitle: 'إضافة المشاريع وتعديل بياناتها وصورها ومواقعها' },
+  project: { title: 'تفاصيل المشروع', subtitle: 'بيانات المشروع ووحداته وطلبات الاهتمام به' },
+  projectEdit: { title: 'تعديل المشروع', subtitle: 'تعديل بيانات العرض العامة للمشروع', permission: 'manageProjects' },
   units: { title: 'المخطط البصري للأدوار', subtitle: 'إدارة الأدوار والوحدات وحالاتها لحظياً' },
   inquiries: {
     title: 'طلبات الاهتمام والعملاء',
@@ -156,6 +160,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const mainRef = useRef<HTMLElement>(null);
 
   const meta = SECTION_META[location.section];
+  // Project pages show the project's own name as the title.
+  const currentProject =
+    location.section === 'project' || location.section === 'projectEdit'
+      ? projects.data.find((p) => p.id === location.projectId)
+      : undefined;
+  const pageTitle = currentProject
+    ? location.section === 'projectEdit'
+      ? `تعديل: ${currentProject.title}`
+      : currentProject.title
+    : meta.title;
   const allowed = !meta.permission || can(meta.permission);
 
   // Canonicalise the URL (bare /admin, unknown sections) without a new history
@@ -168,8 +182,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
-    document.title = `${meta.title} | لوحة تحكم أجدا`;
-  }, [location.section, meta.title]);
+    document.title = `${pageTitle} | لوحة تحكم أجدا`;
+  }, [location.section, pageTitle]);
 
   const contextValue = useMemo<AdminContextValue>(
     () => ({
@@ -198,6 +212,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <OverviewSection />;
       case 'projects':
         return <ProjectsSection />;
+      case 'project':
+        return <ProjectShowSection />;
+      case 'projectEdit':
+        return <ProjectEditSection />;
       case 'units':
         return <UnitsSection />;
       case 'inquiries':
@@ -222,7 +240,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
           <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col">
             <AdminPageHeader
-              title={meta.title}
+              title={pageTitle}
               subtitle={meta.subtitle}
               onOpenMenu={() => setMenuOpen(true)}
               actionsSlotRef={setActionsSlot}

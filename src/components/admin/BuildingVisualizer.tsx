@@ -21,12 +21,14 @@ interface BuildingVisualizerProps {
   project: Property;
   onProjectUpdate: () => void | Promise<void>;
   onShowToast: (msg: string) => void;
+  canEdit?: boolean;
 }
 
 export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
   project,
   onProjectUpdate,
   onShowToast,
+  canEdit = true,
 }) => {
   const floors = project.floors || [];
   const [selectedFloorIndex, setSelectedFloorIndex] = useState<number>(0);
@@ -220,22 +222,26 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setFloorModalOpen(true)}
-            className="brand-btn-secondary text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer hover:border-accent"
-          >
-            <Plus className="w-3.5 h-3.5 text-accent" />
-            <span>إضافة دور للمبنى</span>
-          </button>
-          <button
-            onClick={handleOpenAddUnit}
-            className="brand-btn-primary text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>إضافة وحدة بالدور الحالي</span>
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setFloorModalOpen(true)}
+              className="brand-btn-secondary text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer hover:border-accent"
+            >
+              <Plus className="w-3.5 h-3.5 text-accent" />
+              <span>إضافة دور للمبنى</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenAddUnit}
+              className="brand-btn-primary text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>إضافة وحدة بالدور الحالي</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Visual Layout: Left Floor Stacking + Right Floor Map & Units */}
@@ -301,9 +307,10 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
           </div>
 
           {/* Floor actions */}
-          {activeFloor && floors.length > 1 && (
+          {canEdit && activeFloor && floors.length > 1 && (
             <div className="pt-3 border-t border-muted-border/30">
               <button
+                type="button"
                 onClick={() => handleDeleteFloor(activeFloor.floorNumber, activeFloor.floorNameAr)}
                 className="w-full py-2 text-[11px] font-bold text-red-400 hover:bg-red-500/10 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
@@ -374,16 +381,19 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
             <div className="py-16 text-center border border-dashed border-muted-border/50 rounded-2xl">
               <Layers className="w-8 h-8 text-neutral-text/30 mx-auto mb-2" />
               <p className="text-xs text-neutral-text/60 font-bold">لا توجد وحدات مطابقة بهذا الدور</p>
-              <button
-                onClick={handleOpenAddUnit}
-                className="mt-3 brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>إضافة وحدة جديدة الآن</span>
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={handleOpenAddUnit}
+                  className="mt-3 brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة وحدة جديدة الآن</span>
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5">
               {filteredUnits.map((unit) => {
                 const statusColor =
                   unit.status === 'available'
@@ -411,32 +421,41 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
                     <div>
                       {/* Top bar: icon, section, and status */}
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <div className="w-8 h-8 rounded-xl bg-surface border border-muted-border/40 flex items-center justify-center shrink-0">
                             {getUnitIcon(unit.type)}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             {unit.sectionAr && (
-                              <span className="text-[10px] text-neutral-text/50 font-bold block leading-none">
+                              <span className="text-[10px] text-neutral-text/50 font-bold block leading-none truncate">
                                 {unit.sectionAr}
                               </span>
                             )}
-                            <h5 className="text-xs font-black text-heading mt-0.5">
+                            <h5 className="text-xs font-black text-heading mt-0.5 truncate" title={unit.unitNumber}>
                               {unit.unitNumber}
                             </h5>
                           </div>
                         </div>
 
-                        {/* Interactive Status Switcher Chip */}
-                        <button
-                          onClick={() => handleCycleStatus(unit)}
-                          disabled={saving}
-                          title="انقر لتغيير الحالة مباشرة"
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer hover:scale-105 transition-transform flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed ${badgeColor}`}
-                        >
-                          <RefreshCw className="w-2.5 h-2.5" />
-                          <span>{unit.statusAr}</span>
-                        </button>
+                        {/* Interactive Status Switcher Chip or Read-Only Badge */}
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCycleStatus(unit)}
+                            disabled={saving}
+                            title="انقر لتغيير الحالة مباشرة"
+                            className={`shrink-0 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer hover:scale-105 transition-transform flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed ${badgeColor}`}
+                          >
+                            <RefreshCw className="w-2.5 h-2.5 shrink-0" />
+                            <span>{unit.statusAr}</span>
+                          </button>
+                        ) : (
+                          <span
+                            className={`shrink-0 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeColor}`}
+                          >
+                            {unit.statusAr}
+                          </span>
+                        )}
                       </div>
 
                       {/* Info grid */}
@@ -473,22 +492,26 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
                     </div>
 
                     {/* Unit actions: Edit / Delete */}
-                    <div className="flex items-center gap-1.5 pt-2 border-t border-muted-border/20">
-                      <button
-                        onClick={() => handleOpenEditUnit(unit)}
-                        className="flex-1 py-1.5 rounded-lg bg-surface border border-muted-border/40 hover:border-accent text-neutral-text/75 hover:text-accent font-bold text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                        <span>تعديل</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUnit(unit.id, unit.unitNumber)}
-                        className="p-1.5 rounded-lg bg-surface border border-muted-border/40 hover:border-red-400 text-neutral-text/40 hover:text-red-400 transition cursor-pointer"
-                        title="حذف الوحدة"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center gap-1.5 pt-2 border-t border-muted-border/20">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditUnit(unit)}
+                          className="flex-1 py-1.5 rounded-lg bg-surface border border-muted-border/40 hover:border-accent text-neutral-text/75 hover:text-accent font-bold text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>تعديل</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUnit(unit.id, unit.unitNumber)}
+                          className="p-1.5 rounded-lg bg-surface border border-muted-border/40 hover:border-red-400 text-neutral-text/40 hover:text-red-400 transition cursor-pointer"
+                          title="حذف الوحدة"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -498,7 +521,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
       </div>
 
       {/* MODAL: ADD / EDIT UNIT */}
-      {unitModalOpen && (
+      {canEdit && unitModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="relative w-full max-w-md bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 my-8">
             <div className="flex items-center justify-between mb-4 border-b border-muted-border/30 pb-3">
@@ -626,7 +649,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
       )}
 
       {/* MODAL: ADD FLOOR */}
-      {floorModalOpen && (
+      {canEdit && floorModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="relative w-full max-w-sm bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6">
             <h4 className="text-sm font-black text-heading mb-3">إضافة دور جديد للمشروع</h4>

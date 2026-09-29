@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAdmin, type AdminPermission } from '../../../pages/admin/adminContextDef';
-import type { AdminSection } from '../../../pages/admin/adminRoutes';
+import { navSectionOf, type AdminSection } from '../../../pages/admin/adminRoutes';
 
 interface NavItem {
   section: AdminSection;
@@ -117,7 +117,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
 
           <nav className="space-y-1.5 font-bold">
             {items.map((item) => {
-              const active = location.section === item.section;
+              const active = navSectionOf(location.section) === item.section;
               const badge = badgeFor(item.section);
               const Icon = item.icon;
               return (

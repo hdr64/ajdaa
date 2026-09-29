@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { Property, PropertyUnit, UnitStatus } from '../types/property';
 import { AdminStorage } from '../services/adminStorage';
 import { getErrorMessage } from '../services/api';
+import { toYoutubeEmbedUrl } from '../services/youtube';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
 import { useLanguage } from '../hooks/useLanguage';
@@ -43,11 +44,9 @@ interface ProjectDetailPageProps {
 
 const getYouTubeEmbedUrl = (url?: string, autoplay: boolean = true): string => {
   if (!url) return '';
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-  if (match && match[1]) {
-    return `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=${autoplay ? '1' : '0'}&rel=0&modestbranding=1`;
-  }
-  return url;
+  const embedUrl = toYoutubeEmbedUrl(url);
+  if (!embedUrl) return '';
+  return `${embedUrl}&autoplay=${autoplay ? '1' : '0'}`;
 };
 
 export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
@@ -114,6 +113,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   }, [videoModalOpen, interestModalUnit]);
 
   const handleWatchVideo = (mode: 'hero' | 'modal' = 'hero') => {
+    if (!project?.videoUrl) return;
     if (mode === 'modal') {
       setVideoModalOpen(true);
       return;
@@ -494,15 +494,17 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 <span>{isAr ? 'سجل اهتمامك بهذا المشروع' : 'Register Interest in Project'}</span>
               </button>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${project.videoUrl ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {/* 2. Video Preview Button */}
-                <button
-                  onClick={() => handleWatchVideo('hero')}
-                  className="brand-btn-secondary font-bold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:text-accent hover:border-accent transition-all group"
-                >
-                  <Play className="w-3.5 h-3.5 text-accent shrink-0 fill-accent/20 group-hover:fill-accent/60 transition-colors" />
-                  <span className="truncate">{isAr ? 'مشاهدة الفيديو' : 'Watch Video'}</span>
-                </button>
+                {project.videoUrl && (
+                  <button
+                    onClick={() => handleWatchVideo('hero')}
+                    className="brand-btn-secondary font-bold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:text-accent hover:border-accent transition-all group"
+                  >
+                    <Play className="w-3.5 h-3.5 text-accent shrink-0 fill-accent/20 group-hover:fill-accent/60 transition-colors" />
+                    <span className="truncate">{isAr ? 'مشاهدة الفيديو' : 'Watch Video'}</span>
+                  </button>
+                )}
 
                 {/* 3. 3D Tour (Disabled with "Coming Soon") */}
                 <div
