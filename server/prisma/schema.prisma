@@ -48,6 +48,7 @@ model AdminUser {
   lastLogin         String?
   passwordChangedAt DateTime?
   loginOtpEnabled   Boolean     @default(false)
+  preferences       String      @default("{}") // JSON: per-admin UI choices, e.g. { skipConfirm: [...] }
   createdAt         DateTime    @default(now())
   otpChallenges     OtpChallenge[]
 }

@@ -5,6 +5,7 @@ import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { config } from '../config/env.js';
+import { parsePreferences, preferencesSchema } from '../config/preferences.js';
 import { loginFailureTracker } from '../services/loginFailureService.js';
 import { mailBrandName, sendMail } from '../services/mailService.js';
 import { loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
@@ -555,6 +556,27 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // hand this session a fresh one so the admin is not signed out mid-page.
       const token = fastify.jwt.sign({ id: user.id, email: user.email, role: user.role });
       return reply.status(200).send({ message: 'Password updated successfully', token });
+    }
+  );
+
+  // UI preferences of the signed-in admin (e.g. "don't ask again" choices)
+  fastify.get('/me/preferences', { onRequest: [authenticate] }, async (request, reply) => {
+    const user = await prisma.adminUser.findUnique({ where: { id: request.user.id }, select: { preferences: true } });
+    if (!user) return reply.status(404).send({ error: 'User not found' });
+    return parsePreferences(user.preferences);
+  });
+
+  fastify.put(
+    '/me/preferences',
+    { onRequest: [authenticate], preValidation: [validateBody(preferencesSchema)] },
+    async (request) => {
+      const parsed = preferencesSchema.parse(request.body);
+      const preferences = { skipConfirm: [...new Set(parsed.skipConfirm)] };
+      await prisma.adminUser.update({
+        where: { id: request.user.id },
+        data: { preferences: JSON.stringify(preferences) },
+      });
+      return preferences;
     }
   );
 
