@@ -273,7 +273,7 @@ export function passwordChangedEmail(options: {
       heading: 'تم تغيير كلمة المرور',
       intro: `${greeting} ${lead}`,
       bodyHtml: `<p style="margin:0 0 12px;padding:12px 14px;background:${COLORS.goldSoft};border-right:3px solid ${COLORS.gold};border-radius:6px;color:${COLORS.ink};font-size:14px;line-height:1.9;">
-                   <strong>إذا لم تقم بتغيير كلمة المرور هذه، فعّلها الآن عبر "نسيت كلمة المرور" وتواصل مع مدير النظام فوراً.</strong>
+                   <strong>إذا لم تقم بتغيير كلمة المرور هذه، غيّرها الآن عبر "نسيت كلمة المرور" وتواصل مع مدير النظام فوراً.</strong>
                  </p>
                  <p style="margin:0;color:${COLORS.muted};font-size:14px;line-height:1.9;">
                   لأسباب أمنية، تم إنهاء الجلسات المفتوحة على الأجهزة الأخرى ولم تعد أي جلسة سابقة صالحة.
@@ -286,7 +286,7 @@ export function passwordChangedEmail(options: {
       greeting,
       lead,
       '',
-      'إذا لم تقم بتغيير كلمة المرور هذه، فعّلها الآن عبر "نسيت كلمة المرور" وتواصل مع مدير النظام فوراً.',
+      'إذا لم تقم بتغيير كلمة المرور هذه، غيّرها الآن عبر "نسيت كلمة المرور" وتواصل مع مدير النظام فوراً.',
       'لأسباب أمنية، تم إنهاء الجلسات المفتوحة على الأجهزة الأخرى.',
     ].join('\n'),
   };
