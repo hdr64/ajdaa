@@ -10,6 +10,8 @@ import {
   Layers,
   MapPin,
   Pencil,
+  Eye,
+  EyeOff,
   SearchX,
   Trash2,
 } from 'lucide-react';
@@ -23,7 +25,8 @@ import { SectionError, SectionLoading } from '../../../components/admin/common/S
 import { InquiryStatusSelect } from './inquiryUi';
 import { ProjectUnitsPanel } from './ProjectUnitsPanel';
 import { formatAdminDate } from '../adminFormat';
-import { publicProjectUrl, UNIT_STATUS_LABELS_AR } from '../projectLabels';
+import { completenessIssues, publicProjectUrl, PUBLISH_STATUS_LABELS_AR, publishStatusOf, UNIT_STATUS_LABELS_AR } from '../projectLabels';
+import { usePublishProject } from './usePublishProject';
 
 const STATUS_COLOR: Record<UnitStatus, string> = {
   available: 'var(--viz-available)',
@@ -57,24 +60,13 @@ function Fact({ label, value, dir }: { label: string; value?: React.ReactNode; d
   );
 }
 
-/** What is missing for the project to look complete on the public site. */
-function completenessIssues(project: Property): string[] {
-  const issues: string[] = [];
-  if (!project.titleEn) issues.push('لا يوجد اسم بالإنجليزية');
-  if (!project.descriptionEn) issues.push('لا يوجد وصف بالإنجليزية');
-  if (project.lat == null || project.lng == null) issues.push('لا توجد إحداثيات — المشروع لا يظهر على الخريطة');
-  if ((project.gallery ?? []).length < 2) issues.push('معرض الصور يحتوي أقل من صورتين');
-  if (!project.videoUrl) issues.push('لا يوجد فيديو');
-  if (!(project.features ?? []).length) issues.push('لا توجد مزايا مدرجة');
-  if (!(project.floors ?? []).some((f) => f.units.length > 0)) issues.push('لا توجد وحدات مسجلة');
-  return issues;
-}
-
 const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
   const { can, navigate, showToast, confirm, projects, inquiries } = useAdmin();
   const canManage = can('manageProjects');
   const [activeImage, setActiveImage] = useState(project.image);
   const [tab, setTab] = useState<ProjectTab>('overview');
+  const { publish, hide, busyId } = usePublishProject();
+  const status = publishStatusOf(project);
 
   const images = useMemo(() => {
     const all = [project.image, ...(project.gallery ?? [])].filter(Boolean);
@@ -121,16 +113,38 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
   return (
     <div className="space-y-5">
       <AdminHeaderActions>
-        <a
-          href={publicProjectUrl(project.id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hidden sm:inline-flex p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:text-accent text-neutral-text/70 bg-surface"
-          title="عرض في الموقع"
-          aria-label="عرض في الموقع"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </a>
+        {status === 'published' && (
+          <a
+            href={publicProjectUrl(project.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:text-accent text-neutral-text/70 bg-surface"
+            title="عرض في الموقع"
+            aria-label="عرض في الموقع"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        )}
+        {canManage &&
+          (status === 'published' ? (
+            <button
+              onClick={() => void hide(project)}
+              disabled={busyId === project.id}
+              className="brand-btn-secondary font-bold px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs disabled:opacity-50"
+            >
+              <EyeOff className="w-4 h-4" />
+              <span className="hidden sm:inline">إخفاء من الموقع</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => void publish(project)}
+              disabled={busyId === project.id}
+              className="px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md disabled:opacity-50"
+            >
+              <Eye className="w-4 h-4" />
+              <span className="hidden sm:inline">نشر في الموقع</span>
+            </button>
+          ))}
         {canManage && (
           <button
             onClick={() => navigate({ section: 'projectEdit', projectId: project.id })}
@@ -210,6 +224,11 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
               <div className="absolute bottom-4 inset-x-5 text-white">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
+                  {status !== 'published' && (
+                    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${status === 'draft' ? 'bg-amber-400 text-neutral-950' : 'bg-neutral-800 border border-white/20'}`}>
+                      {PUBLISH_STATUS_LABELS_AR[status]} · غير ظاهر في الموقع
+                    </span>
+                  )}
                   <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-neutral-950/80 border border-white/20">{project.typeAr}</span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gold text-neutral-950">{project.priceType}</span>
                   {project.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent/80 text-canvas">{project.badge}</span>}
@@ -370,6 +389,8 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
                 ) : undefined
               }
             />
+            <Fact label="حالة النشر" value={PUBLISH_STATUS_LABELS_AR[status]} />
+            {project.publishedAt && <Fact label="تاريخ النشر" value={formatAdminDate(project.publishedAt)} />}
             <Fact label="رقم المشروع" value={project.id} dir="ltr" />
           </Panel>
 

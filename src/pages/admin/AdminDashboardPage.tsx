@@ -97,7 +97,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   /* -------------------------------- Data -------------------------------- */
 
   const projects = useAsyncData<Property[]>(
-    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    // Admin scope: drafts and hidden projects too (the public read returns published only).
+    useCallback((signal) => AdminStorage.getAdminProjects(signal), []),
     [],
     []
   );

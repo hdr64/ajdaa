@@ -424,6 +424,7 @@ export const propertyService = {
       throw error;
     }
 
-    return this.getById(created.id);
+    // New projects start as drafts, which the public read hides: reload via the admin scope.
+    return this.getById(created.id, undefined, { scope: 'admin' });
   },
 };

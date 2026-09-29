@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Building2, Layers, MapPin, Pencil, Plus, Search, SearchX, Trash2 } from 'lucide-react';
-import type { Property } from '../../../types/property';
+import { Building2, Eye, EyeOff, FileClock, Layers, MapPin, Pencil, Plus, Search, SearchX, Trash2, X as CloseIcon } from 'lucide-react';
+import type { Property, PublishStatus } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
@@ -8,6 +8,8 @@ import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeader
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { ProjectCreateModal } from '../../../components/admin/ProjectCreateModal';
+import { PUBLISH_STATUS_LABELS_AR, publishStatusOf } from '../projectLabels';
+import { usePublishProject } from './usePublishProject';
 
 const TYPE_FILTERS: { key: string; label: string }[] = [
   { key: 'all', label: 'الكل' },
@@ -58,7 +60,16 @@ export const ProjectsSection: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | PublishStatus>('all');
+  const [draftBannerDismissed, setDraftBannerDismissed] = useState(false);
   const [creating, setCreating] = useState(false);
+  const { publish, hide, busyId } = usePublishProject();
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<'all' | PublishStatus, number> = { all: projects.data.length, draft: 0, published: 0, hidden: 0 };
+    for (const project of projects.data) counts[publishStatusOf(project)] += 1;
+    return counts;
+  }, [projects.data]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = { all: projects.data.length };
@@ -70,12 +81,13 @@ export const ProjectsSection: React.FC = () => {
     const query = search.trim().toLowerCase();
     return projects.data.filter((p) => {
       if (typeFilter !== 'all' && p.type !== typeFilter) return false;
+      if (statusFilter !== 'all' && publishStatusOf(p) !== statusFilter) return false;
       if (!query) return true;
       return [p.title, p.titleEn, p.city, p.cityEn, p.typeAr]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
     });
-  }, [projects.data, search, typeFilter]);
+  }, [projects.data, search, typeFilter, statusFilter]);
 
   const handleDelete = async (project: Property) => {
     const ok = await confirm({
@@ -170,6 +182,43 @@ export const ProjectsSection: React.FC = () => {
     <div className="space-y-5">
       {header}
 
+      {statusCounts.draft > 0 && !draftBannerDismissed && statusFilter !== 'draft' && (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs">
+          <FileClock className="w-4 h-4 text-amber-600 shrink-0" />
+          <span className="font-bold text-heading">
+            {statusCounts.draft === 1 ? 'مشروع واحد في وضع المسودة' : `${statusCounts.draft} مشاريع في وضع المسودة`}
+            <span className="font-normal text-neutral-text/65"> — غير ظاهرة في الموقع حتى تُنشر.</span>
+          </span>
+          <button type="button" onClick={() => setStatusFilter('draft')} className="font-bold text-accent hover:underline cursor-pointer">
+            عرض المسودات
+          </button>
+          <button
+            type="button"
+            onClick={() => setDraftBannerDismissed(true)}
+            className="ms-auto p-1 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
+            aria-label="إخفاء التنبيه"
+          >
+            <CloseIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-1.5 overflow-x-auto" role="group" aria-label="حالة النشر">
+        {(['all', 'published', 'draft', 'hidden'] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setStatusFilter(key)}
+            aria-pressed={statusFilter === key}
+            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer whitespace-nowrap ${
+              statusFilter === key ? 'brand-fill text-canvas shadow-xs' : 'bg-surface border border-muted-border/40 text-neutral-text/70 hover:text-heading'
+            }`}
+          >
+            {key === 'all' ? 'كل الحالات' : PUBLISH_STATUS_LABELS_AR[key]} <span className="opacity-70">({statusCounts[key]})</span>
+          </button>
+        ))}
+      </div>
+
       <div className="p-4 rounded-2xl bg-surface border border-muted-border/40 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="relative flex-1 lg:max-w-md">
           <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-text/40" />
@@ -245,6 +294,15 @@ export const ProjectsSection: React.FC = () => {
                       <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-neutral-950/80 backdrop-blur-md text-white border border-white/20 truncate">
                         {project.typeAr}
                       </span>
+                      {publishStatusOf(project) !== 'published' && (
+                        <span
+                          className={`ms-auto me-1.5 text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs shrink-0 ${
+                            publishStatusOf(project) === 'draft' ? 'bg-amber-400 text-neutral-950' : 'bg-neutral-800 text-white border border-white/20'
+                          }`}
+                        >
+                          {PUBLISH_STATUS_LABELS_AR[publishStatusOf(project)]}
+                        </span>
+                      )}
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gold text-neutral-950 shadow-xs shrink-0">
                         {project.priceType}
                       </span>
@@ -313,6 +371,27 @@ export const ProjectsSection: React.FC = () => {
                   </button>
                   {canManage && (
                     <>
+                      {publishStatusOf(project) === 'published' ? (
+                        <button
+                          onClick={() => void hide(project)}
+                          disabled={busyId === project.id}
+                          title="إخفاء من الموقع"
+                          aria-label={`إخفاء ${project.title} من الموقع`}
+                          className="p-2.5 rounded-xl bg-canvas border border-muted-border/40 hover:border-accent text-neutral-text/70 hover:text-heading transition cursor-pointer disabled:opacity-50"
+                        >
+                          <EyeOff className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => void publish(project)}
+                          disabled={busyId === project.id}
+                          title="نشر في الموقع"
+                          aria-label={`نشر ${project.title} في الموقع`}
+                          className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 transition cursor-pointer disabled:opacity-50"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate({ section: 'projectEdit', projectId: project.id })}
                         title="تعديل المشروع"
