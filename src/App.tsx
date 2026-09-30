@@ -1,26 +1,45 @@
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect, lazy, Suspense } from 'react';
 import type { Property } from './types/property';
 import { Navbar, type NavPageKey } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { BackgroundDecor } from './components/common/BackgroundDecor';
 import { ThemeProvider } from './context/ThemeProvider';
-import {
-  HomePage,
-  WorksPage,
-  ClientsPage,
-  ProjectDetailPage,
-  InterestRegistrationView,
-  ContactPage,
-  AdminLoginPage,
-  AdminDashboardPage,
-} from './pages';
+import { HomePage } from './pages/HomePage';
 import { AdminStorage } from './services/adminStorage';
 import { onUnauthorized } from './services/api';
 import { AnnouncementBar } from './components/common/AnnouncementBar';
 import { MaintenanceScreen } from './components/common/MaintenanceScreen';
 import { useSiteSettings } from './hooks/useSiteSettings';
 import { useLanguage } from './hooks/useLanguage';
-import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+
+// Lazy-loaded routes for code splitting
+const WorksPage = lazy(() => import('./components/works/WorksPage').then((m) => ({ default: m.WorksPage })));
+const ClientsPage = lazy(() => import('./pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })));
+const InterestRegistrationView = lazy(() => import('./components/booking/InterestRegistrationView').then((m) => ({ default: m.InterestRegistrationView })));
+const ContactPage = lazy(() => import('./components/contact/ContactPage').then((m) => ({ default: m.ContactPage })));
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage })));
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+
+/** Branded loading skeleton for lazy sub-routes */
+function RouteLoadingFallback() {
+  return (
+    <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-8 h-8 text-accent animate-spin opacity-80" />
+      <span className="text-xs text-muted tracking-wider">...</span>
+    </div>
+  );
+}
+
+/** Branded full-screen loader for admin lazy chunks */
+function AdminLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-canvas flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-9 h-9 text-accent animate-spin opacity-80" />
+    </div>
+  );
+}
 
 export type PageKey = NavPageKey;
 
@@ -247,10 +266,12 @@ export function App() {
   if (currentPage === 'admin_login') {
     return (
       <ThemeProvider>
-        <AdminLoginPage
-          onLoginSuccess={() => navigateTo('admin')}
-          onNavigateHome={() => navigateTo('home')}
-        />
+        <Suspense fallback={<AdminLoadingFallback />}>
+          <AdminLoginPage
+            onLoginSuccess={() => navigateTo('admin')}
+            onNavigateHome={() => navigateTo('home')}
+          />
+        </Suspense>
         {toastMessage && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
             <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
@@ -265,26 +286,30 @@ export function App() {
     if (!AdminStorage.isAuthenticated()) {
       return (
         <ThemeProvider>
-          <AdminLoginPage
-            onLoginSuccess={() => navigateTo('admin')}
-            onNavigateHome={() => navigateTo('home')}
-          />
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminLoginPage
+              onLoginSuccess={() => navigateTo('admin')}
+              onNavigateHome={() => navigateTo('home')}
+            />
+          </Suspense>
         </ThemeProvider>
       );
     }
 
     return (
       <ThemeProvider>
-        <AdminDashboardPage
-          adminPath={route.adminPath}
-          onAdminNavigate={navigateAdmin}
-          onLogout={() => {
-            AdminStorage.logout();
-            navigateTo('home');
-          }}
-          onNavigateHome={() => navigateTo('home')}
-          onShowToast={showToast}
-        />
+        <Suspense fallback={<AdminLoadingFallback />}>
+          <AdminDashboardPage
+            adminPath={route.adminPath}
+            onAdminNavigate={navigateAdmin}
+            onLogout={() => {
+              AdminStorage.logout();
+              navigateTo('home');
+            }}
+            onNavigateHome={() => navigateTo('home')}
+            onShowToast={showToast}
+          />
+        </Suspense>
         {toastMessage && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
             <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
@@ -340,37 +365,41 @@ export function App() {
               />
             )}
 
-            {currentPage === 'works' && (
-              <WorksPage
-                onSelect={handleSelectProperty}
-                onQuickView={handleQuickView}
-                onFavToast={showToast}
-                initialFilters={initialFilters}
-              />
-            )}
+            {currentPage !== 'home' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                {currentPage === 'works' && (
+                  <WorksPage
+                    onSelect={handleSelectProperty}
+                    onQuickView={handleQuickView}
+                    onFavToast={showToast}
+                    initialFilters={initialFilters}
+                  />
+                )}
 
-            {currentPage === 'clients' && (
-              <ClientsPage onNavigate={navigateTo} />
-            )}
+                {currentPage === 'clients' && (
+                  <ClientsPage onNavigate={navigateTo} />
+                )}
 
-            {currentPage === 'project' && (
-              <ProjectDetailPage
-                projectId={currentProjectId}
-                onNavigate={(p, opts) => navigateTo(p, true, opts)}
-                onShowToast={showToast}
-              />
-            )}
+                {currentPage === 'project' && (
+                  <ProjectDetailPage
+                    projectId={currentProjectId}
+                    onNavigate={(p, opts) => navigateTo(p, true, opts)}
+                    onShowToast={showToast}
+                  />
+                )}
 
-            {currentPage === 'booking' && (
-              <InterestRegistrationView
-                selectedProperty={selectedProperty}
-                onSelectProperty={(p) => setSelectedProperty(p)}
-                onSuccessToast={showToast}
-              />
-            )}
+                {currentPage === 'booking' && (
+                  <InterestRegistrationView
+                    selectedProperty={selectedProperty}
+                    onSelectProperty={(p) => setSelectedProperty(p)}
+                    onSuccessToast={showToast}
+                  />
+                )}
 
-            {currentPage === 'contact' && (
-              <ContactPage onSuccessToast={showToast} />
+                {currentPage === 'contact' && (
+                  <ContactPage onSuccessToast={showToast} />
+                )}
+              </Suspense>
             )}
           </div>
         </main>
