@@ -4,6 +4,8 @@ import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { loadGoogleMaps, MapsConfigError, type GoogleMapsBundle } from '../../services/googleMaps';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
 import { toYoutubeEmbedUrl } from '../../services/youtube';
 import {
   MapPin,
@@ -156,6 +158,9 @@ const buildBeaconElement = (project: Property, isSelected: boolean): HTMLElement
 export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ onNavigate }) => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const mapSection = content.home.mapSection;
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -608,15 +613,16 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
           <div>
             <div className="inline-flex items-center gap-2 brand-badge text-xs font-bold px-3.5 py-1 rounded-full mb-3 text-accent shadow-xs">
               <Compass className="w-3.5 h-3.5 text-accent animate-spin-slow" />
-              <span>{isAr ? 'خريطة المشاريع الاستراتيجية' : 'Strategic Projects Map'}</span>
+              <span>{text(mapSection.badgeAr, mapSection.badgeEn)}</span>
             </div>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-heading tracking-tight leading-tight">
-              {isAr ? 'اكتشف مواقع مشاريع أجدا على الخريطة' : 'Explore Ajda Developments on the Map'}
+              {text(mapSection.titleAr, mapSection.titleEn)}{' '}
+              <span className="brand-gradient-text">
+                {text(mapSection.titleHighlightAr, mapSection.titleHighlightEn)}
+              </span>
             </h2>
             <p className="text-xs sm:text-sm text-neutral-text/70 mt-2 max-w-2xl leading-relaxed">
-              {isAr
-                ? 'حضور نوعي ومواقع استراتيجية مدروسة على المحاور الحيوية وشبكات الطرق الرئيسية. انقر على أي مشروع للاطلاع على كافة التفاصيل الهندسية والوسائط وجولة 4K.'
-                : 'Strategic real estate footprints along prime commercial corridors and logistics thoroughfares. Select any pin to review full specs, video tours, and imagery.'}
+              {text(mapSection.descAr, mapSection.descEn)}
             </p>
           </div>
 

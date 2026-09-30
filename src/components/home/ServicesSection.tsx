@@ -1,47 +1,23 @@
 import React from 'react';
-import { Warehouse, Store, Building, TrendingUp, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowLeft, ArrowRight, Warehouse } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import { resolveCmsIcon } from '../common/cmsIcons';
 
 interface ServicesSectionProps {
   onExplore?: () => void;
 }
 
-const services = [
-  {
-    icon: Warehouse,
-    titleAr: 'المشاريع اللوجستية والمستودعات',
-    titleEn: 'Logistics & Modern Warehousing',
-    descAr: 'مستودعات ومخازن حديثة بمواصفات تخزين عالمية، ساحات شحن وتفريغ مجهزة لدعم سلاسل الإمداد والتجارة',
-    descEn: 'State-of-the-art warehouses with international standards, hydraulic docks, and integrated supply chain facilities.',
-  },
-  {
-    icon: Store,
-    titleAr: 'المحلات والمجمعات التجارية',
-    titleEn: 'Commercial Hubs & Showrooms',
-    descAr: 'محلات وصالات عرض تجارية في مواقع استراتيجية حيوية، بتصاميم عصرية تناسب مختلف الأنشطة الاستثمارية',
-    descEn: 'Prime showrooms and commercial spaces in high-traffic corridors designed for flagship enterprise brands.',
-  },
-  {
-    icon: Building,
-    titleAr: 'المباني والمكاتب الإدارية',
-    titleEn: 'Corporate Offices & Business Towers',
-    descAr: 'مراكز أعمال ومساحات إدارية فاخرة مجهزة بأحدث التقنيات الذكية لبيئة عمل مؤسسية متكاملة',
-    descEn: 'Prestigious corporate offices and business centers equipped with smart systems for exceptional productivity.',
-  },
-  {
-    icon: TrendingUp,
-    titleAr: 'التطوير والاستثمار العقاري',
-    titleEn: 'Real Estate Investment & Development',
-    descAr: 'حلول استثمارية مستدامة وتطوير أصول عقارية تحقق عوائد مجزية وشراكات استراتيجية رائدة',
-    descEn: 'Sustainable investment solutions and asset development generating resilient returns and strategic growth.',
-  },
-];
-
 export const ServicesSection: React.FC<ServicesSectionProps> = ({ onExplore }) => {
-  const { language, isRTL } = useLanguage();
-  const isAr = language === 'ar';
+  const { isRTL } = useLanguage();
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
+
+  const section = content.home.services;
+  const items = section.items.slice().sort((a, b) => a.order - b.order);
 
   return (
     <section className="relative overflow-hidden py-24 max-w-7xl mx-auto px-6">
@@ -54,23 +30,14 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onExplore }) =
       <div className="relative text-center mb-16">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full">
           <Sparkles className="w-3.5 h-3.5 text-accent-light" />
-          {isAr ? 'تخصصاتنا وخدماتنا' : 'Our Disciplines & Services'}
+          {text(section.badgeAr, section.badgeEn)}
         </span>
         <h2 className="text-3xl md:text-4xl lg:text-5xl font-black mt-6">
-          {isAr ? (
-            <>
-              حلول عقارية <span className="brand-gradient-text">لوجستية وتجارية متكاملة</span>
-            </>
-          ) : (
-            <>
-              Integrated Real Estate <span className="brand-gradient-text">Logistics & Commercial</span> Solutions
-            </>
-          )}
+          {text(section.titleAr, section.titleEn)}{' '}
+          <span className="brand-gradient-text">{text(section.titleHighlightAr, section.titleHighlightEn)}</span>
         </h2>
         <p className="text-sm md:text-base text-neutral-text/75 max-w-2xl mx-auto mt-4 leading-relaxed font-medium">
-          {isAr
-            ? 'من المستودعات اللوجستية والمخازن إلى المحلات والمجمعات التجارية والمكاتب الإدارية، نبني مشاريع تحقق أعلى قيمة استثمارية مستدامة.'
-            : 'From modern logistics facilities and storage hubs to commercial centers and corporate offices, we construct landmark developments with lasting investment value.'}
+          {text(section.descAr, section.descEn)}
         </p>
         <div
           aria-hidden
@@ -79,10 +46,10 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onExplore }) =
       </div>
 
       <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {services.map((item, i) => {
-          const Icon = item.icon;
+        {items.map((item, i) => {
+          const Icon = resolveCmsIcon(item.icon, Warehouse);
           return (
-            <Reveal key={i} delay={i * 120} direction="up" className="h-full">
+            <Reveal key={item.id} delay={i * 120} direction="up" className="h-full">
               <div className="glass-card group relative h-full overflow-hidden rounded-3xl p-8 hover:-translate-y-0.5 transition-all duration-300">
                 {/* Ghost index */}
                 <span
@@ -97,16 +64,16 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onExplore }) =
                     <Icon className="w-5.5 h-5.5" />
                   </div>
                   <h3 className="text-lg font-bold mb-3 group-hover:text-accent transition-colors">
-                    {isAr ? item.titleAr : item.titleEn}
+                    {text(item.titleAr, item.titleEn)}
                   </h3>
                   <p className="text-xs text-neutral-text/75 leading-relaxed mb-6">
-                    {isAr ? item.descAr : item.descEn}
+                    {text(item.descAr, item.descEn)}
                   </p>
                   <button
                     onClick={onExplore}
                     className="inline-flex items-center gap-2 text-xs font-bold text-accent group-hover:text-accent-light transition-colors cursor-pointer"
                   >
-                    <span>{isAr ? 'اعرف المزيد' : 'Learn More'}</span>
+                    <span>{text('اعرف المزيد', 'Learn More')}</span>
                     <ArrowIcon className="w-3.5 h-3.5 transition-transform duration-300" />
                   </button>
                 </div>
