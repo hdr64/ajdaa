@@ -1,6 +1,6 @@
 # Resume note (updated 2026-09-30, late) — read this first
 
-Branch `feat/backend-admin` (pushed, last code commit `0e69c06`). Not merged to `main` — owner merges when ready.
+Branch `feat/backend-admin` (pushed, last code commit `b568e0b`). Not merged to `main` — owner merges when ready.
 Plan and every owner request: `refactor.md` (Phases 8–9, "Admin gap review" at the end). `README.md` = setup/API only.
 
 ## Owner working rules (also in auto-memory)
@@ -27,12 +27,11 @@ Plan and every owner request: `refactor.md` (Phases 8–9, "Admin gap review" at
 - New-inquiry toast + header bell + desktop notification. Public site reads contact details from settings.
 - Projects table/list/grid, categories on shared ViewSwitcher + DataTable (agy).
 - Deploy needs `npm run db:migrate` (AppSetting, NotificationListener). Local: stop dev, `cd server && npx prisma generate && npm run db:push`.
-- Still to do in the browser: Users, HR, Inquiries, Settings tabs, Projects/Categories views, OTP login.
+- Browser pass 2026-09-30 (Playwright, review copy): all admin sections, projects/categories views, settings tabs, bell, delete + status confirms, login forgot step: 25/25, no console errors. Not covered: full OTP login with a real code (needs SMTP in the review copy).
 
 ## Next queue
-1. Browser pass over everything shipped 2026-09-30.
-2. Settings tabs still planned: SEO defaults, maintenance mode / announcement banner, OTP policy.
-3. Phase 8c: 3D model upload, image editor + format choice, SEO (decide server-side meta injection first), drafts for other forms.
-4. Remaining gap-review items (error monitoring, backups visibility, media library, CRM features), Phase 9 CMS + activity log with undo.
+1. Settings tabs still planned: SEO defaults, maintenance mode / announcement banner, OTP policy.
+2. Phase 8c: 3D model upload, image editor + format choice, SEO (decide server-side meta injection first), drafts for other forms.
+3. Remaining gap-review items (error monitoring, backups visibility, media library, CRM features), Phase 9 CMS + activity log with undo.
 
 Local uncommitted files that belong to the owner (do not commit without asking): `deploy/Caddyfile`, root `package.json`/`package-lock.json` (wrangler bump).
