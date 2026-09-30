@@ -1,6 +1,6 @@
 # 🏗️ Ajda Real Estate Platform
 
-> **Version: 1.2.0** | React 19 SPA + Fastify 5 API + Prisma + PostgreSQL 16 / SQLite
+> **Version: 1.2.1** | React 19 SPA + Fastify 5 API + Prisma + PostgreSQL 16 / SQLite
 
 Full-stack real estate management and marketing system: a modern React 19 + Vite SPA (AR/EN) with a high-performance Fastify + Prisma API, complete Content Management System (CMS v2.1), action-level RBAC, telemetry logging, and isolated developer feedback channels.
 
@@ -419,7 +419,7 @@ Copy `server/.env.example` to `server/.env`. All variables are validated at star
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `POST` | `/api/media/upload` | JWT | Upload image (re-encoded to WebP 2400px q82) or PDF attachment |
-| `GET` | `/api/health` | Public | System status and platform version (`{ status: "ok", version: "1.2.0" }`) |
+| `GET` | `/api/health` | Public | System status and platform version (`{ status: "ok", version: "1.2.1" }`) |
 
 ---
 

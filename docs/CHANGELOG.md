@@ -5,6 +5,16 @@
 
 ---
 
+## [1.2.1] — 2026-10-01
+
+### ⚡ Performance: Route-Level Code Splitting & Dynamic Chunking
+- **Initial Bundle Reduction**: Reduced public landing page bundle from **1,083.2 kB** down to **385.7 kB** (115.4 kB gzipped) — a **64.4% reduction** in transferred JavaScript.
+- **Admin Suite Isolation**: Code-split `AdminDashboardPage` (~521 kB) and `AdminLoginPage` (~18 kB) into on-demand dynamic chunks using `React.lazy()` and `<Suspense>`. Public visitors now never download administrative logic or heavy editor components.
+- **Secondary Route Splitting**: Code-split `WorksPage`, `ProjectDetailPage`, `InterestRegistrationView`, `ContactPage`, and `ClientsPage` into individual on-demand chunks.
+- **Branded Fallbacks**: Added zero-layout-shift `RouteLoadingFallback` and full-screen `AdminLoadingFallback` skeletons.
+
+---
+
 ## [1.2.0] — 2026-10-01
 
 ### 🛡️ Feature: Isolated Developer Notes Table & Instant Email Notifications
