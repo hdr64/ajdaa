@@ -24,19 +24,19 @@ ajda.weghetk.com {
 
 	# --- API: JSON, auth, inquiries ---
 	handle /api/* {
-		reverse_proxy localhost:4000
+		reverse_proxy 127.0.0.1:4000
 	}
 
 	# --- Uploaded media (WebP images, PDF brochures) ---
 	handle /uploads/* {
-		reverse_proxy localhost:4000
+		reverse_proxy 127.0.0.1:4000
 	}
 
 	# --- Socket.io realtime ---
 	# The websocket upgrade must reach the API; buffering or compression here
 	# would break the long-lived connection that unit-status updates ride on.
 	handle /socket.io/* {
-		reverse_proxy localhost:4000 {
+		reverse_proxy 127.0.0.1:4000 {
 			flush_interval -1
 		}
 	}

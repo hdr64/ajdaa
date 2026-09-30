@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, ChevronLeft, ChevronRight, ExternalLink, Layers, Search } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronRight, Download, ExternalLink, Layers, RefreshCw, Search } from 'lucide-react';
 import type { Property } from '../../../types/property';
+import { AdminStorage } from '../../../services/adminStorage';
+import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { BuildingVisualizer } from '../../../components/admin/BuildingVisualizer';
@@ -128,6 +130,7 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
 
 export const UnitsSection: React.FC = () => {
   const { projects, location, navigate, showToast, can } = useAdmin();
+  const [exporting, setExporting] = useState(false);
 
   const selected = projects.data.find((p) => p.id === location.projectId) ?? null;
 
@@ -158,6 +161,18 @@ export const UnitsSection: React.FC = () => {
     );
   }
 
+  const handleExport = async () => {
+    if (!selected) return;
+    setExporting(true);
+    try {
+      await AdminStorage.exportUnitsCsv(selected.id);
+    } catch (error) {
+      showToast(getErrorMessage(error, 'تعذر تصدير الملف'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {selected && (
@@ -170,6 +185,18 @@ export const UnitsSection: React.FC = () => {
             <ExternalLink className="w-4 h-4" />
             <span className="hidden sm:inline">صفحة المشروع</span>
           </button>
+          {can('exportData') && (
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={exporting || unitCounts(selected).total === 0}
+              className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              title="تصدير وحدات هذا المشروع"
+            >
+              {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span className="hidden sm:inline">تصدير CSV</span>
+            </button>
+          )}
         </AdminHeaderActions>
       )}
 

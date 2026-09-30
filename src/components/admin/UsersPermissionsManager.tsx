@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, SearchX, UserPlus, Users as UsersIcon, X } from 'lucide-react';
+import { Download, RefreshCw, Search, SearchX, UserPlus, Users as UsersIcon, X } from 'lucide-react';
 import type { AdminPermissions, AdminStatus, AdminUser } from '../../types/admin';
+import { AdminStorage } from '../../services/adminStorage';
+import { getErrorMessage } from '../../services/api';
 import { useAdmin } from '../../pages/admin/adminContextDef';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { AdminHeaderActions } from './layout/AdminHeaderActions';
@@ -36,9 +38,10 @@ const NEW_USER_BUTTON =
   'brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs';
 
 export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = ({ onShowToast }) => {
-  const { isSuperAdmin } = useAdmin();
+  const { isSuperAdmin, can } = useAdmin();
   const [view, setView] = usePersistentState<ViewMode>(VIEW_STORAGE_KEY, 'table', isViewMode);
   const [gridColumns, setGridColumns] = usePersistentState<GridColumns>(COLUMNS_STORAGE_KEY, 3, isGridColumns);
+  const [exporting, setExporting] = useState(false);
 
   // The table owns its own search box and filters, so a query typed for the cards
   // must not keep narrowing rows once the table takes over.
@@ -92,6 +95,17 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     [setManyStatus]
   );
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await AdminStorage.exportUsersCsv();
+    } catch (error) {
+      onShowToast(getErrorMessage(error, 'تعذر تصدير الملف'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const header = (
     <AdminHeaderActions>
       <ViewSwitcher value={view} onChange={setView} modes={VIEW_MODES} />
@@ -99,6 +113,18 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
         <UserPlus className="w-4 h-4" />
         <span className="hidden sm:inline">مستخدم جديد</span>
       </button>
+      {can('manageUsers') && can('exportData') && (
+        <button
+          type="button"
+          onClick={() => void handleExport()}
+          disabled={exporting || users.data.length === 0}
+          className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          title="تصدير كل المستخدمين"
+        >
+          {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          <span className="hidden sm:inline">تصدير CSV</span>
+        </button>
+      )}
     </AdminHeaderActions>
   );
 

@@ -17,9 +17,10 @@ export type NavPageKey = 'home' | 'works' | 'clients' | 'project' | 'booking' | 
 interface NavbarProps {
   currentPage: NavPageKey;
   onNavigate: (page: NavPageKey) => void;
+  topOffset?: number;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffset = 0 }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { t, isRTL, language } = useLanguage();
@@ -65,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
   return (
     <>
       <nav
+        style={topOffset > 0 ? { top: `${topOffset}px` } : undefined}
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
           scrolled
             ? 'backdrop-blur-xl backdrop-saturate-150 bg-surface/90 border-b border-muted-border/30 py-2 sm:py-3 shadow-xs'
@@ -136,7 +138,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
 
       {/* Animated Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-canvas/95 backdrop-blur-2xl mobile-menu-overlay flex flex-col justify-between p-6 sm:p-8 pt-24 md:hidden overflow-y-auto">
+        <div
+          style={topOffset > 0 ? { top: `${topOffset}px` } : undefined}
+          className="fixed inset-0 z-40 bg-canvas/95 backdrop-blur-2xl mobile-menu-overlay flex flex-col justify-between p-6 sm:p-8 pt-24 md:hidden overflow-y-auto"
+        >
           {/* Ambient Light Orb */}
           <div className="brand-glow z-0 w-72 h-72 top-1/4 left-1/2 -translate-x-1/2 opacity-30 pointer-events-none" />
 

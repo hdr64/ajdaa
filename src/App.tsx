@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import type { Property } from './types/property';
 import { Navbar, type NavPageKey } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
@@ -16,7 +16,11 @@ import {
 } from './pages';
 import { AdminStorage } from './services/adminStorage';
 import { onUnauthorized } from './services/api';
-import { CheckCircle2 } from 'lucide-react';
+import { AnnouncementBar } from './components/common/AnnouncementBar';
+import { MaintenanceScreen } from './components/common/MaintenanceScreen';
+import { useSiteSettings } from './hooks/useSiteSettings';
+import { useLanguage } from './hooks/useLanguage';
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export type PageKey = NavPageKey;
 
@@ -98,6 +102,31 @@ export function App() {
   const [transition, setTransition] = useState<'idle' | 'out' | 'in'>('idle');
   const transitioningRef = useRef(false);
   const scrollPositionsRef = useRef<Record<string, number>>({});
+
+  const { settings } = useSiteSettings();
+  const { language } = useLanguage();
+  const [topOffset, setTopOffset] = useState<number>(0);
+
+  const showAdminMaintenanceWarning = Boolean(
+    settings.maintenance?.enabled && AdminStorage.isAuthenticated()
+  );
+
+  // The fixed stack above the Navbar (maintenance warning, announcement) changes
+  // height with its content, wrapping and dismissal. A callback ref attaches the
+  // observer whenever the stack mounts, including after returning from /admin.
+  const topStackObserver = useRef<ResizeObserver | null>(null);
+  const topStackRef = useCallback((node: HTMLDivElement | null) => {
+    topStackObserver.current?.disconnect();
+    topStackObserver.current = null;
+    if (!node) {
+      setTopOffset(0);
+      return;
+    }
+    const measure = () => setTopOffset(node.getBoundingClientRect().height);
+    measure();
+    topStackObserver.current = new ResizeObserver(measure);
+    topStackObserver.current.observe(node);
+  }, []);
 
   const currentPage = route.page;
   const currentProjectId = route.projectId || 206;
@@ -266,13 +295,40 @@ export function App() {
     );
   }
 
+  // Maintenance screen for visitors on public pages
+  const isMaintenance = settings.maintenance?.enabled && !AdminStorage.isAuthenticated();
+
+  if (isMaintenance) {
+    return (
+      <ThemeProvider>
+        <MaintenanceScreen onAdminLogin={() => navigateTo('admin_login')} />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <div className="min-h-screen bg-canvas flex flex-col justify-between overflow-clip transition-colors duration-300 relative">
         <BackgroundDecor />
-        <Navbar currentPage={currentPage} onNavigate={navigateTo} />
 
-        <main className="flex-1">
+        {/* Fixed Top Stack: Admin Maintenance Warning & Announcement Bar */}
+        <div ref={topStackRef} className="fixed top-0 inset-x-0 z-[55] flex flex-col">
+          {showAdminMaintenanceWarning && (
+            <div className="bg-amber-500 text-amber-950 dark:bg-amber-600 dark:text-amber-50 text-xs font-bold py-1.5 px-4 text-center border-b border-amber-600/30 flex items-center justify-center gap-2 shadow-xs select-none">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                {language === 'ar'
+                  ? 'وضع الصيانة مفعّل: الزوار يرون صفحة الصيانة'
+                  : 'Maintenance mode is on: visitors see the maintenance page'}
+              </span>
+            </div>
+          )}
+          <AnnouncementBar />
+        </div>
+
+        <Navbar currentPage={currentPage} onNavigate={navigateTo} topOffset={topOffset} />
+
+        <main className="flex-1" style={topOffset > 0 ? { paddingTop: `${topOffset}px` } : undefined}>
           <div className={transition === 'out' ? 'page-exit-fade' : transition === 'in' ? 'page-enter-fade' : ''}>
             {currentPage === 'home' && (
               <HomePage

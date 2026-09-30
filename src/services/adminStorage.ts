@@ -9,6 +9,7 @@ import { categoryService, type CategoryInput } from './categoryService';
 import { newsletterService, type NewsletterSubscriber } from './newsletterService';
 import { rolesService } from './rolesService';
 import { ApiError } from './api';
+import { downloadFile, todayStamp } from './download';
 import type {
   CustomerInquiry,
   Property,
@@ -219,6 +220,10 @@ export const AdminStorage = {
     return propertyService.duplicate(id);
   },
 
+  exportProjectsCsv(): Promise<void> {
+    return downloadFile('/api/projects/export', `projects-${todayStamp()}.csv`);
+  },
+
   /* ------------------------------ Floors --------------------------------- */
 
   async addFloorToProject(projectId: number, floorName: string): Promise<Property> {
@@ -268,6 +273,11 @@ export const AdminStorage = {
   /** Persists the status server-side; the server then broadcasts it to every tab. */
   async updateUnitStatus(unitId: string, newStatus: UnitStatus): Promise<void> {
     await propertyService.updateUnitStatus(unitId, newStatus);
+  },
+
+  /** Pass a project id to export only that project's units; omit it for all of them. */
+  exportUnitsCsv(projectId?: number): Promise<void> {
+    return downloadFile('/api/units/export', `units-${todayStamp()}.csv`, { projectId });
   },
 
   /* ----------------------------- Inquiries ------------------------------- */
@@ -346,6 +356,10 @@ export const AdminStorage = {
 
   setUserStatus(userId: string, status: AdminStatus): Promise<AdminUser> {
     return authService.setUserStatus(userId, status);
+  },
+
+  exportUsersCsv(): Promise<void> {
+    return downloadFile('/api/auth/users/export', `users-${todayStamp()}.csv`);
   },
 
   /* ----------------- Roles & Permissions & Departments ------------------- */
