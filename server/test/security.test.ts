@@ -10,10 +10,7 @@ import {
   login,
   removeUser,
   SEED_ADMINS,
-  SEED_PASSWORD,
-  seedSession,
   sleep,
-  type TestSession,
 } from './helpers.js';
 
 let cleanupUsers: string[] = [];

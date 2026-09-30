@@ -6,34 +6,53 @@ Full-stack real estate management system: a React 19 + Vite SPA (AR/EN) with a F
 
 ```
 ajda/
+├── docs/                   # Complete documentation suite (Architecture, CMS, Deployment, etc.)
+│   ├── archive/            # Historical archives (including original-refactor.md)
+│   ├── architecture.md     # System architecture, schemas, caching, ETags
+│   ├── cms-architecture.md # Complete CMS v2.1 specification & design
+│   ├── api-reference.md    # REST & WebSocket API specification
+│   ├── deployment.md       # Ubuntu 24.04 bare-metal deployment (No Docker)
+│   ├── testing-strategy.md # Vitest test suites & QA guidelines
+│   ├── TODO.md             # Active sprint items & backlog
+│   ├── CHANGELOG.md        # Detailed version history
+│   └── gap-analysis.md     # Feature gap audit & roadmap
 ├── src/                    # Frontend — React 19 + Vite + Tailwind v4
+│   ├── components/admin/   # Admin dashboard suites & CMS panels (cms/*)
+│   ├── context/            # CmsContext & public real-time providers
 │   ├── data/properties.ts  # Display helpers only (getPropertyDisplay)
-│   ├── services/           # api.ts client + property/inquiry/auth/media services
-│   │                        #   and adminStorage.ts (async facade over the API)
-│   ├── hooks/              # useAsyncData (loading/error/reload), useRealtimeUnits
+│   ├── services/           # api.ts client + property/inquiry/auth/cms/media services
+│   ├── hooks/              # useAsyncData, useRealtimeUnits, useCmsSection
 │   └── pages/              # public site + /admin/*
 ├── server/                 # Backend — Fastify + Prisma
 │   ├── prisma/
 │   │   ├── schema.prisma   # Canonical schema (SQLite provider = DEV)
 │   │   ├── migrations/     # PRODUCTION Postgres migrations (committed)
-│   │   ├── seed.ts         # Seeds admin users, categories, projects
+│   │   ├── seed.ts         # Seeds admin users, categories, projects, CMS
 │   │   └── seed-data/      # projects.seed.ts (AUTO-GENERATED, dev bootstrap only)
-│   ├── scripts/
-│   │   ├── generate-prod-schema.mjs   # schema.prisma → schema.postgresql.prisma
-│   │   └── sync-data.mjs              # legacy bootstrap: static data → seed
 │   ├── src/
 │   │   ├── config/         # env.ts (zod-validated), constants.ts
 │   │   ├── middleware/     # auth (JWT), validate (zod)
-│   │   ├── routes/         # auth, projects, units, inquiries, media
-│   │   ├── services/       # prisma, mediaService (sharp/WebP), serializers,
-│   │   │                   #   mailService + mailTemplates, otpService, notifications
+│   │   ├── routes/         # auth, projects, units, inquiries, cms, media
+│   │   ├── services/       # prisma, cmsCacheService, mediaService, mailService
 │   │   ├── sockets/        # Socket.io realtime engine
-│   │   ├── types/          # Fastify/JWT type augmentation
 │   │   ├── app.ts          # buildApp() factory (testable, no listen)
 │   │   └── server.ts       # Entry point → listen
 │   └── uploads/            # Local media storage (gitignored)
-└── refactor.md             # Architecture & phase plan (Phase 4 complete)
 ```
+
+## 📖 Documentation
+
+For detailed guides and architecture, refer to the [`docs/`](docs/README.md) directory:
+
+- 🏛️ [System Architecture](docs/architecture.md)
+- 📝 [CMS Architecture v2.1 Specification](docs/cms-architecture.md)
+- 🔌 [API & WebSocket Reference](docs/api-reference.md)
+- 🚀 [Production Deployment (No Docker)](docs/deployment.md)
+- 🧪 [Testing Strategy & Vitest Suites](docs/testing-strategy.md)
+- 📋 [Sprint Backlog & TODO](docs/TODO.md)
+- 📜 [Changelog & Release Notes](docs/CHANGELOG.md)
+- 🔍 [Feature Gap Analysis](docs/gap-analysis.md)
+- 📦 [Historical Archives](docs/archive/) (includes unedited `original-refactor.md`)
 
 ## Database Strategy — SQLite (dev) / PostgreSQL (prod)
 
@@ -229,6 +248,14 @@ site content and must be backed up** (the deploy backup script at
 | GET | `/api/newsletter` | JWT | List subscribers newest first (exportData, ?q=) |
 | GET | `/api/newsletter/export` | JWT | Export subscribers to CSV (exportData, BOM, RFC 4180) |
 | DELETE | `/api/newsletter/:id` | JWT | Unsubscribe / remove subscriber (exportData) |
+| GET | `/api/cms` | – | Aggregated CMS bundle (ETag: `W/"cms-agg-..."`, cache-backed) |
+| GET | `/api/cms/:sectionKey` | – | Specific CMS section (ETag: `W/"sec-..."`, HTTP 304 supported) |
+| PUT | `/api/cms/:sectionKey` | JWT | Update CMS section content (manage_cms_content, snapshot created) |
+| GET | `/api/cms/:sectionKey/versions` | JWT | Section revision history (up to 10 versions) |
+| POST | `/api/cms/:sectionKey/rollback/:version` | JWT | Rollback section to historical snapshot |
+| GET | `/api/cms/clients` | – | List clients / partners sorted by order |
+| POST/PUT/DELETE | `/api/cms/clients*` | JWT | Client logo CRUD & bulk operations (manage_cms_clients) |
+| POST | `/api/cms/cache/clear` | JWT | Evict CMS in-memory cache & broadcast reload (manage_cms) |
 | POST | `/api/media/upload` | JWT | Image → WebP (sharp, 2400px q82) or PDF |
 | GET | `/api/health` | – | Health check |
 
@@ -308,5 +335,4 @@ verify.
 
 - The frontend ships as a single ~600 kB chunk (166 kB gzipped). Route-level code
   splitting is the obvious next win if first paint on mobile needs to be faster.
-- `npm run lint` (oxlint) reports 3 pre-existing warnings in `ClientsPage.tsx` and
-  `PropertyModal.tsx`; they predate Phase 4 and are unrelated to it.
+- `npm run lint` (oxlint) passes cleanly with 0 errors across the entire codebase.

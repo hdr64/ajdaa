@@ -88,6 +88,7 @@ export const CmsClientsPanel: React.FC = () => {
   useEffect(() => {
     void fetchClients();
     void fetchPageCopy();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter clients
