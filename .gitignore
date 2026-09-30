@@ -59,3 +59,5 @@ md/*
 server/*.log
 /image.png
 screenshots
+.antigravityignore
+.agents/rules/restrict-scan.md
