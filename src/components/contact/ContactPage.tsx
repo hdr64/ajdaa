@@ -5,6 +5,9 @@ import { AdminStorage } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
 import { useLanguage } from '../../hooks/useLanguage';
 import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import { useCmsContact } from '../../hooks/useCmsContact';
 import { SOCIAL_KEYS } from '../../services/settingsService';
 import { SOCIAL_ICONS } from '../common/socialIcons';
 
@@ -16,28 +19,28 @@ interface FormState {
   name: string;
   phone: string;
   email: string;
-  subject: string;
+  /** Positional index into the CMS subject list, not the label text. */
+  subjectIndex: number;
   message: string;
 }
 
-const initialForm: FormState = { name: '', phone: '', email: '', subject: 'استفسار عام', message: '' };
+const initialForm: FormState = { name: '', phone: '', email: '', subjectIndex: 0, message: '' };
 
-const subjects = [
-  { value: 'استفسار عام', labelAr: 'استفسار عام', labelEn: 'General Inquiry' },
-  { value: 'حجز / استفسار عن مستودع لوجستي', labelAr: 'حجز / استفسار عن مستودع لوجستي', labelEn: 'Inquiry / Booking: Logistics Warehouse' },
-  { value: 'حجز / استفسار عن محل أو معرض تجاري', labelAr: 'حجز / استفسار عن محل أو معرض تجاري', labelEn: 'Inquiry / Booking: Retail Store or Showroom' },
-  { value: 'استفسار عن مكاتب إدارية', labelAr: 'استفسار عن مكاتب إدارية', labelEn: 'Inquiry about Administrative Offices' },
-  { value: 'فرص استثمار وشراكات', labelAr: 'فرص استثمار وشراكات', labelEn: 'Investment Opportunities & Partnerships' },
+/**
+ * CRM interest type per subject position. The subject labels are admin-editable
+ * CMS copy, so the form tracks the index instead of the label — renaming a
+ * subject in the CMS can no longer break the interest routing.
+ */
+const SUBJECT_INTEREST: readonly ('rent' | 'buy' | 'invest' | 'general')[] = [
+  'general',
+  'rent',
+  'rent',
+  'rent',
+  'invest',
 ];
 
-/** Maps the form subject to the CRM interest type. */
-const SUBJECT_INTEREST: Record<string, 'rent' | 'buy' | 'invest' | 'general'> = {
-  'استفسار عام': 'general',
-  'حجز / استفسار عن مستودع لوجستي': 'rent',
-  'حجز / استفسار عن محل أو معرض تجاري': 'rent',
-  'استفسار عن مكاتب إدارية': 'rent',
-  'فرص استثمار وشراكات': 'invest',
-};
+const interestFor = (index: number): 'rent' | 'buy' | 'invest' | 'general' =>
+  SUBJECT_INTEREST[index] ?? 'general';
 
 interface FieldProps {
   label: string;
@@ -67,10 +70,28 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
   const [website, setWebsite] = useState('');
 
   const { settings } = useSiteSettings();
-  const address = isAr ? settings.addressAr : settings.addressEn;
-  const hours = isAr ? settings.hoursAr : settings.hoursEn;
-  const whatsappHref = whatsappUrl(settings.whatsapp);
-  const phoneDisplay = settings.phone || (settings.whatsapp ? `+${settings.whatsapp}` : '');
+  const { content } = useCmsContent();
+  const { text, list } = useCmsText();
+  const cmsContact = useCmsContact();
+  const contact = content.contact;
+
+  // CMS footer contact is authoritative; the legacy site settings remain as a
+  // fallback so a partially-populated CMS cannot blank the contact panel.
+  const cmsAddress = text(settings.addressAr, settings.addressEn);
+  const address = cmsContact.address ?? cmsAddress;
+  const hours = cmsContact.hours;
+  const whatsappHref = cmsContact.whatsappHref || whatsappUrl(settings.whatsapp);
+  const phone = cmsContact.phone;
+  const email = cmsContact.email;
+  const phoneDisplay = phone || (cmsContact.whatsappHref ? `+${content.footer.whatsapp}` : settings.phone || (settings.whatsapp ? `+${settings.whatsapp}` : ''));
+  const subjectLabels = list(contact.subjectsAr, contact.subjectsEn);
+  // Subjects are positional, so blank entries are dropped before rendering to
+  // avoid an unselectable empty option in the dropdown.
+  const subjects = subjectLabels
+    .map((label, index) => ({ label, index }))
+    .filter((s) => s.label.trim().length > 0);
+  const selectedSubject =
+    subjects.find((s) => s.index === form.subjectIndex)?.label ?? subjects[0]?.label ?? '';
 
   const activeSocials = SOCIAL_KEYS.map((key) => {
     const href = settings.socials[key];
@@ -97,13 +118,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
           isExternal: true,
         }
       : null,
-    settings.email
+    email
       ? {
           icon: Mail,
           label: isAr ? 'البريد الإلكتروني' : 'Email Address',
-          value: settings.email,
+          value: email,
           dir: 'ltr' as const,
-          href: `mailto:${settings.email}`,
+          href: `mailto:${email}`,
         }
       : null,
     hours
@@ -168,8 +189,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
         name: form.name.trim(),
         phone: form.phone.trim() || undefined,
         email: form.email.trim() || undefined,
-        interestType: SUBJECT_INTEREST[form.subject] ?? 'general',
-        message: `[${form.subject}] ${form.message.trim()}`,
+        interestType: interestFor(form.subjectIndex),
+        message: `[${selectedSubject}] ${form.message.trim()}`,
         website,
         elapsedMs: Date.now() - startedAt,
       });
@@ -208,16 +229,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
       <div className="relative text-center mb-14 stagger-anim" style={{ animationDelay: '80ms' }}>
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full">
           <MessageCircleMore className="w-3.5 h-3.5 text-accent-light" />
-          {isAr ? 'تواصل معنا' : 'Contact Us'}
+          {text(contact.badgeAr, contact.badgeEn)}
         </span>
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-black mt-6">
-          {isAr ? 'نحن هنا ' : 'We Are Here to '}
-          <span className="brand-gradient-text">{isAr ? 'لخدمتك' : 'Serve You'}</span>
+          {text(contact.titleAr, contact.titleEn)}
         </h1>
         <p className="text-sm md:text-base text-neutral-text/60 max-w-xl mx-auto mt-4 leading-relaxed">
-          {isAr
-            ? 'فريقنا جاهز للإجابة على استفساراتك وتقديم الاستشارة العقارية المناسبة لاحتياجاتك'
-            : 'Our team is ready to answer your inquiries and provide tailored real estate consultation for your needs'}
+          {text(contact.subtitleAr, contact.subtitleEn)}
         </p>
       </div>
 
@@ -312,6 +330,12 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
           <div className="glass-card rounded-3xl p-8 md:p-10 h-full relative overflow-hidden">
             <div aria-hidden className="absolute -top-20 -right-20 w-56 h-56 bg-accent/8 blur-[90px] rounded-full pointer-events-none" />
 
+            {!sent && (
+              <h3 className="relative text-lg font-black text-heading mb-6">
+                {text(contact.formTitleAr, contact.formTitleEn)}
+              </h3>
+            )}
+
             {sent ? (
               <div className="relative h-full min-h-[420px] flex flex-col items-center justify-center text-center">
                 <div className="w-20 h-20 rounded-full bg-success/15 border border-success/40 flex items-center justify-center mb-7 pop-in">
@@ -391,10 +415,14 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
 
                 <Field label={isAr ? 'الموضوع' : 'Subject'}>
                   <div className="field-shell">
-                    <select value={form.subject} onChange={set('subject')} className="field-select">
+                    <select
+                      value={form.subjectIndex}
+                      onChange={(e) => setForm((f) => ({ ...f, subjectIndex: Number(e.target.value) }))}
+                      className="field-select"
+                    >
                       {subjects.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {isAr ? s.labelAr : s.labelEn}
+                        <option key={s.index} value={s.index}>
+                          {s.label}
                         </option>
                       ))}
                     </select>

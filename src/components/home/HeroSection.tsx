@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { HeroScene } from './HeroScene';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -11,6 +11,29 @@ interface HeroSectionProps {
   onExplore: (filters?: { city?: string; type?: string; priceType?: string }) => void;
   onBook?: () => void;
 }
+
+interface HighlightParts {
+  before: string;
+  match: string;
+  after: string;
+}
+
+/**
+ * Locates the admin's `highlightWord` inside a headline line. Returns `null`
+ * when there is nothing to highlight so the caller can fall back to the plain
+ * line instead of rendering an empty accent span.
+ */
+const splitHighlight = (line: string, word: string): HighlightParts | null => {
+  const needle = word.trim();
+  if (!needle || !line) return null;
+  const at = line.toLocaleLowerCase().indexOf(needle.toLocaleLowerCase());
+  if (at === -1) return null;
+  return {
+    before: line.slice(0, at),
+    match: line.slice(at, at + needle.length),
+    after: line.slice(at + needle.length),
+  };
+};
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
   const { t, isRTL } = useLanguage();
@@ -65,6 +88,23 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
 
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
+  const line1 = text(hero.titleLine1Ar, hero.titleLine1En);
+  const line2 = text(hero.titleLine2Ar, hero.titleLine2En);
+  const highlightWord = text(hero.highlightWordAr, hero.highlightWordEn);
+  const line1Parts = useMemo(() => splitHighlight(line1, highlightWord), [line1, highlightWord]);
+  const line2Parts = useMemo(() => splitHighlight(line2, highlightWord), [line2, highlightWord]);
+
+  const renderLine = (line: string, parts: HighlightParts | null): React.ReactNode =>
+    parts ? (
+      <>
+        {parts.before}
+        <span className="brand-gradient-text font-black">{parts.match}</span>
+        {parts.after}
+      </>
+    ) : (
+      line
+    );
+
   return (
     <section ref={sectionRef} className="relative min-h-[90vh] sm:min-h-screen overflow-hidden flex flex-col justify-end">
       {/* Background Image with Crisp Clarity */}
@@ -106,13 +146,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
             {/* Headline */}
             <h1 className="text-2xl xs:text-3xl sm:text-5xl lg:text-6xl xl:text-7xl font-black leading-[1.25] sm:leading-[1.15] tracking-tight">
               <span className="block text-heading hero-reveal" style={{ animationDelay: '300ms' }}>
-                {text(hero.titleLine1Ar, hero.titleLine1En)}
+                {renderLine(line1, line1Parts)}
               </span>
               <span
-                className="block brand-gradient-text hero-reveal mt-1 sm:mt-2"
+                className={`block hero-reveal mt-1 sm:mt-2 ${line2Parts ? '' : 'brand-gradient-text'}`}
                 style={{ animationDelay: '500ms' }}
               >
-                {text(hero.titleLine2Ar, hero.titleLine2En)}
+                {renderLine(line2, line2Parts)}
               </span>
             </h1>
 

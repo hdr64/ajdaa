@@ -14,7 +14,19 @@ export function useCmsText() {
     () => ({
       isAr,
       text: (ar: string, en: string): string => (isAr ? ar || en : en || ar),
-      list: (ar: string[], en: string[]): string[] => (isAr ? ar : en),
+      /**
+       * Index-aligned zip of a paired list. The output keeps the longer array's
+       * length and fills each gap from the other language, so callers can keep
+       * positional meaning (e.g. a subject's CRM interest type) even when the
+       * admin edited only one side.
+       */
+      list: (ar: string[], en: string[]): string[] => {
+        const out: string[] = [];
+        for (let i = 0; i < Math.max(ar.length, en.length); i += 1) {
+          out.push(isAr ? ar[i] || en[i] || '' : en[i] || ar[i] || '');
+        }
+        return out;
+      },
     }),
     [isAr]
   );
