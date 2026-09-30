@@ -5,10 +5,15 @@ import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { serializeUnit } from '../services/serializers.js';
+import { buildCsv, sendCsv } from '../services/csv.js';
 import { UNIT_STATUSES, UNIT_STATUS_AR, UNIT_STATUS_EN, type UnitStatus } from '../config/constants.js';
 import { ADMINS_ROOM } from '../sockets/index.js';
 
 const statusParamsSchema = z.object({ id: z.string().min(1) });
+
+const exportQuerySchema = z.object({
+  projectId: z.coerce.number().int().positive().optional(),
+});
 
 const statusBodySchema = z.object({
   status: z.enum(UNIT_STATUSES),
@@ -63,6 +68,56 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
       io.to(ADMINS_ROOM).emit('unit_status_updated', payload);
     }
   };
+
+  // Export units to CSV (Admin) - registered before :id routes to prevent shadowing
+  fastify.get(
+    '/export',
+    { onRequest: [authenticate, requirePermission('exportData')] },
+    async (request, reply) => {
+      const query = exportQuerySchema.parse(request.query ?? {});
+
+      // An admin export: units of unpublished projects are included too.
+      const units = await prisma.propertyUnit.findMany({
+        where: query.projectId ? { floor: { projectId: query.projectId } } : undefined,
+        include: { floor: { select: { projectId: true, project: { select: { title: true } } } } },
+        orderBy: [{ floor: { projectId: 'asc' } }, { floorNumber: 'asc' }, { unitNumber: 'asc' }],
+      });
+
+      const headers = [
+        'projectId',
+        'projectTitle',
+        'floorNumber',
+        'floorNameAr',
+        'unitId',
+        'unitNumber',
+        'sectionAr',
+        'type',
+        'area',
+        'status',
+        'statusAr',
+        'priceLabel',
+        'updatedAt',
+      ];
+
+      const rows = units.map((unit) => [
+        unit.floor.projectId,
+        unit.floor.project.title,
+        unit.floorNumber,
+        unit.floorNameAr,
+        unit.id,
+        unit.unitNumber,
+        unit.sectionAr,
+        unit.type,
+        unit.area,
+        unit.status,
+        unit.statusAr,
+        unit.priceLabel,
+        unit.updatedAt.toISOString(),
+      ]);
+
+      return sendCsv(reply, 'units', buildCsv(headers, rows));
+    }
+  );
 
   // Update unit status & broadcast live to all clients (Admin)
   fastify.patch(

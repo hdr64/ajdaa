@@ -5,7 +5,8 @@ import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { serializeProject, serializeFloor } from '../services/serializers.js';
-import { PUBLISH_STATUSES, type PublishStatus } from '../config/constants.js';
+import { buildCsv, sendCsv } from '../services/csv.js';
+import { PUBLISH_STATUSES, UNIT_STATUSES, type PublishStatus } from '../config/constants.js';
 
 const projectSchema = z.object({
   type: z.string().min(1),
@@ -91,6 +92,16 @@ function includeProjectRelations() {
   };
 }
 
+function countUnitsByStatus(floors: { units: { status: string }[] }[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const floor of floors) {
+    for (const unit of floor.units) {
+      counts.set(unit.status, (counts.get(unit.status) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 function toCreateData(input: ProjectInput) {
   return {
     type: input.type,
@@ -158,6 +169,58 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
 
     return projects.map(serializeProject);
   });
+
+  // Export projects to CSV (Admin) - registered before :id routes to prevent shadowing
+  fastify.get(
+    '/export',
+    { onRequest: [authenticate, requirePermission('exportData')] },
+    async (_request, reply) => {
+      const projects = await prisma.project.findMany({
+        include: { floors: { include: { units: { select: { status: true } } } } },
+        orderBy: { id: 'asc' },
+      });
+
+      const headers = [
+        'id',
+        'title',
+        'titleEn',
+        'type',
+        'city',
+        'publishStatus',
+        'priceType',
+        'area',
+        'unitsTotal',
+        ...UNIT_STATUSES.map((status) => `units${status[0].toUpperCase()}${status.slice(1)}`),
+        'lat',
+        'lng',
+        'createdAt',
+        'updatedAt',
+      ];
+
+      // An admin export: drafts and hidden projects are included on purpose.
+      const rows = projects.map((project) => {
+        const byStatus = countUnitsByStatus(project.floors);
+        return [
+          project.id,
+          project.title,
+          project.titleEn,
+          project.type,
+          project.city,
+          project.publishStatus,
+          project.priceType,
+          project.area,
+          project.floors.reduce((total, floor) => total + floor.units.length, 0),
+          ...UNIT_STATUSES.map((status) => byStatus.get(status) ?? 0),
+          project.lat,
+          project.lng,
+          project.createdAt.toISOString(),
+          project.updatedAt.toISOString(),
+        ];
+      });
+
+      return sendCsv(reply, 'projects', buildCsv(headers, rows));
+    }
+  );
 
   // Get project by ID
   fastify.get('/:id', async (request, reply) => {

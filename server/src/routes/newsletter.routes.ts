@@ -4,7 +4,7 @@ import { prisma } from '../services/prisma.js';
 import { config } from '../config/env.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
-import { escapeCsvCell } from '../services/csv.js';
+import { buildCsv, sendCsv } from '../services/csv.js';
 
 const subscribeSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -83,22 +83,9 @@ export const newsletterRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       const headers = ['email', 'locale', 'source', 'createdAt'];
-      const rows = subscribers.map((sub) => [
-        escapeCsvCell(sub.email),
-        escapeCsvCell(sub.locale),
-        escapeCsvCell(sub.source),
-        escapeCsvCell(sub.createdAt.toISOString()),
-      ]);
+      const rows = subscribers.map((sub) => [sub.email, sub.locale, sub.source, sub.createdAt.toISOString()]);
 
-      const headerLine = headers.join(',');
-      const dataLines = rows.map((r) => r.join(','));
-      const csv = '\uFEFF' + [headerLine, ...dataLines].join('\r\n') + '\r\n';
-
-      const dateStr = new Date().toISOString().slice(0, 10);
-      reply.header('Content-Type', 'text/csv; charset=utf-8');
-      reply.header('Content-Disposition', `attachment; filename="newsletter-${dateStr}.csv"`);
-
-      return reply.send(csv);
+      return sendCsv(reply, 'newsletter', buildCsv(headers, rows));
     }
   );
 

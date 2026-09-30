@@ -14,7 +14,7 @@ import {
   type InterestType,
 } from '../config/constants.js';
 import { INQUIRIES_ROOM } from '../sockets/index.js';
-import { escapeCsvCell } from '../services/csv.js';
+import { buildCsv, sendCsv } from '../services/csv.js';
 import { notifyNewInquiry } from '../services/notificationService.js';
 
 const createInquirySchema = z.object({
@@ -81,27 +81,19 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
     ];
 
     const rows = inquiries.map((inq) => [
-      escapeCsvCell(inq.createdAt.toISOString()),
-      escapeCsvCell(inq.name),
-      escapeCsvCell(inq.phone),
-      escapeCsvCell(inq.email),
-      escapeCsvCell(inq.projectTitle),
-      escapeCsvCell(inq.unitNumber),
-      escapeCsvCell(inq.interestTypeAr),
-      escapeCsvCell(inq.statusAr),
-      escapeCsvCell(inq.message),
-      escapeCsvCell(inq.notes),
+      inq.createdAt.toISOString(),
+      inq.name,
+      inq.phone,
+      inq.email,
+      inq.projectTitle,
+      inq.unitNumber,
+      inq.interestTypeAr,
+      inq.statusAr,
+      inq.message,
+      inq.notes,
     ]);
 
-    const headerLine = headers.join(',');
-    const dataLines = rows.map((r) => r.join(','));
-    const csv = '\uFEFF' + [headerLine, ...dataLines].join('\r\n') + '\r\n';
-
-    const dateStr = new Date().toISOString().slice(0, 10);
-    reply.header('Content-Type', 'text/csv; charset=utf-8');
-    reply.header('Content-Disposition', `attachment; filename="inquiries-${dateStr}.csv"`);
-
-    return reply.send(csv);
+    return sendCsv(reply, 'inquiries', buildCsv(headers, rows));
   });
 
   // Submit new customer inquiry (Public)

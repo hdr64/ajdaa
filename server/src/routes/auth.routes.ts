@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { buildCsv, sendCsv } from '../services/csv.js';
 import { config } from '../config/env.js';
 import { parsePreferences, preferencesSchema } from '../config/preferences.js';
 import { loginOtpRequiredForAll } from '../services/securitySettings.js';
@@ -612,6 +613,63 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       return { loginOtpEnabled };
+    }
+  );
+
+  // Export admin users to CSV. Both permissions are required: holding
+  // `exportData` alone must not turn into a directory of every admin account.
+  // The `select` is a whitelist — password hashes, permissions, preferences and
+  // OTP state are never loaded, so they cannot leak into the file.
+  fastify.get(
+    '/users/export',
+    { onRequest: [authenticate, requirePermission('manageUsers'), requirePermission('exportData')] },
+    async (_request, reply) => {
+      const users = await prisma.adminUser.findMany({
+        orderBy: { createdAt: 'asc' },
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          roleAr: true,
+          department: true,
+          departmentRef: { select: { nameAr: true } },
+          status: true,
+          lastLogin: true,
+          loginOtpEnabled: true,
+          createdAt: true,
+        },
+      });
+
+      const headers = [
+        'name',
+        'email',
+        'phone',
+        'role',
+        'roleAr',
+        'department',
+        'status',
+        'lastLogin',
+        'loginOtpEnabled',
+        'createdAt',
+      ];
+
+      const rows = users.map((user) => [
+        user.name,
+        user.email,
+        user.phone,
+        user.role,
+        user.roleAr,
+        // Same precedence as `serializeUser`: the linked department wins over
+        // the free-text snapshot.
+        user.departmentRef?.nameAr ?? user.department,
+        user.status,
+        user.lastLogin,
+        user.loginOtpEnabled,
+        user.createdAt.toISOString(),
+      ]);
+
+      return sendCsv(reply, 'users', buildCsv(headers, rows));
     }
   );
 
