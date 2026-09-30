@@ -6,6 +6,7 @@ import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { config } from '../config/env.js';
 import { parsePreferences, preferencesSchema } from '../config/preferences.js';
+import { loginOtpRequiredForAll } from '../services/securitySettings.js';
 import { loginFailureTracker } from '../services/loginFailureService.js';
 import { mailBrandName, sendMail } from '../services/mailService.js';
 import { loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
@@ -118,8 +119,8 @@ interface OtpUser {
 }
 
 /** True when this admin must clear a one-time code before a session is issued. */
-function requiresLoginOtp(user: { loginOtpEnabled: boolean }): boolean {
-  return config.loginOtpRequired || user.loginOtpEnabled;
+async function requiresLoginOtp(user: { loginOtpEnabled: boolean }): Promise<boolean> {
+  return user.loginOtpEnabled || (await loginOtpRequiredForAll());
 }
 
 /**
@@ -254,7 +255,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // password lock the real owner out for the whole window.
       loginFailureTracker.recordSuccess(normalizedEmail);
 
-      if (requiresLoginOtp(user)) {
+      if (await requiresLoginOtp(user)) {
         const { challengeId, code } = await issueChallenge(user.id, 'login');
         await sendLoginOtpMail(user, code);
 

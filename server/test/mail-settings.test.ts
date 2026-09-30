@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/services/prisma.js';
 import { clearSentMail, getSentMail } from '../src/services/mailService.js';
 import { decryptSecret, encryptSecret } from '../src/services/secretBox.js';
+import { SITE_DEFAULTS, withDefaults } from '../src/services/siteSettings.js';
 import { authInject, closeApp, getApp, inject, SEED_ADMINS, seedSession } from './helpers.js';
 
 const SMTP_PASSWORD = 'smtp-app-password-123';
@@ -182,6 +183,8 @@ describe('Site settings (/api/settings/site)', () => {
       linkedin: 'https://www.linkedin.com/company/example',
       youtube: '',
     },
+    announcement: { enabled: true, textAr: 'عرض خاص', textEn: 'Special offer', tone: 'info', link: '' },
+    maintenance: { enabled: false, messageAr: 'صيانة', messageEn: 'Maintenance' },
   };
   const putSite = (token: string, payload: unknown) =>
     authInject(token, { method: 'PUT', url: '/api/settings/site', payload });
@@ -217,5 +220,31 @@ describe('Site settings (/api/settings/site)', () => {
     expect((await putSite(superToken, scriptLink)).statusCode).toBe(400);
     expect((await putSite(superToken, plainHttp)).statusCode).toBe(400);
     expect((await putSite(superToken, { ...siteSettings, whatsapp: '+966 50' })).statusCode).toBe(400);
+  });
+
+  it('checks the announcement and maintenance blocks', async () => {
+    const emptyBanner = { ...siteSettings, announcement: { ...siteSettings.announcement, textAr: '', textEn: '' } };
+    const scriptLink = { ...siteSettings, announcement: { ...siteSettings.announcement, link: 'javascript:alert(1)' } };
+    const noMessage = { ...siteSettings, maintenance: { enabled: true, messageAr: '', messageEn: '' } };
+
+    expect((await putSite(superToken, emptyBanner)).statusCode).toBe(400);
+    expect((await putSite(superToken, scriptLink)).statusCode).toBe(400);
+    expect((await putSite(superToken, noMessage)).statusCode).toBe(400);
+
+    const on = { ...siteSettings, maintenance: { enabled: true, messageAr: 'نعود قريباً', messageEn: 'Back soon' } };
+    expect((await putSite(superToken, on)).statusCode).toBe(200);
+    // Public: the site needs it before anyone signs in.
+    const read = await inject({ method: 'GET', url: '/api/settings/site' });
+    expect(read.json().maintenance).toEqual(on.maintenance);
+  });
+
+  it('fills blocks added later from the defaults for rows saved before them', () => {
+    const { announcement: _a, maintenance: _m, ...legacy } = siteSettings;
+    const merged = withDefaults({ ...legacy, socials: { x: 'https://x.com/only' } as never });
+
+    expect(merged.maintenance).toEqual(SITE_DEFAULTS.maintenance);
+    expect(merged.announcement.enabled).toBe(false);
+    expect(merged.socials.x).toBe('https://x.com/only');
+    expect(merged.socials.instagram).toBe(SITE_DEFAULTS.socials.instagram);
   });
 });

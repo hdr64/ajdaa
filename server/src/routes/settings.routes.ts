@@ -4,6 +4,7 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { sendTestMail } from '../services/mailService.js';
 import { config } from '../config/env.js';
+import { getSecuritySettings, saveSecuritySettings, toSecurityView } from '../services/securitySettings.js';
 import { getSiteSettings, saveSiteSettings, type SiteSettings } from '../services/siteSettings.js';
 import {
   getEffectiveMailSettings,
@@ -53,7 +54,26 @@ const siteSettingsSchema = z.object({
     linkedin: publicUrl,
     youtube: publicUrl,
   }) satisfies z.ZodType<SiteSettings['socials']>,
+  announcement: z
+    .object({
+      enabled: z.boolean(),
+      textAr: z.string().trim().max(200),
+      textEn: z.string().trim().max(200),
+      tone: z.enum(['info', 'warning']),
+      link: publicUrl,
+    })
+    .refine((a) => !a.enabled || a.textAr.length > 0 || a.textEn.length > 0, {
+      message: 'An enabled announcement needs text',
+      path: ['textAr'],
+    }),
+  maintenance: z.object({
+    enabled: z.boolean(),
+    messageAr: z.string().trim().min(1).max(500),
+    messageEn: z.string().trim().min(1).max(500),
+  }),
 });
+
+const securitySettingsSchema = z.object({ loginOtpRequired: z.boolean() });
 
 /** Long enough for a useful SMTP error, short enough not to echo a server banner dump. */
 const MAX_ERROR_LENGTH = 300;
@@ -70,6 +90,15 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     '/site',
     { ...guards(), preValidation: [validateBody(siteSettingsSchema)] },
     async (request) => saveSiteSettings(siteSettingsSchema.parse(request.body), request.admin!.id)
+  );
+
+  fastify.get('/security', guards(), async () => toSecurityView(await getSecuritySettings()));
+
+  fastify.put(
+    '/security',
+    { ...guards(), preValidation: [validateBody(securitySettingsSchema)] },
+    async (request) =>
+      toSecurityView(await saveSecuritySettings(securitySettingsSchema.parse(request.body), request.admin!.id))
   );
 
   fastify.get('/mail', guards(), async () => toPublicView(await getEffectiveMailSettings()));
