@@ -11,6 +11,7 @@ import { ProjectsSection } from '../components/home/ProjectsSection';
 import { ClientsSection } from '../components/home/ClientsSection';
 import { CtaSection } from '../components/home/CtaSection';
 import { Reveal } from '../components/common/Reveal';
+import { useCmsContent } from '../hooks/useCmsContent';
 import type { NavPageKey } from '../components/common/Navbar';
 
 interface HomePageProps {
@@ -26,51 +27,72 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
   onQuickView,
 }) => {
+  const { content } = useCmsContent();
+  const { home } = content;
+
+  // Each section's visibility is the admin's call, so the page mirrors the
+  // `enabled` flags rather than hardcoding an order.
   return (
     <>
-      <HeroSection
-        onExplore={onExploreHero}
-        onBook={() => onNavigate('booking')}
-      />
-
-      <Marquee />
-
-      <Reveal direction="up">
-        <InteractiveProjectsMap
-          onNavigate={(page, options) => onNavigate(page, true, options)}
-          onQuickView={onQuickView}
-        />
-      </Reveal>
-
-      <Reveal direction="up">
-        <AboutSection />
-      </Reveal>
-
-      <Reveal direction="up">
-        <ServicesSection onExplore={() => onNavigate('works')} />
-      </Reveal>
-
-      <Reveal direction="up">
-        <ProcessSection />
-      </Reveal>
-
-      <Reveal direction="up">
-        <ProjectsSection
-          onExplore={() => onNavigate('works')}
-          onQuickView={onQuickView}
-        />
-      </Reveal>
-
-      <Reveal direction="up">
-        <ClientsSection />
-      </Reveal>
-
-      <Reveal direction="up">
-        <CtaSection
+      {home.hero.enabled && (
+        <HeroSection
+          onExplore={onExploreHero}
           onBook={() => onNavigate('booking')}
-          onContact={() => onNavigate('contact')}
         />
-      </Reveal>
+      )}
+
+      {home.marquee.enabled && <Marquee />}
+
+      {home.mapSection.enabled && (
+        <Reveal direction="up">
+          <InteractiveProjectsMap
+            onNavigate={(page, options) => onNavigate(page, true, options)}
+            onQuickView={onQuickView}
+          />
+        </Reveal>
+      )}
+
+      {home.about.enabled && (
+        <Reveal direction="up">
+          <AboutSection />
+        </Reveal>
+      )}
+
+      {home.services.enabled && (
+        <Reveal direction="up">
+          <ServicesSection onExplore={() => onNavigate('works')} />
+        </Reveal>
+      )}
+
+      {home.process.enabled && (
+        <Reveal direction="up">
+          <ProcessSection />
+        </Reveal>
+      )}
+
+      {home.portfolioSection.enabled && (
+        <Reveal direction="up">
+          <ProjectsSection
+            onExplore={() => onNavigate('works')}
+            onQuickView={onQuickView}
+          />
+        </Reveal>
+      )}
+
+      {home.clientsSection.enabled && (
+        <Reveal direction="up">
+          <ClientsSection />
+        </Reveal>
+      )}
+
+      {home.cta.enabled && (
+        <Reveal direction="up">
+          <CtaSection
+            onBook={() => onNavigate('booking')}
+            onContact={() => onNavigate('contact')}
+          />
+        </Reveal>
+      )}
     </>
   );
 };

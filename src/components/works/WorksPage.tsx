@@ -31,6 +31,8 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import type { Property, PropertyType, PriceType } from '../../types/property';
 import { PropertyCard } from '../common/PropertyCard';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
 
 interface WorksPageProps {
   onSelect: (prop: Property) => void;
@@ -110,24 +112,23 @@ const SkeletonGrid: React.FC = () => (
   </div>
 );
 
-const EmptyState: React.FC<{ onReset: () => void; isAr: boolean }> = ({ onReset, isAr }) => (
+const EmptyState: React.FC<{
+  onReset: () => void;
+  title: string;
+  desc: string;
+  resetBtnText: string;
+}> = ({ onReset, title, desc, resetBtnText }) => (
   <div className="glass-card rounded-3xl p-14 text-center">
     <div className="w-16 h-16 mx-auto rounded-2xl bg-accent/10 border border-accent/25 flex items-center justify-center text-accent mb-6">
       <SearchX className="w-8 h-8" />
     </div>
-    <h3 className="text-xl font-black mb-3">
-      {isAr ? 'لا توجد نتائج مطابقة للبحث' : 'No properties match your criteria'}
-    </h3>
-    <p className="text-sm text-neutral-text/60 mb-7 leading-relaxed max-w-sm mx-auto">
-      {isAr
-        ? 'جرّب تعديل الكلمات الدالة أو إعادة تعيين الفلاتر للعثور على العقار المناسب'
-        : 'Try adjusting search terms or resetting filters to discover available properties.'}
-    </p>
+    <h3 className="text-xl font-black mb-3">{title}</h3>
+    <p className="text-sm text-neutral-text/60 mb-7 leading-relaxed max-w-sm mx-auto">{desc}</p>
     <button
       onClick={onReset}
       className="brand-btn-primary font-bold text-xs px-6 py-3 rounded-full cursor-pointer"
     >
-      {isAr ? 'إعادة تعيين الفلاتر' : 'Reset Filters'}
+      {resetBtnText}
     </button>
   </div>
 );
@@ -140,6 +141,9 @@ export const WorksPage: React.FC<WorksPageProps> = ({
 }) => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const works = content.works;
 
   const { data: properties, loading, error, reload } = useAsyncData<Property[]>(
     useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
@@ -200,10 +204,15 @@ export const WorksPage: React.FC<WorksPageProps> = ({
     [isAr, properties],
   );
 
-  const featured = useMemo(
-    () => properties.find((p) => p.badge?.includes('رئيسي')) || properties[0],
-    [properties],
-  );
+  // The admin can pin a specific project; otherwise fall back to the legacy
+  // "رئيسي" badge and finally to the first project so the banner still renders.
+  const featured = useMemo(() => {
+    if (works.featuredProjectId != null) {
+      const pinned = properties.find((p) => p.id === works.featuredProjectId);
+      if (pinned) return pinned;
+    }
+    return properties.find((p) => p.badge?.includes('رئيسي')) || properties[0];
+  }, [properties, works.featuredProjectId]);
   // `properties` is empty until the first request resolves, so this must stay
   // nullable: the featured banner below renders while loading.
   const featuredDisplay = useMemo(
@@ -295,6 +304,20 @@ export const WorksPage: React.FC<WorksPageProps> = ({
 
   return (
     <div className="relative pt-32 pb-24 max-w-7xl mx-auto px-6 ">
+      {/* Page Header */}
+      <div className="mb-8">
+        <div className="inline-flex items-center gap-2 brand-badge text-xs font-bold px-3.5 py-1 rounded-full mb-3 text-accent shadow-xs">
+          <Briefcase className="w-3.5 h-3.5 text-accent" />
+          <span>{text(works.badgeAr, works.badgeEn)}</span>
+        </div>
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-heading tracking-tight leading-tight">
+          {text(works.titleAr, works.titleEn)}
+        </h1>
+        <p className="text-sm text-neutral-text/70 mt-3 max-w-2xl leading-relaxed">
+          {text(works.subtitleAr, works.subtitleEn)}
+        </p>
+      </div>
+
       {/* Mobile Collapsible Filter Toggle Header */}
       <button
         onClick={() => setMobileFilterOpen((v) => !v)}
@@ -423,7 +446,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       </div>
 
       {/* Featured Banner when no query */}
-      {!hasActiveFilters && featured && featuredDisplay && (
+      {works.featuredBannerEnabled && !hasActiveFilters && featured && featuredDisplay && (
         <div
           className="relative mb-10 rounded-[28px] p-px bg-gradient-to-l from-accent/40 via-gold/35 to-accent/40 stagger-anim cursor-pointer"
           style={{ animationDelay: '220ms' }}
@@ -592,7 +615,12 @@ export const WorksPage: React.FC<WorksPageProps> = ({
       ) : loading ? (
         <SkeletonGrid />
       ) : filtered.length === 0 ? (
-        <EmptyState onReset={resetFilters} isAr={isAr} />
+        <EmptyState
+          onReset={resetFilters}
+          title={text(works.emptyState.titleAr, works.emptyState.titleEn)}
+          desc={text(works.emptyState.descAr, works.emptyState.descEn)}
+          resetBtnText={text(works.emptyState.resetBtnTextAr, works.emptyState.resetBtnTextEn)}
+        />
       ) : viewMode === 'grid' ? (
         <div key={filterKey} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((prop, idx) => (
@@ -728,6 +756,34 @@ export const WorksPage: React.FC<WorksPageProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Closing CTA */}
+      {works.ctaEnabled && (
+        <div className="mt-14 rounded-3xl p-px bg-gradient-to-l from-accent/40 via-gold/35 to-accent/40">
+          <div className="relative overflow-hidden rounded-[27px] bg-gradient-to-l from-surface/80 to-canvas/60 backdrop-blur-2xl px-8 md:px-12 py-10 md:py-14 text-center">
+            <div
+              aria-hidden
+              className="absolute -top-24 right-1/4 w-72 h-72 bg-gold/10 blur-[100px] rounded-full pointer-events-none"
+            />
+            <h3 className="text-2xl md:text-3xl font-black text-heading mb-3 leading-snug">
+              {text(works.ctaTitleAr, works.ctaTitleEn)}
+            </h3>
+            <p className="text-sm text-neutral-text/70 max-w-2xl mx-auto mb-8 leading-relaxed">
+              {text(works.ctaDescAr, works.ctaDescEn)}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="brand-btn-primary font-extrabold text-xs px-7 py-3 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
+              >
+                {text(works.emptyState.resetBtnTextAr, works.emptyState.resetBtnTextEn)}
+                {isAr ? <ArrowLeft className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

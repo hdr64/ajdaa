@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Menu, X, CalendarCheck, MessageSquare, Briefcase, Home, ArrowLeft, ArrowRight, Handshake, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Menu, X, MessageSquare, Briefcase, Home, ArrowLeft, ArrowRight, Handshake, Sparkles, type LucideIcon } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { ThemeVariantToggle } from './ThemeVariantToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '../../hooks/useLanguage';
 import { useTheme } from '../../hooks/useTheme';
 import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import type { CmsNavItem, CmsNavPage } from '../../types/cms';
 
 import logoArLight from '../../assets/logos/ar-1.png';
 import logoArDark from '../../assets/logos/ar-2.png';
@@ -13,6 +16,27 @@ import logoEnLight from '../../assets/logos/en-1.png';
 import logoEnDark from '../../assets/logos/en-2.png';
 
 export type NavPageKey = 'home' | 'works' | 'clients' | 'project' | 'booking' | 'contact' | 'admin_login' | 'admin';
+
+/** Pages the router owns; anything else is an external link. */
+const ROUTER_PAGES: readonly CmsNavPage[] = ['home', 'works', 'clients', 'booking', 'contact'];
+
+const NAV_ICONS: Record<CmsNavPage, LucideIcon> = {
+  home: Home,
+  works: Briefcase,
+  clients: Handshake,
+  booking: Sparkles,
+  contact: MessageSquare,
+  custom: ArrowRight,
+};
+
+interface NavEntry {
+  item: CmsNavItem;
+  label: string;
+  Icon: LucideIcon;
+  /** Set when the entry leaves the site, so it renders as an anchor not a button. */
+  href: string | null;
+  page: NavPageKey | null;
+}
 
 interface NavbarProps {
   currentPage: NavPageKey;
@@ -26,21 +50,40 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
   const { t, isRTL, language } = useLanguage();
   const { theme } = useTheme();
   const { settings } = useSiteSettings();
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
   const whatsappHref = whatsappUrl(settings.whatsapp);
-  const isAr = language === 'ar';
 
   const isDark = theme === 'dark';
   const logoSrc = isDark
     ? (language === 'ar' ? logoArDark : logoEnDark)
     : (language === 'ar' ? logoArLight : logoEnLight);
 
-  const NAV_ITEMS = [
-    { id: 'home', label: t.nav.home, icon: Home },
-    { id: 'works', label: t.nav.works, icon: Briefcase },
-    { id: 'clients', label: isAr ? 'عملاؤنا' : 'Our Clients', icon: Handshake },
-    { id: 'booking', label: isAr ? 'سجل اهتمامك' : 'Register Interest', icon: Sparkles },
-    { id: 'contact', label: t.nav.contact, icon: MessageSquare },
-  ] as const;
+  const navEntries = useMemo<NavEntry[]>(
+    () =>
+      content.nav
+        .filter((item) => item.enabled !== false)
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((item) => {
+          const isExternal = item.page === 'custom' && Boolean(item.url);
+          return {
+            item,
+            label: text(item.labelAr, item.labelEn),
+            Icon: NAV_ICONS[item.page] ?? NAV_ICONS.home,
+            href: isExternal ? item.url! : null,
+            page: isExternal || !ROUTER_PAGES.includes(item.page) ? null : (item.page as NavPageKey),
+          };
+        }),
+    [content.nav, text]
+  );
+
+  const ctaEntry = navEntries.find((entry) => entry.item.isCta) ?? null;
+
+  const handleNav = (page: NavPageKey) => {
+    onNavigate(page);
+    setMobileMenuOpen(false);
+  };
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
@@ -55,11 +98,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
       document.body.style.overflow = '';
     }
   }, [mobileMenuOpen]);
-
-  const handleNav = (page: NavPageKey) => {
-    onNavigate(page);
-    setMobileMenuOpen(false);
-  };
 
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
@@ -88,22 +126,51 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
 
           {/* Desktop Nav Links */}
           <div className="hidden md:flex items-center gap-1">
-            {NAV_ITEMS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleNav(tab.id)}
-                className={`px-4 py-2 text-sm font-medium transition-all relative cursor-pointer ${
-                  currentPage === tab.id
-                    ? 'text-accent font-extrabold'
-                    : 'text-neutral-text/75 hover:text-accent font-semibold'
-                }`}
-              >
-                {tab.label}
-                {currentPage === tab.id && (
-                  <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-gradient-to-r from-accent-light via-accent to-accent-dark transition-all duration-300" />
-                )}
-              </button>
-            ))}
+            {navEntries.map(({ item, label, href, page }) => {
+              if (href) {
+                return (
+                  <a
+                    key={item.id}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 text-sm font-semibold text-neutral-text/75 hover:text-accent transition-all"
+                  >
+                    {label}
+                  </a>
+                );
+              }
+
+              if (item.isCta) {
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => page && handleNav(page)}
+                    className="brand-btn-primary font-black text-xs px-5 py-2.5 rounded-full transition-all duration-300 cursor-pointer"
+                  >
+                    {label}
+                  </button>
+                );
+              }
+
+              const active = page !== null && currentPage === page;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => page && handleNav(page)}
+                  className={`px-4 py-2 text-sm font-medium transition-all relative cursor-pointer ${
+                    active
+                      ? 'text-accent font-extrabold'
+                      : 'text-neutral-text/75 hover:text-accent font-semibold'
+                  }`}
+                >
+                  {label}
+                  {active && (
+                    <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-gradient-to-r from-accent-light via-accent to-accent-dark transition-all duration-300" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Desktop Right CTA */}
@@ -111,12 +178,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
             <ThemeVariantToggle />
             <LanguageToggle />
             <ThemeToggle />
-            <button
-              onClick={() => handleNav('booking')}
-              className="brand-btn-primary font-black text-xs px-5 py-2.5 rounded-full transition-all duration-300 cursor-pointer"
-            >
-              {t.nav.bookNow}
-            </button>
           </div>
 
           {/* Mobile Right Controls: Unified capsule dock with Language + Theme + Hamburger */}
@@ -156,20 +217,17 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
 
           {/* Navigation Links */}
           <div className="relative z-10 flex flex-col gap-2.5 max-w-sm mx-auto w-full my-auto">
-            {NAV_ITEMS.map((item, idx) => {
-              const Icon = item.icon;
-              const active = currentPage === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNav(item.id)}
-                  style={{ animationDelay: `${(idx + 1) * 70}ms` }}
-                  className={`mobile-nav-item w-full flex items-center justify-between p-3.5 rounded-2xl border ${isRTL ? 'text-right' : 'text-left'} transition-all duration-300 cursor-pointer ${
-                    active
-                      ? 'bg-accent/15 border-accent text-heading font-black'
-                      : 'bg-surface/40 border-muted-border/30 text-neutral-text/80 font-bold hover:bg-surface/70 hover:border-accent/40'
-                  }`}
-                >
+            {navEntries.map(({ item, label, Icon, href, page }, idx) => {
+              const active = page !== null && currentPage === page;
+              const classes = `mobile-nav-item w-full flex items-center justify-between p-3.5 rounded-2xl border ${
+                isRTL ? 'text-right' : 'text-left'
+              } transition-all duration-300 ${
+                active
+                  ? 'bg-accent/15 border-accent text-heading font-black'
+                  : 'bg-surface/40 border-muted-border/30 text-neutral-text/80 font-bold hover:bg-surface/70 hover:border-accent/40'
+              }`;
+              const inner = (
+                <>
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center ${
@@ -178,10 +236,29 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
                     >
                       <Icon className="w-4 h-4" />
                     </div>
-                    <span className="text-base">{item.label}</span>
+                    <span className="text-base">{label}</span>
                   </div>
 
                   <ArrowIcon className={`w-4 h-4 transition ${active ? 'text-accent' : 'opacity-40'}`} />
+                </>
+              );
+
+              if (href) {
+                return (
+                  <a key={item.id} href={href} target="_blank" rel="noopener noreferrer" className={classes}>
+                    {inner}
+                  </a>
+                );
+              }
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => page && handleNav(page)}
+                  style={{ animationDelay: `${(idx + 1) * 70}ms` }}
+                  className={`${classes} cursor-pointer`}
+                >
+                  {inner}
                 </button>
               );
             })}
@@ -209,13 +286,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
               </a>
             )}
 
-            <button
-              onClick={() => handleNav('booking')}
-              className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <CalendarCheck className="w-4 h-4 text-[var(--brand-btn-text)]" />
-              {t.nav.bookNow}
-            </button>
+            {ctaEntry && (ctaEntry.href ? (
+              <a
+                href={ctaEntry.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2"
+              >
+                <ctaEntry.Icon className="w-4 h-4 text-[var(--brand-btn-text)]" />
+                {ctaEntry.label}
+              </a>
+            ) : (
+              <button
+                onClick={() => ctaEntry.page && handleNav(ctaEntry.page)}
+                className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ctaEntry.Icon className="w-4 h-4 text-[var(--brand-btn-text)]" />
+                {ctaEntry.label}
+              </button>
+            ))}
           </div>
         </div>
       )}

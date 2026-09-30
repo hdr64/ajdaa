@@ -4,6 +4,8 @@ import { Reveal } from '../common/Reveal';
 import { useLanguage } from '../../hooks/useLanguage';
 import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
 import { getPropertyDisplay } from '../../data/properties';
 import type { Property } from '../../types/property';
 
@@ -18,6 +20,17 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
   const { language, isRTL } = useLanguage();
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const portfolio = {
+    badge: text(content.home.portfolioSection.badgeAr, content.home.portfolioSection.badgeEn),
+    title: text(content.home.portfolioSection.titleAr, content.home.portfolioSection.titleEn),
+    titleHighlight: text(
+      content.home.portfolioSection.titleHighlightAr,
+      content.home.portfolioSection.titleHighlightEn
+    ),
+    desc: text(content.home.portfolioSection.descAr, content.home.portfolioSection.descEn),
+  };
   const [activeTab, setActiveTab] = useState<FilterCategory>('all');
 
   const { data: properties, loading, error, reload } = useAsyncData<Property[]>(
@@ -55,16 +68,14 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
       <div className="relative text-center mb-8 sm:mb-12">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-3.5 py-1.5 rounded-full mb-3">
           <Building2 className="w-3.5 h-3.5 text-gold" />
-          {isAr ? 'محفظة مشاريع أجدا العقارية' : 'Ajda Real Estate Portfolio'}
+          {portfolio.badge}
         </span>
         <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black mt-2 sm:mt-3 leading-tight text-heading">
-          {isAr ? 'المشاريع الاستثمارية والإدارية ' : 'Investment & Corporate Developments '}
-          <span className="brand-gradient-text">{isAr ? 'لأجدا العقارية' : 'by Ajda Real Estate'}</span>
+          {portfolio.title}{' '}
+          <span className="brand-gradient-text">{portfolio.titleHighlight}</span>
         </h2>
         <p className="text-xs sm:text-base text-neutral-text/80 max-w-2xl mx-auto mt-3 sm:mt-4 leading-relaxed font-medium">
-          {isAr
-            ? 'مراكز أعمال تنفيذية ومجمعات تجارية ومعارض متطورة في أرقى المواقع الاستراتيجية بالعاصمة الرياض والمملكة.'
-            : 'Executive corporate centers, flagship commercial showrooms, and prime logistics hubs developed in prestigious locations across Riyadh and the Kingdom.'}
+          {portfolio.desc}
         </p>
 
         {/* Filter Tabs - Calm Luxury Pill Controls */}

@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { HeroScene } from './HeroScene';
 import { useLanguage } from '../../hooks/useLanguage';
-import heroImage from '../../assets/imgs/a1.webp';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import { resolveCmsImage } from '../../utils/cmsMedia';
+import defaultHeroImage from '../../assets/imgs/a1.webp';
 
 interface HeroSectionProps {
   onExplore: (filters?: { city?: string; type?: string; priceType?: string }) => void;
@@ -11,6 +14,10 @@ interface HeroSectionProps {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
   const { t, isRTL } = useLanguage();
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const hero = content.home.hero;
+  const heroImage = resolveCmsImage(hero.bgImage, defaultHeroImage);
   const sectionRef = useRef<HTMLElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -93,19 +100,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
               style={{ animationDelay: '150ms' }}
             >
               <Sparkles className="w-3.5 h-3.5 text-gold shrink-0" />
-              <span className="text-neutral-text truncate">{t.hero.badge}</span>
+              <span className="text-neutral-text truncate">{text(hero.badgeAr, hero.badgeEn)}</span>
             </div>
 
             {/* Headline */}
             <h1 className="text-2xl xs:text-3xl sm:text-5xl lg:text-6xl xl:text-7xl font-black leading-[1.25] sm:leading-[1.15] tracking-tight">
               <span className="block text-heading hero-reveal" style={{ animationDelay: '300ms' }}>
-                {t.hero.titleLine1}
+                {text(hero.titleLine1Ar, hero.titleLine1En)}
               </span>
               <span
                 className="block brand-gradient-text hero-reveal mt-1 sm:mt-2"
                 style={{ animationDelay: '500ms' }}
               >
-                {t.hero.titleLine2}
+                {text(hero.titleLine2Ar, hero.titleLine2En)}
               </span>
             </h1>
 
@@ -114,7 +121,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
               className="text-neutral-text/90 text-xs xs:text-sm sm:text-base lg:text-lg max-w-2xl mt-3.5 sm:mt-6 leading-relaxed hero-reveal font-medium"
               style={{ animationDelay: '650ms' }}
             >
-              {t.hero.subtitle}
+              {text(hero.subtitleAr, hero.subtitleEn)}
             </p>
 
             {/* CTAs */}
@@ -126,7 +133,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
                 onClick={() => onExplore()}
                 className="w-full sm:w-auto brand-btn-primary font-black px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl inline-flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer text-xs xs:text-sm sm:text-base"
               >
-                <span>{t.hero.exploreBtn}</span>
+                <span>{text(hero.exploreBtnTextAr, hero.exploreBtnTextEn)}</span>
                 <ArrowIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               {/* <button

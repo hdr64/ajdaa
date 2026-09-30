@@ -2,80 +2,19 @@ import React from 'react';
 import { Handshake, Building2, ExternalLink } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 import { useLanguage } from '../../hooks/useLanguage';
-import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
-
-import almaneaLogo from '../../assets/clients/شعار-المنيع-1024x569.webp';
-import artktLogo from '../../assets/clients/Frame-1261154210.png';
-import intourLogo from '../../assets/clients/Frame-1261154208.png';
-import albawardiLogo from '../../assets/clients/Frame-1261154207.png';
-import almaLogo from '../../assets/clients/Frame-1261154206.png';
-import homesLogo from '../../assets/clients/Frame-1261154209.png';
-
-interface ClientItem {
-  id: string;
-  nameAr: string;
-  nameEn: string;
-  sectorAr: string;
-  sectorEn: string;
-  logo: string;
-}
-
-const CLIENTS: ClientItem[] = [
-  {
-    id: 'almanea',
-    nameAr: 'شركة المنيع للأجهزة الكهربائية',
-    nameEn: 'Almanea Electronics & Appliances',
-    sectorAr: 'الأجهزة الكهربائية والمنزلية',
-    sectorEn: 'Appliances & Electronics',
-    logo: almaneaLogo,
-  },
-  {
-    id: 'artkt',
-    nameAr: 'شركة أرتكت للمقاولات العامة والتجارة',
-    nameEn: 'ARTKT Contracting & Trading Co.',
-    sectorAr: 'المقاولات العامة والإنشاءات',
-    sectorEn: 'General Contracting & Construction',
-    logo: artktLogo,
-  },
-  {
-    id: 'intour',
-    nameAr: 'فنادق وأجنحة إنتور',
-    nameEn: 'INTOUR Hotel & Hotel Suites',
-    sectorAr: 'الضيافة والفندقة الراقية',
-    sectorEn: 'Hospitality & Luxury Hotels',
-    logo: intourLogo,
-  },
-  {
-    id: 'albawardi',
-    nameAr: 'مجموعة البواردي',
-    nameEn: 'ALBAWARDI Group',
-    sectorAr: 'التجارة والاستثمار والصناعة',
-    sectorEn: 'Trading, Industry & Investment',
-    logo: albawardiLogo,
-  },
-  {
-    id: 'alma',
-    nameAr: 'فنادق ومطاعم ألما',
-    nameEn: 'ALMA Hotel & Restaurants',
-    sectorAr: 'السياحة وسلاسل المطاعم',
-    sectorEn: 'Tourism & Restaurant Chains',
-    logo: almaLogo,
-  },
-  {
-    id: 'homes',
-    nameAr: 'البيوت للأثاث',
-    nameEn: 'HOMES Furniture',
-    sectorAr: 'الأثاث والمفروشات والديكور',
-    sectorEn: 'Furniture & Interior Design',
-    logo: homesLogo,
-  },
-];
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import { useCmsContact } from '../../hooks/useCmsContact';
 
 export const ClientsSection: React.FC = () => {
   const { language, t } = useLanguage();
   const isAr = language === 'ar';
-  const { settings } = useSiteSettings();
-  const whatsappHref = whatsappUrl(settings.whatsapp);
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const { whatsappHref } = useCmsContact();
+
+  const section = content.home.clientsSection;
+  const clients = content.clients;
 
   return (
     <section className="relative py-20 lg:py-28 overflow-hidden" id="clients">
@@ -95,33 +34,27 @@ export const ClientsSection: React.FC = () => {
           <div className="text-center max-w-3xl mx-auto mb-16">
             <span className="inline-flex items-center gap-2 text-xs font-bold brand-badge px-4 py-2 rounded-full mb-4">
               <Handshake className="w-3.5 h-3.5 text-accent" />
-              {t.clients?.badge || (isAr ? 'شركاء النجاح' : 'Success Partners')}
+              {text(section.badgeAr, section.badgeEn) || t.clients?.badge}
             </span>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-heading tracking-tight leading-tight">
-              {t.clients?.title || (isAr ? 'نخبة من كبرى' : 'Trusted by Leading')}{' '}
-              <span className="brand-gradient-text">
-                {t.clients?.titleHighlight || (isAr ? 'العلامات التجارية والشركات' : 'Brands & Enterprises')}
-              </span>
+              {text(section.titleAr, section.titleEn) || t.clients?.title}
             </h2>
             <p className="mt-4 text-sm sm:text-base text-neutral-text/75 leading-relaxed">
-              {t.clients?.desc ||
-                (isAr
-                  ? 'نفخر بالثقة المتبادلة مع كبرى الشركات والمجموعات التجارية التي اختارت مشاريع أجدا العقارية كوجهة لأعمالها واستثماراتها.'
-                  : 'We take pride in the mutual trust with major corporations and commercial groups that chose Ajda Real Estate developments for their premier operations.')}
+              {text(section.descAr, section.descEn) || t.clients?.desc}
             </p>
           </div>
         </Reveal>
 
         {/* Clients Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6">
-          {CLIENTS.map((client, idx) => (
+          {clients.map((client, idx) => (
             <Reveal key={client.id} delay={idx * 80}>
               <div className="group relative h-full flex flex-col items-center justify-between p-4 sm:p-5 rounded-2xl bg-surface/80 hover:bg-surface border border-muted-border/40 hover:border-accent/40 transition-all duration-300 hover:-translate-y-0.5 text-center">
                 {/* Logo Display Canvas (High-contrast clean card for crisp logo rendering) */}
                 <div className="w-full h-24 sm:h-28 rounded-xl bg-white p-3 flex items-center justify-center overflow-hidden border border-slate-100 group-hover:border-accent/20 transition-all">
                   <img
                     src={client.logo}
-                    alt={isAr ? client.nameAr : client.nameEn}
+                    alt={text(client.nameAr, client.nameEn)}
                     className="max-h-full max-w-full object-contain transition-opacity duration-300 group-hover:opacity-90"
                     loading="lazy"
                   />
@@ -130,10 +63,10 @@ export const ClientsSection: React.FC = () => {
                 {/* Client Information */}
                 <div className="mt-3.5 w-full">
                   <h3 className="text-xs sm:text-sm font-bold text-heading group-hover:text-accent transition-colors line-clamp-1">
-                    {isAr ? client.nameAr : client.nameEn}
+                    {text(client.nameAr, client.nameEn)}
                   </h3>
                   <p className="text-[11px] text-neutral-text/60 mt-0.5 line-clamp-1">
-                    {isAr ? client.sectorAr : client.sectorEn}
+                    {text(client.sectorAr, client.sectorEn)}
                   </p>
                 </div>
               </div>
