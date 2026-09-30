@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import { ZodError } from 'zod';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
@@ -80,6 +81,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     // carry the correct 4xx code.
     if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) {
       return reply.status(statusCode).send({ error: (error as Error).message });
+    }
+
+    // A schema `.parse()` inside a handler (e.g. route params) is bad input, not a crash.
+    if (error instanceof ZodError) {
+      return reply.status(400).send({ error: 'Validation failed', issues: error.flatten().fieldErrors });
     }
 
     if (code === 'P2025') {

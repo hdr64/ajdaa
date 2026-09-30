@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
@@ -207,6 +208,81 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
           publishedAt,
         },
         include: includeProjectRelations(),
+      });
+
+      return reply.status(201).send(serializeProject(created));
+    }
+  );
+
+  // Duplicate a project with its floors and units (Admin)
+  fastify.post(
+    '/:id/duplicate',
+    { onRequest: [authenticate, requirePermission('manageProjects')] },
+    async (request, reply) => {
+      const { id } = idParamsSchema.parse(request.params);
+
+      const source = await prisma.project.findUnique({
+        where: { id },
+        include: { floors: { include: { units: true } } },
+      });
+      if (!source) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      // One transaction: a failure part-way must not leave a half-copied project.
+      const created = await prisma.$transaction(async (tx) => {
+        // A copy is never live on its own; publishing stays a deliberate act.
+        // Everything but identity, timestamps and publish state is copied, so a
+        // field added to Project later is carried over without touching this.
+        const {
+          id: _id,
+          createdAt: _createdAt,
+          updatedAt: _updatedAt,
+          publishStatus: _publishStatus,
+          publishedAt: _publishedAt,
+          floors,
+          ...content
+        } = source;
+        const project = await tx.project.create({
+          data: {
+            ...content,
+            title: `${source.title} (نسخة)`,
+            titleEn: source.titleEn ? `${source.titleEn} (copy)` : null,
+            publishStatus: 'draft',
+            publishedAt: null,
+          },
+        });
+
+        for (const floor of floors) {
+          await tx.propertyFloor.create({
+            data: {
+              projectId: project.id,
+              floorNumber: floor.floorNumber,
+              floorNameAr: floor.floorNameAr,
+              floorNameEn: floor.floorNameEn,
+              descriptionAr: floor.descriptionAr,
+              descriptionEn: floor.descriptionEn,
+              totalArea: floor.totalArea,
+              units: {
+                create: floor.units.map(({ id: _unitId, floorId: _floorId, updatedAt: _unitUpdatedAt, ...unit }) => ({
+                  ...unit,
+                  // Unit ids are global keys that inquiries point at, so a copy
+                  // mints fresh ones instead of reusing the source's.
+                  id: `p${project.id}-${randomUUID().slice(0, 8)}`,
+                  // A brand-new project cannot inherit sold/rented units.
+                  status: 'available',
+                  statusAr: 'متاح',
+                  statusEn: 'Available',
+                })),
+              },
+            },
+          });
+        }
+
+        return tx.project.findUniqueOrThrow({
+          where: { id: project.id },
+          include: includeProjectRelations(),
+        });
       });
 
       return reply.status(201).send(serializeProject(created));
