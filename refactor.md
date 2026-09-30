@@ -570,9 +570,10 @@ Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email
 - [ ] Error monitoring for API and SPA (Sentry or similar) + structured alerting
 - [ ] Backups visible in the admin (last backup time, size) and a documented restore; uploads/ included
 - [ ] System status page (API, database, disk, realtime)
-- [ ] Maintenance mode / announcement banner for the public site
+- [x] Maintenance mode / announcement banner for the public site (settings tab "الإعلان والصيانة"; public rendering delegated to agy 2026-09-30)
 - [ ] Redirects manager (old URLs → new), 404 log
 - [x] **Settings page** `/admin/settings` (owner request 2026-09-30: "admin dashboard settings where admin can edit the
+  - 2026-09-30: added tabs "الإعلان والصيانة" (announcement strip, maintenance mode) and "الأمان" (require the email login code for every admin; LOGIN_OTP_REQUIRED in .env still wins). SEO defaults tab deferred: the SPA serves one index.html, so per-page meta needs server-side injection or prerendering first (owner decision pending).
   whole website settings", not just mail). Tabs: **Contact info** (phone, WhatsApp, email, address ar/en, working
   hours ar/en, social links; public `GET /api/settings/site`, today's hard-coded values as fallback, replaces the
   copies in Navbar/Footer/Contact/Clients/booking) and **Mail** (below). Later tabs: SEO defaults, maintenance mode /

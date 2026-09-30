@@ -103,7 +103,19 @@ export const SiteSettingsPanel: React.FC = () => {
     if (problem) return showToast(problem);
     setSaving(true);
     try {
-      const updated = await siteSettingsApi.update(trimmed);
+      // Only the contact fields belong to this tab; the announcement tab owns the rest.
+      const latest = await siteSettingsApi.get();
+      const updated = await siteSettingsApi.update({
+        ...latest,
+        phone: trimmed.phone,
+        whatsapp: trimmed.whatsapp,
+        email: trimmed.email,
+        addressAr: trimmed.addressAr,
+        addressEn: trimmed.addressEn,
+        hoursAr: trimmed.hoursAr,
+        hoursEn: trimmed.hoursEn,
+        socials: trimmed.socials,
+      });
       setSaved(updated);
       setForm(updated);
       setSettings(updated);

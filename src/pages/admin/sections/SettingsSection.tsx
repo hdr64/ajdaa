@@ -1,13 +1,15 @@
 import React from 'react';
-import { Bell, Contact, Mail, type LucideIcon } from 'lucide-react';
+import { Bell, Contact, Mail, Megaphone, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
 import { usePersistentState } from '../../../hooks/usePersistentState';
 import { NoAccess } from '../../../components/admin/common/SectionState';
 import { SiteSettingsPanel } from '../../../components/admin/settings/SiteSettingsPanel';
 import { NotificationListenersPanel } from '../../../components/admin/settings/NotificationListenersPanel';
 import { MailSettingsSection } from './MailSettingsSection';
+import { AnnouncementPanel } from '../../../components/admin/settings/AnnouncementPanel';
+import { SecurityPanel } from '../../../components/admin/settings/SecurityPanel';
 
-type SettingsTab = 'site' | 'notifications' | 'mail';
+type SettingsTab = 'site' | 'announcement' | 'notifications' | 'security' | 'mail';
 
 interface TabDef {
   id: SettingsTab;
@@ -19,12 +21,14 @@ interface TabDef {
 
 const TABS: readonly TabDef[] = [
   { id: 'site', label: 'معلومات التواصل', icon: Contact, visible: ({ isSuperAdmin }) => isSuperAdmin },
+  { id: 'announcement', label: 'الإعلان والصيانة', icon: Megaphone, visible: ({ isSuperAdmin }) => isSuperAdmin },
   { id: 'notifications', label: 'الإشعارات', icon: Bell, visible: ({ canNotify }) => canNotify },
+  { id: 'security', label: 'الأمان', icon: ShieldCheck, visible: ({ isSuperAdmin }) => isSuperAdmin },
   { id: 'mail', label: 'البريد (SMTP)', icon: Mail, visible: ({ isSuperAdmin }) => isSuperAdmin },
 ];
 
 const isSettingsTab = (value: unknown): value is SettingsTab =>
-  value === 'site' || value === 'notifications' || value === 'mail';
+  typeof value === 'string' && TABS.some((tab) => tab.id === value);
 
 /** Website and dashboard settings, one tab per area. */
 export const SettingsSection: React.FC = () => {
@@ -62,7 +66,9 @@ export const SettingsSection: React.FC = () => {
 
       <div role="tabpanel">
         {active.id === 'site' && <SiteSettingsPanel />}
+        {active.id === 'announcement' && <AnnouncementPanel />}
         {active.id === 'notifications' && <NotificationListenersPanel />}
+        {active.id === 'security' && <SecurityPanel />}
         {active.id === 'mail' && <MailSettingsSection />}
       </div>
     </div>
