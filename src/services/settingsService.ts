@@ -52,6 +52,23 @@ export const settingsService = {
 export const SOCIAL_KEYS = ['x', 'instagram', 'tiktok', 'snapchat', 'linkedin', 'youtube'] as const;
 export type SocialKey = (typeof SOCIAL_KEYS)[number];
 
+/** A strip across the top of every public page. */
+export interface Announcement {
+  enabled: boolean;
+  textAr: string;
+  textEn: string;
+  tone: 'info' | 'warning';
+  /** Optional https link; empty for none. */
+  link: string;
+}
+
+/** Replaces the public pages with a notice; the admin stays reachable. */
+export interface Maintenance {
+  enabled: boolean;
+  messageAr: string;
+  messageEn: string;
+}
+
 /** Public contact details and social links (`/api/settings/site`). An empty social link hides that icon. */
 export interface SiteSettings {
   /** Shown as written, e.g. "+966 58 048 4528". */
@@ -64,6 +81,8 @@ export interface SiteSettings {
   hoursAr: string;
   hoursEn: string;
   socials: Record<SocialKey, string>;
+  announcement: Announcement;
+  maintenance: Maintenance;
 }
 
 /** Mirrors the server's defaults; shown until (or if never) the API answers. */
@@ -83,6 +102,12 @@ export const SITE_DEFAULTS: SiteSettings = {
     linkedin: '',
     youtube: '',
   },
+  announcement: { enabled: false, textAr: '', textEn: '', tone: 'info', link: '' },
+  maintenance: {
+    enabled: false,
+    messageAr: 'الموقع قيد الصيانة حالياً، وسنعود قريباً.',
+    messageEn: 'The site is under maintenance. We will be back shortly.',
+  },
 };
 
 export const siteSettingsApi = {
@@ -92,5 +117,22 @@ export const siteSettingsApi = {
 
   update(input: SiteSettings): Promise<SiteSettings> {
     return api.put<SiteSettings>('/api/settings/site', input);
+  },
+};
+
+export interface SecuritySettings {
+  /** Every admin must enter an emailed code at login. */
+  loginOtpRequired: boolean;
+  /** `.env` already forces it, so the switch cannot turn it off. */
+  loginOtpForcedByEnv: boolean;
+}
+
+export const securitySettingsApi = {
+  get(signal?: AbortSignal): Promise<SecuritySettings> {
+    return api.get<SecuritySettings>('/api/settings/security', { signal });
+  },
+
+  update(loginOtpRequired: boolean): Promise<SecuritySettings> {
+    return api.put<SecuritySettings>('/api/settings/security', { loginOtpRequired });
   },
 };
