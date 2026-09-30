@@ -33,6 +33,7 @@ import { ProjectShowSection } from './sections/ProjectShowSection';
 import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
 import { AdminProfilePage } from '../../components/admin/profile/AdminProfilePage';
+import { AdminFeedbackPet } from '../../components/admin/feedback/AdminFeedbackPet';
 
 interface AdminDashboardPageProps {
   /** Path after `/admin/`, e.g. "projects" or "projects/206/units". */
@@ -349,6 +350,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             />
             <div className="p-4 sm:p-6 flex-1">{renderSection()}</div>
           </main>
+
+          <AdminFeedbackPet currentSection={location.section} />
         </div>
 
         {pendingConfirm && <ConfirmDialog options={pendingConfirm.options} onResolve={resolveConfirm} />}

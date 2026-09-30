@@ -22,6 +22,9 @@ import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeader
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { NoAccess, SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { PRICE_TYPES, PROJECT_TYPE_LABELS_AR, PROPERTY_TYPES } from '../projectLabels';
+import { MapLocationPicker } from '../../../components/admin/projects/MapLocationPicker';
+import { CitySelect } from '../../../components/admin/projects/CitySelect';
+import { findSaudiCityByName } from '../../../data/saudiCities';
 
 const INPUT_CLASS =
   'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
@@ -169,6 +172,20 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
       return next;
     });
   }, []);
+
+  // Keeps the map in view of the chosen city without moving an existing pin.
+  const cityFocus = useMemo(() => findSaudiCityByName(form.city)?.center ?? null, [form.city]);
+
+  const handleCityChange = (city: { nameAr: string; nameEn: string; center?: { lat: number; lng: number } }) => {
+    const isMapEmpty = parseNumber(form.lat) === null && parseNumber(form.lng) === null;
+    patch({
+      city: city.nameAr,
+      // A free-text city has no English match, so keep what the admin already typed.
+      ...(city.nameEn ? { cityEn: city.nameEn } : {}),
+      // Seed coordinates once; a pin already dropped on the map is never overwritten.
+      ...(city.center && isMapEmpty ? { lat: String(city.center.lat), lng: String(city.center.lng) } : {}),
+    });
+  };
 
   // Removals only change the form until it is saved, but they still ask first.
   const removeGalleryImage = async (index: number) => {
@@ -443,9 +460,17 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 <Field label="المساحة (م²) *" htmlFor="pe-area" error={errors.area}>
                   <input id="pe-area" type="number" min={0} value={form.area} onChange={(e) => patch({ area: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="المدينة *" htmlFor="pe-city" error={errors.city}>
-                  <input id="pe-city" type="text" value={form.city} onChange={(e) => patch({ city: e.target.value })} className={INPUT_CLASS} />
-                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="المدينة *" htmlFor="pe-city" error={errors.city}>
+                    <CitySelect
+                      id="pe-city"
+                      valueAr={form.city}
+                      valueEn={form.cityEn}
+                      onChange={handleCityChange}
+                      disabled={busy}
+                    />
+                  </Field>
+                </div>
                 <Field label="المدينة (بالإنجليزية)" htmlFor="pe-cityEn">
                   <input id="pe-cityEn" type="text" dir="ltr" value={form.cityEn} onChange={(e) => patch({ cityEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
@@ -462,6 +487,25 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                   <input id="pe-badgeEn" type="text" dir="ltr" value={form.badgeEn} onChange={(e) => patch({ badgeEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
               </div>
+            </Card>
+
+            <Card
+              title="الموقع على الخريطة"
+              description="انقر على الخريطة لتثبيت موقع المشروع أو اسحب الدبوس لتحديد الإحداثيات بدقة."
+            >
+              <MapLocationPicker
+                lat={Number.isNaN(lat) ? null : lat}
+                lng={Number.isNaN(lng) ? null : lng}
+                disabled={busy}
+                focusCenter={cityFocus}
+                onChange={(coords) => patch({ lat: String(coords.lat), lng: String(coords.lng) })}
+                onClear={() => patch({ lat: '', lng: '' })}
+              />
+              {(errors.lat || errors.lng) && (
+                <p className="text-[11px] text-red-500 font-bold mt-1">
+                  {errors.lat || errors.lng}
+                </p>
+              )}
             </Card>
 
             <Card title="الوصف">

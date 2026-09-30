@@ -374,8 +374,9 @@ receive no CORS header; in development the loopback origins still work.
 
 #### Phase 8 follow-ups (requested 2026-09-29)
 - [x] Unit status: admin sets any unit directly to متاح / محجوز / مؤجر / مباع from a select — done in the project page's Units tab (`/admin/projects/:id`); the floor-plan chip still cycles
-- [ ] Cities list: a curated list of the main Saudi cities (AR + EN names, region, center coordinates) used by the project create/edit forms and public filters instead of free text
-- [ ] Map location picker in the project editor: click or drag a pin on the map to set lat/lng (reuse the Google Maps loader the public map already uses); search box to jump to a city/place
+- [x] Cities list: a curated list of the main Saudi cities (AR + EN names, region, center coordinates) used by the project create/edit forms and public filters instead of free text (shipped: `src/data/saudiCities.ts` 42 cities across 13 regions + `CitySelect.tsx` with popular chips & WAI-ARIA combobox)
+- [x] Map location picker in the project editor: click or drag a pin on the map to set lat/lng (reuse the Google Maps loader the public map already uses); search box to jump to a city/place (shipped: `MapLocationPicker.tsx` integrated in `ProjectEditSection.tsx` with `focusCenter`)
+- [x] Developer feedback / suggestions box: floating pet assistant in bottom-left with minimize button, title, page context, problem description, proposed solution, screenshot upload/paste, and submission to developer (shipped: `AdminFeedbackPet.tsx` mounted in `AdminDashboardPage.tsx`)
 - [ ] Theme (light/dark, classic/prime) and language (AR/EN) switchers inside the admin dashboard header
 - [ ] Project types CRUD: admin creates / renames / deletes project types (currently تجاري، سكني، فنادق، لوجستي + إداري). Today `type` is a fixed 5-value union in code and in the public filters/map legend. Plan: make the existing `CategoryItem` table the source of truth for types (slug, nameAr, nameEn, icon/colour, sort order), load it in the public filters and map, and block deleting a type still used by projects (or require reassigning them first). Decide whether `office` (إداري) stays — the request lists only 4.
 - [ ] Sub-categories: admin creates sub-categories under a project type (e.g. تجاري → محلات، معارض، مكاتب). Needs a `parentId` on the type table (one level deep), an optional sub-category on projects (must belong to the project's type), and a filter on the public works page. Replaces or absorbs today's free-text category "tags" — decide which.
@@ -390,13 +391,13 @@ receive no CORS header; in development the loopback origins still work.
 - [x] "عرض الموقع الحي" opens the public site in a new tab
 
 #### Phase 8b: Users, roles & admin preferences (requested 2026-09-29, planned)
-- [ ] Users page layouts: table / grid / stack (top-to-bottom list), remembered per browser
-- [ ] User create & edit as proper forms (page or full dialog): name, email, department, role, status, password reset
+- [x] Users page layouts: table / grid / stack (top-to-bottom list), remembered per browser (shipped in f99b735)
+- [x] User create & edit as proper forms (page or full dialog): name, email, department, role, status, password reset
 - [x] **Universal delete confirmation** (owner request 2026-09-30: "admin user must confirm before delete any item"): every delete or removal goes through `confirmDelete` (red dialog, "cannot be undone", never remembered). Added to category tag removal, gallery image and brochure removal; existing deletes moved onto it.
 - [x] Confirmation dialog before every on/off action (activate/deactivate user, enable/disable, status toggles) with a "لا تسألني مرة أخرى" checkbox; the choice is stored per admin and per action type, and can be reset from the settings page
   - Shipped 2026-09-30: user activate/suspend, project publish/hide, inquiry status, listener on/off; choices stored server-side per admin (`/api/auth/me/preferences`), reset on the profile page. Bulk actions and deletes always ask (server rejects any other key).
 - [ ] Admin settings page (`/admin/settings`): profile (name, email), change password, theme + language, default layouts, reset "don't ask again" choices. Preferences stored **server-side per admin** (new `AdminPreference` JSON column or table) so they follow the admin across browsers
-- [ ] HR pages: CRUD for **roles**, **permissions** and **departments**
+- [x] HR pages: CRUD for **roles**, **permissions** and **departments** (shipped: Role & Department models, `/api/roles`, `/api/departments`, RolesSection, DepartmentsSection, RolesTable, RoleCard, RoleFormDialog, DepartmentFormDialog)
   - Today `role` is a fixed 4-value string and permissions are 5 hard-coded booleans on each user, checked by name in every server route (`requirePermission('manageProjects')`)
   - Target: `Role { id, nameAr, nameEn, permissions[] }`, `Department { id, nameAr, nameEn }`, users reference a role + department; a user's effective permissions come from the role (optionally with per-user overrides)
   - Permissions stay a **fixed catalogue defined in code** (they must match what the server checks); admins compose roles from it rather than inventing new permission names that no route enforces
@@ -406,23 +407,23 @@ receive no CORS header; in development the loopback origins still work.
 #### Phase 8c: Publishing, data tables, drafts, media & SEO (requested 2026-09-29, planned)
 
 **Publishing**
-- [ ] Projects: published / unpublished toggle on `/admin/projects` (card + table + project page). Unpublished projects are hidden from the public site (list, map, detail page returns 404) but stay fully editable in the admin
+- [x] Projects: published / unpublished toggle on `/admin/projects` (card + table + project page). Unpublished projects are hidden from the public site (list, map, detail page returns 404) but stay fully editable in the admin (shipped: `publishStatus` draft/published/hidden, `publishStatusOf`, `usePublishProject`, `ProjectStatusBadge`, and `/api/projects/:id/publish`)
   - Server: `Project.publishStatus` (`draft` | `published` | `hidden`) + `publishedAt`; public `GET /api/projects` returns only `published`; admin reads use an authenticated endpoint/flag that includes all
   - Migration default `published` for existing rows so nothing disappears on deploy
   - Toggle goes through the confirm dialog (with "don't ask again", see Phase 8b)
 
 **View switcher on every list page** (the table / list / grid control from the categories page)
-- [ ] Shared `ViewSwitcher` component + per-page remembered choice (`usePersistentState`): projects, inquiries, users, categories, units, newsletter subscribers
+- [x] Shared `ViewSwitcher` component + per-page remembered choice (`usePersistentState`): projects, inquiries, users, categories, units, newsletter subscribers
 - [ ] Each page defines what table / list / grid mean for its data; grid supports a column-count choice where it helps
 
 **Data table** (replace the plain compact tables)
-- [ ] Shared `DataTable` component used by every table view: column sorting (click header, asc/desc, RTL-aware icons), per-column filters + global search, row selection with bulk actions (delete, publish/unpublish, change status, export selected), sticky header, column show/hide, density (comfortable/compact), pagination or virtual scroll for long lists, empty/loading/error states, keyboard navigation, remembered sort/columns per page
+- [x] Shared `DataTable` component used by every table view: column sorting (click header, asc/desc, RTL-aware icons), per-column filters + global search, row selection with bulk actions (delete, publish/unpublish, change status, export selected), sticky header, column show/hide, density (comfortable/compact), pagination or virtual scroll for long lists, empty/loading/error states, keyboard navigation, remembered sort/columns per page
 - [ ] Visual redesign: clear header row, zebra/hover states, aligned numeric columns, truncated long cells with tooltip, status as chips, row actions grouped in a menu on narrow screens
 
 **Drafts**
-- [ ] Projects: "save as draft" (a project can be saved incomplete; required-for-publish checks run only on publish). Uses `publishStatus = draft`
+- [x] Projects: "save as draft" (a project can be saved incomplete; required-for-publish checks run only on publish). Uses `publishStatus = draft` (shipped: status filter chips, counts, draft badges, and duplicate-as-draft)
 - [ ] Other forms (users, categories, units, content): local auto-saved drafts of unsaved forms, restored on return ("لديك مسودة غير محفوظة — استعادة / تجاهل")
-- [ ] How drafts surface (chosen approach): **status filter chips on each list** (الكل / جاهز / مسودة, with counts) **plus a dismissible banner at the top** of the page when drafts exist ("3 مشاريع في وضع المسودة — عرضها")
+- [x] How drafts surface (chosen approach): **status filter chips on each list** (الكل / جاهز / مسودة, with counts) **plus a dismissible banner at the top** of the page when drafts exist ("3 مشاريع في وضع المسودة — عرضها")
 - [ ] Users: "draft" maps to an **invited / pending** account state (created but not activated), not a half-typed form
 
 **Project page: 3D model**
@@ -442,10 +443,10 @@ receive no CORS header; in development the loopback origins still work.
 - [ ] **Caveat:** the site is a client-rendered SPA. Meta tags set in the browser are not read by social-media link previews and only partly by some crawlers. To make SEO real, the server must return the right `<title>`/meta/OG/JSON-LD in the HTML for each URL: either Fastify renders the SPA `index.html` with injected tags for `/projects/:id` and pages (smallest change, works with Caddy), or pre-render at build/publish time. Decide before building the SEO UI
 
 **Newsletter admin**
-- [ ] Admin screen for newsletter subscribers (list, search, delete, CSV export) — backend and service are done (`/api/newsletter`)
+- [x] Admin screen for newsletter subscribers (list, search, delete, CSV export) — backend and service are done (`/api/newsletter`)
 
 #### Phase 8d: CRUD in the project Units tab, sidebar & overall design (requested 2026-09-29)
-- [ ] Project page Units tab (`/admin/projects/:id` → الوحدات): full CRUD without leaving the page — add floor, rename floor, delete floor, add a unit to a specific floor, edit unit, delete unit. Reuse the floor-plan dialogs (one shared unit form + floor form) so both screens behave identically
+- [x] Project page Units tab (`/admin/projects/:id` → الوحدات): full CRUD without leaving the page — add floor, rename floor, delete floor, add a unit to a specific floor, edit unit, delete unit. Reuses the floor-plan dialogs via `useFloorPlanEditor`
 - [ ] Improve the admin sidebar: grouped navigation (portfolio / customers / settings), collapsible to an icon rail on desktop (remembered), clearer active state, counts that don't compete with labels, user card with quick actions (settings, theme, language, logout)
 - [ ] Improve the overall admin UI design: consistent page header + section spacing, one card style, one button hierarchy (primary / secondary / ghost / danger), consistent form controls, typography scale, and dark-mode contrast pass across every page
 
