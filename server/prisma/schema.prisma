@@ -211,3 +211,52 @@ model NotificationListener {
 
   @@index([event, enabled])
 }
+
+/// Stores document-style CMS content (e.g. "nav", "footer", "home", "works", "contact", "clientsPage").
+model CmsSection {
+  key         String              @id
+  content     String              // JSON string payload
+  version     Int                 @default(1)
+  updatedAt   DateTime            @updatedAt
+  updatedById String?
+  versions    CmsSectionVersion[]
+
+  @@map("cms_sections")
+}
+
+/// Stores point-in-time snapshots for version history, audit logging, and 1-click rollback.
+model CmsSectionVersion {
+  id          String     @id @default(uuid())
+  sectionKey  String
+  section     CmsSection @relation(fields: [sectionKey], references: [key], onDelete: Cascade)
+  content     String     // JSON snapshot of the section at this version
+  version     Int
+  createdById String?
+  createdAt   DateTime   @default(now())
+
+  @@unique([sectionKey, version])
+  @@index([sectionKey])
+  @@map("cms_section_versions")
+}
+
+/// Dedicated relational table for Partners & Corporate Clients with full CRUD, indexing, and sorting.
+model CmsClient {
+  id         String   @id @default(uuid())
+  nameAr     String
+  nameEn     String
+  sectorAr   String
+  sectorEn   String
+  descAr     String
+  descEn     String
+  logo       String   // e.g. "/clients/almanea.webp" or "/uploads/uuid.webp"
+  tagsAr     String   // JSON string array e.g. '["معارض كبرى"]'
+  tagsEn     String   // JSON string array e.g. '["Major Showrooms"]'
+  websiteUrl String?
+  order      Int      @default(0)
+  visible    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([visible, order])
+  @@map("cms_clients")
+}

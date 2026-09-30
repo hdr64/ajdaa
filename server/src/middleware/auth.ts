@@ -39,7 +39,27 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 export function hasPermission(admin: AuthenticatedAdmin | undefined, permission: AdminPermission): boolean {
   if (!admin) return false;
   if (admin.role === 'super_admin') return true;
-  return admin.permissions[permission] === true;
+
+  // 1. Explicit direct per-user override check
+  if (admin.permissions[permission] !== undefined) {
+    return admin.permissions[permission] === true;
+  }
+
+  // 2. Backward compatibility mappings
+  if (
+    permission === 'createProject' ||
+    permission === 'editProject' ||
+    permission === 'deleteProject' ||
+    permission === 'publishProject' ||
+    permission === 'viewProjects'
+  ) {
+    if (admin.permissions.manageProjects === true) return true;
+  }
+  if (permission === 'manageClients' || permission === 'rollbackCms') {
+    if (admin.permissions.manageCms === true) return true;
+  }
+
+  return false;
 }
 
 /** Must run after `authenticate` (both as onRequest hooks, in that order). */

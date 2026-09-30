@@ -12,6 +12,14 @@ export interface JwtPayload {
 
 export type AdminPermission =
   | 'manageProjects'
+  | 'viewProjects'
+  | 'createProject'
+  | 'editProject'
+  | 'deleteProject'
+  | 'publishProject'
+  | 'manageCms'
+  | 'manageClients'
+  | 'rollbackCms'
   | 'manageUnits'
   | 'viewInquiries'
   | 'exportData'
