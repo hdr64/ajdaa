@@ -8,9 +8,7 @@ import {
   CheckCircle2,
   Trash2,
   Loader2,
-  RotateCcw,
   Power,
-  Move,
 } from 'lucide-react';
 import { uploadMedia } from '../../../services/mediaService';
 import { AdminStorage } from '../../../services/adminStorage';
@@ -80,9 +78,13 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null);
   const dragMovedRef = useRef<boolean>(false);
-  const petButtonRef = useRef<HTMLDivElement | null>(null);
+  const petContainerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // Modal form states
+  // Dropdown menu state
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Modal dialog form states
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [section, setSection] = useState<string>(
@@ -107,6 +109,25 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
     }
   }, [currentSection, isAr]);
 
+  // Click outside to close dropdown
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        petContainerRef.current &&
+        !petContainerRef.current.contains(e.target as Node) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [menuOpen]);
+
   const toggleEnabled = useCallback(() => {
     setEnabled((prev) => {
       const next = !prev;
@@ -115,28 +136,18 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
       } catch {
         // ignore
       }
-      showToast(next ? (isAr ? 'تم تفعيل المساعد الذكي' : 'Assistant pet enabled') : (isAr ? 'تم تعطيل المساعد الذكي' : 'Assistant pet disabled'));
+      showToast(next ? (isAr ? 'تم تفعيل المساعد الذكي' : 'Assistant pet enabled') : (isAr ? 'تم إغلاق المساعد' : 'Assistant pet closed'));
       return next;
     });
   }, [isAr, showToast]);
 
-  const resetPosition = useCallback(() => {
-    setPosition(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY_POSITION);
-    } catch {
-      // ignore
-    }
-    showToast(isAr ? 'تمت إعادة المساعد إلى موقعه الافتراضي' : 'Assistant reset to default position');
-  }, [isAr, showToast]);
-
   // Dragging logic
   const handlePointerDown = (e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest('button[data-action]')) {
+    if ((e.target as HTMLElement).closest('[data-dropdown]')) {
       return;
     }
 
-    const rect = petButtonRef.current?.getBoundingClientRect();
+    const rect = petContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     dragStartRef.current = {
@@ -188,10 +199,11 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
     window.addEventListener('pointerup', onPointerUp);
   };
 
-  const handlePetClick = () => {
-    // If the mouse was dragged, do not open the modal
+  const handlePetClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // If the mouse was dragged, do not toggle the dropdown
     if (dragMovedRef.current) return;
-    setOpen(true);
+    setMenuOpen((prev) => !prev);
   };
 
   // Clipboard paste listener to attach screenshots
@@ -313,11 +325,11 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
         <button
           type="button"
           onClick={toggleEnabled}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-surface/80 hover:bg-surface border border-muted-border/50 text-neutral-text/50 hover:text-heading shadow-sm hover:shadow-md text-[10px] font-bold cursor-pointer transition-all opacity-50 hover:opacity-100"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface/90 hover:bg-surface border border-muted-border/60 text-neutral-text/60 hover:text-heading shadow-sm hover:shadow-md text-[11px] font-bold cursor-pointer transition-all opacity-60 hover:opacity-100"
           title={isAr ? 'انقر لتفعيل مساعد المطور' : 'Click to enable assistant pet'}
         >
-          <Power className="w-3 h-3 text-accent" />
-          <span>{isAr ? 'المساعد الذكي (معطل)' : 'Assistant (Off)'}</span>
+          <Sparkles className="w-3.5 h-3.5 text-accent animate-pulse" />
+          <span>{isAr ? 'إظهار مساعد المطور' : 'Show assistant'}</span>
         </button>
       </aside>
     );
@@ -326,8 +338,8 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
   // Positioning:
   // - If dragged: use absolute px (left, top)
   // - If default:
-  //   - Arabic (RTL): Bottom-Left (left: 16px, bottom: 16px)
-  //   - English (LTR): Bottom-Right (right: 16px, bottom: 16px)
+  //   - Arabic (RTL): Bottom-Left (left: 20px, bottom: 20px)
+  //   - English (LTR): Bottom-Right (right: 20px, bottom: 20px)
   const containerStyle: React.CSSProperties = position
     ? {
         left: `${position.x}px`,
@@ -341,107 +353,114 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
     <>
       {/* Floating Draggable Pet Container */}
       <aside
-        ref={petButtonRef}
-        aria-label="صندوق اقتراحات المطور"
+        ref={petContainerRef}
+        aria-label="مساعد المطور"
         onPointerDown={handlePointerDown}
         style={containerStyle}
         className={`fixed z-40 select-none touch-none transition-opacity duration-300 ${
           isDragging ? 'opacity-100 cursor-grabbing scale-105' : 'opacity-60 hover:opacity-100 cursor-grab'
         }`}
       >
-        <div className="relative group">
-          {/* Tooltip speech bubble */}
-          <div
-            className={`absolute bottom-full mb-2 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap ${
-              isRTL ? 'start-0' : 'end-0'
-            }`}
-          >
-            <div className="bg-heading text-canvas text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xl flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-accent" />
-              <span>{isAr ? 'لديك مشكلة أو اقتراح للمطور؟' : 'Have a suggestion or bug for the developer?'}</span>
-              <span className="opacity-60 text-[9px]">({isAr ? 'اسحب للتحريك' : 'Drag to move'})</span>
-            </div>
-          </div>
+        <div className="relative">
+          {/* Dropdown Popup Menu (Above Pet on Click) */}
+          {menuOpen && (
+            <div
+              ref={dropdownRef}
+              data-dropdown="true"
+              className={`absolute bottom-full mb-3 z-50 w-60 rounded-2xl bg-surface/95 backdrop-blur-md border border-muted-border/60 shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150 ${
+                isRTL ? 'start-0' : 'end-0'
+              }`}
+            >
+              {/* Option 1: Send message to developer */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setOpen(true);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-hover text-heading text-xs font-bold transition text-start cursor-pointer group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <MessageSquarePlus className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block truncate">{isAr ? 'إرسال رسالة للمطور' : 'Send message to developer'}</span>
+                  <span className="block text-[10px] text-neutral-text/60 font-normal truncate">
+                    {isAr ? 'اقتراح أو إبلاغ عن مشكلة' : 'Suggest or report issue'}
+                  </span>
+                </div>
+              </button>
 
-          {/* Pet Button */}
+              <div className="h-px bg-muted-border/30 my-1" />
+
+              {/* Option 2: Close assistant */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  toggleEnabled();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-500/10 text-red-500 text-xs font-bold transition text-start cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-xl bg-red-500/15 text-red-500 flex items-center justify-center shrink-0">
+                  <Power className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block truncate">{isAr ? 'إغلاق المساعد' : 'Close assistant'}</span>
+                  <span className="block text-[10px] text-neutral-text/50 font-normal truncate">
+                    {isAr ? 'إخفاء المساعد من الشاشة' : 'Hide from screen'}
+                  </span>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Pet Mascot Avatar */}
           <div
             onClick={handlePetClick}
-            className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-accent/90 to-accent text-white shadow-xl hover:shadow-accent/40 transition-transform transform active:scale-95 ring-2 ring-white/25"
+            className="relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-accent via-sky-500 to-indigo-600 text-white shadow-xl hover:shadow-accent/40 transition-transform transform active:scale-95 ring-4 ring-white/20 p-1"
             role="button"
             tabIndex={0}
-            aria-label={isAr ? 'فتح صندوق اقتراحات وملاحظات المطور' : 'Open developer feedback pet'}
+            aria-label={isAr ? 'فتح قائمة مساعد المطور' : 'Open developer assistant menu'}
           >
-            {/* Animated Pet Character */}
-            <div className="flex flex-col items-center justify-center animate-bounce duration-1000 pointer-events-none">
-              <svg width="28" height="28" viewBox="0 0 32 32" fill="none" className="drop-shadow-sm">
-                {/* Pet Body */}
-                <rect x="4" y="6" width="24" height="20" rx="8" fill="currentColor" fillOpacity="0.95" />
-                {/* Ears */}
-                <path d="M7 6L4 2H10L8 6" fill="currentColor" />
-                <path d="M25 6L28 2H22L24 6" fill="currentColor" />
-                {/* Screen / Face */}
-                <rect x="7" y="9" width="18" height="13" rx="4" fill="#0d1620" />
-                {/* Cheeks */}
-                <circle cx="9" cy="18" r="1.5" fill="#f43f5e" opacity="0.85" />
-                <circle cx="23" cy="18" r="1.5" fill="#f43f5e" opacity="0.85" />
-                {/* Eyes */}
-                <circle cx="12" cy="14" r="2" fill="#38bdf8" />
-                <circle cx="20" cy="14" r="2" fill="#38bdf8" />
-                <circle cx="13" cy="13.5" r="0.7" fill="#ffffff" />
-                <circle cx="21" cy="13.5" r="0.7" fill="#ffffff" />
-                {/* Smile */}
-                <path d="M14 17.5C14.5 18.5 17.5 18.5 18 17.5" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" />
+            {/* Animated Pet Graphic */}
+            <div className="w-full h-full rounded-full flex items-center justify-center pointer-events-none">
+              <svg width="34" height="34" viewBox="0 0 40 40" fill="none" className="drop-shadow-md">
+                {/* Cat / Robot Ears */}
+                <path d="M10 14L5 4L16 9" fill="#0284c7" stroke="#38bdf8" strokeWidth="1.2" strokeLinejoin="round" />
+                <path d="M30 14L35 4L24 9" fill="#0284c7" stroke="#38bdf8" strokeWidth="1.2" strokeLinejoin="round" />
+                <path d="M9 12L6 6L14 10" fill="#f43f5e" opacity="0.65" />
+                <path d="M31 12L34 6L26 10" fill="#f43f5e" opacity="0.65" />
+
+                {/* Main Head Base */}
+                <rect x="6" y="9" width="28" height="25" rx="12" fill="#0f172a" stroke="#38bdf8" strokeWidth="1.5" />
+
+                {/* Dark Visor / Face Screen */}
+                <rect x="8.5" y="12" width="23" height="18" rx="8" fill="#020617" />
+
+                {/* Glowing Blue Eyes */}
+                <circle cx="15" cy="19" r="2.8" fill="#38bdf8" />
+                <circle cx="25" cy="19" r="2.8" fill="#38bdf8" />
+                <circle cx="16.2" cy="17.8" r="1.1" fill="#ffffff" />
+                <circle cx="26.2" cy="17.8" r="1.1" fill="#ffffff" />
+
+                {/* Blushing Cheeks */}
+                <circle cx="11.5" cy="24" r="2" fill="#f43f5e" opacity="0.85" />
+                <circle cx="28.5" cy="24" r="2" fill="#f43f5e" opacity="0.85" />
+
+                {/* Cute Smile */}
+                <path d="M18 23.5C18.8 25 21.2 25 22 23.5" stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round" />
+
+                {/* Sparkle on top */}
+                <circle cx="20" cy="5" r="1.5" fill="#facc15" />
               </svg>
             </div>
 
-            {/* Online indicator */}
-            <span className="absolute -top-1 -end-1 flex h-3.5 w-3.5 pointer-events-none">
+            {/* Online notification badge */}
+            <span className="absolute -top-0.5 -end-0.5 flex h-3.5 w-3.5 pointer-events-none">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border border-white" />
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
             </span>
-          </div>
-
-          {/* Quick Controls overlay on hover */}
-          <div className="absolute -top-3 inset-x-0 flex items-center justify-between px-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {/* Toggle Enable/Disable button */}
-            <button
-              type="button"
-              data-action="disable"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleEnabled();
-              }}
-              className="w-5 h-5 rounded-full bg-surface border border-muted-border/60 text-red-500 hover:bg-red-500/10 flex items-center justify-center shadow-md cursor-pointer transition hover:scale-110"
-              title={isAr ? 'تعطيل ظهور المساعد' : 'Disable assistant'}
-              aria-label="تعطيل المساعد"
-            >
-              <Power className="w-2.5 h-2.5" />
-            </button>
-
-            {/* Reset position button if dragged */}
-            {position && (
-              <button
-                type="button"
-                data-action="reset-pos"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  resetPosition();
-                }}
-                className="w-5 h-5 rounded-full bg-surface border border-muted-border/60 text-neutral-text hover:text-accent flex items-center justify-center shadow-md cursor-pointer transition hover:scale-110"
-                title={isAr ? 'إعادة للموضع الافتراضي' : 'Reset position'}
-                aria-label="إعادة للموضع الافتراضي"
-              >
-                <RotateCcw className="w-2.5 h-2.5" />
-              </button>
-            )}
-
-            {/* Drag handle icon indicator */}
-            <div
-              className="w-5 h-5 rounded-full bg-surface/90 border border-muted-border/60 text-neutral-text/60 flex items-center justify-center shadow-sm pointer-events-none"
-              title={isAr ? 'اسحب للتحريك' : 'Drag to move'}
-            >
-              <Move className="w-2.5 h-2.5" />
-            </div>
           </div>
         </div>
       </aside>
