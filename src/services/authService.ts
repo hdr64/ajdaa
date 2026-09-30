@@ -50,11 +50,19 @@ type KnownAdminRole = (typeof ROLES)[number];
 
 export const DEFAULT_PERMISSIONS = {
   manageProjects: false,
+  viewProjects: false,
+  createProject: false,
+  editProject: false,
+  deleteProject: false,
+  publishProject: false,
   manageUnits: false,
   viewInquiries: false,
   exportData: false,
   manageUsers: false,
   manageNotifications: false,
+  manageCms: false,
+  manageClients: false,
+  rollbackCms: false,
 } as const;
 
 /** The server stores an open-ended permission map; the UI needs a fixed shape. */
@@ -62,11 +70,19 @@ function normalizePermissions(raw: Record<string, boolean> | null | undefined) {
   const source = raw ?? {};
   return {
     manageProjects: source.manageProjects ?? false,
+    viewProjects: source.viewProjects ?? source.manageProjects ?? false,
+    createProject: source.createProject ?? source.manageProjects ?? false,
+    editProject: source.editProject ?? source.manageProjects ?? false,
+    deleteProject: source.deleteProject ?? source.manageProjects ?? false,
+    publishProject: source.publishProject ?? source.manageProjects ?? false,
     manageUnits: source.manageUnits ?? false,
     viewInquiries: source.viewInquiries ?? false,
     exportData: source.exportData ?? false,
     manageUsers: source.manageUsers ?? false,
     manageNotifications: source.manageNotifications ?? false,
+    manageCms: source.manageCms ?? false,
+    manageClients: source.manageClients ?? source.manageCms ?? false,
+    rollbackCms: source.rollbackCms ?? false,
   };
 }
 

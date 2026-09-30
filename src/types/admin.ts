@@ -6,6 +6,14 @@ export type AdminStatus = 'active' | 'suspended';
 
 export interface AdminPermissions {
   manageProjects: boolean;
+  viewProjects: boolean;
+  createProject: boolean;
+  editProject: boolean;
+  deleteProject: boolean;
+  publishProject: boolean;
+  manageCms: boolean;
+  manageClients: boolean;
+  rollbackCms: boolean;
   manageUnits: boolean;
   viewInquiries: boolean;
   exportData: boolean;

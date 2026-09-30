@@ -40,20 +40,36 @@ export const DEFAULT_ROLE_KEY: AdminRole = 'sales_agent';
 /** Permission keys double as the checkbox catalogue when `/api/permissions` is unavailable. */
 export const PERMISSION_KEYS: readonly (keyof AdminPermissions)[] = [
   'manageProjects',
+  'viewProjects',
+  'createProject',
+  'editProject',
+  'deleteProject',
+  'publishProject',
   'manageUnits',
   'viewInquiries',
   'exportData',
   'manageUsers',
   'manageNotifications',
+  'manageCms',
+  'manageClients',
+  'rollbackCms',
 ];
 
 export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
-  manageProjects: 'إدارة المشاريع',
-  manageUnits: 'تعديل الوحدات',
-  viewInquiries: 'متابعة الطلبات',
+  manageProjects: 'إدارة المشاريع (كاملة)',
+  viewProjects: 'استعراض المشاريع باللوحة',
+  createProject: 'إضافة مشاريع جديدة',
+  editProject: 'تعديل بيانات المشاريع',
+  deleteProject: 'حذف المشاريع',
+  publishProject: 'نشر وإخفاء المشاريع',
+  manageUnits: 'تعديل الوحدات والأدوار',
+  viewInquiries: 'متابعة طلبات العملاء',
   exportData: 'تصدير التقارير',
   manageUsers: 'إدارة المستخدمين',
   manageNotifications: 'إدارة الإشعارات',
+  manageCms: 'إدارة محتوى الموقع',
+  manageClients: 'إدارة الشركاء والعملاء',
+  rollbackCms: 'استعادة نسخ محتوى الموقع',
 };
 
 /** `PermissionDef.group` is an English slug on the server; show an Arabic heading. */
@@ -64,6 +80,7 @@ const PERMISSION_GROUP_LABELS: Record<string, string> = {
   reports: 'التقارير',
   users: 'المستخدمون',
   settings: 'الإعدادات',
+  cms: 'محتوى الموقع (CMS)',
 };
 
 export const STATUS_LABELS: Record<AdminStatus, string> = {
@@ -92,11 +109,19 @@ export const countPermissions = (permissions: AdminPermissions): number =>
 
 export const emptyPermissions = (): AdminPermissions => ({
   manageProjects: false,
+  viewProjects: false,
+  createProject: false,
+  editProject: false,
+  deleteProject: false,
+  publishProject: false,
   manageUnits: false,
   viewInquiries: false,
   exportData: false,
   manageUsers: false,
   manageNotifications: false,
+  manageCms: false,
+  manageClients: false,
+  rollbackCms: false,
 });
 
 /** Pre-fills the checkboxes from a role, leaving every other permission off. */

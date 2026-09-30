@@ -202,7 +202,7 @@ export const api = {
   post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, body, options),
   put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PUT', path, body, options),
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PATCH', path, body, options),
-  delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
+  delete: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('DELETE', path, body, options),
 
   /** Multipart upload. Kept separate so the JSON content-type is never forced on it. */
   upload: async <T>(path: string, formData: FormData, options: RequestOptions = {}): Promise<T> => {

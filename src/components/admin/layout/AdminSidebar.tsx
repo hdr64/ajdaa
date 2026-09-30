@@ -12,6 +12,7 @@ import {
   Building,
   Mail,
   Settings,
+  Globe,
   X as CloseIcon,
   Moon,
   Sun,
@@ -47,6 +48,12 @@ const NAV_GROUPS: NavGroup[] = [
       { section: 'projects', label: 'المشاريع', icon: Building2 },
       { section: 'units', label: 'المخطط البصري', icon: Layers },
       { section: 'categories', label: 'التصنيفات', icon: Tags },
+    ],
+  },
+  {
+    label: 'محتوى الموقع',
+    items: [
+      { section: 'cms', label: 'إدارة المحتوى (CMS)', icon: Globe, permission: 'manageCms' },
     ],
   },
   {

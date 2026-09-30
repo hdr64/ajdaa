@@ -29,6 +29,7 @@ import { RolesSection } from './sections/RolesSection';
 import { DepartmentsSection } from './sections/DepartmentsSection';
 import { NewsletterSection } from './sections/NewsletterSection';
 import { SettingsSection } from './sections/SettingsSection';
+import { CmsSection } from './sections/CmsSection';
 import { ProjectShowSection } from './sections/ProjectShowSection';
 import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
@@ -78,6 +79,10 @@ const SECTION_META: Record<AdminSection, { title: string; subtitle: string; perm
     subtitle: 'معلومات التواصل في الموقع، الإشعارات، وخادم البريد',
     // Super admins pass `can` too; each tab narrows access further.
     permission: 'manageNotifications',
+  },
+  cms: {
+    title: 'إدارة محتوى الموقع',
+    subtitle: 'التحكم في كافة نصوص الموقع، الأقسام، الشركاء، القائمة والتذييل',
   },
   profile: {
     title: 'الملف الشخصي والحساب',
@@ -132,7 +137,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
   const can = useCallback(
-    (permission: AdminPermission) => Boolean(currentUser && (isSuperAdmin || currentUser.permissions[permission])),
+    (permission: AdminPermission) => {
+      if (!currentUser) return false;
+      if (isSuperAdmin) return true;
+      if (currentUser.permissions[permission] !== undefined) {
+        return Boolean(currentUser.permissions[permission]);
+      }
+      if (
+        permission === 'createProject' ||
+        permission === 'editProject' ||
+        permission === 'deleteProject' ||
+        permission === 'publishProject' ||
+        permission === 'viewProjects'
+      ) {
+        return Boolean(currentUser.permissions.manageProjects);
+      }
+      if (permission === 'manageClients') {
+        return Boolean(currentUser.permissions.manageCms);
+      }
+      return false;
+    },
     [currentUser, isSuperAdmin]
   );
   const canViewInquiries = can('viewInquiries');
@@ -259,7 +283,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       ? `تعديل: ${currentProject.title}`
       : currentProject.title
     : meta.title;
-  const allowed = !meta.permission || can(meta.permission);
+  const allowed =
+    location.section === 'cms'
+      ? can('manageCms') || can('manageClients')
+      : !meta.permission || can(meta.permission);
 
   // Canonicalise the URL (bare /admin, unknown sections) without a new history
   // entry. The units section pins its own project id.
@@ -328,6 +355,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <NewsletterSection />;
       case 'settings':
         return <SettingsSection />;
+      case 'cms':
+        return <CmsSection />;
     }
   };
 
