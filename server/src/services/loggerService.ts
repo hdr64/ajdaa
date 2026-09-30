@@ -37,22 +37,40 @@ class LoggerService {
   private buffer: LogEntry[] = [];
   private readonly maxBufferSize = 2000;
   private readonly logFilePath: string;
+  private readonly errorLogFilePath: string;
   private idCounter = 0;
 
   constructor() {
     this.logFilePath = config.logs.filePath;
+    this.errorLogFilePath = config.logs.errorFilePath;
     this.ensureLogDirectory();
+    this.registerGlobalErrorHandlers();
   }
 
   private ensureLogDirectory() {
     try {
-      const dir = path.dirname(this.logFilePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      const dirs = [path.dirname(this.logFilePath), path.dirname(this.errorLogFilePath)];
+      for (const dir of dirs) {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
       }
     } catch (err) {
       console.error('[LoggerService] Failed to create log directory:', err);
     }
+  }
+
+  private registerGlobalErrorHandlers() {
+    // Prevent unhandled promise rejections and exceptions from escaping silently
+    process.on('unhandledRejection', (reason) => {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      const stack = reason instanceof Error ? reason.stack : undefined;
+      this.error(`Unhandled Promise Rejection: ${message}`, { stack }, 'process');
+    });
+
+    process.on('uncaughtException', (err) => {
+      this.error(`Uncaught Exception: ${err.message}`, { stack: err.stack }, 'process');
+    });
   }
 
   /**
@@ -114,6 +132,15 @@ class LoggerService {
           console.error('[LoggerService] Failed to write log to file:', err.message);
         }
       });
+
+      // Dedicated error log file: any error level entry is recorded into errors.log
+      if (entry.level === 'error') {
+        fs.appendFile(this.errorLogFilePath, line, (err) => {
+          if (err && config.env !== 'test') {
+            console.error('[LoggerService] Failed to write to errors.log:', err.message);
+          }
+        });
+      }
     } catch {
       // Swallowed to prevent logging failure from crashing worker
     }
@@ -267,6 +294,45 @@ class LoggerService {
     this.info('Production logs cleared by administrator', {}, 'system');
 
     return { cleared: true, memoryEntries: count };
+  }
+
+  /**
+   * Get raw content of errors.log file.
+   */
+  public getRawErrorsFileContent(tailLines = 500): string {
+    try {
+      if (fs.existsSync(this.errorLogFilePath)) {
+        const content = fs.readFileSync(this.errorLogFilePath, 'utf-8');
+        const lines = content.split('\n');
+        return lines.slice(-tailLines).join('\n');
+      }
+    } catch {
+      // Fallback
+    }
+
+    return this.buffer
+      .filter((e) => e.level === 'error')
+      .map(
+        (e) =>
+          `[${e.timestamp}] [ERROR] [${e.source || 'app'}] ${e.message}${
+            e.context ? ' ' + JSON.stringify(e.context) : ''
+          }`
+      )
+      .join('\n');
+  }
+
+  /**
+   * Clear errors.log file.
+   */
+  public clearErrors(): { cleared: boolean } {
+    try {
+      if (fs.existsSync(this.errorLogFilePath)) {
+        fs.writeFileSync(this.errorLogFilePath, '');
+      }
+    } catch (err) {
+      console.error('[LoggerService] Failed to truncate errors.log file:', err);
+    }
+    return { cleared: true };
   }
 
   public getStats(): LogStats {

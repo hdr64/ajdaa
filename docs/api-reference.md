@@ -365,3 +365,109 @@ Returns system telemetry without log records (uptime, memory RSS, heap, Node ver
 ### POST `/api/logs/clear`
 Clears the in-memory ring buffer and truncates the physical `prod.log` on disk.
 
+---
+
+### GET `/api/logs/errors`
+Streams the raw plain-text content of `server/errors.log`:
+```bash
+curl -s "https://yourdomain.com/api/logs/errors?key=YOUR_SECRET_KEY&lines=100"
+```
+
+---
+
+### POST `/api/logs/errors/clear`
+Truncates the physical `server/errors.log` file on disk.
+
+---
+
+### POST `/api/logs/client-error`
+Public telemetry beacon allowing browser frontend to report unhandled JavaScript errors, promise rejections, and API connection failures directly into `server/errors.log`.
+
+**Payload:**
+```json
+{
+  "message": "API POST /api/projects failed with HTTP 500",
+  "source": "frontend",
+  "url": "https://ajda.sa/admin/projects",
+  "stack": "Error: ...",
+  "context": { "status": 500 }
+}
+```
+
+---
+
+## 7. Developer Notes & Feedback (Isolated Channel)
+
+Dedicated administrative feedback channel strictly decoupled from customer CRM inquiries.
+
+### Authentication & Access Control
+Access to reading and exporting developer notes requires:
+1. Header `x-developer-key: <DEVELOPER_NOTES_SECRET>` or query param `?key=...`, OR
+2. Admin JWT with `super_admin` role.
+
+*Note: Submission (`POST /api/developer/notes`) is open to authenticated dashboard users via the floating Pet assistant.*
+
+### POST `/api/developer/notes`
+Submits a bug report, improvement suggestion, or developer note from the Admin Feedback Pet. Dispatches an immediate HTML alert email to `DEVELOPER_EMAIL` (`cloud.data.sa@gmail.com`).
+
+**Request:**
+```json
+{
+  "title": "Save button unresponsive on Floorplan modal",
+  "section": "Floor & Units Visualizer",
+  "body": "Clicking save does not emit PUT request",
+  "solution": "Check payload validation",
+  "priority": "high",
+  "screenshotUrl": "/uploads/feedback-screenshot.webp",
+  "adminName": "System Admin",
+  "metadata": {
+    "url": "https://ajda.sa/admin/units",
+    "screenWidth": 1920
+  }
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Developer note registered successfully",
+  "note": { "id": "clx...", "title": "...", "status": "pending" }
+}
+```
+
+---
+
+### GET `/api/developer/notes`
+Lists developer notes with filtering and pagination.
+
+**Query Parameters:**
+- `status` (`all` | `pending` | `in_progress` | `resolved` | `closed`)
+- `priority` (`all` | `low` | `medium` | `high` | `critical`)
+- `search` (string)
+- `limit` (number, default 50)
+- `page` (number, default 1)
+
+---
+
+### GET `/api/developer/notes/export`
+Exports all developer notes as Markdown or JSON:
+```bash
+# Export as clean Markdown
+curl -H "x-developer-key: ajda-dev-notes-2026" "https://yourdomain.com/api/developer/notes/export?format=markdown" > notes.md
+
+# Export as JSON
+curl -H "x-developer-key: ajda-dev-notes-2026" "https://yourdomain.com/api/developer/notes/export?format=json" > notes.json
+```
+
+---
+
+### PATCH `/api/developer/notes/:id`
+Updates note status (`status: "in_progress" | "resolved" | "closed"`), priority, or solution note.
+
+---
+
+### DELETE `/api/developer/notes/:id`
+Permanently deletes a developer note. Requires developer key or `super_admin`.
+
+

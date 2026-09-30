@@ -51,6 +51,11 @@ function isAuthorized(request: FastifyRequest): boolean {
 export const logsRoutes: FastifyPluginAsync = async (fastify) => {
   // Guard middleware
   fastify.addHook('preHandler', async (request, reply) => {
+    // Exempt client error telemetry beacon from authorization
+    if (request.url.startsWith('/api/logs/client-error') || request.url.startsWith('/client-error')) {
+      return;
+    }
+
     // Try authenticating via JWT if present, but do not fail if unauthenticated
     try {
       await request.jwtVerify();
@@ -91,7 +96,7 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   });
 
-  // 2. GET /api/logs/raw - Plain text raw log stream
+  // 2. GET /api/logs/raw - Plain text raw prod.log stream
   fastify.get('/raw', async (request, reply) => {
     const query = request.query as { lines?: string };
     const lines = parseInt(query.lines || '500', 10);
@@ -101,7 +106,64 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
     return text;
   });
 
-  // 3. GET /api/logs/stats - Telemetry stats only
+  // 3. GET /api/logs/errors - Plain text raw errors.log stream
+  fastify.get('/errors', async (request, reply) => {
+    const query = request.query as { lines?: string };
+    const lines = parseInt(query.lines || '500', 10);
+    const text = loggerService.getRawErrorsFileContent(isNaN(lines) ? 500 : lines);
+
+    reply.header('Content-Type', 'text/plain; charset=utf-8');
+    return text;
+  });
+
+  // 4. POST /api/logs/errors/clear - Clear errors.log file
+  fastify.post('/errors/clear', async () => {
+    const result = loggerService.clearErrors();
+    return {
+      success: true,
+      message: 'Errors log cleared successfully',
+      ...result,
+    };
+  });
+
+  // 5. POST /api/logs/client-error - Report frontend client-side error to errors.log
+  const clientErrorSchema = z.object({
+    message: z.string().trim().min(1).max(1000),
+    source: z.string().trim().max(100).optional().default('frontend'),
+    url: z.string().trim().max(1000).optional(),
+    stack: z.string().trim().max(5000).optional(),
+    context: z.record(z.unknown()).optional(),
+  });
+
+  fastify.post(
+    '/client-error',
+    {
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
+    async (request, reply) => {
+      const parsed = clientErrorSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid error report payload' });
+      }
+
+      const { message, source, url, stack, context } = parsed.data;
+      loggerService.error(
+        `Client error reported: ${message}`,
+        {
+          url: url || request.headers.referer,
+          ip: request.ip,
+          userAgent: request.headers['user-agent'],
+          stack,
+          ...context,
+        },
+        source
+      );
+
+      return { success: true, recorded: true };
+    }
+  );
+
+  // 6. GET /api/logs/stats - Telemetry stats only
   fastify.get('/stats', async () => {
     return {
       success: true,
@@ -109,7 +171,7 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   });
 
-  // 4. POST /api/logs/clear - Clear logs (memory + file)
+  // 7. POST /api/logs/clear - Clear logs (memory + file)
   fastify.post('/clear', async () => {
     const result = loggerService.clearLogs();
     return {

@@ -75,6 +75,7 @@ const envSchema = z.object({
 
   // --- Production Logs & Monitoring ---
   LOG_FILE_PATH: z.string().default('./prod.log'),
+  ERROR_LOG_FILE_PATH: z.string().default('./errors.log'),
   LOGS_SECRET_KEY: z.string().default('ajda-logs-secret-2026'),
   LOGS_PUBLIC: z
     .string()
@@ -174,6 +175,7 @@ export const config = {
   },
   logs: {
     filePath: path.resolve(env.LOG_FILE_PATH),
+    errorFilePath: path.resolve(env.ERROR_LOG_FILE_PATH),
     secretKey: env.LOGS_SECRET_KEY,
     isPublic: env.LOGS_PUBLIC,
   },

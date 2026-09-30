@@ -11,7 +11,7 @@ import {
   Power,
 } from 'lucide-react';
 import { uploadMedia } from '../../../services/mediaService';
-import { api } from '../../../services/api';
+import { api, reportClientError } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useLanguage } from '../../../hooks/useLanguage';
 import type { AdminSection } from '../../../pages/admin/adminRoutes';
@@ -284,7 +284,7 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
       }
 
       // Submit to dedicated developer notes API (isolated from customer inquiries)
-      await api.post('/developer/notes', {
+      await api.post('/api/developer/notes', {
         title: title.trim(),
         section,
         body: body.trim(),
@@ -302,7 +302,12 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
 
       setSubmitted(true);
       showToast(isAr ? 'تم إرسال ملاحظتك للمطور بنجاح! شكراً لمساعدتك.' : 'Feedback sent to developer successfully!');
-    } catch {
+    } catch (err) {
+      console.error('[AdminFeedbackPet] Submission error:', err);
+      reportClientError(`AdminFeedbackPet submission error: ${err instanceof Error ? err.message : String(err)}`, {
+        section,
+        title,
+      });
       showToast(isAr ? 'حدث خطأ أثناء إرسال الملاحظة، يرجى المحاولة لاحقاً' : 'Could not submit feedback, please try again');
     } finally {
       setSubmitting(false);

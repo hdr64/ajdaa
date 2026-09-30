@@ -401,8 +401,11 @@ Copy `server/.env.example` to `server/.env`. All variables are validated at star
 |---|---|---|---|
 | `GET` | `/api/logs/view` | Key/JWT | Interactive dark-mode live HTML terminal log monitor |
 | `GET` | `/api/logs` | Key/JWT | Structured JSON log stream with query filters (`level`, `search`, `limit`) |
-| `GET` | `/api/logs/raw` | Key/JWT | Plain-text raw log tail stream for terminal piping |
+| `GET` | `/api/logs/raw` | Key/JWT | Plain-text raw `prod.log` tail stream for terminal piping |
+| `GET` | `/api/logs/errors` | Key/JWT | Plain-text raw `errors.log` stream for dedicated error inspection |
 | `POST` | `/api/logs/clear` | Key/JWT | Truncate `prod.log` and flush the 2,000-event memory buffer |
+| `POST` | `/api/logs/errors/clear` | Key/JWT | Truncate `errors.log` file |
+| `POST` | `/api/logs/client-error` | Public | Telemetry beacon to record browser/client-side crashes into `errors.log` |
 
 ### Developer Notes & Bug Reports
 

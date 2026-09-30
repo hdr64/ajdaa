@@ -87,8 +87,18 @@ function notifyUnauthorized(): void {
   unauthorizedHandlers.forEach((handler) => handler());
 }
 
+function normalizeApiPath(path: string): string {
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const clean = path.startsWith('/') ? path : `/${path}`;
+  if (!clean.startsWith('/api/') && clean !== '/api') {
+    return `/api${clean}`;
+  }
+  return clean;
+}
+
 function buildUrl(path: string, query?: Record<string, string | number | boolean | undefined | null>): string {
-  const url = `${BASE_URL}${path}`;
+  const normalizedPath = normalizeApiPath(path);
+  const url = `${BASE_URL}${normalizedPath}`;
   if (!query) return url;
 
   const params = new URLSearchParams();
@@ -142,6 +152,25 @@ export interface RequestOptions {
   timeoutMs?: number;
 }
 
+/** Reports a client-side or network error to server errors.log */
+export function reportClientError(message: string, context?: Record<string, unknown>): void {
+  try {
+    fetch('/api/logs/client-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        source: 'frontend',
+        url: typeof window !== 'undefined' ? window.location.href : '',
+        context,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Ignore error reporting failure
+  }
+}
+
 /** JSON request helper. Serialises `body`, injects the JWT, and normalises errors. */
 async function request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -157,6 +186,7 @@ async function request<T>(method: string, path: string, body?: unknown, options:
   externalSignal?.addEventListener('abort', abortFromExternal);
 
   let response: Response;
+
   try {
     response = await fetch(buildUrl(path, options.query), {
       method,
@@ -168,6 +198,13 @@ async function request<T>(method: string, path: string, body?: unknown, options:
     if (controller.signal.aborted && !externalSignal?.aborted) {
       throw new ApiError(408, 'The request timed out. Please try again.');
     }
+    // Report unexpected network disconnection to errors.log (avoid recursive reporting on logs endpoint)
+    if (!path.includes('/logs/')) {
+      reportClientError(`Network failure on ${method} ${path}: ${(error as Error).message}`, {
+        method,
+        path,
+      });
+    }
     throw new ApiError(0, 'Cannot reach the server. Check your connection and try again.', error);
   } finally {
     clearTimeout(timeoutId);
@@ -176,6 +213,15 @@ async function request<T>(method: string, path: string, body?: unknown, options:
 
   if (!response.ok) {
     const apiError = await toApiError(response);
+    // Report 5xx internal server errors to errors.log
+    if (response.status >= 500 && !path.includes('/logs/')) {
+      reportClientError(`API ${method} ${path} failed with HTTP ${response.status}: ${apiError.message}`, {
+        status: response.status,
+        method,
+        path,
+        details: apiError.details,
+      });
+    }
     // A dead token must not leave the admin portal in a half-authenticated state.
     if (apiError.isUnauthorized) {
       clearAuthToken();

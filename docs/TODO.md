@@ -52,24 +52,19 @@
 - [x] AES-256-GCM encrypted storage for SMTP mail credentials.
 - [x] Universal confirmation modals for all destructive actions.
 - [x] Platform SemVer bump to `v1.2.0` across configurations, health endpoints, and documentation.
+- [x] **Frontend Route-Level Code Splitting (v1.2.1)**: Dynamically split `AdminDashboardPage`, `AdminLoginPage`, and sub-routes using `React.lazy()` and `<Suspense>`. Reduced public initial bundle by **64.4%** (from 1,083 kB to 385 kB).
+- [x] **Dedicated `server/errors.log` & Client Telemetry**: Added isolated error logging, process crash listeners, `GET /api/logs/errors`, and `POST /api/logs/client-error` beacon.
 
 ---
 
-## 3. Pending Decisions (Owner Input Required)
+## 3. Active Sprint & Next Priorities
 
-| # | Question / Proposal | Area | Priority |
-|---|---|---|---|
-| 1 | **SEO & Code-Splitting**: Split admin bundle (`React.lazy`) and evaluate pre-rendering for SEO. | Frontend / CWV | Medium |
-| 2 | **2FA (TOTP)**: Approve `@simplewebauthn` or Google Authenticator QR integration for admins. | Security | Low |
-| 3 | **Production VPS Launch**: Schedule live execution of `deploy/` scripts on Ubuntu server. | Infrastructure | High |
-
----
-
-## 4. Next Priorities
-
-1. **Route-Level Code Splitting (Frontend Performance)**:
-   - Split `/admin/*` dashboard and CMS components from public customer-facing routes using `React.lazy()` and `Suspense`.
-   - Reduce the initial bundle from ~1,080 kB to under 300 kB for first-time visitors.
+1. **Asynchronous Job Queue Engine (Option C: BullMQ + Redis with Sync Fallback)**:
+   - Implement `QueueManager` with `QueueableJob<T>` interface matching Laravel's queue pattern.
+   - Detect Redis connection (`REDIS_URL` or `localhost:6379`).
+   - If Redis is active: dispatch emails and heavy jobs asynchronously to BullMQ queue (<20ms response time).
+   - If Redis is offline or unavailable: automatically degrade to `sync` execution (inline `await`) with zero crashes.
+   - Wire developer feedback email and customer inquiry notifications to background jobs.
 2. **Production VPS Deployment**:
    - Provision Ubuntu 24.04 LTS VPS with native PostgreSQL 16.
    - Configure Caddy 2 reverse proxy with automatic Let's Encrypt TLS.
