@@ -81,6 +81,10 @@ const envSchema = z.object({
     .optional()
     .default('false')
     .transform((val) => val === 'true' || val === '1'),
+
+  // --- Developer Notes & Technical Feedback ---
+  DEVELOPER_EMAIL: z.string().default('cloud.data.sa@gmail.com'),
+  DEVELOPER_NOTES_SECRET: z.string().default('ajda-dev-notes-2026'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -112,6 +116,11 @@ const clientOrigins: string[] = [...new Set([...configuredOrigins, ...devOrigins
 // Same comma-separated convention as CLIENT_ORIGIN. An empty list means "derive
 // the recipients from permissions instead".
 const notifyInquiryEmails: string[] = env.NOTIFY_INQUIRY_EMAILS.split(',')
+  .map((address) => address.trim().toLowerCase())
+  .filter(Boolean);
+
+// Comma-separated developer notification emails
+const developerEmails: string[] = env.DEVELOPER_EMAIL.split(',')
   .map((address) => address.trim().toLowerCase())
   .filter(Boolean);
 
@@ -147,6 +156,10 @@ export const config = {
   loginOtpMaxAttempts: env.LOGIN_OTP_MAX_ATTEMPTS,
   loginOtpResendCooldownMs: env.LOGIN_OTP_RESEND_COOLDOWN_MS,
   notifyInquiryEmails,
+  developer: {
+    emails: developerEmails,
+    secretKey: env.DEVELOPER_NOTES_SECRET,
+  },
   mail: {
     host: env.MAIL_HOST,
     port: env.MAIL_PORT,

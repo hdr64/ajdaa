@@ -13,7 +13,7 @@
  * can name the template in a log line without copying any user-supplied text.
  */
 
-export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'password-changed' | 'test';
+export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'password-changed' | 'test' | 'developer-note';
 
 export interface MailContent {
   kind: MailKind;
@@ -316,5 +316,116 @@ export function testEmail(options: { brandName: string; host: string }): MailCon
       '',
       `SMTP: ${host}`,
     ].join('\n'),
+  };
+}
+
+export interface DeveloperNoteMailPayload {
+  brandName: string;
+  appUrl: string;
+  title: string;
+  section: string;
+  body: string;
+  solution?: string | null;
+  screenshotUrl?: string | null;
+  adminName?: string | null;
+  adminEmail?: string | null;
+  priority?: string;
+}
+
+/** Emailed immediately to developer whenever a new developer note is submitted. */
+export function developerNoteNotification(payload: DeveloperNoteMailPayload): MailContent {
+  const {
+    brandName,
+    appUrl,
+    title,
+    section,
+    body,
+    solution,
+    screenshotUrl,
+    adminName,
+    adminEmail,
+    priority = 'medium',
+  } = payload;
+
+  const authorLabel = `${adminName || 'مسؤول النظام'} (${adminEmail || 'بدون بريد'})`;
+  const fullScreenshotUrl =
+    screenshotUrl && screenshotUrl.startsWith('/')
+      ? `${appUrl}${screenshotUrl}`
+      : screenshotUrl;
+
+  const bodyHtml = `
+    <div style="margin-bottom:16px;padding:12px 16px;background:${COLORS.page};border-radius:8px;border:1px solid ${COLORS.border};">
+      <table role="presentation" width="100%" cellpadding="4" cellspacing="0" style="border-collapse:collapse;font-size:13.5px;color:${COLORS.ink};line-height:1.8;">
+        <tr>
+          <td width="30%" style="color:${COLORS.muted};font-weight:bold;">الصفحة / Section:</td>
+          <td width="70%"><strong style="color:${COLORS.accent};">${escapeHtml(section)}</strong></td>
+        </tr>
+        <tr>
+          <td style="color:${COLORS.muted};font-weight:bold;">المرسل / Author:</td>
+          <td>${escapeHtml(authorLabel)}</td>
+        </tr>
+        <tr>
+          <td style="color:${COLORS.muted};font-weight:bold;">الأولوية / Priority:</td>
+          <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:#fee2e2;color:#b91c1c;">${escapeHtml(priority.toUpperCase())}</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <h3 style="margin:0 0 8px;color:${COLORS.ink};font-size:15px;font-weight:bold;">تفاصيل الملاحظة / Description:</h3>
+      <div style="padding:14px;background:#ffffff;border:1px solid ${COLORS.border};border-radius:8px;font-size:14px;color:${COLORS.ink};line-height:1.8;white-space:pre-wrap;">
+        ${escapeHtml(body)}
+      </div>
+    </div>
+
+    ${
+      solution
+        ? `<div style="margin-bottom:16px;">
+             <h3 style="margin:0 0 8px;color:${COLORS.gold};font-size:14px;font-weight:bold;">الحل المقترح / Proposed Solution:</h3>
+             <div style="padding:12px 14px;background:${COLORS.goldSoft};border:1px solid #e0c88f;border-radius:8px;font-size:13.5px;color:${COLORS.ink};line-height:1.8;white-space:pre-wrap;">
+               ${escapeHtml(solution)}
+             </div>
+           </div>`
+        : ''
+    }
+
+    ${
+      fullScreenshotUrl
+        ? `<div style="margin-bottom:16px;">
+             <h3 style="margin:0 0 8px;color:${COLORS.ink};font-size:14px;font-weight:bold;">لقطة الشاشة / Screenshot:</h3>
+             <div style="text-align:center;padding:10px;background:#f8fafc;border:1px solid ${COLORS.border};border-radius:8px;">
+               <a href="${escapeHtml(fullScreenshotUrl)}" target="_blank" style="text-decoration:none;">
+                 <img src="${escapeHtml(fullScreenshotUrl)}" alt="Screenshot" style="max-width:100%;max-height:450px;border-radius:6px;border:1px solid #cbd5e1;" />
+                 <p style="margin:8px 0 0;font-size:12px;color:${COLORS.accent};">انقر لفتح لقطة الشاشة بالحجم الكامل ↗</p>
+               </a>
+             </div>
+           </div>`
+        : ''
+    }
+  `;
+
+  return {
+    kind: 'developer-note',
+    subject: `[Ajda Dev Note] ${title} — ${section}`,
+    html: shell({
+      brandName,
+      heading: `ملاحظة فنية جديدة: ${escapeHtml(title)}`,
+      intro: `تم استلام ملاحظة فنية / تقرير مشكلة من ${escapeHtml(authorLabel)} موجهة لفريق التطوير.`,
+      bodyHtml,
+      footnote: 'هذه الرسالة خاصة بالمطور ومسجلة في جدول developer_notes المعزول عن طلبات الاهتمام.',
+    }),
+    text: [
+      `[Ajda Dev Note] ${title}`,
+      `الصفحة: ${section}`,
+      `المرسل: ${authorLabel}`,
+      `الأولوية: ${priority}`,
+      '',
+      '--- تفاصيل الملاحظة ---',
+      asTextBlock(body),
+      '',
+      solution ? `--- الحل المقترح ---\n${asTextBlock(solution)}\n` : '',
+      fullScreenshotUrl ? `لقطة الشاشة: ${fullScreenshotUrl}\n` : '',
+      'هذه الملاحظة مسجلة في جدول developer_notes.',
+    ].filter(Boolean).join('\n'),
   };
 }

@@ -11,7 +11,7 @@ import {
   Power,
 } from 'lucide-react';
 import { uploadMedia } from '../../../services/mediaService';
-import { AdminStorage } from '../../../services/adminStorage';
+import { api } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useLanguage } from '../../../hooks/useLanguage';
 import type { AdminSection } from '../../../pages/admin/adminRoutes';
@@ -283,25 +283,21 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
         uploadedScreenshotUrl = res.url;
       }
 
-      // Format feedback message for developer
-      const fullMessage = [
-        `[ملاحظة موجهة للمطور]`,
-        `الصفحة: ${section}`,
-        `المرسل: ${currentUser?.name ?? 'مسؤول النظام'} (${currentUser?.email ?? 'بدون بريد'})`,
-        `\nتفاصيل المشكلة / الملاحظة:`,
-        body.trim(),
-        solution.trim() ? `\nالحل المقترح:\n${solution.trim()}` : '',
-        uploadedScreenshotUrl ? `\nلقطة الشاشة:\n${uploadedScreenshotUrl}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
-
-      await AdminStorage.addInquiry({
-        name: `[مطور] ${title.trim()}`,
-        email: currentUser?.email,
-        phone: currentUser?.phone ?? undefined,
-        interestType: 'general',
-        message: fullMessage,
+      // Submit to dedicated developer notes API (isolated from customer inquiries)
+      await api.post('/developer/notes', {
+        title: title.trim(),
+        section,
+        body: body.trim(),
+        solution: solution.trim() || undefined,
+        screenshotUrl: uploadedScreenshotUrl || undefined,
+        adminName: currentUser?.name,
+        adminEmail: currentUser?.email,
+        metadata: {
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          screenWidth: window.innerWidth,
+          screenHeight: window.innerHeight,
+        },
       });
 
       setSubmitted(true);

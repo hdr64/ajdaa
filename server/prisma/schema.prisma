@@ -260,3 +260,25 @@ model CmsClient {
   @@index([visible, order])
   @@map("cms_clients")
 }
+
+/// Developer notes, bug reports, and technical feedback created from the admin feedback pet.
+/// Strictly isolated from CustomerInquiry so it never pollutes the business leads / interest table.
+model DeveloperNote {
+  id            String   @id @default(uuid())
+  title         String
+  section       String
+  body          String
+  solution      String?
+  screenshotUrl String?
+  adminName     String?
+  adminEmail    String?
+  status        String   @default("pending") // pending | in_progress | resolved | closed
+  priority      String   @default("medium")  // low | medium | high | critical
+  metadata      String?  // JSON: browser, viewport, current URL
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("developer_notes")
+}

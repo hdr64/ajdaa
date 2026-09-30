@@ -24,6 +24,7 @@ import { settingsRoutes } from './routes/settings.routes.js';
 import { notificationRoutes } from './routes/notifications.routes.js';
 import { cmsRoutes } from './routes/cms.routes.js';
 import { logsRoutes } from './routes/logs.routes.js';
+import { developerNotesRoutes } from './routes/developerNotes.routes.js';
 import { loggerService } from './services/loggerService.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -153,6 +154,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
   await fastify.register(cmsRoutes, { prefix: '/api/cms' });
   await fastify.register(logsRoutes, { prefix: '/api/logs' });
+  await fastify.register(developerNotesRoutes, { prefix: '/api/developer/notes' });
 
   // Health check
   fastify.get('/api/health', async () => {
