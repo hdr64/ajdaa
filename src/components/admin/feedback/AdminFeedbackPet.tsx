@@ -349,6 +349,14 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
     ? { left: '20px', bottom: '20px' }
     : { right: '20px', bottom: '20px' };
 
+  const isLeftAnchored = position
+    ? position.x < (typeof window !== 'undefined' ? window.innerWidth / 2 : 500)
+    : isRTL;
+
+  const isTopAnchored = position ? position.y < 220 : false;
+  const horizontalAlignClass = isLeftAnchored ? 'left-0' : 'right-0';
+  const verticalAlignClass = isTopAnchored ? 'top-full mt-3' : 'bottom-full mb-3';
+
   return (
     <>
       {/* Floating Draggable Pet Container */}
@@ -367,9 +375,7 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
             <div
               ref={dropdownRef}
               data-dropdown="true"
-              className={`absolute bottom-full mb-3 z-50 w-60 rounded-2xl bg-surface/95 backdrop-blur-md border border-muted-border/60 shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150 ${
-                isRTL ? 'start-0' : 'end-0'
-              }`}
+              className={`absolute ${verticalAlignClass} ${horizontalAlignClass} z-50 w-60 rounded-2xl bg-surface/95 backdrop-blur-md border border-muted-border/60 shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150`}
             >
               {/* Option 1: Send message to developer */}
               <button
