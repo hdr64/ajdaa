@@ -39,12 +39,19 @@
   - [x] SWR background revalidation and Socket.io live updates.
   - [x] Wired `Navbar`, `Footer`, `ClientsPage`, `ClientsSection`, `HeroSection`, `Marquee`, `InteractiveProjectsMap`, `AboutSection`, `ServicesSection`, `ProcessSection`, `ProjectsSection`, `CtaSection`, `WorksPage`.
 
-### 2.2 Security & Authentication
+### 2.2 Developer Feedback Isolation & Production Telemetry — Shipped 2026-10-01
+- [x] **Developer Notes Model & Isolation**: Added dedicated `DeveloperNote` Prisma table with PostgreSQL/SQLite migrations, isolating technical bug reports from CRM customer inquiries.
+- [x] **Instant Developer Email Alerts**: Immediate HTML emails dispatched to `DEVELOPER_EMAIL` (`cloud.data.sa@gmail.com`) upon note submission from `AdminFeedbackPet.tsx`.
+- [x] **Developer API & Export**: Programmatic endpoints (`GET /api/developer/notes`, `GET /export?format=markdown`) secured by `DEVELOPER_NOTES_SECRET` or JWT.
+- [x] **Production Logs & Live Terminal Monitor**: In-memory 2,000-event ring buffer + streaming `prod.log`, with interactive dark-mode HTML monitor (`/api/logs/view`), level badges, debounced search, and raw tail stream.
+
+### 2.3 Security, Authentication & Platform Hardening
 - [x] Email OTP verification for admin login and password reset.
 - [x] Action-level granular permissions (`createProject`, `editProject`, `deleteProject`, `publishProject`, `viewProjects`, `manageCms`, `manageClients`, `rollbackCms`).
 - [x] Brute-force protection and IP-based rate limiting via `@fastify/rate-limit`.
 - [x] AES-256-GCM encrypted storage for SMTP mail credentials.
 - [x] Universal confirmation modals for all destructive actions.
+- [x] Platform SemVer bump to `v1.2.0` across configurations, health endpoints, and documentation.
 
 ---
 
@@ -52,7 +59,7 @@
 
 | # | Question / Proposal | Area | Priority |
 |---|---|---|---|
-| 1 | **SEO Strategy**: Evaluate Vite Prerender plugin vs SSR for static crawler indexing. | SEO / Marketing | Medium |
+| 1 | **SEO & Code-Splitting**: Split admin bundle (`React.lazy`) and evaluate pre-rendering for SEO. | Frontend / CWV | Medium |
 | 2 | **2FA (TOTP)**: Approve `@simplewebauthn` or Google Authenticator QR integration for admins. | Security | Low |
 | 3 | **Production VPS Launch**: Schedule live execution of `deploy/` scripts on Ubuntu server. | Infrastructure | High |
 
@@ -60,11 +67,13 @@
 
 ## 4. Next Priorities
 
-1. **Production VPS Deployment**:
-   - Provision Ubuntu 22.04 LTS VPS with native PostgreSQL 16.
-   - Configure Caddy 2 reverse proxy with Cloudflare Origin CA certificate.
-   - Enable systemd service units for API server and setup daily database backup cron.
-2. **ContactPage CMS Extension**:
-   - Extend `src/pages/ContactPage.tsx` to read header copy and dynamic subject options directly from `cms.contact`.
-3. **Comprehensive End-to-End Visual Verification**:
-   - Perform cross-browser testing across desktop and mobile devices.
+1. **Route-Level Code Splitting (Frontend Performance)**:
+   - Split `/admin/*` dashboard and CMS components from public customer-facing routes using `React.lazy()` and `Suspense`.
+   - Reduce the initial bundle from ~1,080 kB to under 300 kB for first-time visitors.
+2. **Production VPS Deployment**:
+   - Provision Ubuntu 24.04 LTS VPS with native PostgreSQL 16.
+   - Configure Caddy 2 reverse proxy with automatic Let's Encrypt TLS.
+   - Enable systemd service unit (`ajda-api.service`) and daily backup cron (`backup.sh`).
+3. **End-to-End Visual Verification**:
+   - Verify public CMS rendering and admin editing flows in browser.
+
