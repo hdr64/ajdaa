@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Eye, EyeOff, Layers, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, Layers, MapPin, Pencil, Trash2 } from 'lucide-react';
 import type { Property } from '../../../types/property';
 import { DataTable } from '../common/DataTable';
 import type { Column } from '../common/dataTableTypes';
@@ -19,6 +19,7 @@ interface ProjectsTableProps {
   onPublish: (project: Property) => void;
   onHide: (project: Property) => void;
   onEdit: (project: Property) => void;
+  onDuplicate: (project: Property) => void;
   onDelete: (project: Property) => void;
 }
 
@@ -31,6 +32,7 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
   onPublish,
   onHide,
   onEdit,
+  onDuplicate,
   onDelete,
 }) => {
   const columns = useMemo<Column<Property>[]>(
@@ -185,6 +187,15 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
                 aria-label={`تعديل ${project.title}`}
               >
                 <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onDuplicate(project)}
+                disabled={busyId === project.id}
+                className="p-1.5 rounded-lg text-accent hover:bg-accent/10 transition cursor-pointer disabled:opacity-50"
+                title="نسخ المشروع"
+                aria-label="نسخ المشروع"
+              >
+                <Copy className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => onDelete(project)}

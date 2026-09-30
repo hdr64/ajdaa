@@ -214,6 +214,11 @@ export const AdminStorage = {
     await propertyService.remove(projectId);
   },
 
+  /** Copies a project server-side; the new project comes back as a draft. */
+  duplicateProject(id: number): Promise<Property> {
+    return propertyService.duplicate(id);
+  },
+
   /* ------------------------------ Floors --------------------------------- */
 
   async addFloorToProject(projectId: number, floorName: string): Promise<Property> {

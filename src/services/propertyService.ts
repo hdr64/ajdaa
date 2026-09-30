@@ -355,6 +355,12 @@ export const propertyService = {
     await api.delete(`/api/projects/${id}`);
   },
 
+  /** Server-side copy: the response is a new draft project with floors and units. */
+  async duplicate(id: number): Promise<Property> {
+    const created = await api.post<ProjectDto>(`/api/projects/${id}/duplicate`);
+    return toProperty(created);
+  },
+
   /* ------------------------------ Floors ---------------------------------- */
 
   async createFloor(projectId: number, floor: FloorInput): Promise<PropertyFloor> {

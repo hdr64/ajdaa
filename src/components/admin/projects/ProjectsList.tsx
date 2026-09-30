@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff, Layers, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, Layers, MapPin, Pencil, Trash2 } from 'lucide-react';
 import type { Property } from '../../../types/property';
 import { publishStatusOf } from '../../../pages/admin/projectLabels';
 import { unitStats } from './projectsModel';
@@ -14,6 +14,7 @@ interface ProjectsListProps {
   onPublish: (project: Property) => void;
   onHide: (project: Property) => void;
   onEdit: (project: Property) => void;
+  onDuplicate: (project: Property) => void;
   onDelete: (project: Property) => void;
 }
 
@@ -26,6 +27,7 @@ export const ProjectsList: React.FC<ProjectsListProps> = ({
   onPublish,
   onHide,
   onEdit,
+  onDuplicate,
   onDelete,
 }) => {
   return (
@@ -139,6 +141,15 @@ export const ProjectsList: React.FC<ProjectsListProps> = ({
                     aria-label={`تعديل ${project.title}`}
                   >
                     <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onDuplicate(project)}
+                    disabled={busyId === project.id}
+                    className="p-2 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition cursor-pointer disabled:opacity-50"
+                    title="نسخ المشروع"
+                    aria-label="نسخ المشروع"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => onDelete(project)}

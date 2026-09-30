@@ -545,7 +545,7 @@ Verified against the code (e.g. no rate limiting, password reset, CAPTCHA, email
 - [ ] Saved filters / saved views per admin
 - [ ] Import (CSV/Excel) for units and projects; export for every list (projects, units, users), not only inquiries/newsletter
 - [ ] Soft delete + **trash/recycle bin** with restore (today deletes are permanent) — overlaps Phase 9 undo
-- [ ] Duplicate project (copy with floors/units as a new draft)
+- [x] Duplicate project (copy with floors/units as a new draft) — 2026-09-30, "نسخ المشروع" on cards, table, list and project page
 - [ ] Display order: drag to reorder projects/categories as they appear on the site
 - [ ] **Media library**: browse and reuse uploads, alt text (AR/EN), usage tracking, delete unused files (uploads are never cleaned up today)
 - [ ] Rich-text editor for project descriptions (headings, lists, links) instead of plain textareas

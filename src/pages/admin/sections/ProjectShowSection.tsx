@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Copy,
   ExternalLink,
   FileText,
   Inbox,
@@ -27,6 +28,7 @@ import { ProjectUnitsPanel } from './ProjectUnitsPanel';
 import { formatAdminDate } from '../adminFormat';
 import { completenessIssues, publicProjectUrl, PUBLISH_STATUS_LABELS_AR, publishStatusOf, UNIT_STATUS_LABELS_AR } from '../projectLabels';
 import { usePublishProject } from './usePublishProject';
+import { useDuplicateProject } from './useDuplicateProject';
 
 const STATUS_COLOR: Record<UnitStatus, string> = {
   available: 'var(--viz-available)',
@@ -66,6 +68,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
   const [activeImage, setActiveImage] = useState(project.image);
   const [tab, setTab] = useState<ProjectTab>('overview');
   const { publish, hide, busyId } = usePublishProject();
+  const { duplicate, busyId: duplicateBusyId } = useDuplicateProject();
   const status = publishStatusOf(project);
 
   const images = useMemo(() => {
@@ -145,13 +148,25 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             </button>
           ))}
         {canManage && (
-          <button
-            onClick={() => navigate({ section: 'projectEdit', projectId: project.id })}
-            className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
-          >
-            <Pencil className="w-4 h-4" />
-            <span className="hidden sm:inline">تعديل المشروع</span>
-          </button>
+          <>
+            <button
+              onClick={() => navigate({ section: 'projectEdit', projectId: project.id })}
+              className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
+            >
+              <Pencil className="w-4 h-4" />
+              <span className="hidden sm:inline">تعديل المشروع</span>
+            </button>
+            <button
+              onClick={() => void duplicate(project)}
+              disabled={duplicateBusyId === project.id}
+              title="نسخ المشروع"
+              aria-label="نسخ المشروع"
+              className="brand-btn-secondary font-bold px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs disabled:opacity-50"
+            >
+              <Copy className="w-4 h-4" />
+              <span className="hidden sm:inline">نسخ المشروع</span>
+            </button>
+          </>
         )}
       </AdminHeaderActions>
 

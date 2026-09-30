@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Building2, Eye, EyeOff, FileClock, Layers, MapPin, Pencil, Plus, Search, SearchX, Trash2, X as CloseIcon } from 'lucide-react';
+import { Building2, Copy, Eye, EyeOff, FileClock, Layers, MapPin, Pencil, Plus, Search, SearchX, Trash2, X as CloseIcon } from 'lucide-react';
 import type { Property, PublishStatus } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
@@ -10,6 +10,7 @@ import { SectionError, SectionLoading } from '../../../components/admin/common/S
 import { ProjectCreateModal } from '../../../components/admin/ProjectCreateModal';
 import { PUBLISH_STATUS_LABELS_AR, publishStatusOf } from '../projectLabels';
 import { usePublishProject } from './usePublishProject';
+import { useDuplicateProject } from './useDuplicateProject';
 import { ViewSwitcher } from '../../../components/admin/common/ViewSwitcher';
 import { isViewMode, type ViewMode } from '../../../components/admin/common/viewModes';
 import { usePersistentState } from '../../../hooks/usePersistentState';
@@ -70,6 +71,7 @@ export const ProjectsSection: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const [view, setView] = usePersistentState<ViewMode>('ajda.admin.projects.view', 'grid', isViewMode);
   const { publish, hide, busyId } = usePublishProject();
+  const { duplicate, busyId: duplicateBusyId } = useDuplicateProject();
 
   const statusCounts = useMemo(() => {
     const counts: Record<'all' | PublishStatus, number> = { all: projects.data.length, draft: 0, published: 0, hidden: 0 };
@@ -288,6 +290,7 @@ export const ProjectsSection: React.FC = () => {
           onPublish={(p) => void publish(p)}
           onHide={(p) => void hide(p)}
           onEdit={(p) => navigate({ section: 'projectEdit', projectId: p.id })}
+          onDuplicate={(p) => void duplicate(p)}
           onDelete={(p) => void handleDelete(p)}
         />
       ) : view === 'list' ? (
@@ -300,6 +303,7 @@ export const ProjectsSection: React.FC = () => {
           onPublish={(p) => void publish(p)}
           onHide={(p) => void hide(p)}
           onEdit={(p) => navigate({ section: 'projectEdit', projectId: p.id })}
+          onDuplicate={(p) => void duplicate(p)}
           onDelete={(p) => void handleDelete(p)}
         />
       ) : (
@@ -431,6 +435,15 @@ export const ProjectsSection: React.FC = () => {
                         className="p-2.5 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition cursor-pointer"
                       >
                         <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => void duplicate(project)}
+                        disabled={duplicateBusyId === project.id}
+                        title="نسخ المشروع"
+                        aria-label="نسخ المشروع"
+                        className="p-2.5 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition cursor-pointer disabled:opacity-50"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => void handleDelete(project)}
