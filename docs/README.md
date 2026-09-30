@@ -1,7 +1,7 @@
 # Ajda Real Estate Platform — Documentation Index
 
 > **Last Updated**: 2026-10-01  
-> **Platform Version**: 1.1.0 (Full CMS & Granular Permissions)
+> **Platform Version**: 1.2.0 (Full CMS, Telemetry Logs, & Developer Notes Isolation)
 
 Welcome to the comprehensive documentation suite for the **Ajda Real Estate Platform**. This directory contains the complete technical architecture, API specifications, operations guides, roadmap, and historical design records.
 

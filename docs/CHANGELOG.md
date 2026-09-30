@@ -5,7 +5,31 @@
 
 ---
 
-## 2026-10-01
+## [1.2.0] — 2026-10-01
+
+### 🛡️ Feature: Isolated Developer Notes Table & Instant Email Notifications
+- **Dedicated Database Table**: Added standalone `DeveloperNote` model mapped to `developer_notes` with status and date indexes.
+- **Strict Domain Isolation**: Completely decoupled developer feedback from `CustomerInquiry` ("طلبات الاهتمام والعملاء"). Migrated and purged existing developer feedback from customer inquiries table.
+- **Immediate Email Dispatch**: Integrated with `mailService` to dispatch rich HTML alert emails to `DEVELOPER_EMAIL` (`cloud.data.sa@gmail.com`) upon note creation with section, issue description, suggested solution, and full-resolution screenshot preview.
+- **Developer Management API**: Added `/api/developer/notes` (listing, search, export to Markdown/JSON, status patching, deletion) guarded by `DEVELOPER_NOTES_SECRET` or `super_admin` JWT.
+- **Frontend Wiring**: Refactored `AdminFeedbackPet.tsx` to submit directly to `/api/developer/notes`.
+
+### 📊 Feature: Live Production Logs, In-Memory Ring Buffer & HTML Terminal UI
+- **Dual-Tier Logging**: 2,000-event in-memory ring buffer for 0ms retrieval + simultaneous streaming persistence to `server/prod.log`.
+- **Fastify HTTP Telemetry**: Automatic request/response logging capturing method, URL, status code, latency (ms), IP, and User-Agent.
+- **Interactive Terminal Viewer**: Dark-mode live dashboard at `/api/logs/view` featuring 3-second live polling, level badges, debounced search, system telemetry banner, and 1-click log clearing.
+- **REST Endpoints**: `/api/logs` (JSON), `/api/logs/raw` (plain text), `/api/logs/stats` (telemetry), `/api/logs/clear` (buffer purge & file truncation).
+- **Security**: Accessible via `?key=<LOGS_SECRET_KEY>`, admin JWT, or optional `LOGS_PUBLIC=true`.
+
+### 🎨 Feature: Phase 2A Frontend Wiring & Follow-ups
+- **Navbar WhatsApp & Phone**: Migrated to `useCmsContact()` with graceful fallback to legacy site settings.
+- **ContactPage CMS Integration**: Dynamic title, subtitle, form headings, and contact info. Implemented index-based positional tracking (`form.subjectIndex`) ensuring CMS copy edits never desynchronize CRM interest classification.
+- **Hero Highlight Word**: Added two-tone gradient accent treatment with case-insensitive token matching and fallback.
+- **CMS Hooks Extension**: Added `address` and `hours` to `useCmsContact()`, and index-aligned paired list zipping to `useCmsText().list()`.
+
+---
+
+## [1.1.0] — 2026-10-01
 
 ### 🚀 Major Feature: Full Content Management System (CMS) & Versioning Engine
 - **Database Architecture**: Added dedicated Prisma models `CmsSection`, `CmsSectionVersion`, and `CmsClient` for relational partners.
@@ -30,7 +54,7 @@
 
 ---
 
-## 2026-09-30
+## [1.0.0] — 2026-09-30
 
 ### Features
 - **Email OTP** — Login verification (per-admin toggle or global) + forgot/reset password via 6-digit code (10 min expiry, 5 attempts, 60s resend).

@@ -158,7 +158,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // Health check
   fastify.get('/api/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    return { status: 'ok', version: '1.2.0', timestamp: new Date().toISOString() };
   });
 
   return fastify;
