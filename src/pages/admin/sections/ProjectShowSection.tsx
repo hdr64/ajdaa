@@ -96,7 +96,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
     const ok = await confirmDelete({
       title: `حذف المشروع "${project.title}"؟`,
       message: 'سيتم حذف جميع الأدوار والوحدات التابعة له نهائياً.',
-      confirmLabel: 'حذف المشروع',
+      confirmLabel: 'حذف المشروع',
     });
     if (!ok) return;
     try {

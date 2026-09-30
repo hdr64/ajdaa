@@ -139,7 +139,7 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
     const ok = await confirmDelete({
       title: `حذف الوحدة "${unit.unitNumber}"؟`,
       message: 'لا يمكن التراجع عن هذا الإجراء.',
-      confirmLabel: 'حذف الوحدة',
+      confirmLabel: 'حذف الوحدة',
     });
     if (ok) await run(() => AdminStorage.deleteUnitFromProject(project.id, unit.id), 'تم حذف الوحدة');
   };
@@ -191,7 +191,7 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
     const ok = await confirmDelete({
       title: `حذف "${floor.floorNameAr}"؟`,
       message: `سيتم حذف الدور و${floor.units.length} وحدة تابعة له نهائياً.`,
-      confirmLabel: 'حذف الدور',
+      confirmLabel: 'حذف الدور',
     });
     if (!ok) return false;
     return run(() => AdminStorage.deleteFloorFromProject(project.id, floor.floorNumber), 'تم حذف الدور');
