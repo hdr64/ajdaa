@@ -1,8 +1,34 @@
 # 🏗️ Ajda Real Estate Platform
 
-Full-stack real estate management system: a React 19 + Vite SPA (AR/EN) with a Fastify + Prisma + PostgreSQL API.
+> **Version: 1.2.0** | React 19 SPA + Fastify 5 API + Prisma + PostgreSQL 16 / SQLite
 
-## Repository Layout
+Full-stack real estate management and marketing system: a modern React 19 + Vite SPA (AR/EN) with a high-performance Fastify + Prisma API, complete Content Management System (CMS v2.1), action-level RBAC, telemetry logging, and isolated developer feedback channels.
+
+---
+
+## 📑 Table of Contents
+
+- [Repository Layout](#-repository-layout)
+- [Documentation Suite](#-documentation-suite)
+- [Key Features](#-key-features)
+- [Database Strategy (SQLite / PostgreSQL)](#-database-strategy--sqlite-dev--postgresql-prod)
+  - [PostgreSQL Database & User Setup](#creating-postgresql-database--user)
+- [Data Source of Truth](#-data-source-of-truth)
+- [Quick Start](#-quick-start)
+  - [Full-Stack Development (Recommended)](#full-stack-development-recommended)
+  - [Backend Setup](#backend-setup)
+  - [Frontend Setup](#frontend-setup)
+  - [Seed Data & Media Assets](#seed-data--media-assets)
+- [Configuration & Environment Variables](#-configuration--environment-variables)
+- [API Overview](#-api-overview)
+- [Production Logs & Telemetry](#-production-logs--telemetry)
+- [Developer Notes Isolation](#-developer-notes-isolation)
+- [Production Deployment](#-production-deployment)
+- [Quality Gates & Standards](#-quality-gates--standards)
+
+---
+
+## 📂 Repository Layout
 
 ```
 ajda/
@@ -17,11 +43,11 @@ ajda/
 │   ├── CHANGELOG.md        # Detailed version history
 │   └── gap-analysis.md     # Feature gap audit & roadmap
 ├── src/                    # Frontend — React 19 + Vite + Tailwind v4
-│   ├── components/admin/   # Admin dashboard suites & CMS panels (cms/*)
+│   ├── components/admin/   # Admin dashboard suites, CMS panels (cms/*), feedback pet
 │   ├── context/            # CmsContext & public real-time providers
 │   ├── data/properties.ts  # Display helpers only (getPropertyDisplay)
 │   ├── services/           # api.ts client + property/inquiry/auth/cms/media services
-│   ├── hooks/              # useAsyncData, useRealtimeUnits, useCmsSection
+│   ├── hooks/              # useAsyncData, useRealtimeUnits, useCmsSection, useCmsContact
 │   └── pages/              # public site + /admin/*
 ├── server/                 # Backend — Fastify + Prisma
 │   ├── prisma/
@@ -32,51 +58,74 @@ ajda/
 │   ├── src/
 │   │   ├── config/         # env.ts (zod-validated), constants.ts
 │   │   ├── middleware/     # auth (JWT), validate (zod)
-│   │   ├── routes/         # auth, projects, units, inquiries, cms, media
-│   │   ├── services/       # prisma, cmsCacheService, mediaService, mailService
+│   │   ├── routes/         # auth, projects, units, inquiries, cms, logs, developerNotes, media
+│   │   ├── services/       # prisma, cmsCacheService, loggerService, mailService, mediaService
 │   │   ├── sockets/        # Socket.io realtime engine
 │   │   ├── app.ts          # buildApp() factory (testable, no listen)
 │   │   └── server.ts       # Entry point → listen
+│   ├── prod.log            # Local production log file (gitignored)
 │   └── uploads/            # Local media storage (gitignored)
+├── deploy/                 # Production deployment scripts & systemd units
+│   ├── ajda-api.service    # Systemd service unit for Fastify API
+│   ├── backup.sh           # Automated PostgreSQL & uploads backup script
+│   └── README-deploy.md    # Production deployment playbook
 ```
 
-## 📖 Documentation
+---
 
-For detailed guides and architecture, refer to the [`docs/`](docs/README.md) directory:
+## 📖 Documentation Suite
 
-- 🏛️ [System Architecture](docs/architecture.md)
-- 📝 [CMS Architecture v2.1 Specification](docs/cms-architecture.md)
-- 🔌 [API & WebSocket Reference](docs/api-reference.md)
-- 🚀 [Production Deployment (No Docker)](docs/deployment.md)
-- 🧪 [Testing Strategy & Vitest Suites](docs/testing-strategy.md)
-- 📋 [Sprint Backlog & TODO](docs/TODO.md)
-- 📜 [Changelog & Release Notes](docs/CHANGELOG.md)
-- 🔍 [Feature Gap Analysis](docs/gap-analysis.md)
-- 📦 [Historical Archives](docs/archive/) (includes unedited `original-refactor.md`)
+For detailed technical specifications, operational procedures, and design docs, refer to the [`docs/`](docs/README.md) suite:
 
-## Database Strategy — SQLite (dev) / PostgreSQL (prod)
+- 🏛️ [System Architecture](docs/architecture.md) — Comprehensive technical architecture, caching, security, and schema topology.
+- 📝 [CMS Architecture v2.1 Specification](docs/cms-architecture.md) — Dynamic CMS schema, section specifications, version rollback, and caching.
+- 🔌 [API & WebSocket Reference](docs/api-reference.md) — Complete endpoint reference, payload schemas, query parameters, and Socket.io events.
+- 🚀 [Production Deployment (No Docker)](docs/deployment.md) — Ubuntu 24.04 LTS native setup with PostgreSQL 16, Caddy 2, and systemd.
+- 🧪 [Testing Strategy & QA Suites](docs/testing-strategy.md) — Vitest suites, security regression tests, and verification checklist.
+- 📋 [Sprint Backlog & TODO](docs/TODO.md) — Active roadmap, upcoming milestones, and completed features.
+- 📜 [Changelog & Release Notes](docs/CHANGELOG.md) — Granular release tracking from v1.0.0 through v1.2.0+.
+- 🔍 [Feature Gap Analysis](docs/gap-analysis.md) — Deep audit comparing target architecture with current implementation.
+- 📦 [Historical Archives](docs/archive/) — Unmodified preservation of historical planning documents (including `original-refactor.md`).
+
+---
+
+## ✨ Key Features
+
+- **🏢 Property Portfolio & Unit Inventory**: Hierarchical project management (Projects → Floors → Units) with real-time status transitions (`available`, `reserved`, `sold`), amenity tagging, and dynamic pricing.
+- **🎨 Dynamic CMS v2.1 Engine**: Granular control over Navbar, Footer, Hero, Services, Stats, Features, Projects, Clients, and Contact sections with 10-revision history rollback and instant cache eviction.
+- **⚡ Real-Time WebSocket Synchronization**: Instant unit availability sync across all connected clients (`units:changed`, `units:status_updated`) and push invalidation for CMS updates (`cms:updated`).
+- **🛡️ Action-Level Role-Based Access Control (RBAC)**: Fine-grained permissions (e.g. `manageProjects`, `viewInquiries`, `manage_cms_content`), customizable roles, departments, and user assignment.
+- **📊 Live Production Telemetry & Log Viewer**: Real-time dark-mode HTML console (`/api/logs/view`) with 3s live polling, level filters, debounced text search, system stats bar, and raw tail stream.
+- **🐞 Isolated Developer Feedback System**: Dedicated `DeveloperNote` database table strictly isolated from customer CRM inquiries, immediate HTML email alerts to developer inbox, and programmatic export API.
+- **🔒 Enterprise Security Hardening**: Constant-time token comparison, SHA-256 digested OTP logins, magic byte file-type verification, Sharp image sanitization, account lockouts, and rate limiting.
+- **📬 Inquiries & CRM Automation**: Positional index-tracked contact form submissions, CSV export (UTF-8 BOM RFC 4180), automated email dispatch, and newsletter subscriber tracking.
+
+---
+
+## 🗄️ Database Strategy — SQLite (dev) / PostgreSQL (prod)
 
 One canonical schema, two generated schemas — no Docker required.
 
-| | Dev local | Production |
+| Dimension | Dev Local | Production |
 |---|---|---|
-| Schema | `prisma/schema.prisma` (sqlite) | `prisma/schema.postgresql.prisma` (generated) |
-| Sync | `npm run db:push` | committed migrations `npm run db:migrate` |
-| DB file | `server/prisma/dev.db` | PostgreSQL 16 |
+| **Prisma Schema** | `prisma/schema.prisma` (provider = `sqlite`) | `prisma/schema.postgresql.prisma` (provider = `postgresql`) |
+| **Sync Mechanism** | `npm run db:push` | Committed migrations via `npm run db:migrate` |
+| **Storage Engine** | `server/prisma/dev.db` | PostgreSQL 16 (Native Linux Service) |
+| **Client Generation**| `npx prisma generate` | `npm run db:gen:prod` |
 
-> Prisma cannot read `provider` from an env var (error P1012). The prod schema is
-> generated from the canonical one — see `npm run db:gen:prod`.
+> [!NOTE]
+> Prisma does not permit setting `provider` dynamically via environment variables (error `P1012`). The production PostgreSQL schema is deterministically generated from the canonical SQLite schema via `npm run db:gen:prod`.
 
 ### Creating PostgreSQL Database & User
 
-To set up a fresh PostgreSQL database and dedicated user (e.g. on Ubuntu/Debian VPS):
+To set up a fresh PostgreSQL 16 database and dedicated service user on Ubuntu/Debian:
 
-1. **Open the PostgreSQL CLI as the `postgres` superuser**:
+1. **Open PostgreSQL as the `postgres` superuser**:
    ```bash
    sudo -u postgres psql
    ```
 
-2. **Create the user (role), database, and grant privileges**:
+2. **Execute role and database provisioning**:
    ```sql
    -- 1. Create role with login credentials:
    CREATE ROLE ajda WITH LOGIN PASSWORD 'YOUR_STRONG_PASSWORD';
@@ -96,7 +145,7 @@ To set up a fresh PostgreSQL database and dedicated user (e.g. on Ubuntu/Debian 
    \q
    ```
 
-   *Alternatively, run all at once in bash:*
+   *Or run as a single one-liner in bash:*
    ```bash
    sudo -u postgres psql <<'SQL'
    CREATE ROLE ajda WITH LOGIN PASSWORD 'YOUR_STRONG_PASSWORD';
@@ -108,235 +157,345 @@ To set up a fresh PostgreSQL database and dedicated user (e.g. on Ubuntu/Debian 
    SQL
    ```
 
-3. **Set `DATABASE_URL` in `server/.env`**:
+3. **Configure `DATABASE_URL` in `server/.env`**:
    ```dotenv
    DATABASE_URL="postgresql://ajda:YOUR_STRONG_PASSWORD@localhost:5432/ajda?schema=public"
    ```
 
-4. **Verify connection (optional)**:
-   ```bash
-   psql -U ajda -d ajda -h localhost -W
-   ```
-
-5. **Generate client and apply migrations**:
+4. **Deploy migrations & seed database**:
    ```bash
    cd server
-   npm run db:gen:prod   # generates PostgreSQL schema & compiles Prisma Client
-   npm run db:migrate    # applies migrations via prisma migrate deploy
-   npm run db:seed       # seeds initial admin user & catalogue
+   npm run db:gen:prod   # Generates schema.postgresql.prisma and compiles Prisma Client
+   npm run db:migrate    # Applies committed migrations (prisma migrate deploy)
+   npm run db:seed       # Seeds super admin, categories, and initial catalogue
    ```
 
-## Data Source of Truth
+---
 
-The **database is the source of truth** for projects, floors, units, and inquiries.
-`src/data/properties.ts` survives only as a pure presentation helper
-(`getPropertyDisplay`) — it is no longer the data layer.
+## 🎯 Data Source of Truth
 
-| Concern | Owner |
-|---|---|
-| Projects / floors / units / inquiries / admin users | API + Prisma |
-| Categories | API (`/api/categories`); the admin Categories tab is being migrated off browser `localStorage` |
-| Auth token | `localStorage`, sent as `Authorization: Bearer` |
-| UI loading / error / reload state | `useAsyncData` |
-| Live unit-status sync | `useRealtimeUnits` (Socket.io) |
+The **database is the absolute source of truth** for all platform data. `src/data/properties.ts` survives solely as a presentation display helper (`getPropertyDisplay`) — it is never used as a data storage layer.
 
-Reads are public (`GET /api/projects`); every write is JWT-protected. In dev the
-Vite server proxies `/api`, `/uploads`, and `/socket.io` to `http://localhost:4000`,
-so both servers run on their default ports with no CORS setup.
+| Platform Concern | Source of Truth / Owner | Primary Access |
+|---|---|---|
+| **Projects / Floors / Units** | PostgreSQL / SQLite via Prisma | `GET /api/projects`, `POST/PUT /api/projects/:id` |
+| **CMS Site Content** | Prisma (`CmsSection`, `CmsClient`, `CmsSectionVersion`) | `GET /api/cms`, `PUT /api/cms/:sectionKey` |
+| **Developer Notes & Feedback**| Prisma (`DeveloperNote`) — strictly isolated | `POST /api/developer/notes`, `GET /api/developer/notes` |
+| **Customer Inquiries (CRM)** | Prisma (`CustomerInquiry`) | `POST /api/inquiries`, `GET /api/inquiries` |
+| **Categories & Metadata** | Prisma (`CategoryItem`) | `GET /api/categories`, `POST/PUT /api/categories` |
+| **Authentication & RBAC** | Prisma (`AdminUser`, `Role`, `Department`) | `POST /api/auth/login`, `GET /api/roles` |
+| **Auth Session State** | Browser `localStorage` (sent as `Authorization: Bearer <jwt>`) | Managed via `authService.ts` |
+| **UI Loading / Cache States** | React Hooks (`useAsyncData`, `useCmsSection`) | Component-level reactive state |
+| **Live Synchronization** | Socket.io (`useRealtimeUnits`, `CmsProvider`) | WebSockets (`units:*`, `cms:updated`) |
 
-## Backend — Quick Start (dev)
+---
+
+## 🚀 Quick Start
+
+### Full-Stack Development (Recommended)
+
+Run both the Fastify backend and the Vite frontend concurrently with a single command from the project root:
+
+```bash
+npm install
+npm run dev:all
+```
+
+- **Frontend SPA**: `http://localhost:5173`
+- **Backend API**: `http://localhost:4000` (proxied automatically via Vite)
+- **Live Logs Monitor**: `http://localhost:4000/api/logs/view?key=ajda-logs-secret-2026`
+
+---
+
+### Backend Setup
 
 ```bash
 cd server
 npm install
-cp .env.example .env           # dev defaults are fine
-npm run db:gen:prod            # generates prisma/schema.postgresql.prisma (gitignored)
-npm run db:push                # create prisma/dev.db from sqlite schema
-npm run db:seed                # admin users, categories, 7 projects / 12 floors / 30 units
-npm run dev                    # API on :4000 with tsx watch
+cp .env.example .env           # Adjust credentials as needed
+npm run db:push                # Sync SQLite schema to dev.db
+npm run db:seed                # Seed super admin, categories, and demo projects
+npm run dev                    # Starts Fastify on :4000 with tsx watch
 ```
 
-- Default admin: `admin@ajdaa.sa` / `password` (override via `SEED_ADMIN_PASSWORD`).
-- Smoke tests: `curl http://localhost:4000/api/health`.
+- **Default Super Admin**: `admin@ajdaa.sa` / `password` (configurable via `SEED_ADMIN_PASSWORD`).
+- **Health & Telemetry Check**: `curl http://localhost:4000/api/health`
 
-## Frontend — Quick Start (dev)
+---
+
+### Frontend Setup
 
 ```bash
 npm install
-npm run dev      # SPA on :5173, proxying /api + /socket.io to :4000
-npm run build    # production bundle → dist/ (static, served by Caddy)
+npm run dev      # Vite dev server on :5173 (proxies /api, /uploads, /socket.io to :4000)
+npm run build    # Production build → dist/ (static bundle served by Caddy)
+npm run lint     # Oxlint static analysis
 ```
 
-Run the API first (`cd server && npm run dev`), otherwise every read returns a
-network error and the UI shows its error state rather than empty data.
+---
 
-### Seed data
+### Seed Data & Media Assets
 
-`server/prisma/seed-data/projects.seed.ts` is **auto-generated** by
-`npm run db:sync-data` and is a **dev bootstrap only** — it seeds a starting dataset
-(7 projects / 12 floors / 30 units). It is no longer the source of truth; the API and
-database are. Once the API is live, projects are created and edited through
-`/admin/dashboard`, not by regenerating this file.
+- `server/prisma/seed-data/projects.seed.ts` is **auto-generated** by `npm run db:sync-data` as a dev bootstrap dataset (7 projects / 12 floors / 30 units). It is never modified manually.
+- When `npm run db:seed` executes, it copies source images from `src/assets/ajda/...` into `server/uploads/seed/...` and stores the permanent URL in the database.
+- **Idempotent by default**: The seed will skip project seeding if the `Project` table already has entries, preserving all admin dashboard edits.
+- To force a full wipe and reseed:
+  ```bash
+  SEED_RESET_PROJECTS=1 npm run db:seed
+  ```
 
-```bash
-npm run db:sync-data   # optional: regenerate the bootstrap seed, then npm run db:seed
-```
+---
 
-**Safe to re-run.** The seed upserts admin users and categories, and seeds projects
-*only when the `Project` table is empty*. On a database that already has projects it
-logs `Projects already present (N) — skipping project seed.` and leaves everything
-alone, so re-running it after a deploy never destroys dashboard edits. To force a
-wipe-and-reseed of projects/floors/units:
+## ⚙️ Configuration & Environment Variables
 
-```bash
-SEED_RESET_PROJECTS=1 npm run db:seed
-```
+Copy `server/.env.example` to `server/.env`. All variables are validated at startup with Zod.
 
-### Seed images and `uploads/`
+### Core Server & Database
 
-The generated seed stores image paths as frontend source paths (`assets/ajda/...`,
-relative to `src/`). Those are content-hashed by a production Vite build, so the
-paths 404 once built. Before creating projects, `db:seed` therefore copies every
-referenced file from `src/<path>` into `UPLOAD_DIR/seed/<path without "assets/">`
-and stores the served URL (`/uploads/seed/ajda/prime/prime1.webp`) in the database.
-Absolute `http(s)` URLs and paths already starting with `/uploads/` are stored
-unchanged, and identical files are skipped on re-runs. If a source asset is missing
-the seed fails and lists the missing files rather than storing a broken URL.
+| Variable | Default | Description |
+|---|---|---|
+| `NODE_ENV` | `development` | Environment mode (`development`, `production`, `test`) |
+| `PORT` | `4000` | Port for the Fastify server |
+| `DATABASE_URL` | `file:./dev.db` | SQLite URL in dev; PostgreSQL connection string in production |
+| `CLIENT_ORIGIN` | `http://localhost:5173` | Comma-separated list of allowed CORS browser origins |
+| `UPLOAD_DIR` | `./uploads` | Directory for uploaded media and seed assets |
+| `TRUST_PROXY` | `true` | Enables proxy header resolution (`X-Forwarded-For`) behind Caddy |
 
-Because seed media now lives in the upload directory, **`server/uploads/` holds real
-site content and must be backed up** (the deploy backup script at
-`deploy/README-deploy.md` does not include it by default).
+### Security & Authentication
 
-## API Overview
+| Variable | Default | Description |
+|---|---|---|
+| `JWT_SECRET` | *(required)* | Secret key for signing admin JWTs (min 16 chars; use `openssl rand -base64 32`) |
+| `SETTINGS_ENCRYPTION_KEY` | Derived from JWT | Encryption key for securing sensitive admin settings |
+| `LOGIN_OTP_REQUIRED` | `false` | When `true`, forces email 2FA OTP for all admin accounts |
+| `LOGIN_OTP_TTL_MS` | `600000` (10m) | Expiration window for 2FA one-time verification codes |
+| `LOGIN_OTP_MAX_ATTEMPTS` | `5` | Maximum incorrect verification attempts before invalidation |
+| `LOGIN_OTP_RESEND_COOLDOWN_MS` | `60000` (1m) | Cooldown period between resending OTP challenge codes |
+
+### SMTP & Email Notifications
+
+| Variable | Default | Description |
+|---|---|---|
+| `MAIL_HOST` | `""` (disabled) | SMTP host. If empty, mail sending is a safe logged no-op |
+| `MAIL_PORT` | `587` | SMTP port (`587` for STARTTLS, `465` for SSL) |
+| `MAIL_USERNAME` | `""` | SMTP username / address |
+| `MAIL_PASSWORD` | `""` | SMTP password (or Google App Password) |
+| `MAIL_ENCRYPTION` | `tls` | Encryption protocol (`tls`, `ssl`, or `none`) |
+| `MAIL_FROM_ADDRESS` | `""` | Sender address shown in outgoing emails |
+| `MAIL_FROM_NAME` | `Ajda` | Brand display name in email header |
+| `APP_URL` | `https://ajda.weghetk.com` | Base URL used to construct links inside emails |
+| `NOTIFY_INQUIRY_EMAILS` | `""` | Comma-separated allowlist for CRM inquiry alerts (empty = all admins with `viewInquiries`) |
+
+### Production Logs & Monitoring
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOG_FILE_PATH` | `./prod.log` | Path to persistent production log file |
+| `LOGS_SECRET_KEY` | `ajda-logs-secret-2026` | Secret key for log API and live terminal viewer access |
+| `LOGS_PUBLIC` | `false` | When `true`, allows unrestricted access to logs without credentials |
+
+### Developer Notes & Feedback
+
+| Variable | Default | Description |
+|---|---|---|
+| `DEVELOPER_EMAIL` | `cloud.data.sa@gmail.com` | Target email for instant technical bug / feedback notifications |
+| `DEVELOPER_NOTES_SECRET` | `ajda-dev-notes-2026` | Secret key for programmatic developer API and export endpoints |
+
+---
+
+## 🔌 API Overview
+
+### Authentication & Users
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/login` | – | Login → `{ token, user }`, or `{ otpRequired, challengeId, emailHint }` + emailed code when OTP applies |
-| POST | `/api/auth/login/verify-otp` | – | Exchange the emailed code → `{ token, user }` (wrong: `400` + `attemptsLeft`; dead: `410`) |
-| POST | `/api/auth/login/resend-otp` | – | Re-send the login code → `{ sent }` (`429` inside the cooldown) |
-| POST | `/api/auth/password/forgot` | – | Start a reset. Always `{ sent }`, whether or not the address exists |
-| POST | `/api/auth/password/reset` | – | `{ email, code, newPassword }` → `{ reset }`; kills every earlier token |
-| PATCH | `/api/auth/me/login-otp` | JWT | Turn login OTP on/off for the signed-in admin (requires the current password) |
-| GET | `/api/auth/me` | JWT | Current user |
-| PATCH | `/api/auth/me` | JWT | Update own profile (name, email, phone) |
-| POST | `/api/auth/me/password` | JWT | Change password (requires current password verification) |
-| GET/POST | `/api/auth/users` | JWT | List / create admin users |
-| PUT/DELETE | `/api/auth/users/:id` | JWT | Update / deactivate (no self-delete, no last `super_admin`) |
-| GET | `/api/permissions` | JWT | List fixed permission catalogue |
-| GET/POST | `/api/roles` | JWT | List roles (with userCount) / create role (manageUsers) |
-| PUT/DELETE | `/api/roles/:id` | JWT | Update role (applyToUsers) / delete unused role (manageUsers) |
-| GET/POST | `/api/departments` | JWT | List departments (with userCount) / create department (manageUsers) |
-| PUT/DELETE | `/api/departments/:id` | JWT | Update department / delete unused department (manageUsers) |
-| GET | `/api/projects` | – | Published projects `?city=&type=&priceType=`; admin list via `?scope=admin[&status=]` (JWT) |
-| GET | `/api/projects/:id` | – | Published project + floors + units; admin view via `?scope=admin` (JWT) |
-| POST/PUT/DELETE | `/api/projects/:id` | JWT | Admin CRUD (new projects default to draft) |
-| PATCH | `/api/projects/:id/publish` | JWT | Update project publish status (manageProjects) |
-| POST/PUT/DELETE | `/api/projects/:id/floors*` | JWT | Nested floor CRUD; deleting a floor cascades its units |
-| POST/PUT/DELETE | `/api/units*` | JWT | Unit CRUD |
-| PATCH | `/api/units/:id/status` | JWT | Update unit status (Socket.io broadcast) |
-| POST | `/api/inquiries` | – | Public inquiry against published project (Socket.io alert + admin email) |
-| GET | `/api/inquiries` | JWT | CRM list `?status=&projectId=` |
-| GET | `/api/inquiries/export` | JWT | Export inquiries to CSV (BOM, RFC 4180) |
-| PATCH | `/api/inquiries/:id` | JWT | CRM inquiry update (notes, status) |
-| PATCH | `/api/inquiries/:id/status` | JWT | CRM status change |
-| DELETE | `/api/inquiries/:id` | JWT | Delete inquiry (super_admin only) |
-| GET | `/api/categories` | – | List categories sorted by id |
-| POST | `/api/categories` | JWT | Create category (manageProjects) |
-| PUT | `/api/categories/:id` | JWT | Update category (manageProjects) |
-| DELETE | `/api/categories/:id` | JWT | Delete category (manageProjects) |
-| POST | `/api/newsletter` | – | Subscribe to newsletter (idempotent, 200) |
-| GET | `/api/newsletter` | JWT | List subscribers newest first (exportData, ?q=) |
-| GET | `/api/newsletter/export` | JWT | Export subscribers to CSV (exportData, BOM, RFC 4180) |
-| DELETE | `/api/newsletter/:id` | JWT | Unsubscribe / remove subscriber (exportData) |
-| GET | `/api/cms` | – | Aggregated CMS bundle (ETag: `W/"cms-agg-..."`, cache-backed) |
-| GET | `/api/cms/:sectionKey` | – | Specific CMS section (ETag: `W/"sec-..."`, HTTP 304 supported) |
-| PUT | `/api/cms/:sectionKey` | JWT | Update CMS section content (manage_cms_content, snapshot created) |
-| GET | `/api/cms/:sectionKey/versions` | JWT | Section revision history (up to 10 versions) |
-| POST | `/api/cms/:sectionKey/rollback/:version` | JWT | Rollback section to historical snapshot |
-| GET | `/api/cms/clients` | – | List clients / partners sorted by order |
-| POST/PUT/DELETE | `/api/cms/clients*` | JWT | Client logo CRUD & bulk operations (manage_cms_clients) |
-| POST | `/api/cms/cache/clear` | JWT | Evict CMS in-memory cache & broadcast reload (manage_cms) |
-| GET | `/api/logs` | Key/JWT | Production logs JSON stream (level, search, limit, telemetry) |
-| GET | `/api/logs/view` | Key/JWT | Interactive dark-mode live HTML terminal log monitor |
-| GET | `/api/logs/raw` | Key/JWT | Raw plain-text log file tail stream |
-| POST | `/api/logs/clear` | Key/JWT | Clear in-memory log buffer and truncate prod.log |
-| POST | `/api/media/upload` | JWT | Image → WebP (sharp, 2400px q82) or PDF |
-| GET | `/api/health` | – | Health check |
+| `POST` | `/api/auth/login` | Public | Login → `{ token, user }` or 2FA OTP challenge |
+| `POST` | `/api/auth/login/verify-otp` | Public | Verify 2FA emailed OTP code → `{ token, user }` |
+| `POST` | `/api/auth/login/resend-otp` | Public | Resend 2FA login code (subject to rate limit cooldown) |
+| `POST` | `/api/auth/password/forgot` | Public | Initiate password reset email |
+| `POST` | `/api/auth/password/reset` | Public | Complete password reset with verification code |
+| `GET` | `/api/auth/me` | JWT | Get current authenticated user profile and permissions |
+| `PATCH`| `/api/auth/me` | JWT | Update current user profile (name, email, phone) |
+| `POST` | `/api/auth/me/password` | JWT | Change password (verifies current password) |
+| `PATCH`| `/api/auth/me/login-otp` | JWT | Enable/disable personal login 2FA OTP |
+| `GET` | `/api/auth/users` | JWT | List admin users (`manageUsers`) |
+| `POST` | `/api/auth/users` | JWT | Create new admin user (`manageUsers`) |
+| `PUT` | `/api/auth/users/:id` | JWT | Update admin user (`manageUsers`) |
+| `DELETE`| `/api/auth/users/:id` | JWT | Deactivate admin user (protects last `super_admin`) |
 
-Bodies are validated with zod (`400` + `issues` on failure). Arrays stored in the DB
-(JSON) are serialized back to real arrays by `services/serializers.ts`.
+### Role-Based Access Control (RBAC)
 
-Notable server-side guarantees:
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/permissions` | JWT | List system permission catalogue |
+| `GET` | `/api/roles` | JWT | List custom roles with assigned user counts |
+| `POST` | `/api/roles` | JWT | Create new role with permission set (`manageUsers`) |
+| `PUT` | `/api/roles/:id` | JWT | Update role permissions and cascade to users (`manageUsers`) |
+| `DELETE`| `/api/roles/:id` | JWT | Delete unused role (`manageUsers`) |
+| `GET` | `/api/departments` | JWT | List departments with member counts |
+| `POST` | `/api/departments` | JWT | Create department (`manageUsers`) |
+| `PUT` | `/api/departments/:id` | JWT | Update department (`manageUsers`) |
+| `DELETE`| `/api/departments/:id` | JWT | Delete unused department (`manageUsers`) |
 
-- **Prisma error mapping** — `P2025` → `404`, `P2002` → `409`, `P2003` → `400`, so a
-  missing row never surfaces as an opaque `500`.
-- **Uploads are type-sniffed, not trusted** — the media type is detected from magic
-  bytes, not the client-declared mimetype. Images are always re-encoded through
-  sharp; PDFs are stored as-is and served with `Content-Disposition: attachment` and
-  `X-Content-Type-Options: nosniff`. Anything outside the allowlist → `400`,
-  over 50 MB → `413`.
-- **Inquiries are self-describing** — `projectTitle` / `unitNumber` are resolved from
-  the referenced `Project` / `PropertyUnit` rows, so a client cannot spoof or omit them.
-- **Rate limiting & reverse proxy** — Per-route rate limits (login, inquiries, newsletter, OTP, password reset) and account lockouts protect against abuse; Fastify respects `trustProxy` when deployed behind Caddy.
-- **Email is optional at boot** — with no `MAIL_HOST` (or under `NODE_ENV=test`) every send becomes a logged no-op, so the API never fails to start because SMTP is missing. The test suite reads the in-memory capture through `getSentMail()`.
-- **OTP codes are never stored in the clear** — only a SHA-256 digest of `JWT_SECRET + admin + purpose + code` is persisted, compared in constant time, and bounded by a 10-minute TTL, five attempts and a 60-second resend cooldown. Issuing a new challenge supersedes the previous one.
-- **Notifications never leak to the wrong inbox** — a new inquiry is emailed only to active admins holding `viewInquiries` (or to `NOTIFY_INQUIRY_EMAILS` when set), and spam-dropped submissions send nothing.
+### Properties, Floors & Units
 
-## Email
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/projects` | Public | List published projects (filters: `city`, `type`, `priceType`); admin via `?scope=admin` |
+| `GET` | `/api/projects/:id` | Public | Get project details, floors, and units; admin via `?scope=admin` |
+| `POST` | `/api/projects` | JWT | Create project (defaults to draft) (`manageProjects`) |
+| `PUT` | `/api/projects/:id` | JWT | Update project details (`manageProjects`) |
+| `DELETE`| `/api/projects/:id` | JWT | Delete project (`manageProjects`) |
+| `PATCH`| `/api/projects/:id/publish` | JWT | Toggle publish status (`manageProjects`) |
+| `POST` | `/api/projects/:id/floors` | JWT | Add floor to project (`manageProjects`) |
+| `PUT` | `/api/projects/:id/floors/:floorId` | JWT | Update floor details (`manageProjects`) |
+| `DELETE`| `/api/projects/:id/floors/:floorId` | JWT | Delete floor and cascade its units (`manageProjects`) |
+| `POST` | `/api/units` | JWT | Create unit on floor (`manageProjects`) |
+| `PUT` | `/api/units/:id` | JWT | Update unit details (`manageProjects`) |
+| `DELETE`| `/api/units/:id` | JWT | Delete unit (`manageProjects`) |
+| `PATCH`| `/api/units/:id/status` | JWT | Update unit status (`available`/`reserved`/`sold`) + Socket broadcast |
 
-`server/src/services/mailService.ts` holds the transport; `mailTemplates.ts` renders
-Arabic-first RTL bodies (inline styles, a plain-text alternative, everything
-interpolated escaped). Copy these placeholders into `server/.env`:
+### Content Management System (CMS v2.1)
 
-```dotenv
-MAIL_HOST=""                 # empty = mail disabled (logged no-op)
-MAIL_PORT=587
-MAIL_USERNAME=""
-MAIL_PASSWORD=""             # Gmail: an app password, not the account password
-MAIL_ENCRYPTION=tls          # tls = STARTTLS (587) | ssl = implicit TLS (465) | none
-MAIL_FROM_ADDRESS=""
-MAIL_FROM_NAME="Ajda"        # sender display name and the heading of every email
-APP_URL="https://ajda.weghetk.com"   # base for links inside emails
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/cms` | Public | Aggregated CMS bundle for all sections (ETag-backed) |
+| `GET` | `/api/cms/:sectionKey` | Public | Specific section data (supports HTTP 304 `If-None-Match`) |
+| `PUT` | `/api/cms/:sectionKey` | JWT | Update section content (auto-creates revision snapshot) (`manage_cms_content`) |
+| `GET` | `/api/cms/:sectionKey/versions` | JWT | View up to 10 historical snapshots (`manage_cms_content`) |
+| `POST` | `/api/cms/:sectionKey/rollback/:version` | JWT | Roll back section to previous version snapshot (`manage_cms_content`) |
+| `GET` | `/api/cms/clients` | Public | List published partner/client logos sorted by order |
+| `POST` | `/api/cms/clients` | JWT | Add client logo (`manage_cms_clients`) |
+| `PUT` | `/api/cms/clients/:id` | JWT | Update client logo / URL / visibility (`manage_cms_clients`) |
+| `DELETE`| `/api/cms/clients/:id` | JWT | Remove client logo (`manage_cms_clients`) |
+| `POST` | `/api/cms/clients/reorder` | JWT | Bulk update client logo ordering (`manage_cms_clients`) |
+| `POST` | `/api/cms/cache/clear` | JWT | Flush in-memory CMS cache & broadcast reload signal (`manage_cms`) |
 
-LOGIN_OTP_REQUIRED="false"   # true = every admin login needs a code
-LOGIN_OTP_TTL_MS=600000
-LOGIN_OTP_MAX_ATTEMPTS=5
-LOGIN_OTP_RESEND_COOLDOWN_MS=60000
+### Inquiries & CRM
 
-NOTIFY_INQUIRY_EMAILS=""     # empty = every active admin with viewInquiries
-```
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/inquiries` | Public | Submit customer inquiry (triggers email + WebSocket notification) |
+| `GET` | `/api/inquiries` | JWT | List CRM customer inquiries (`viewInquiries`) |
+| `GET` | `/api/inquiries/export` | JWT | Export inquiries to CSV (UTF-8 BOM, RFC 4180) (`exportData`) |
+| `PATCH`| `/api/inquiries/:id` | JWT | Update inquiry internal notes (`manageInquiries`) |
+| `PATCH`| `/api/inquiries/:id/status` | JWT | Transition inquiry status (`new`/`contacted`/`qualified`/`closed`) |
+| `DELETE`| `/api/inquiries/:id` | JWT | Delete inquiry (`super_admin` only) |
 
-| Variable | Effect |
-|---|---|
-| `MAIL_HOST` unset, or `NODE_ENV=test` | Sending is disabled; messages are captured in memory instead of delivered |
-| `LOGIN_OTP_REQUIRED=false` (default) | Only admins with `loginOtpEnabled` (set via `PATCH /api/auth/me/login-otp`) need a code |
-| `LOGIN_OTP_REQUIRED=true` | Every admin login answers `otpRequired` until the flag is turned off |
-| `NOTIFY_INQUIRY_EMAILS=a@x.com,b@y.com` | Only these addresses receive new-inquiry notices |
-| `APP_URL` | Prefix for the "view inquiries" link in the notification email |
+### Newsletter & Categories
 
-A send failure is logged and swallowed, so it can never turn a successful inquiry
-or password change into a `500`. The one deliberate exception: the OTP code is
-awaited by the login/reset routes, because without the mail there is nothing to
-verify.
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/newsletter` | Public | Subscribe to newsletter (idempotent, 200) |
+| `GET` | `/api/newsletter` | JWT | List newsletter subscribers (`exportData`) |
+| `GET` | `/api/newsletter/export` | JWT | Export newsletter list to CSV (`exportData`) |
+| `DELETE`| `/api/newsletter/:id` | JWT | Unsubscribe / remove subscriber (`exportData`) |
+| `GET` | `/api/categories` | Public | List active property categories |
+| `POST` | `/api/categories` | JWT | Create category (`manageProjects`) |
+| `PUT` | `/api/categories/:id` | JWT | Update category (`manageProjects`) |
+| `DELETE`| `/api/categories/:id` | JWT | Delete category (`manageProjects`) |
 
-## Production Checklist
+### Production Logs & Telemetry
 
-- [ ] PostgreSQL 16 user + database (see [Creating PostgreSQL Database & User](#creating-postgresql-database--user)); `DATABASE_URL` → `postgresql://...` in `server/.env`
-- [ ] `JWT_SECRET` = `openssl rand -base64 32`
-- [ ] `CLIENT_ORIGIN` = production origin (e.g. `https://ajda.weghetk.com`)
-- [ ] `npm run db:migrate` → applies committed Postgres migrations
-- [ ] `npm run build` in the repo root → serve `dist/` as static files from Caddy
-      (the SPA calls same-origin `/api`, `/uploads`, `/socket.io`; in dev these are
-      Vite proxies, in production they are Caddy `reverse_proxy` blocks)
-- [ ] Caddy block: `/api/*`, `/uploads/*`, `/socket.io/*` → `localhost:4000`
-- [ ] `uploads/` must be writable by the service user
-- [ ] SPA fallback: unknown paths → `index.html` (client-side routing)
-- [ ] Email (see [Email](#email)): `MAIL_*` filled in, `APP_URL` = production origin.
-      The API boots without it, but OTP logins, password reset and inquiry
-      notifications stay silent until `MAIL_HOST` is set
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/logs/view` | Key/JWT | Interactive dark-mode live HTML terminal log monitor |
+| `GET` | `/api/logs` | Key/JWT | Structured JSON log stream with query filters (`level`, `search`, `limit`) |
+| `GET` | `/api/logs/raw` | Key/JWT | Plain-text raw log tail stream for terminal piping |
+| `POST` | `/api/logs/clear` | Key/JWT | Truncate `prod.log` and flush the 2,000-event memory buffer |
 
-### Known non-blocking items
+### Developer Notes & Bug Reports
 
-- The frontend ships as a single ~600 kB chunk (166 kB gzipped). Route-level code
-  splitting is the obvious next win if first paint on mobile needs to be faster.
-- `npm run lint` (oxlint) passes cleanly with 0 errors across the entire codebase.
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/developer/notes` | Public | Submit developer note from floating pet (dispatches instant email alert) |
+| `GET` | `/api/developer/notes` | Key/JWT | Fetch developer notes with filters (`status`, `priority`, `search`) |
+| `GET` | `/api/developer/notes/export` | Key/JWT | Export developer notes as Markdown or JSON |
+| `PATCH`| `/api/developer/notes/:id` | Key/JWT | Update status (`open`/`in_progress`/`resolved`/`closed`) or priority |
+| `DELETE`| `/api/developer/notes/:id` | Key/JWT | Permanently delete developer note |
+
+### Media & System Health
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/media/upload` | JWT | Upload image (re-encoded to WebP 2400px q82) or PDF attachment |
+| `GET` | `/api/health` | Public | System status and platform version (`{ status: "ok", version: "1.2.0" }`) |
+
+---
+
+## 📊 Production Logs & Telemetry
+
+The platform includes a zero-dependency high-speed logging and telemetry engine:
+
+- **In-Memory Ring Buffer**: Retains the last 2,000 log events in memory for 0ms retrieval.
+- **Persistent Disk Stream**: Concurrently appends every log entry to `server/prod.log`.
+- **Live Terminal Monitor**: Navigate to `/api/logs/view?key=YOUR_SECRET_KEY` in any browser to open an interactive dark-mode terminal featuring:
+  - 3-second live auto-polling.
+  - Level filter buttons (`ALL`, `INFO`, `WARN`, `ERROR`, `DEBUG`).
+  - Debounced real-time text search.
+  - System telemetry bar displaying memory usage, uptime, and platform version.
+  - One-click log flushing.
+- **Terminal Tail Piping**:
+  ```bash
+  curl -s "http://localhost:4000/api/logs/raw?key=ajda-logs-secret-2026"
+  ```
+- **Authentication**: Access is authorized via `?key=<LOGS_SECRET_KEY>`, `x-logs-key` header, Admin JWT (`super_admin`), or when `LOGS_PUBLIC=true`.
+
+---
+
+## 🐞 Developer Notes Isolation
+
+Developer bug reports, performance observations, and technical tasks submitted through the floating Admin Feedback Pet (`AdminFeedbackPet.tsx`) are **strictly isolated** from customer business inquiries:
+
+- **Dedicated Table**: Stored in `DeveloperNote` (never touching `CustomerInquiry` or CRM tables).
+- **Instant Email Alerts**: Automatically emails `DEVELOPER_EMAIL` (`cloud.data.sa@gmail.com`) with full technical context (reporter name, URL path, user agent, viewport dimensions, and priority).
+- **Restricted Access**: Accessible only via `DEVELOPER_NOTES_SECRET` or `super_admin` JWT.
+- **Developer CLI / Curl Export**:
+  ```bash
+  # View all open notes
+  curl -H "x-developer-key: ajda-dev-notes-2026" "http://localhost:4000/api/developer/notes?status=open"
+
+  # Export all notes to a markdown document
+  curl -H "x-developer-key: ajda-dev-notes-2026" "http://localhost:4000/api/developer/notes/export?format=markdown" > dev-notes.md
+  ```
+
+---
+
+## 🚀 Production Deployment
+
+The platform is designed for **native bare-metal Linux deployment** (Ubuntu 24.04 LTS) without Docker containers:
+
+1. **Operating System**: Ubuntu 24.04 LTS
+2. **Database**: PostgreSQL 16 managed via native `systemd` (`postgresql.service`)
+3. **API Process**: Node.js 22 LTS managed via `systemd` (`/etc/systemd/system/ajda-api.service`)
+4. **Web Server & Reverse Proxy**: Caddy 2 with automatic Let's Encrypt TLS:
+   - Serves static frontend bundle (`/opt/ajda/dist`)
+   - Reverse proxies `/api/*`, `/uploads/*`, and `/socket.io/*` to `http://127.0.0.1:4000`
+5. **Backups**: Automated cron job running `/opt/ajda/deploy/backup.sh` (PostgreSQL dump + compressed uploads archive).
+
+For complete step-by-step instructions, see the [Production Deployment Guide](docs/deployment.md).
+
+---
+
+## 🛡️ Quality Gates & Standards
+
+Every change must pass our automated quality gates before merging:
+
+1. **TypeScript Type Safety**:
+   ```bash
+   npx tsc -p tsconfig.app.json --noEmit   # Frontend (0 errors)
+   npx tsc -p server/tsconfig.json --noEmit # Backend (0 errors)
+   ```
+2. **Fast Static Analysis (Oxlint)**:
+   ```bash
+   npm run lint                          # 0 errors across 230+ files
+   ```
+3. **Automated Testing (Vitest)**:
+   ```bash
+   cd server && npm run test             # Unit & integration suites
+   ```
+4. **Production Build**:
+   ```bash
+   npm run build                         # Compiles frontend static bundle (~300ms)
+   ```
+5. **Version Alignment**: Version numbers are kept strictly in sync across `package.json`, `server/package.json`, `docs/CHANGELOG.md`, `docs/README.md`, and `GET /api/health`.
