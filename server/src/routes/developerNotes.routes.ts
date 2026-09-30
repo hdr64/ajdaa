@@ -92,7 +92,7 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
       const data = parsed.data;
       const adminUser = request.admin;
 
-      const adminName = adminUser?.name || data.adminName || 'مسؤول النظام';
+      const adminName = data.adminName || adminUser?.email || 'مسؤول النظام';
       const adminEmail = adminUser?.email || data.adminEmail || null;
 
       const note = await prisma.developerNote.create({
@@ -117,7 +117,7 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       // Broadcast to active dev monitoring sockets
-      fastify.io.emit('developer:note:new', {
+      fastify.io?.emit('developer:note:new', {
         id: note.id,
         title: note.title,
         section: note.section,
@@ -131,9 +131,9 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
       if (recipients.length > 0) {
         for (const recipient of recipients) {
           try {
-            await sendMail(
-              recipient,
-              developerNoteNotification({
+            await sendMail({
+              to: recipient,
+              ...developerNoteNotification({
                 brandName: config.mail.fromName,
                 appUrl: config.appUrl,
                 title: note.title,
@@ -144,8 +144,8 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
                 adminName: note.adminName,
                 adminEmail: note.adminEmail,
                 priority: note.priority,
-              })
-            );
+              }),
+            });
           } catch (err) {
             loggerService.error('Failed to dispatch developer note email notification', {
               err: String(err),
