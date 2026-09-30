@@ -20,13 +20,13 @@ Plan and every owner request: `refactor.md` (Phases 8–9, "Admin gap review" at
 - Review copy `D:\projects\html\ajda-review` (git worktree, own node_modules, `.env` DATABASE_URL absolute → `review.db`, API :4100 / Vite :5190) for Playwright checks (`playwright-core` + `channel: 'msedge'`). Verify the resolved DB path before any seed. Can be removed with `git worktree remove ../ajda-review --force` when no longer needed.
 - Production (VPS `/srv/ajda/app`, Caddy + Cloudflare, systemd `ajda-api`): deploy = `git pull` → `cd server && npm ci && npm run db:gen:prod && npm run db:migrate && npm run build` → restart `ajda-api` → root `npm ci && npm run build`. `.env` needs `TRUST_PROXY=true`, `APP_URL`, `MAIL_*` (Gmail app password — owner should rotate it, it was shared in chat). WebSockets verified working (101) through Cloudflare.
 
-## Shipped 2026-09-30 (gates green; browser pass still pending)
+## Shipped 2026-09-30 (gates green, browser pass done)
 - Spam fields forwarded (elapsedMs), OTP login + forgot/reset + /admin/profile (agy), newsletter page,
   /admin/settings with tabs: contact info (public GET /api/settings/site), notifications (listeners on
   inquiry.created, permission manageNotifications), mail SMTP (encrypted password, test email).
 - New-inquiry toast + header bell + desktop notification. Public site reads contact details from settings.
 - Projects table/list/grid, categories on shared ViewSwitcher + DataTable (agy).
-- Deploy needs `npm run db:migrate` (AppSetting, NotificationListener). Local: stop dev, `cd server && npx prisma generate && npm run db:push`.
+- Deploy needs `npm run db:migrate` (AppSetting, NotificationListener, AdminUser.preferences). Local: stop dev, `cd server && npx prisma generate && npm run db:push`.
 - Browser pass 2026-09-30 (Playwright, review copy): all admin sections, projects/categories views, settings tabs, bell, delete + status confirms, login forgot step: 25/25, no console errors. Not covered: full OTP login with a real code (needs SMTP in the review copy).
 
 ## Next queue
