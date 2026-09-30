@@ -72,6 +72,15 @@ const envSchema = z.object({
   // Comma-separated allowlist. Empty = notify every active admin who can see
   // inquiries; when set, only these recipients are notified.
   NOTIFY_INQUIRY_EMAILS: z.string().default(''),
+
+  // --- Production Logs & Monitoring ---
+  LOG_FILE_PATH: z.string().default('./prod.log'),
+  LOGS_SECRET_KEY: z.string().default('ajda-logs-secret-2026'),
+  LOGS_PUBLIC: z
+    .string()
+    .optional()
+    .default('false')
+    .transform((val) => val === 'true' || val === '1'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -149,6 +158,11 @@ export const config = {
     fromName: mailFromName,
     /** True when SMTP is configured and the process is not a test run. */
     enabled: env.MAIL_HOST.length > 0 && env.NODE_ENV !== 'test',
+  },
+  logs: {
+    filePath: path.resolve(env.LOG_FILE_PATH),
+    secretKey: env.LOGS_SECRET_KEY,
+    isPublic: env.LOGS_PUBLIC,
   },
 } as const;
 

@@ -23,6 +23,8 @@ import { departmentRoutes } from './routes/departments.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { notificationRoutes } from './routes/notifications.routes.js';
 import { cmsRoutes } from './routes/cms.routes.js';
+import { logsRoutes } from './routes/logs.routes.js';
+import { loggerService } from './services/loggerService.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({ logger: true, trustProxy: config.trustProxy });
@@ -100,7 +102,40 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
 
     request.log.error({ err: error }, 'Unhandled request error');
+    loggerService.error(
+      `Unhandled request error: ${(error as Error).message}`,
+      {
+        url: request.url,
+        method: request.method,
+        code,
+        stack: (error as Error).stack,
+      },
+      'http'
+    );
     return reply.status(500).send({ error: 'Internal server error' });
+  });
+
+  // Automatically log incoming HTTP responses to loggerService
+  fastify.addHook('onResponse', async (request, reply) => {
+    // Avoid noisy recursion from polling the logs endpoint itself
+    if (request.url.startsWith('/api/logs')) return;
+
+    const latency = reply.elapsedTime;
+    const statusCode = reply.statusCode;
+    const level = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
+
+    loggerService.log(
+      level,
+      `${request.method} ${request.url} - ${statusCode} (${latency.toFixed(1)}ms)`,
+      {
+        ip: request.ip,
+        statusCode,
+        latencyMs: Math.round(latency * 10) / 10,
+        userAgent: request.headers['user-agent'],
+      },
+      'http',
+      request.id
+    );
   });
 
   // 7. Register API Routes
@@ -117,6 +152,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(settingsRoutes, { prefix: '/api/settings' });
   await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
   await fastify.register(cmsRoutes, { prefix: '/api/cms' });
+  await fastify.register(logsRoutes, { prefix: '/api/logs' });
 
   // Health check
   fastify.get('/api/health', async () => {

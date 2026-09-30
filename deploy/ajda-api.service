@@ -43,8 +43,8 @@ MemoryDenyWriteExecute=false
 SystemCallArchitectures=native
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
-# Only the upload directory (and nothing else) is writable.
-ReadWritePaths=/opt/ajda/server/uploads
+# The upload directory and production log file are writable.
+ReadWritePaths=/opt/ajda/server/uploads /opt/ajda/server/prod.log
 
 StandardOutput=journal
 StandardError=journal

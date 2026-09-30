@@ -283,3 +283,85 @@ Accepts `multipart/form-data` with `file`. Sharp automatically validates magic b
 | `inquiry:new` | Server → Client | `{ id, name, projectTitle, type }` | Real-time lead alert for admin header |
 | `cms:updated` | Server → Client | `{ key, version, timestamp }` | Triggers background SWR revalidation on public clients |
 | `cms:clients:updated` | Server → Client | `{ timestamp }` | Invalidation signal for partners directory |
+
+---
+
+## 7. Production Logs & Telemetry API (`/api/logs`)
+
+Production diagnostic endpoints allow real-time log streaming, system metrics inspection, and error debugging remotely from any browser or terminal.
+
+### Authentication & Access Control
+Allowed if any of the following is true:
+1. `LOGS_PUBLIC=true` in `server/.env` (unrestricted public access).
+2. Request passes `?key=<LOGS_SECRET_KEY>` query param or `x-logs-key` header (default key: `ajda-logs-secret-2026`).
+3. Request includes a valid JWT token (`Authorization: Bearer <token>`) belonging to an admin user (`super_admin` or `admin`).
+
+### GET `/api/logs`
+Returns structured JSON logs from the in-memory ring buffer (up to 2,000 entries) or physical log file (`prod.log`).
+
+**Query Parameters:**
+- `key` (string, optional): Secret key for authentication.
+- `level` (string, default `all`): Filter by `all`, `error`, `warn`, `info`, `debug`.
+- `search` (string, optional): Substring search across message, source, or JSON context.
+- `limit` (number, default `100`, max `1000`): Maximum entries to return.
+- `source` (string, default `buffer`): `buffer` (instant zero-disk latency) or `file` (reads `prod.log`).
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "query": { "level": "all", "limit": 100, "source": "buffer" },
+  "entries": [
+    {
+      "id": "1790804869675-1",
+      "timestamp": "2026-10-01T00:47:49.675Z",
+      "level": "info",
+      "message": "GET /api/health - 200 (2.0ms)",
+      "source": "http",
+      "reqId": "req-1",
+      "context": {
+        "ip": "127.0.0.1",
+        "statusCode": 200,
+        "latencyMs": 2,
+        "userAgent": "Mozilla/5.0..."
+      }
+    }
+  ],
+  "returnedCount": 1,
+  "totalMatched": 1,
+  "stats": {
+    "uptimeSeconds": 120,
+    "uptimeFormatted": "2m 0s",
+    "nodeVersion": "v24.21.0",
+    "platform": "linux (x64)",
+    "memory": { "rssMb": 85, "heapUsedMb": 42, "heapTotalMb": 60 },
+    "counts": { "total": 45, "error": 0, "warn": 1, "info": 44, "debug": 0 }
+  }
+}
+```
+
+### GET `/api/logs/view`
+Interactive dark-mode live terminal viewer in HTML. Features:
+- 🟢 Live auto-refresh polling (every 3 seconds).
+- Level filter badges (`ALL`, `ERROR`, `WARN`, `INFO`, `DEBUG`).
+- Real-time debounced search bar.
+- Stats telemetry banner (Uptime, Memory RSS, Heap, Error counter).
+- Quick actions: Raw log link, Clear logs button.
+
+**Browser Access:**
+```
+https://yourdomain.com/api/logs/view?key=YOUR_SECRET_KEY
+```
+
+### GET `/api/logs/raw`
+Returns plain text log output formatted line-by-line, suitable for `curl` or terminal piping:
+```bash
+curl -s "https://yourdomain.com/api/logs/raw?key=YOUR_SECRET_KEY&lines=200"
+```
+
+### GET `/api/logs/stats`
+Returns system telemetry without log records (uptime, memory RSS, heap, Node version, platform, error counts).
+
+### POST `/api/logs/clear`
+Clears the in-memory ring buffer and truncates the physical `prod.log` on disk.
+

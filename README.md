@@ -256,6 +256,10 @@ site content and must be backed up** (the deploy backup script at
 | GET | `/api/cms/clients` | – | List clients / partners sorted by order |
 | POST/PUT/DELETE | `/api/cms/clients*` | JWT | Client logo CRUD & bulk operations (manage_cms_clients) |
 | POST | `/api/cms/cache/clear` | JWT | Evict CMS in-memory cache & broadcast reload (manage_cms) |
+| GET | `/api/logs` | Key/JWT | Production logs JSON stream (level, search, limit, telemetry) |
+| GET | `/api/logs/view` | Key/JWT | Interactive dark-mode live HTML terminal log monitor |
+| GET | `/api/logs/raw` | Key/JWT | Raw plain-text log file tail stream |
+| POST | `/api/logs/clear` | Key/JWT | Clear in-memory log buffer and truncate prod.log |
 | POST | `/api/media/upload` | JWT | Image → WebP (sharp, 2400px q82) or PDF |
 | GET | `/api/health` | – | Health check |
 
