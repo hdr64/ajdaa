@@ -17,6 +17,7 @@ import {
   type AdminContextValue,
   type AdminPermission,
   type ConfirmOptions,
+  type DeleteConfirmOptions,
 } from './adminContextDef';
 import { buildAdminPath, parseAdminPath, type AdminLocation, type AdminSection } from './adminRoutes';
 import { OverviewSection } from './sections/OverviewSection';
@@ -216,6 +217,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     },
     [skipConfirm]
   );
+  const confirmDelete = useCallback(
+    (options: DeleteConfirmOptions) =>
+      confirm({
+        title: options.title,
+        message: options.message ?? 'لا يمكن التراجع عن هذا الإجراء.',
+        confirmLabel: options.confirmLabel ?? 'حذف',
+        danger: true,
+      }),
+    [confirm]
+  );
   const resolveConfirm = useCallback(
     (value: boolean, remember: boolean) => {
       const key = pendingConfirm?.options.rememberKey;
@@ -274,13 +285,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       navigate,
       showToast,
       confirm,
+      confirmDelete,
       skipConfirm,
       setSkipConfirm,
       refreshAll,
       refreshUser,
       setCurrentUser,
     }),
-    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, location, navigate, showToast, confirm, skipConfirm, setSkipConfirm, refreshAll, refreshUser]
+    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, location, navigate, showToast, confirm, confirmDelete, skipConfirm, setSkipConfirm, refreshAll, refreshUser]
   );
 
   const renderSection = () => {

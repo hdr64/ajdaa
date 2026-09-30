@@ -21,6 +21,12 @@ export interface ConfirmOptions {
   rememberKey?: ConfirmAction;
 }
 
+export interface DeleteConfirmOptions {
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+}
+
 export interface AdminContextValue {
   currentUser: AdminUser | null;
   /** super_admin implicitly holds every permission, mirroring the server. */
@@ -36,6 +42,11 @@ export interface AdminContextValue {
 
   showToast: (message: string) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  /**
+   * The one way to confirm a delete or removal: always asks (never remembered),
+   * red button, and warns it cannot be undone unless `message` says otherwise.
+   */
+  confirmDelete: (options: DeleteConfirmOptions) => Promise<boolean>;
   /** Actions this admin chose "don't ask again" for; the profile page can reset them. */
   skipConfirm: ConfirmAction[];
   setSkipConfirm: (actions: ConfirmAction[]) => Promise<void>;

@@ -196,7 +196,7 @@ function useSubscribers(query: string, errorFallback: string): SubscribersResour
 }
 
 export const NewsletterSection: React.FC = () => {
-  const { can, confirm, showToast } = useAdmin();
+  const { can, showToast, confirmDelete } = useAdmin();
   const { language } = useLanguage();
   const t = COPY[language === 'ar' ? 'ar' : 'en'];
 
@@ -277,11 +277,10 @@ export const NewsletterSection: React.FC = () => {
   };
 
   const handleDelete = async (subscriber: NewsletterSubscriber) => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: t.deleteTitle(subscriber.email),
       message: t.deleteMessage,
       confirmLabel: t.deleteConfirm,
-      danger: true,
     });
     if (!ok) return;
     try {

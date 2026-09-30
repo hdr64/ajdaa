@@ -173,7 +173,7 @@ const NotesEditor: React.FC<{ inquiry: CustomerInquiry; onDone: () => void }> = 
 };
 
 export const InquiriesSection: React.FC = () => {
-  const { inquiries, can, isSuperAdmin, showToast, confirm } = useAdmin();
+  const { inquiries, can, isSuperAdmin, showToast, confirmDelete } = useAdmin();
   const [view, setView] = usePersistentState<ViewMode>(VIEW_STORAGE_KEY, 'table', isViewMode);
   const isPhone = useIsPhone();
   const [search, setSearch] = useState('');
@@ -263,11 +263,10 @@ export const InquiriesSection: React.FC = () => {
 
   const bulkDelete = useCallback(
     async (rows: CustomerInquiry[]) => {
-      const ok = await confirm({
+      const ok = await confirmDelete({
         title: `حذف ${rows.length} من الطلبات؟`,
         message: 'سيتم حذف بيانات العملاء نهائياً ولا يمكن التراجع عن ذلك.',
         confirmLabel: 'حذف الطلبات',
-        danger: true,
       });
       if (!ok) return;
 
@@ -290,7 +289,7 @@ export const InquiriesSection: React.FC = () => {
           : `تم حذف ${deleted.size} من ${rows.length} طلبات، وتعذر حذف الباقي`
       );
     },
-    [confirm, inquiries, showToast]
+    [confirmDelete, inquiries, showToast]
   );
 
   const bulkActions = useMemo<BulkAction<CustomerInquiry>[]>(
@@ -418,11 +417,10 @@ export const InquiriesSection: React.FC = () => {
   };
 
   const handleDelete = async (inquiry: CustomerInquiry) => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: `حذف طلب "${inquiry.name}"؟`,
       message: 'سيتم حذف بيانات العميل نهائياً ولا يمكن التراجع عن ذلك.',
       confirmLabel: 'حذف الطلب',
-      danger: true,
     });
     if (!ok) return;
     try {

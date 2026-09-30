@@ -467,7 +467,7 @@ const ColumnSwitcher: React.FC<{ value: GridColumns; onChange: (columns: GridCol
 );
 
 export const CategoriesSection: React.FC = () => {
-  const { can, showToast, confirm } = useAdmin();
+  const { can, showToast, confirmDelete } = useAdmin();
   const canManage = can('manageProjects');
   const [view, setView] = usePersistentState<ViewMode>(CATEGORIES_VIEW_STORAGE_KEY, 'grid', isViewMode);
   const [columns, setColumns] = usePersistentState<GridColumns>('ajda.admin.categories.columns', 3, isGridColumns);
@@ -510,11 +510,10 @@ export const CategoriesSection: React.FC = () => {
   };
 
   const deleteCategory = async (category: CategoryItem) => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: `حذف التصنيف "${category.nameAr}"؟`,
       message: 'لن يؤثر ذلك على المشاريع نفسها.',
       confirmLabel: 'حذف التصنيف',
-      danger: true,
     });
     if (!ok) return;
     try {
@@ -530,7 +529,14 @@ export const CategoriesSection: React.FC = () => {
     edit: (category) => setDialog({ category }),
     remove: (category) => void deleteCategory(category),
     addTag: (category) => void addTag(category),
-    removeTag: (category, tag) => void saveTags(category, category.tags.filter((t) => t !== tag)),
+    removeTag: (category, tag) =>
+      void (async () => {
+        const ok = await confirmDelete({
+          title: `حذف الوسم "${tag}" من "${category.nameAr}"؟`,
+          confirmLabel: 'حذف الوسم',
+        });
+        if (ok) await saveTags(category, category.tags.filter((t) => t !== tag));
+      })(),
     setDraft: (categoryId, draft) => setTagDrafts((d) => ({ ...d, [categoryId]: draft })),
   };
 

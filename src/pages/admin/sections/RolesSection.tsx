@@ -32,7 +32,7 @@ const NEW_ROLE_BUTTON =
   'brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs';
 
 export const RolesSection: React.FC = () => {
-  const { isSuperAdmin, confirm, showToast } = useAdmin();
+  const { isSuperAdmin, showToast, confirmDelete } = useAdmin();
   const [view, setView] = usePersistentState<ViewMode>(VIEW_STORAGE_KEY, 'grid', isViewMode);
 
   const roles = useAsyncData<Role[]>(useCallback((signal) => AdminStorage.listRoles(signal), []), [], []);
@@ -49,11 +49,10 @@ export const RolesSection: React.FC = () => {
 
   const deleteRole = useCallback(
     async (role: Role) => {
-      const ok = await confirm({
+      const ok = await confirmDelete({
         title: `حذف الدور "${role.nameAr}"؟`,
         message: 'لن يظهر هذا الدور في قائمة أدوار المستخدمين بعد الآن. لا يمكن التراجع عن ذلك.',
         confirmLabel: 'حذف الدور',
-        danger: true,
       });
       if (!ok) return;
       try {
@@ -64,7 +63,7 @@ export const RolesSection: React.FC = () => {
         showToast(hrErrorMessage(error, 'تعذر حذف الدور', ROLE_DELETE_ERROR));
       }
     },
-    [confirm, roles, showToast]
+    [confirmDelete, roles, showToast]
   );
 
   const header = (

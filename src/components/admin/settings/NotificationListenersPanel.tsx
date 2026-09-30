@@ -185,7 +185,7 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
  * `manageNotifications` permission (the server enforces it too).
  */
 export const NotificationListenersPanel: React.FC = () => {
-  const { confirm, showToast } = useAdmin();
+  const { confirm, showToast, confirmDelete } = useAdmin();
   const [data, setData] = useState<ListenersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<NotificationListener | 'new' | null>(null);
@@ -235,14 +235,13 @@ export const NotificationListenersPanel: React.FC = () => {
   };
 
   const remove = async (listener: NotificationListener) => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: `حذف المستمع «${listener.name}»؟`,
       message:
         data && data.listeners.length === 1
           ? 'هذا آخر مستمع: بعد حذفه لن يُرسل أي بريد عند وصول طلب جديد.'
           : 'لن يتلقى مستلمو هذا المستمع إشعارات بعد الآن.',
       confirmLabel: 'حذف',
-      danger: true,
     });
     if (!ok) return;
     try {

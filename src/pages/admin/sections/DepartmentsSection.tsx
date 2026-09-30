@@ -19,7 +19,7 @@ const NEW_DEPARTMENT_BUTTON =
   'brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs';
 
 export const DepartmentsSection: React.FC = () => {
-  const { confirm, showToast } = useAdmin();
+  const { showToast, confirmDelete } = useAdmin();
 
   const departments = useAsyncData<Department[]>(
     useCallback((signal) => AdminStorage.listDepartments(signal), []),
@@ -32,11 +32,10 @@ export const DepartmentsSection: React.FC = () => {
 
   const deleteDepartment = useCallback(
     async (department: Department) => {
-      const ok = await confirm({
+      const ok = await confirmDelete({
         title: `حذف القسم "${department.nameAr}"؟`,
         message: 'لن يظهر هذا القسم في قائمة أقسام المستخدمين بعد الآن. لا يمكن التراجع عن ذلك.',
         confirmLabel: 'حذف القسم',
-        danger: true,
       });
       if (!ok) return;
       try {
@@ -47,7 +46,7 @@ export const DepartmentsSection: React.FC = () => {
         showToast(hrErrorMessage(error, 'تعذر حذف القسم', DEPARTMENT_DELETE_ERROR));
       }
     },
-    [confirm, departments, showToast]
+    [confirmDelete, departments, showToast]
   );
 
   const header = (

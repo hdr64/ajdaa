@@ -61,7 +61,7 @@ const DELETE_CONFIRM = {
 };
 
 export function useUsersDirectory(showToast: (message: string) => void): UsersDirectory {
-  const { currentUser, isSuperAdmin, confirm } = useAdmin();
+  const { currentUser, isSuperAdmin, confirm, confirmDelete } = useAdmin();
 
   const users = useAsyncData<AdminUser[]>(useCallback((signal) => AdminStorage.getUsers(signal), []), [], []);
   const reloadUsers = users.reload;
@@ -168,11 +168,10 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
 
   const remove = useCallback(
     async (user: AdminUser) => {
-      const ok = await confirm({
+      const ok = await confirmDelete({
         title: DELETE_CONFIRM.title(user.name),
         message: DELETE_CONFIRM.message,
         confirmLabel: DELETE_CONFIRM.confirmLabel,
-        danger: true,
       });
       if (!ok) return;
       try {
@@ -183,7 +182,7 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
         showToast(getErrorMessage(error, 'تعذر حذف المستخدم'));
       }
     },
-    [confirm, reloadUsers, showToast]
+    [confirmDelete, reloadUsers, showToast]
   );
 
   return { users, reference, rightsById, setStatus, setManyStatus, remove };

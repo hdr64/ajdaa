@@ -213,7 +213,7 @@ function isSuperAdmin(role: string | undefined): boolean {
 }
 
 export const MailSettingsSection: React.FC = () => {
-  const { currentUser, confirm, showToast } = useAdmin();
+  const { currentUser, confirmDelete, showToast } = useAdmin();
   const { language } = useLanguage();
   const t = COPY[language === 'ar' ? 'ar' : 'en'];
 
@@ -336,11 +336,10 @@ export const MailSettingsSection: React.FC = () => {
   };
 
   const handleReset = async () => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: t.resetConfirmTitle,
       message: t.resetConfirmMessage,
       confirmLabel: t.resetConfirmButton,
-      danger: true,
     });
     if (!ok) return;
     setResetting(true);

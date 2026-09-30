@@ -60,7 +60,7 @@ function unitCounts(project: Property) {
 }
 
 export const ProjectsSection: React.FC = () => {
-  const { projects, can, navigate, showToast, confirm } = useAdmin();
+  const { projects, can, navigate, showToast, confirmDelete } = useAdmin();
   const canManage = can('manageProjects');
 
   const [search, setSearch] = useState('');
@@ -96,11 +96,10 @@ export const ProjectsSection: React.FC = () => {
   }, [projects.data, search, typeFilter, statusFilter]);
 
   const handleDelete = async (project: Property) => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: `حذف المشروع "${project.title}"؟`,
       message: 'سيتم حذف جميع الأدوار والوحدات التابعة له نهائياً. طلبات الاهتمام المرتبطة تبقى دون ربط بالمشروع.',
       confirmLabel: 'حذف المشروع',
-      danger: true,
     });
     if (!ok) return;
     try {

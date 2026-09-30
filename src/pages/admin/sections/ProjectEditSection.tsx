@@ -149,7 +149,7 @@ function Field({
 }
 
 const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
-  const { projects, navigate, showToast, confirm } = useAdmin();
+  const { projects, navigate, showToast, confirm, confirmDelete } = useAdmin();
   const [baseline, setBaseline] = useState<EditorForm>(() => toFormState(project));
   const [form, setForm] = useState<EditorForm>(baseline);
   const [saving, setSaving] = useState(false);
@@ -169,6 +169,31 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
       return next;
     });
   }, []);
+
+  // Removals only change the form until it is saved, but they still ask first.
+  const removeGalleryImage = async (index: number) => {
+    const url = form.gallery[index];
+    const ok = await confirmDelete({
+      title: 'إزالة هذه الصورة من المعرض؟',
+      message: 'تُحذف من المشروع عند حفظ التعديلات.',
+      confirmLabel: 'إزالة الصورة',
+    });
+    if (!ok) return;
+    // By URL, not index: an upload may have appended images while the dialog was open.
+    setForm((current) => {
+      const at = current.gallery.indexOf(url);
+      return at === -1 ? current : { ...current, gallery: current.gallery.filter((_, i) => i !== at) };
+    });
+  };
+
+  const removeBrochure = async () => {
+    const ok = await confirmDelete({
+      title: 'إزالة ملف الكتيّب؟',
+      message: 'يُحذف من المشروع عند حفظ التعديلات.',
+      confirmLabel: 'إزالة الكتيّب',
+    });
+    if (ok) patch({ brochureUrl: '' });
+  };
 
   const embedUrl = toYoutubeEmbedUrl(form.videoUrl);
   const busy = saving || uploading !== null;
@@ -517,7 +542,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                         </div>
                         <button
                           type="button"
-                          onClick={() => patch({ gallery: form.gallery.filter((_, i) => i !== index) })}
+                          onClick={() => void removeGalleryImage(index)}
                           title="إزالة الصورة"
                           aria-label="إزالة الصورة"
                           className="absolute top-1 start-1 p-1 rounded-lg bg-black/70 text-white hover:bg-red-500 cursor-pointer"
@@ -595,7 +620,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     <button type="button" onClick={() => brochureInputRef.current?.click()} disabled={busy} className="ms-auto text-[10px] font-bold text-accent hover:underline cursor-pointer">
                       استبدال
                     </button>
-                    <button type="button" onClick={() => patch({ brochureUrl: '' })} className="p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer" aria-label="إزالة الكتيّب" title="إزالة الكتيّب">
+                    <button type="button" onClick={() => void removeBrochure()} className="p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer" aria-label="إزالة الكتيّب" title="إزالة الكتيّب">
                       <CloseIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>

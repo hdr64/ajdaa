@@ -392,6 +392,7 @@ receive no CORS header; in development the loopback origins still work.
 #### Phase 8b: Users, roles & admin preferences (requested 2026-09-29, planned)
 - [ ] Users page layouts: table / grid / stack (top-to-bottom list), remembered per browser
 - [ ] User create & edit as proper forms (page or full dialog): name, email, department, role, status, password reset
+- [x] **Universal delete confirmation** (owner request 2026-09-30: "admin user must confirm before delete any item"): every delete or removal goes through `confirmDelete` (red dialog, "cannot be undone", never remembered). Added to category tag removal, gallery image and brochure removal; existing deletes moved onto it.
 - [x] Confirmation dialog before every on/off action (activate/deactivate user, enable/disable, status toggles) with a "لا تسألني مرة أخرى" checkbox; the choice is stored per admin and per action type, and can be reset from the settings page
   - Shipped 2026-09-30: user activate/suspend, project publish/hide, inquiry status, listener on/off; choices stored server-side per admin (`/api/auth/me/preferences`), reset on the profile page. Bulk actions and deletes always ask (server rejects any other key).
 - [ ] Admin settings page (`/admin/settings`): profile (name, email), change password, theme + language, default layouts, reset "don't ask again" choices. Preferences stored **server-side per admin** (new `AdminPreference` JSON column or table) so they follow the admin across browsers

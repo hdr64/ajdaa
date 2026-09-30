@@ -61,7 +61,7 @@ function Fact({ label, value, dir }: { label: string; value?: React.ReactNode; d
 }
 
 const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
-  const { can, navigate, showToast, confirm, projects, inquiries } = useAdmin();
+  const { can, navigate, showToast, projects, inquiries, confirmDelete } = useAdmin();
   const canManage = can('manageProjects');
   const [activeImage, setActiveImage] = useState(project.image);
   const [tab, setTab] = useState<ProjectTab>('overview');
@@ -93,11 +93,10 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
   const issues = completenessIssues(project);
 
   const handleDelete = async () => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: `حذف المشروع "${project.title}"؟`,
       message: 'سيتم حذف جميع الأدوار والوحدات التابعة له نهائياً.',
-      confirmLabel: 'حذف المشروع',
-      danger: true,
+      confirmLabel: 'حذف المشروع',
     });
     if (!ok) return;
     try {

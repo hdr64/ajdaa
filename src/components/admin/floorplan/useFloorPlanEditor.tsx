@@ -43,7 +43,7 @@ function defaultUnitType(project: Property): PropertyUnit['type'] {
  * same. Returns actions plus the `dialogs` node to render once.
  */
 export function useFloorPlanEditor(project: Property, onProjectUpdate: () => void | Promise<void>) {
-  const { confirm, showToast } = useAdmin();
+  const { showToast, confirmDelete } = useAdmin();
   const [saving, setSaving] = useState(false);
 
   const [unitDialog, setUnitDialog] = useState<{ floor: PropertyFloor; unit: PropertyUnit | null } | null>(null);
@@ -136,11 +136,10 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
   };
 
   const deleteUnit = async (unit: PropertyUnit) => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: `حذف الوحدة "${unit.unitNumber}"؟`,
       message: 'لا يمكن التراجع عن هذا الإجراء.',
-      confirmLabel: 'حذف الوحدة',
-      danger: true,
+      confirmLabel: 'حذف الوحدة',
     });
     if (ok) await run(() => AdminStorage.deleteUnitFromProject(project.id, unit.id), 'تم حذف الوحدة');
   };
@@ -189,11 +188,10 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
 
   /** Resolves to true when the floor was deleted. */
   const deleteFloor = async (floor: PropertyFloor): Promise<boolean> => {
-    const ok = await confirm({
+    const ok = await confirmDelete({
       title: `حذف "${floor.floorNameAr}"؟`,
       message: `سيتم حذف الدور و${floor.units.length} وحدة تابعة له نهائياً.`,
-      confirmLabel: 'حذف الدور',
-      danger: true,
+      confirmLabel: 'حذف الدور',
     });
     if (!ok) return false;
     return run(() => AdminStorage.deleteFloorFromProject(project.id, floor.floorNumber), 'تم حذف الدور');
