@@ -49,7 +49,7 @@ describe('1. Permissions catalogue', () => {
 
     const catalogue = res.json() as PermissionDef[];
     expect(Array.isArray(catalogue)).toBe(true);
-    expect(catalogue.length).toBe(6);
+    expect(catalogue.length).toBe(14);
 
     const keys = catalogue.map((c) => c.key);
     expect(keys).toEqual(
