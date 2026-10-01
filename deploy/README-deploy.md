@@ -29,12 +29,12 @@ sudo chown -R ajda:ajda /opt/ajda /var/backups/ajda
 sudo chmod 700 /var/backups/ajda
 ```
 
-## 2. Node.js 22 and PostgreSQL 16
+## 2. Node.js 22, PostgreSQL 16, and Redis 7
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs postgresql-16 postgresql-client-16
-sudo systemctl enable --now postgresql
+sudo apt-get install -y nodejs postgresql-16 postgresql-client-16 redis-server
+sudo systemctl enable --now postgresql redis-server
 
 # Database + role. Use a generated password, not a literal from this file.
 sudo -u postgres psql <<'SQL'
@@ -70,6 +70,10 @@ DATABASE_URL="postgresql://ajda:<password>@localhost:5432/ajda?schema=public"
 JWT_SECRET="<output of openssl rand -base64 32>"
 CLIENT_ORIGIN="https://ajda.weghetk.com"
 UPLOAD_DIR="./uploads"
+
+# Background Job Queue (BullMQ + Redis with automatic sync fallback)
+REDIS_URL="redis://127.0.0.1:6379"
+QUEUE_DRIVER="auto"
 ```
 
 `CLIENT_ORIGIN` accepts a comma-separated list if you add origins later
@@ -229,6 +233,10 @@ sudo ufw enable     # PostgreSQL on 5432 stays closed; the API connects locally
 ## Routine deploy
 
 ```bash
+# Automated 1-step deploy (handles backup, pull, build, migration, and reload):
+sudo bash deploy/deploy.sh feat/backend-admin
+
+# Or manually:
 cd /opt/ajda
 sudo -u ajda git pull
 sudo -u ajda npm ci && sudo -u ajda npm --prefix server ci
@@ -236,11 +244,10 @@ sudo -u ajda npm --prefix server run db:gen:prod
 sudo -u ajda npm run build && sudo -u ajda npm --prefix server run build
 sudo -u ajda npm --prefix server run db:migrate
 sudo install -o root -g ajda -d -m 755 dist/. /var/www/ajda/
+sudo cp -a dist/. /var/www/ajda/
 sudo systemctl restart ajda-api
 curl -fsS http://localhost:4000/api/health
 ```
-
-Wrap it in `deploy/deploy.sh` once you have run it by hand a few times.
 
 ## Post-deploy smoke
 

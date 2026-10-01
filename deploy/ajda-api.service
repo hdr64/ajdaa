@@ -1,7 +1,7 @@
 [Unit]
 Description=Ajda Real Estate API (Fastify)
 Documentation=https://github.com/your-org/ajda
-After=network-online.target postgresql.service
+After=network-online.target postgresql.service redis-server.service
 Wants=network-online.target
 
 [Service]
