@@ -168,10 +168,10 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
   };
 
   // 2. GET /api/developer/notes - List developer notes
-  fastify.get(
+  fastify.get<{ Querystring: z.infer<typeof querySchema> }>(
     '/',
     { preHandler: [requireDeveloperAuth] },
-    async (request: FastifyRequest<{ Querystring: z.infer<typeof querySchema> }>) => {
+    async (request) => {
       const query = querySchema.parse(request.query);
       const take = query.limit;
       const skip = (query.page - 1) * take;
