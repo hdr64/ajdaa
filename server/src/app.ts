@@ -26,6 +26,13 @@ import { cmsRoutes } from './routes/cms.routes.js';
 import { logsRoutes } from './routes/logs.routes.js';
 import { developerNotesRoutes } from './routes/developerNotes.routes.js';
 import { loggerService } from './services/loggerService.js';
+import {
+  closeQueueService,
+  initQueueService,
+  queueDriver,
+  registerJob,
+} from './services/queueService.js';
+import { sendDeveloperNoteEmailJob, sendInquiryNotificationJob } from './jobs/emailJobs.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({ logger: true, trustProxy: config.trustProxy });
@@ -156,9 +163,29 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(logsRoutes, { prefix: '/api/logs' });
   await fastify.register(developerNotesRoutes, { prefix: '/api/developer/notes' });
 
+  // The worker runs in-process, so it needs the job handlers before any job can
+  // arrive. Registration is cheap and driver-independent.
+  registerJob(sendDeveloperNoteEmailJob);
+  registerJob(sendInquiryNotificationJob);
+
+  // 8. Job Queue — never fatal. A missing Redis degrades to inline execution so
+  // a deployment without Redis still sends mail; `QUEUE_DRIVER=redis` is the
+  // opt-in that makes a missing Redis a boot failure.
+  await initQueueService();
+
+  // Release the worker, queue and Redis clients on shutdown.
+  fastify.addHook('onClose', async () => {
+    await closeQueueService();
+  });
+
   // Health check
   fastify.get('/api/health', async () => {
-    return { status: 'ok', version: '1.2.2', timestamp: new Date().toISOString() };
+    return {
+      status: 'ok',
+      version: '1.2.2',
+      queueDriver: queueDriver(),
+      timestamp: new Date().toISOString(),
+    };
   });
 
   return fastify;

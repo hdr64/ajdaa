@@ -86,6 +86,13 @@ const envSchema = z.object({
   // --- Developer Notes & Technical Feedback ---
   DEVELOPER_EMAIL: z.string().default('cloud.data.sa@gmail.com'),
   DEVELOPER_NOTES_SECRET: z.string().default('ajda-dev-notes-2026'),
+
+  // --- Asynchronous Job Queue (Option C) ---
+  // `auto` probes Redis and degrades to inline execution when it is unreachable,
+  // so a deployment without Redis still sends mail. `sync` skips the probe
+  // entirely; `redis` fails loudly instead of degrading (staging/production).
+  REDIS_URL: z.string().default('redis://127.0.0.1:6379'),
+  QUEUE_DRIVER: z.enum(['auto', 'redis', 'sync']).default('auto'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -160,6 +167,10 @@ export const config = {
   developer: {
     emails: developerEmails,
     secretKey: env.DEVELOPER_NOTES_SECRET,
+  },
+  queue: {
+    redisUrl: env.REDIS_URL,
+    driver: env.QUEUE_DRIVER,
   },
   mail: {
     host: env.MAIL_HOST,
