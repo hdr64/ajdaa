@@ -54,21 +54,25 @@
 - [x] Platform SemVer bump to `v1.2.0` across configurations, health endpoints, and documentation.
 - [x] **Frontend Route-Level Code Splitting (v1.2.1)**: Dynamically split `AdminDashboardPage`, `AdminLoginPage`, and sub-routes using `React.lazy()` and `<Suspense>`. Reduced public initial bundle by **64.4%** (from 1,083 kB to 385 kB).
 - [x] **Dedicated `server/errors.log` & Client Telemetry**: Added isolated error logging, process crash listeners, `GET /api/logs/errors`, and `POST /api/logs/client-error` beacon.
+- [x] **Admin CMS Live Preview & Backup Export/Import (v1.2.2)**: Single-click JSON backup export/import with atomic transactions and rollback snapshots.
+- [x] **Side-by-Side Live Preview Studio**: Embedded split-view editor allowing simultaneous editing and real-time viewing with WebSocket sync, device viewports, language switcher, and zoom controls.
+- [x] **Asynchronous Job Queue Engine (Option C: BullMQ + Redis with Zero-Crash Sync Fallback)**:
+  - `QueueService` with Laravel-inspired `QueueableJob<T>` contract.
+  - Probes Redis on boot (1.5s timeout) with automatic fallback to `sync` inline execution.
+  - Offloaded developer feedback notes and customer inquiry email notifications.
+  - All 20 test files and 146 vitest unit/integration tests passing (100%).
 
 ---
 
 ## 3. Active Sprint & Next Priorities
 
-1. **Asynchronous Job Queue Engine (Option C: BullMQ + Redis with Sync Fallback)**:
-   - Implement `QueueManager` with `QueueableJob<T>` interface matching Laravel's queue pattern.
-   - Detect Redis connection (`REDIS_URL` or `localhost:6379`).
-   - If Redis is active: dispatch emails and heavy jobs asynchronously to BullMQ queue (<20ms response time).
-   - If Redis is offline or unavailable: automatically degrade to `sync` execution (inline `await`) with zero crashes.
-   - Wire developer feedback email and customer inquiry notifications to background jobs.
-2. **Production VPS Deployment**:
-   - Provision Ubuntu 24.04 LTS VPS with native PostgreSQL 16.
-   - Configure Caddy 2 reverse proxy with automatic Let's Encrypt TLS.
-   - Enable systemd service unit (`ajda-api.service`) and daily backup cron (`backup.sh`).
-3. **End-to-End Visual Verification**:
-   - Verify public CMS rendering and admin editing flows in browser.
+1. **Production VPS Deployment**:
+   - Provision Ubuntu 24.04 LTS VPS with native PostgreSQL 16 & Redis 7.
+   - Run automated deployment via `deploy/deploy.sh feat/backend-admin`.
+   - Configure Caddy 2 reverse proxy with Cloudflare Origin SSL certificate.
+   - Enable systemd service units (`ajda-api.service`, `ajda-backup.timer`).
+2. **Dynamic SEO, Social Sharing (OpenGraph/Twitter Cards) & Schema.org JSON-LD**:
+   - Add dynamic meta tags connected to CMS SEO fields for rich link previews.
+   - Inject Schema.org JSON-LD structured data for Google RealEstateAgent rich snippets.
+
 
