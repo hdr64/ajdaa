@@ -10,6 +10,7 @@ import {
   Download,
   Upload,
   Eye,
+  Columns2,
   AlertTriangle,
   FileJson,
   X,
@@ -24,6 +25,7 @@ import { CmsWorksPanel } from '../../../components/admin/cms/CmsWorksPanel';
 import { CmsClientsPanel } from '../../../components/admin/cms/CmsClientsPanel';
 import { CmsContactPanel } from '../../../components/admin/cms/CmsContactPanel';
 import { CmsPreviewModal } from '../../../components/admin/cms/CmsPreviewModal';
+import { CmsLivePreviewPane } from '../../../components/admin/cms/CmsLivePreviewPane';
 import { api, getErrorMessage } from '../../../services/api';
 
 type CmsTab = 'nav' | 'footer' | 'home' | 'works' | 'clients' | 'contact';
@@ -44,6 +46,15 @@ export const CmsSection: React.FC = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [cmsRefreshKey, setCmsRefreshKey] = useState(0);
 
+  // Side-by-Side Split View State (defaults to true on desktop)
+  const [splitPreview, setSplitPreview] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const saved = localStorage.getItem('ajda_cms_split_preview');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [previewPathOverride, setPreviewPathOverride] = useState<string | null>(null);
+
   // Backup Import State
   const [pendingBackup, setPendingBackup] = useState<{
     fileName: string;
@@ -62,6 +73,20 @@ export const CmsSection: React.FC = () => {
   if (!canManageCms && !canManageClients) {
     return <NoAccess />;
   }
+
+  const handleToggleSplit = (enabled: boolean) => {
+    setSplitPreview(enabled);
+    try {
+      localStorage.setItem('ajda_cms_split_preview', String(enabled));
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleTabChange = (tab: CmsTab) => {
+    setActiveTab(tab);
+    setPreviewPathOverride(null); // auto-sync preview route with the new tab
+  };
 
   const handleExportBackup = async () => {
     setExporting(true);
@@ -149,7 +174,7 @@ export const CmsSection: React.FC = () => {
     { id: 'footer' as CmsTab, label: 'الهوية والتذييل (Footer)', icon: Footprints, visible: canManageCms },
   ].filter((t) => t.visible);
 
-  const getPreviewRoute = () => {
+  const getActiveTabRoute = () => {
     switch (activeTab) {
       case 'works':
         return '/works';
@@ -161,6 +186,8 @@ export const CmsSection: React.FC = () => {
         return '/';
     }
   };
+
+  const currentPreviewRoute = previewPathOverride ?? getActiveTabRoute();
 
   return (
     <div className="space-y-6">
@@ -174,9 +201,9 @@ export const CmsSection: React.FC = () => {
       />
 
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-surface border border-muted-border/30 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-surface border border-muted-border/30 shadow-xs">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl brand-fill text-canvas flex items-center justify-center shadow-xs">
+          <div className="w-12 h-12 rounded-2xl brand-fill text-canvas flex items-center justify-center shadow-xs shrink-0">
             <Globe className="w-6 h-6" />
           </div>
           <div>
@@ -187,22 +214,37 @@ export const CmsSection: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-neutral-text/70 mt-0.5">
-              تحكم كامل في كافة نصوص الموقع، الأقسام، الشركاء، القائمة العلوية والتذييل مع سجل الإصدارات
+              تحكم كامل في كافة نصوص الموقع، الأقسام، الشركاء، القائمة العلوية والتذييل مع معاينة حية فورية
             </p>
           </div>
         </div>
 
-        {/* Action Buttons: Live Preview, Export, Import */}
+        {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Live Preview Button */}
+          {/* Side-by-Side Split View Toggle */}
+          <button
+            type="button"
+            onClick={() => handleToggleSplit(!splitPreview)}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+              splitPreview
+                ? 'brand-fill text-canvas shadow-xs'
+                : 'bg-canvas border border-muted-border/40 hover:border-primary/50 text-neutral-text hover:text-heading'
+            }`}
+            title="تبديل وضع المعاينة المتزامنة جنباً إلى جنب"
+          >
+            <Columns2 className={`w-4 h-4 ${splitPreview ? 'text-emerald-300' : 'text-primary'}`} />
+            <span>{splitPreview ? 'معاينة جنباً إلى جنب: مفعّلة' : 'معاينة جنباً إلى جنب'}</span>
+          </button>
+
+          {/* Fullscreen Preview Modal Button */}
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer"
-            title="فتح نافذة المعاينة الحية متعددة المقاسات"
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer"
+            title="فتح المعاينة في نافذة كاملة الشاشة"
           >
-            <Eye className="w-4 h-4 text-emerald-300 animate-pulse" />
-            <span>معاينة حية للموقع</span>
+            <Eye className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">معاينة مكبّرة</span>
           </button>
 
           {isSuperAdmin && (
@@ -216,7 +258,7 @@ export const CmsSection: React.FC = () => {
                 title="تصدير نسخة احتياطية لكافة بيانات الـ CMS بصيغة JSON"
               >
                 <Download className="w-3.5 h-3.5 text-primary" />
-                {exporting ? 'جاري التصدير...' : 'تصدير نسخة'}
+                <span className="hidden md:inline">{exporting ? 'جاري التصدير...' : 'تصدير نسخة'}</span>
               </button>
 
               {/* Import Backup Button */}
@@ -228,51 +270,74 @@ export const CmsSection: React.FC = () => {
                 title="استيراد نسخة احتياطية من ملف JSON"
               >
                 <Upload className="w-3.5 h-3.5 text-indigo-500" />
-                <span>استيراد نسخة</span>
+                <span className="hidden md:inline">استيراد نسخة</span>
               </button>
             </>
           )}
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold rounded-2xl whitespace-nowrap transition cursor-pointer ${
-                isActive
-                  ? 'brand-fill text-canvas shadow-xs'
-                  : 'bg-surface border border-muted-border/30 text-neutral-text hover:text-heading hover:border-muted-border/60'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
+      {/* Main Workspace: Side-by-Side Split View */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* Left Column: Editor Tabs & Panel */}
+        <div
+          className={`w-full transition-all duration-300 space-y-6 ${
+            splitPreview ? 'lg:w-[48%] xl:w-[45%] 2xl:w-[42%] shrink-0' : 'w-full'
+          }`}
+        >
+          {/* Tabs Navigation */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold rounded-2xl whitespace-nowrap transition cursor-pointer ${
+                    isActive
+                      ? 'brand-fill text-canvas shadow-xs'
+                      : 'bg-surface border border-muted-border/30 text-neutral-text hover:text-heading hover:border-muted-border/60'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active Tab Panel */}
+          <div key={`${activeTab}-${cmsRefreshKey}`} className="transition-all duration-150">
+            {activeTab === 'home' && <CmsHomePanel />}
+            {activeTab === 'works' && <CmsWorksPanel />}
+            {activeTab === 'clients' && <CmsClientsPanel />}
+            {activeTab === 'contact' && <CmsContactPanel />}
+            {activeTab === 'nav' && <CmsNavPanel />}
+            {activeTab === 'footer' && <CmsFooterPanel />}
+          </div>
+        </div>
+
+        {/* Right Column: Live Preview Sticky Pane (Side-by-Side) */}
+        {splitPreview && (
+          <div className="hidden lg:block lg:flex-1 w-full sticky top-20 transition-all duration-300">
+            <CmsLivePreviewPane
+              currentPath={currentPreviewRoute}
+              onPathChange={(p) => setPreviewPathOverride(p)}
+              onExpandFullscreen={() => setPreviewOpen(true)}
+              onClose={() => handleToggleSplit(false)}
+              isSplitView={true}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Active Tab Panel */}
-      <div key={`${activeTab}-${cmsRefreshKey}`} className="transition-all duration-150">
-        {activeTab === 'home' && <CmsHomePanel />}
-        {activeTab === 'works' && <CmsWorksPanel />}
-        {activeTab === 'clients' && <CmsClientsPanel />}
-        {activeTab === 'contact' && <CmsContactPanel />}
-        {activeTab === 'nav' && <CmsNavPanel />}
-        {activeTab === 'footer' && <CmsFooterPanel />}
-      </div>
-
-      {/* Live Preview Modal */}
+      {/* Fullscreen Live Preview Modal */}
       <CmsPreviewModal
         isOpen={previewOpen}
         onClose={() => setPreviewOpen(false)}
-        initialRoute={getPreviewRoute()}
+        initialRoute={currentPreviewRoute}
       />
 
       {/* Backup Import Confirmation Modal */}
