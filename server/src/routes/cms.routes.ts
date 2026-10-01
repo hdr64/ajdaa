@@ -15,6 +15,8 @@ import {
   reorderCmsClients,
   bulkDeleteCmsClients,
   bulkSetCmsClientsVisibility,
+  exportCmsData,
+  importCmsData,
 } from '../services/cmsService.js';
 
 const reorderSchema = z.object({
@@ -59,7 +61,11 @@ export const cmsRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(304).send();
     }
 
-    return section.data;
+    return {
+      key: request.params.key,
+      content: section.data,
+      version: section.version,
+    };
   });
 
   // 3. PUT /api/cms/content/:key - Admin updates a section
@@ -230,4 +236,34 @@ export const cmsRoutes: FastifyPluginAsync = async (fastify) => {
       return bulkSetCmsClientsVisibility(ids, visible, fastify.io);
     }
   );
+
+  // 14. GET /api/cms/export - Admin exports full CMS snapshot JSON
+  fastify.get(
+    '/export',
+    {
+      onRequest: [authenticate, requirePermission('manageCms')],
+    },
+    async () => {
+      return exportCmsData();
+    }
+  );
+
+  // 15. POST /api/cms/import - Admin restores CMS snapshot JSON
+  fastify.post(
+    '/import',
+    {
+      onRequest: [authenticate, requirePermission('manageCms')],
+      config: { rateLimit: { max: 10, timeWindow: 60_000 } },
+    },
+    async (request, reply) => {
+      try {
+        const result = await importCmsData(request.body, request.admin!.id, fastify.io);
+        return result;
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : String(caught);
+        return reply.status(400).send({ error: message });
+      }
+    }
+  );
 };
+

@@ -265,6 +265,7 @@ export async function updateSectionContent(
   }
 
   return {
+    success: true,
     data: validated,
     version: updated.version,
     updatedAt: updated.updatedAt,
@@ -428,3 +429,210 @@ export async function bulkSetCmsClientsVisibility(ids: string[], visible: boolea
   if (io) io.emit('cms:clients:updated', { action: 'bulk-visibility', count: result.count });
   return result;
 }
+
+// ----------------- CMS Snapshot Backup & Restore -----------------
+
+export interface CmsExportSnapshot {
+  version: number;
+  exportedAt: string;
+  source: string;
+  sections: Record<
+    string,
+    {
+      version: number;
+      updatedAt: string;
+      content: unknown;
+    }
+  >;
+  clients: Array<{
+    nameAr: string;
+    nameEn: string;
+    sectorAr: string;
+    sectorEn: string;
+    descAr: string;
+    descEn: string;
+    logo: string;
+    tagsAr: string[];
+    tagsEn: string[];
+    websiteUrl: string | null;
+    order: number;
+    visible: boolean;
+  }>;
+}
+
+export async function exportCmsData(): Promise<CmsExportSnapshot> {
+  await seedCmsDefaultsIfNeeded();
+  const dbSections = await prisma.cmsSection.findMany({
+    orderBy: { key: 'asc' },
+  });
+  const dbClients = await prisma.cmsClient.findMany({
+    orderBy: { order: 'asc' },
+  });
+
+  const sections: CmsExportSnapshot['sections'] = {};
+  for (const s of dbSections) {
+    try {
+      sections[s.key] = {
+        version: s.version,
+        updatedAt: s.updatedAt.toISOString(),
+        content: JSON.parse(s.content),
+      };
+    } catch {
+      // Fallback on corrupt JSON
+    }
+  }
+
+  const clients = dbClients.map((c) => ({
+    nameAr: c.nameAr,
+    nameEn: c.nameEn,
+    sectorAr: c.sectorAr,
+    sectorEn: c.sectorEn,
+    descAr: c.descAr,
+    descEn: c.descEn,
+    logo: c.logo,
+    tagsAr: JSON.parse(c.tagsAr || '[]') as string[],
+    tagsEn: JSON.parse(c.tagsEn || '[]') as string[],
+    websiteUrl: c.websiteUrl,
+    order: c.order,
+    visible: c.visible,
+  }));
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    source: 'Ajda CMS Engine v1.2',
+    sections,
+    clients,
+  };
+}
+
+export async function importCmsData(
+  rawSnapshot: unknown,
+  adminId: string,
+  io?: { emit: (event: string, data: unknown) => void }
+): Promise<{
+  success: boolean;
+  importedSections: string[];
+  importedClientsCount: number;
+}> {
+  if (!rawSnapshot || typeof rawSnapshot !== 'object') {
+    throw new Error('بيانات النسخة الاحتياطية غير صالحة (Invalid backup payload)');
+  }
+
+  const payload = rawSnapshot as {
+    sections?: Record<string, unknown>;
+    clients?: unknown[];
+  };
+
+  const sectionsToImport: Record<string, unknown> = {};
+  const importedSections: string[] = [];
+
+  // 1. Validate sections
+  if (payload.sections && typeof payload.sections === 'object') {
+    for (const [key, sectionEntry] of Object.entries(payload.sections)) {
+      const schema = SECTION_SCHEMAS[key];
+      if (!schema) continue;
+
+      const content =
+        sectionEntry && typeof sectionEntry === 'object' && 'content' in sectionEntry
+          ? (sectionEntry as { content: unknown }).content
+          : sectionEntry;
+
+      const validated = schema.parse(content);
+      sectionsToImport[key] = validated;
+      importedSections.push(key);
+    }
+  }
+
+  // 2. Validate clients
+  const clientsToImport: Array<ReturnType<typeof cmsClientItemSchema.parse>> = [];
+  if (Array.isArray(payload.clients)) {
+    for (const rawClient of payload.clients) {
+      const validatedClient = cmsClientItemSchema.parse(rawClient);
+      clientsToImport.push(validatedClient);
+    }
+  }
+
+  if (importedSections.length === 0 && clientsToImport.length === 0) {
+    throw new Error('لم يتم العثور على أي أقسام أو شركاء صالحة للاستيراد في الملف.');
+  }
+
+  // 3. Execute Transaction
+  await prisma.$transaction(async (tx) => {
+    // A. Upsert Sections and create version history
+    for (const [key, contentObj] of Object.entries(sectionsToImport)) {
+      const stringified = JSON.stringify(contentObj);
+      const existing = await tx.cmsSection.findUnique({ where: { key } });
+      const newVersion = (existing?.version ?? 0) + 1;
+
+      const updated = await tx.cmsSection.upsert({
+        where: { key },
+        create: {
+          key,
+          content: stringified,
+          version: 1,
+          updatedById: adminId,
+        },
+        update: {
+          content: stringified,
+          version: newVersion,
+          updatedById: adminId,
+        },
+      });
+
+      await tx.cmsSectionVersion.create({
+        data: {
+          sectionKey: key,
+          content: stringified,
+          version: updated.version,
+          createdById: adminId,
+        },
+      });
+    }
+
+    // B. Import Clients (if any provided in snapshot)
+    if (clientsToImport.length > 0) {
+      await tx.cmsClient.deleteMany();
+      for (let i = 0; i < clientsToImport.length; i++) {
+        const c = clientsToImport[i];
+        await tx.cmsClient.create({
+          data: {
+            nameAr: c.nameAr,
+            nameEn: c.nameEn,
+            sectorAr: c.sectorAr,
+            sectorEn: c.sectorEn,
+            descAr: c.descAr,
+            descEn: c.descEn,
+            logo: c.logo,
+            tagsAr: JSON.stringify(c.tagsAr),
+            tagsEn: JSON.stringify(c.tagsEn),
+            websiteUrl: c.websiteUrl || null,
+            order: c.order ?? i + 1,
+            visible: c.visible ?? true,
+          },
+        });
+      }
+    }
+  });
+
+  // 4. Prune version history & invalidate cache
+  for (const key of importedSections) {
+    await pruneOldVersions(key, 10);
+  }
+  invalidateCmsCache();
+
+  // 5. Emit Realtime Events
+  if (io) {
+    io.emit('cms:updated', { key: 'all', timestamp: Date.now() });
+    if (clientsToImport.length > 0) {
+      io.emit('cms:clients:updated', { action: 'bulk-import', count: clientsToImport.length });
+    }
+  }
+
+  return {
+    success: true,
+    importedSections,
+    importedClientsCount: clientsToImport.length,
+  };
+}
+

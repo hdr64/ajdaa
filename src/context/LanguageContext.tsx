@@ -5,6 +5,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [language, setLanguageState] = useState<Language>(() => {
     if (typeof window === 'undefined') return 'ar';
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLang = urlParams.get('lang');
+      if (urlLang === 'ar' || urlLang === 'en') {
+        return urlLang;
+      }
       const saved = localStorage.getItem(LANG_STORAGE_KEY) as Language | null;
       if (saved === 'ar' || saved === 'en') {
         return saved;
@@ -39,6 +44,32 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     applyLanguage(language);
   }, [language]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && typeof event.data === 'object' && event.data.type === 'AJDA_SET_LANG') {
+        const nextLang = event.data.lang;
+        if (nextLang === 'ar' || nextLang === 'en') {
+          setLanguageState(nextLang);
+        }
+      }
+    };
+
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLang = urlParams.get('lang');
+      if (urlLang === 'ar' || urlLang === 'en') {
+        setLanguageState(urlLang);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);

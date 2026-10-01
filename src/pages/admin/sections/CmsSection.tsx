@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Globe,
   Compass,
@@ -8,6 +8,12 @@ import {
   Users,
   Mail,
   Download,
+  Upload,
+  Eye,
+  AlertTriangle,
+  FileJson,
+  X,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
 import { NoAccess } from '../../../components/admin/common/SectionState';
@@ -17,14 +23,37 @@ import { CmsHomePanel } from '../../../components/admin/cms/CmsHomePanel';
 import { CmsWorksPanel } from '../../../components/admin/cms/CmsWorksPanel';
 import { CmsClientsPanel } from '../../../components/admin/cms/CmsClientsPanel';
 import { CmsContactPanel } from '../../../components/admin/cms/CmsContactPanel';
+import { CmsPreviewModal } from '../../../components/admin/cms/CmsPreviewModal';
 import { api, getErrorMessage } from '../../../services/api';
 
 type CmsTab = 'nav' | 'footer' | 'home' | 'works' | 'clients' | 'contact';
+
+interface BackupParsedData {
+  version?: number;
+  exportedAt?: string;
+  source?: string;
+  sections?: Record<string, unknown>;
+  clients?: unknown[];
+}
 
 export const CmsSection: React.FC = () => {
   const { can, isSuperAdmin, showToast } = useAdmin();
   const [activeTab, setActiveTab] = useState<CmsTab>('home');
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [cmsRefreshKey, setCmsRefreshKey] = useState(0);
+
+  // Backup Import State
+  const [pendingBackup, setPendingBackup] = useState<{
+    fileName: string;
+    fileSizeKb: number;
+    data: BackupParsedData;
+    detectedSections: string[];
+    detectedClientsCount: number;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canManageCms = can('manageCms');
   const canManageClients = can('manageClients');
@@ -55,6 +84,57 @@ export const CmsSection: React.FC = () => {
     }
   };
 
+  const handleFilePicked = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const parsed = JSON.parse(text) as BackupParsedData;
+
+        // Detect available sections & clients
+        const sections = parsed.sections ? Object.keys(parsed.sections) : [];
+        const clientsCount = Array.isArray(parsed.clients) ? parsed.clients.length : 0;
+
+        if (sections.length === 0 && clientsCount === 0) {
+          showToast('الملف المرفوع لا يحتوي على بيانات CMS صالحة للاستيراد');
+          return;
+        }
+
+        setPendingBackup({
+          fileName: file.name,
+          fileSizeKb: Math.round(file.size / 1024),
+          data: parsed,
+          detectedSections: sections,
+          detectedClientsCount: clientsCount,
+        });
+      } catch {
+        showToast('تعذر قراءة الملف: تأكد من أنه ملف JSON صالح');
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingBackup) return;
+    setImporting(true);
+    try {
+      await api.post('/cms/import', pendingBackup.data);
+      showToast('تم استيراد النسخة الاحتياطية وتحديث الموقع بنجاح');
+      setPendingBackup(null);
+      // Remount current active panel to display fresh imported state
+      setCmsRefreshKey((k) => k + 1);
+    } catch (caught) {
+      showToast(getErrorMessage(caught, 'فشل استيراد النسخة الاحتياطية'));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const tabs = [
     { id: 'home' as CmsTab, label: 'الصفحة الرئيسية', icon: Home, visible: canManageCms },
     { id: 'works' as CmsTab, label: 'صفحة المشاريع', icon: Building, visible: canManageCms },
@@ -69,8 +149,30 @@ export const CmsSection: React.FC = () => {
     { id: 'footer' as CmsTab, label: 'الهوية والتذييل (Footer)', icon: Footprints, visible: canManageCms },
   ].filter((t) => t.visible);
 
+  const getPreviewRoute = () => {
+    switch (activeTab) {
+      case 'works':
+        return '/works';
+      case 'clients':
+        return '/clients';
+      case 'contact':
+        return '/contact';
+      default:
+        return '/';
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Hidden Backup File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFilePicked}
+        accept=".json,application/json"
+        className="hidden"
+      />
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-surface border border-muted-border/30 shadow-xs">
         <div className="flex items-center gap-4">
@@ -90,20 +192,47 @@ export const CmsSection: React.FC = () => {
           </div>
         </div>
 
-        {isSuperAdmin && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportBackup}
-              disabled={exporting}
-              className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
-              title="تصدير نسخة احتياطية لكافة بيانات الـ CMS بصيغة JSON"
-            >
-              <Download className="w-3.5 h-3.5 text-primary" />
-              {exporting ? 'جاري التصدير...' : 'تصدير نسخة احتياطية'}
-            </button>
-          </div>
-        )}
+        {/* Action Buttons: Live Preview, Export, Import */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Live Preview Button */}
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer"
+            title="فتح نافذة المعاينة الحية متعددة المقاسات"
+          >
+            <Eye className="w-4 h-4 text-emerald-300 animate-pulse" />
+            <span>معاينة حية للموقع</span>
+          </button>
+
+          {isSuperAdmin && (
+            <>
+              {/* Export Backup Button */}
+              <button
+                type="button"
+                onClick={handleExportBackup}
+                disabled={exporting}
+                className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
+                title="تصدير نسخة احتياطية لكافة بيانات الـ CMS بصيغة JSON"
+              >
+                <Download className="w-3.5 h-3.5 text-primary" />
+                {exporting ? 'جاري التصدير...' : 'تصدير نسخة'}
+              </button>
+
+              {/* Import Backup Button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
+                title="استيراد نسخة احتياطية من ملف JSON"
+              >
+                <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                <span>استيراد نسخة</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Tabs Navigation */}
@@ -130,7 +259,7 @@ export const CmsSection: React.FC = () => {
       </div>
 
       {/* Active Tab Panel */}
-      <div className="transition-all duration-150">
+      <div key={`${activeTab}-${cmsRefreshKey}`} className="transition-all duration-150">
         {activeTab === 'home' && <CmsHomePanel />}
         {activeTab === 'works' && <CmsWorksPanel />}
         {activeTab === 'clients' && <CmsClientsPanel />}
@@ -138,6 +267,104 @@ export const CmsSection: React.FC = () => {
         {activeTab === 'nav' && <CmsNavPanel />}
         {activeTab === 'footer' && <CmsFooterPanel />}
       </div>
+
+      {/* Live Preview Modal */}
+      <CmsPreviewModal
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        initialRoute={getPreviewRoute()}
+      />
+
+      {/* Backup Import Confirmation Modal */}
+      {pendingBackup && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="import-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
+        >
+          <div className="w-full max-w-lg rounded-3xl bg-surface border border-muted-border/40 p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-muted-border/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                  <FileJson className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 id="import-dialog-title" className="text-sm font-black text-heading">
+                    استيراد نسخة احتياطية للـ CMS
+                  </h3>
+                  <p className="text-xs text-neutral-text/70 mt-0.5">
+                    مراجعة محتويات الملف قبل تطبيق التغييرات
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingBackup(null)}
+                className="p-1.5 rounded-xl hover:bg-canvas text-neutral-text hover:text-heading transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* File info card */}
+            <div className="p-4 rounded-2xl bg-canvas border border-muted-border/30 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-text font-medium">اسم الملف:</span>
+                <span className="font-mono font-bold text-heading truncate max-w-[240px]">
+                  {pendingBackup.fileName}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-text font-medium">الحجم:</span>
+                <span className="font-mono text-heading">{pendingBackup.fileSizeKb} KB</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-text font-medium">الأقسام المتوفرة:</span>
+                <span className="font-bold text-primary">
+                  {pendingBackup.detectedSections.length} أقسام (
+                  {pendingBackup.detectedSections.join(', ')})
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-text font-medium">قائمة الشركاء والعملاء:</span>
+                <span className="font-bold text-emerald-500">
+                  {pendingBackup.detectedClientsCount} شريك
+                </span>
+              </div>
+            </div>
+
+            {/* Warning Note */}
+            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs leading-relaxed">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>
+                <strong>تنبيه:</strong> سيتم تحديث محتوى الموقع فوراً بالبيانات المستوردة، وسيتم حفظ نسخة تاريخية تلقائية لتمكين التراجع عنها في أي وقت من سجل الإصدارات.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingBackup(null)}
+                disabled={importing}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-muted-border/70 text-neutral-text hover:text-heading transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmImport}
+                disabled={importing}
+                className="flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-xl brand-fill text-canvas hover:opacity-95 transition cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                {importing ? 'جاري الاستيراد...' : 'تأكيد واستيراد الآن'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

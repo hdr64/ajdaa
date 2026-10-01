@@ -69,7 +69,14 @@ export const cmsService = {
   getClients: getCmsClients,
 
   /** A single section, used to revalidate just what an admin touched. */
-  getSection<TKey extends CmsSectionKey>(key: TKey, signal?: AbortSignal): Promise<CmsContent[TKey]> {
-    return api.get<CmsContent[TKey]>(`/cms/content/${key}`, { signal });
+  async getSection<TKey extends CmsSectionKey>(key: TKey, signal?: AbortSignal): Promise<CmsContent[TKey]> {
+    const res = await api.get<{ key: string; content: CmsContent[TKey]; version: number } | CmsContent[TKey]>(
+      `/cms/content/${key}`,
+      { signal }
+    );
+    if (res && typeof res === 'object' && 'content' in res) {
+      return (res as { content: CmsContent[TKey] }).content;
+    }
+    return res as CmsContent[TKey];
   },
 };
