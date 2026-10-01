@@ -61,3 +61,4 @@ server/*.log
 screenshots
 .antigravityignore
 .agents/rules/restrict-scan.md
+.env.backup

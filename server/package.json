@@ -46,6 +46,9 @@
   "allowScripts": {
     "sharp@0.33.5": true,
     "@prisma/engines@6.19.3": true,
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "@prisma/client@6.19.3": true,
+    "msgpackr-extract@3.0.4": true,
+    "prisma@6.19.3": true
   }
 }
