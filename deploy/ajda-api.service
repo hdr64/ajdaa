@@ -6,20 +6,20 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ajda
-Group=ajda
+User=salah
+Group=salah
 
 # Required: UPLOAD_DIR defaults to ./uploads and is resolved against the cwd,
 # and dotenv reads .env from the cwd as well.
-WorkingDirectory=/opt/ajda/server
+WorkingDirectory=/srv/ajda/app/server
 
 # systemd-provided variables take precedence over the .env file, because dotenv
 # never overwrites an already-set process.env value.
-EnvironmentFile=/opt/ajda/server/.env
+EnvironmentFile=/srv/ajda/app/server/.env
 Environment=NODE_ENV=production
 Environment=PORT=4000
 
-ExecStart=/usr/bin/node dist/server.js
+ExecStart=/home/salah/.nvm/versions/node/v24.21.0/bin/node dist/server.js
 
 # dist/server.js must exist first: `npm ci && npm run db:gen:prod && npm run build`
 Restart=on-failure
@@ -31,8 +31,8 @@ KillSignal=SIGTERM
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
-ProtectSystem=strict
-ProtectHome=true
+ProtectSystem=full
+ProtectHome=read-only
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -44,7 +44,7 @@ SystemCallArchitectures=native
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 # The upload directory and production log files are writable.
-ReadWritePaths=/opt/ajda/server/uploads /opt/ajda/server/prod.log /opt/ajda/server/errors.log
+ReadWritePaths=/srv/ajda/app/server/uploads /srv/ajda/app/server/prod.log /srv/ajda/app/server/errors.log
 
 StandardOutput=journal
 StandardError=journal
