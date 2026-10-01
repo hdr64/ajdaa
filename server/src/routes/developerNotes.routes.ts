@@ -2,9 +2,9 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { config } from '../config/env.js';
-import { sendMail } from '../services/mailService.js';
-import { developerNoteNotification } from '../services/mailTemplates.js';
 import { loggerService } from '../services/loggerService.js';
+import { dispatch } from '../services/queueService.js';
+import { sendDeveloperNoteEmailJob } from '../jobs/emailJobs.js';
 
 const createNoteSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(200),
@@ -126,34 +126,21 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: note.createdAt.toISOString(),
       });
 
-      // Dispatch Email Notification to Developer
-      const recipients = config.developer.emails;
-      if (recipients.length > 0) {
-        for (const recipient of recipients) {
-          try {
-            await sendMail({
-              to: recipient,
-              ...developerNoteNotification({
-                brandName: config.mail.fromName,
-                appUrl: config.appUrl,
-                title: note.title,
-                section: note.section,
-                body: note.body,
-                solution: note.solution,
-                screenshotUrl: note.screenshotUrl,
-                adminName: note.adminName,
-                adminEmail: note.adminEmail,
-                priority: note.priority,
-              }),
-            });
-          } catch (err) {
-            loggerService.error('Failed to dispatch developer note email notification', {
-              err: String(err),
-              recipient,
-            });
-          }
-        }
-      }
+      // Dispatch Email Notification to Developer. Queued when Redis is up (the
+      // SMTP handshake then happens in the worker, not this request), and run
+      // inline otherwise. Either way the note is already persisted, so neither
+      // path can lose it.
+      await dispatch(sendDeveloperNoteEmailJob, {
+        noteId: String(note.id),
+        title: note.title,
+        section: note.section,
+        body: note.body,
+        solution: note.solution,
+        screenshotUrl: note.screenshotUrl,
+        adminName: note.adminName,
+        adminEmail: note.adminEmail,
+        priority: note.priority,
+      });
 
       return reply.status(201).send({
         success: true,

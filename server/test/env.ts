@@ -25,6 +25,7 @@ export type TestEnvironment = {
   JWT_SECRET: string;
   UPLOAD_DIR: string;
   LOGIN_OTP_RESEND_COOLDOWN_MS: string;
+  QUEUE_DRIVER: string;
 };
 
 /** Prisma's SQLite URL parser wants forward slashes even for Windows drive letters. */
@@ -45,6 +46,11 @@ export function createTestEnvironment(): TestEnvironment {
     // Short enough for the resend-throttle test to wait it out, long enough that
     // two back-to-back requests still collide.
     LOGIN_OTP_RESEND_COOLDOWN_MS: '1500',
+    // Pinned rather than left to the `auto` default: a developer who happens to
+    // have Redis running must not silently push the suite onto the async path.
+    // Every other test then exercises the deterministic inline path, and
+    // `queue.test.ts` covers the Redis probe and fallback explicitly.
+    QUEUE_DRIVER: 'sync',
   };
 }
 
@@ -85,6 +91,7 @@ export function requireTestEnvironment(): TestEnvironment {
     JWT_SECRET: process.env.JWT_SECRET as string,
     UPLOAD_DIR: process.env.UPLOAD_DIR as string,
     LOGIN_OTP_RESEND_COOLDOWN_MS: process.env.LOGIN_OTP_RESEND_COOLDOWN_MS as string,
+    QUEUE_DRIVER: process.env.QUEUE_DRIVER as string,
   };
 }
 
