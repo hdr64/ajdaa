@@ -8,8 +8,8 @@ import {
   login,
   removeUser,
   SEED_ADMINS,
-  SEED_PASSWORD,
   seedSession,
+  THROWAWAY_PASSWORD,
   type TestSession,
 } from './helpers.js';
 
@@ -73,7 +73,7 @@ describe('only a super admin can hand out the super_admin role', () => {
     });
     nonSuperManager = manager;
 
-    const session = await login(manager.email, SEED_PASSWORD);
+    const session = await login(manager.email, THROWAWAY_PASSWORD);
     expect(session.permissions.manageUsers).toBe(true);
 
     const created = await authInject(session.token, {
@@ -82,7 +82,7 @@ describe('only a super admin can hand out the super_admin role', () => {
       payload: {
         name: 'Unauthorised Promotion',
         email: 'unauthorised.promotion@ajdaa.test',
-        password: SEED_PASSWORD,
+        password: THROWAWAY_PASSWORD,
         role: 'super_admin',
       },
     });
@@ -117,7 +117,7 @@ describe('the last active super admin is protected', () => {
     });
     expect(promoted.statusCode).toBe(200);
 
-    custodian = await login(successor.email, SEED_PASSWORD);
+    custodian = await login(successor.email, THROWAWAY_PASSWORD);
 
     const suspended = await authInject(custodian.token, {
       method: 'PUT',

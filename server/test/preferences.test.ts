@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { authInject, closeApp, createThrowawayUser, getApp, inject, login, removeUser } from './helpers.js';
+import { authInject, closeApp, createThrowawayUser, getApp, inject, login, removeUser, THROWAWAY_PASSWORD } from './helpers.js';
 
 let userId: string;
 let token: string;
@@ -8,7 +8,7 @@ beforeAll(async () => {
   await getApp();
   const user = await createThrowawayUser();
   userId = user.id;
-  token = (await login(user.email)).token;
+  token = (await login(user.email, THROWAWAY_PASSWORD)).token;
 });
 
 afterAll(async () => {

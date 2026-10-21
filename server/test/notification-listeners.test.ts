@@ -12,6 +12,7 @@ import {
   SEED_ADMINS,
   seedSession,
   sleep,
+  THROWAWAY_PASSWORD,
 } from './helpers.js';
 
 const EXTERNAL = 'sales.team@example.com';
@@ -54,7 +55,7 @@ beforeAll(async () => {
   viewerToken = (await seedSession(SEED_ADMINS.viewer)).token;
   const notifier = await createThrowawayUser({ permissions: { manageNotifications: true } });
   notifierId = notifier.id;
-  notifierToken = (await login(notifier.email)).token;
+  notifierToken = (await login(notifier.email, THROWAWAY_PASSWORD)).token;
 });
 
 beforeEach(async () => {

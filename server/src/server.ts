@@ -4,7 +4,10 @@ import { config } from './config/env.js';
 const start = async () => {
   const fastify = await buildApp();
   try {
-    await fastify.listen({ port: config.port, host: '0.0.0.0' });
+    // The bind address is configurable: `127.0.0.1` by default, so a
+    // development server is not reachable from the network. A deployment
+    // behind a reverse proxy binds `0.0.0.0`.
+    await fastify.listen({ port: config.port, host: config.host });
     fastify.log.info(`🚀 Ajda Real Estate API Server running on http://localhost:${config.port}`);
   } catch (err) {
     fastify.log.error(err);

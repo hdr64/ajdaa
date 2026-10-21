@@ -1,192 +1,53 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { config } from '../config/env.js';
+import { config, secretMatches } from '../config/env.js';
+import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { loggerService } from '../services/loggerService.js';
 
 const querySchema = z.object({
-  key: z.string().optional(),
   level: z.enum(['all', 'error', 'warn', 'info', 'debug']).optional().default('all'),
   search: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(1000).optional().default(100),
   source: z.enum(['buffer', 'file']).optional().default('buffer'),
 });
 
+/** The prefix this plugin is registered under (see `app.ts`). */
+const LOGS_PREFIX = '/api/logs';
+
 /**
- * Authentication check for logs:
- * Allowed if:
- * 1. LOGS_PUBLIC is true, OR
- * 2. Request supplies valid secret key via query param `?key=...` or header `x-logs-key` or `Authorization: Bearer <key>`, OR
- * 3. Request comes from an authenticated AdminUser with `super_admin` role or `manageSettings` permission.
+ * Endpoints that stay reachable without the super-admin + key pair:
+ *
+ * - `/client-error` is the browser's error beacon: it must work for a visitor
+ *   who is not signed in.
+ * - `/view` only renders the viewer shell. Every byte of log data it shows is
+ *   fetched separately through the guarded endpoints below.
  */
-function isAuthorized(request: FastifyRequest): boolean {
-  if (config.logs.isPublic) {
-    return true;
-  }
+const PUBLIC_LOG_PATHS = new Set([`${LOGS_PREFIX}/client-error`, `${LOGS_PREFIX}/view`]);
 
-  const queryKey = (request.query as { key?: string })?.key;
-  const headerKey = request.headers['x-logs-key'] as string | undefined;
-  const authHeader = request.headers['authorization'];
-  let bearerKey: string | undefined;
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    bearerKey = authHeader.substring(7).trim();
-  }
-
-  const providedKey = queryKey || headerKey || bearerKey;
-  if (providedKey && config.logs.secretKey && providedKey === config.logs.secretKey) {
-    return true;
-  }
-
-  // Check if admin is authenticated via JWT
-  const admin = request.admin;
-  if (admin) {
-    if (admin.role === 'super_admin' || admin.role === 'admin') {
-      return true;
-    }
-  }
-
-  return false;
+function isPublicLogPath(request: FastifyRequest): boolean {
+  return PUBLIC_LOG_PATHS.has(request.url.split('?')[0]);
 }
 
-export const logsRoutes: FastifyPluginAsync = async (fastify) => {
-  // Guard middleware
-  fastify.addHook('preHandler', async (request, reply) => {
-    // Exempt client error telemetry beacon from authorization
-    if (request.url.startsWith('/api/logs/client-error') || request.url.startsWith('/client-error')) {
-      return;
-    }
+/**
+ * The shared key is the second factor, and it is only accepted in a header.
+ * A query parameter would end up in access logs, proxy logs and browser
+ * history, so `?key=` is no longer honoured.
+ */
+function hasValidLogsKey(request: FastifyRequest): boolean {
+  const header = request.headers['x-logs-key'];
+  const provided = typeof header === 'string' ? header : undefined;
+  return secretMatches(provided, config.logs.secretKey);
+}
 
-    // Try authenticating via JWT if present, but do not fail if unauthenticated
-    try {
-      await request.jwtVerify();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      request.admin = request.user as any;
-    } catch {
-      // Ignore JWT failure; proceed to key validation
-    }
-
-    if (!isAuthorized(request)) {
-      return reply.status(401).send({
-        error: 'Unauthorized access to production logs',
-        message: 'Provide the secret key via ?key=... or x-logs-key header, or log in as an administrator.',
-        hint: 'You can configure LOGS_SECRET_KEY or LOGS_PUBLIC=true in server/.env',
-      });
-    }
-  });
-
-  // 1. GET /api/logs - JSON API with filtering, pagination, and system telemetry
-  fastify.get('/', async (request: FastifyRequest<{ Querystring: z.infer<typeof querySchema> }>) => {
-    const query = querySchema.parse(request.query);
-    const result = loggerService.getLogs({
-      level: query.level,
-      search: query.search,
-      limit: query.limit,
-      source: query.source,
-    });
-
-    return {
-      success: true,
-      query: {
-        level: query.level,
-        search: query.search || null,
-        limit: query.limit,
-        source: query.source,
-      },
-      ...result,
-    };
-  });
-
-  // 2. GET /api/logs/raw - Plain text raw prod.log stream
-  fastify.get('/raw', async (request, reply) => {
-    const query = request.query as { lines?: string };
-    const lines = parseInt(query.lines || '500', 10);
-    const text = loggerService.getRawFileContent(isNaN(lines) ? 500 : lines);
-
-    reply.header('Content-Type', 'text/plain; charset=utf-8');
-    return text;
-  });
-
-  // 3. GET /api/logs/errors - Plain text raw errors.log stream
-  fastify.get('/errors', async (request, reply) => {
-    const query = request.query as { lines?: string };
-    const lines = parseInt(query.lines || '500', 10);
-    const text = loggerService.getRawErrorsFileContent(isNaN(lines) ? 500 : lines);
-
-    reply.header('Content-Type', 'text/plain; charset=utf-8');
-    return text;
-  });
-
-  // 4. POST /api/logs/errors/clear - Clear errors.log file
-  fastify.post('/errors/clear', async () => {
-    const result = loggerService.clearErrors();
-    return {
-      success: true,
-      message: 'Errors log cleared successfully',
-      ...result,
-    };
-  });
-
-  // 5. POST /api/logs/client-error - Report frontend client-side error to errors.log
-  const clientErrorSchema = z.object({
-    message: z.string().trim().min(1).max(1000),
-    source: z.string().trim().max(100).optional().default('frontend'),
-    url: z.string().trim().max(1000).optional(),
-    stack: z.string().trim().max(5000).optional(),
-    context: z.record(z.unknown()).optional(),
-  });
-
-  fastify.post(
-    '/client-error',
-    {
-      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
-    },
-    async (request, reply) => {
-      const parsed = clientErrorSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ error: 'Invalid error report payload' });
-      }
-
-      const { message, source, url, stack, context } = parsed.data;
-      loggerService.error(
-        `Client error reported: ${message}`,
-        {
-          url: url || request.headers.referer,
-          ip: request.ip,
-          userAgent: request.headers['user-agent'],
-          stack,
-          ...context,
-        },
-        source
-      );
-
-      return { success: true, recorded: true };
-    }
-  );
-
-  // 6. GET /api/logs/stats - Telemetry stats only
-  fastify.get('/stats', async () => {
-    return {
-      success: true,
-      stats: loggerService.getStats(),
-    };
-  });
-
-  // 7. POST /api/logs/clear - Clear logs (memory + file)
-  fastify.post('/clear', async () => {
-    const result = loggerService.clearLogs();
-    return {
-      success: true,
-      message: 'Logs cleared successfully',
-      ...result,
-    };
-  });
-
-  // 5. GET /api/logs/view - Rich HTML interactive live log viewer
-  fastify.get('/view', async (request, reply: FastifyReply) => {
-    const query = request.query as { key?: string };
-    const secretKey = query.key || config.logs.secretKey;
-
-    const html = `<!DOCTYPE html>
+/**
+ * The viewer page.
+ *
+ * It carries no secret: the key is typed into the form by the operator and
+ * sent as the `x-logs-key` header, and the admin session token is read from
+ * the browser's storage by the SPA. Nothing is interpolated into this
+ * document, so there is no value that could leak a secret or inject markup.
+ */
+const LOG_VIEW_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -291,6 +152,18 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
       background: var(--error);
       color: #fff;
     }
+    .access-bar {
+      background: rgba(212, 175, 55, 0.07);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .access-bar input { min-width: 260px; font-family: 'JetBrains Mono', monospace; }
     .stats-bar {
       background: rgba(18, 24, 36, 0.7);
       border-bottom: 1px solid var(--border);
@@ -334,7 +207,7 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
       font-family: 'JetBrains Mono', monospace;
       font-size: 12.5px;
       line-height: 1.6;
-      max-height: calc(100vh - 200px);
+      max-height: calc(100vh - 260px);
     }
     .log-row {
       display: flex;
@@ -434,12 +307,17 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
       </select>
       <button class="primary" id="refreshBtn">↻ Refresh</button>
       <button id="autoBtn">⏸ Pause Auto-Refresh</button>
+      <button id="rawBtn">📄 Raw Text</button>
       <button class="danger" id="clearBtn">🗑 Clear</button>
-      <a href="/api/logs/raw?key=${secretKey}" target="_blank" style="text-decoration:none;">
-        <button type="button">📄 Raw Text</button>
-      </a>
     </div>
   </header>
+
+  <div class="access-bar">
+    <label for="logsKey">Log key</label>
+    <input type="password" id="logsKey" placeholder="Paste LOGS_SECRET_KEY" autocomplete="off">
+    <button id="applyKeyBtn">Apply key</button>
+    <span>Requires an active super admin session in this browser plus the log key.</span>
+  </div>
 
   <div class="stats-bar" id="statsBar">
     <div class="stat-item">Uptime: <span class="stat-val" id="statUptime">-</span></div>
@@ -461,40 +339,74 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
   </main>
 
   <script>
-    const SECRET_KEY = '${secretKey}';
-    let autoRefresh = true;
-    let autoTimer = null;
+    // Same key the admin SPA stores its session token under.
+    var TOKEN_STORAGE_KEY = 'ajdaa_admin_token';
+    var autoRefresh = true;
+    var autoTimer = null;
 
-    const elList = document.getElementById('logList');
-    const elSearch = document.getElementById('search');
-    const elLevel = document.getElementById('levelFilter');
-    const elLimit = document.getElementById('limitFilter');
-    const elSource = document.getElementById('sourceFilter');
-    const elRefresh = document.getElementById('refreshBtn');
-    const elAuto = document.getElementById('autoBtn');
-    const elClear = document.getElementById('clearBtn');
+    var elList = document.getElementById('logList');
+    var elSearch = document.getElementById('search');
+    var elLevel = document.getElementById('levelFilter');
+    var elLimit = document.getElementById('limitFilter');
+    var elSource = document.getElementById('sourceFilter');
+    var elRefresh = document.getElementById('refreshBtn');
+    var elAuto = document.getElementById('autoBtn');
+    var elClear = document.getElementById('clearBtn');
+    var elRaw = document.getElementById('rawBtn');
+    var elKey = document.getElementById('logsKey');
+    var elApplyKey = document.getElementById('applyKeyBtn');
+
+    function readToken() {
+      try {
+        return window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+      } catch (err) {
+        return '';
+      }
+    }
+
+    // The session token and the log key travel as headers only: neither ever
+    // appears in a URL, a query string or the server's request log.
+    function authHeaders() {
+      var headers = { 'Accept': 'application/json' };
+      var token = readToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      var key = elKey ? elKey.value.trim() : '';
+      if (key) headers['x-logs-key'] = key;
+      return headers;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
     async function fetchLogs() {
       try {
-        const level = elLevel.value;
-        const search = encodeURIComponent(elSearch.value.trim());
-        const limit = elLimit.value;
-        const source = elSource.value;
+        var params = new URLSearchParams();
+        params.set('level', elLevel.value);
+        params.set('search', elSearch.value.trim());
+        params.set('limit', elLimit.value);
+        params.set('source', elSource.value);
 
-        const url = \`/api/logs?key=\${SECRET_KEY}&level=\${level}&search=\${search}&limit=\${limit}&source=\${source}\`;
-        const res = await fetch(url);
+        var res = await fetch('/api/logs?' + params.toString(), { headers: authHeaders() });
         if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            throw new Error('Not authorised: sign in as a super admin in this browser, then apply the log key.');
+          }
           throw new Error('HTTP ' + res.status + ': ' + res.statusText);
         }
-        const data = await res.json();
+        var data = await res.json();
         render(data);
       } catch (err) {
-        elList.innerHTML = \`<div class="empty-state" style="color:var(--error)">Failed to fetch logs: \${err.message}</div>\`;
+        elList.innerHTML = '<div class="empty-state" style="color:var(--error)">' + escapeHtml(err.message) + '</div>';
       }
     }
 
     function render(data) {
-      // Update stats
       if (data.stats) {
         document.getElementById('statUptime').textContent = data.stats.uptimeFormatted;
         document.getElementById('statRss').textContent = data.stats.memory.rssMb + ' MB';
@@ -511,55 +423,62 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
-      const rows = data.entries.map(e => {
-        const time = new Date(e.timestamp).toLocaleString();
-        const ctxHtml = e.context ? \`<pre class="log-context">\${escapeHtml(JSON.stringify(e.context, null, 2))}</pre>\` : '';
-        return \`
-          <div class="log-row">
-            <span class="log-time">\${time}</span>
-            <span class="log-level level-\${e.level}">\${e.level}</span>
-            <span class="log-source">[\${escapeHtml(e.source || 'app')}]</span>
-            <div class="log-msg">
-              <div>\${escapeHtml(e.message)}</div>
-              \${ctxHtml}
-            </div>
-          </div>
-        \`;
+      var rows = data.entries.map(function (entry) {
+        var time = new Date(entry.timestamp).toLocaleString();
+        var ctxHtml = entry.context
+          ? '<pre class="log-context">' + escapeHtml(JSON.stringify(entry.context, null, 2)) + '</pre>'
+          : '';
+        return '<div class="log-row">' +
+          '<span class="log-time">' + escapeHtml(time) + '</span>' +
+          '<span class="log-level level-' + escapeHtml(entry.level) + '">' + escapeHtml(entry.level) + '</span>' +
+          '<span class="log-source">[' + escapeHtml(entry.source || 'app') + ']</span>' +
+          '<div class="log-msg"><div>' + escapeHtml(entry.message) + '</div>' + ctxHtml + '</div>' +
+          '</div>';
       }).join('');
 
       elList.innerHTML = rows;
     }
 
-    function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
-
     async function clearLogs() {
       if (!confirm('Are you sure you want to clear production logs? This cannot be undone.')) return;
       try {
-        await fetch(\`/api/logs/clear?key=\${SECRET_KEY}\`, { method: 'POST' });
+        var res = await fetch('/api/logs/clear', { method: 'POST', headers: authHeaders() });
+        if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
         await fetchLogs();
       } catch (err) {
         alert('Failed to clear logs: ' + err.message);
       }
     }
 
+    async function openRawLogs() {
+      try {
+        var res = await fetch('/api/logs/raw', { headers: authHeaders() });
+        if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
+        var text = await res.text();
+        var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+        setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+      } catch (err) {
+        alert('Failed to load the raw log: ' + err.message);
+      }
+    }
+
     elRefresh.addEventListener('click', fetchLogs);
     elClear.addEventListener('click', clearLogs);
+    elRaw.addEventListener('click', openRawLogs);
+    elApplyKey.addEventListener('click', fetchLogs);
     elLevel.addEventListener('change', fetchLogs);
     elLimit.addEventListener('change', fetchLogs);
     elSource.addEventListener('change', fetchLogs);
-    let debounceTimer;
-    elSearch.addEventListener('input', () => {
+
+    var debounceTimer;
+    elSearch.addEventListener('input', function () {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(fetchLogs, 300);
     });
 
-    elAuto.addEventListener('click', () => {
+    elAuto.addEventListener('click', function () {
       autoRefresh = !autoRefresh;
       if (autoRefresh) {
         elAuto.textContent = '⏸ Pause Auto-Refresh';
@@ -572,7 +491,7 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
 
     function startAuto() {
       clearInterval(autoTimer);
-      autoTimer = setInterval(() => {
+      autoTimer = setInterval(function () {
         if (autoRefresh) fetchLogs();
       }, 3000);
     }
@@ -583,7 +502,153 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
 </body>
 </html>`;
 
+export const logsRoutes: FastifyPluginAsync = async (fastify) => {
+  // Guard middleware: an active super admin (re-read from the database on
+  // every request) plus the shared log key, which is only accepted in a
+  // header.
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (isPublicLogPath(request)) return;
+
+    // `LOGS_PUBLIC` is an explicit, documented opt-out for a deployment that
+    // really wants an open log stream. It is off by default.
+    if (config.logs.isPublic) return;
+
+    // `authenticate` and `requireSuperAdmin` answer the request themselves;
+    // `reply.sent` is what tells the hook the chain must stop here.
+    await authenticate(request, reply);
+    if (reply.sent) return reply;
+
+    await requireSuperAdmin(request, reply);
+    if (reply.sent) return reply;
+
+    if (!hasValidLogsKey(request)) {
+      return reply.status(401).send({
+        error: 'Unauthorized access to production logs',
+        message:
+          'Provide the log key in the `x-logs-key` header together with an active super admin session.',
+      });
+    }
+  });
+
+  // 1. GET /api/logs - JSON API with filtering, pagination, and system telemetry
+  fastify.get('/', async (request: FastifyRequest<{ Querystring: z.infer<typeof querySchema> }>) => {
+    const query = querySchema.parse(request.query);
+    const result = loggerService.getLogs({
+      level: query.level,
+      search: query.search,
+      limit: query.limit,
+      source: query.source,
+    });
+
+    return {
+      success: true,
+      query: {
+        level: query.level,
+        search: query.search || null,
+        limit: query.limit,
+        source: query.source,
+      },
+      ...result,
+    };
+  });
+
+  // 2. GET /api/logs/raw - Plain text raw prod.log stream
+  fastify.get('/raw', async (request, reply) => {
+    const query = request.query as { lines?: string };
+    const lines = parseInt(query.lines || '500', 10);
+    const text = loggerService.getRawFileContent(isNaN(lines) ? 500 : lines);
+
+    reply.header('Content-Type', 'text/plain; charset=utf-8');
+    return text;
+  });
+
+  // 3. GET /api/logs/errors - Plain text raw errors.log stream
+  fastify.get('/errors', async (request, reply) => {
+    const query = request.query as { lines?: string };
+    const lines = parseInt(query.lines || '500', 10);
+    const text = loggerService.getRawErrorsFileContent(isNaN(lines) ? 500 : lines);
+
+    reply.header('Content-Type', 'text/plain; charset=utf-8');
+    return text;
+  });
+
+  // 4. POST /api/logs/errors/clear - Clear errors.log file
+  fastify.post('/errors/clear', async () => {
+    const result = loggerService.clearErrors();
+    return {
+      success: true,
+      message: 'Errors log cleared successfully',
+      ...result,
+    };
+  });
+
+  // 5. POST /api/logs/client-error - Report frontend client-side error to errors.log
+  const clientErrorSchema = z.object({
+    message: z.string().trim().min(1).max(1000),
+    source: z.string().trim().max(100).optional().default('frontend'),
+    url: z.string().trim().max(1000).optional(),
+    stack: z.string().trim().max(5000).optional(),
+    context: z.record(z.unknown()).optional(),
+  });
+
+  fastify.post(
+    '/client-error',
+    {
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
+    async (request, reply) => {
+      const parsed = clientErrorSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid error report payload' });
+      }
+
+      const { message, source, url, stack, context } = parsed.data;
+      // The reported URL and the referer are page URLs: only their paths are
+      // kept, so a query string that a page happened to carry cannot end up
+      // in the log.
+      const referer = request.headers.referer;
+      const refererPath = referer ? referer.split('?')[0] : undefined;
+      const reportedPath = url ? url.split('?')[0] : undefined;
+
+      loggerService.error(
+        `Client error reported: ${message}`,
+        {
+          url: reportedPath || refererPath,
+          ip: request.ip,
+          userAgent: request.headers['user-agent'],
+          stack,
+          ...context,
+        },
+        source
+      );
+
+      return { success: true, recorded: true };
+    }
+  );
+
+  // 6. GET /api/logs/stats - Telemetry stats only
+  fastify.get('/stats', async () => {
+    return {
+      success: true,
+      stats: loggerService.getStats(),
+    };
+  });
+
+  // 7. POST /api/logs/clear - Clear logs (memory + file)
+  fastify.post('/clear', async () => {
+    const result = loggerService.clearLogs();
+    return {
+      success: true,
+      message: 'Logs cleared successfully',
+      ...result,
+    };
+  });
+
+  // 8. GET /api/logs/view - Rich HTML interactive live log viewer.
+  // The page itself is public: it only renders the shell. Every log it shows
+  // is fetched through the guarded endpoints above.
+  fastify.get('/view', async (_request, reply: FastifyReply) => {
     reply.header('Content-Type', 'text/html; charset=utf-8');
-    return html;
+    return LOG_VIEW_HTML;
   });
 };

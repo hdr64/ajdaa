@@ -1,6 +1,6 @@
 # Task w1-sec0 — security criticals (backend)
 
-Worktree lane `sec0`. Backend only.
+Worktree lane `sec0`. Backend, plus item 10 (small frontend edit).
 
 ## Read first
 `server/src/config/env.ts`, `server/src/app.ts`, `server/src/server.ts`, `server/src/routes/logs.routes.ts`, `server/src/routes/developerNotes.routes.ts`, `server/src/routes/auth.routes.ts`, `server/src/middleware/*` (authenticate, requirePermission, requireSuperAdmin), `server/src/services/{mailService,queueService,loginFailureService,passwordPolicy}.ts`, `server/src/sockets/index.ts`, `server/prisma/seed.ts`, `server/.env.example`, `server/test/` (helpers + one authz test for style).
@@ -15,15 +15,16 @@ Worktree lane `sec0`. Backend only.
 7. **Mail queue:** `mailService.sendMail` must throw on SMTP failure so BullMQ retries run; the inline (no-Redis) path keeps catching and logging. Add a test with a failing transport.
 8. **Helmet:** register `@fastify/helmet` (`npm --prefix server install @fastify/helmet` is the ONE allowed install) with a conservative config: no CSP for `/api` JSON (set `contentSecurityPolicy:false` for now and note it in the report), HSTS only when `NODE_ENV=production`, `crossOriginResourcePolicy: 'cross-origin'` so `/uploads` images still load from the SPA.
 9. **JWT/env hygiene:** production requires `JWT_SECRET` ≥ 32 chars and rejects obvious placeholders (`changeme`, `secret`, `password`, values from `.env.example`). Remove the personal-Gmail default for `DEVELOPER_EMAIL`.
+10. **Login page leaks credentials (frontend, owner-reported from production):** the admin login prefills the email `admin@ajdaa.sa` (`src/pages/admin/AdminLoginPage.tsx:27`), shows a hint box "user: admin@ajdaa.sa / pass: password" (`src/components/admin/auth/LoginCredentialsStep.tsx:97-98`), and uses that address as input placeholder in `LoginCredentialsStep.tsx:62`, `ForgotPasswordStep.tsx:62`, `src/components/admin/profile/AdminProfilePage.tsx:228`. Remove the prefill (empty initial state), delete the hint box entirely, and use the neutral placeholder `name@example.com`. Leave `server/test/**` and `seed.ts` emails as they are (test/dev fixtures). Check no other UI string or doc shows the default credentials (`grep -rn "pass: password"`).
 
 ## Out of scope
 Anything else from the audit (lockout, token revocation, indexes, pagination), frontend, deploy files, Prisma schema.
 
 ## Constraints
-No commits, no other installs, never read `.env*`, do not touch `server/prisma/schema*` or `server/src/config/permissions.ts`. Free model only. Existing tests must still pass; update tests that relied on the removed defaults.
+No commits, no other installs, never read `.env*`, do not touch other frontend files, `server/prisma/schema*` or `server/src/config/permissions.ts`. Free model only. Existing tests must still pass; update tests that relied on the removed defaults.
 
 ## Gates
-`npm --prefix server run build`, `npm --prefix server test` (all green), new tests for items 1-5, 7. Show the final test counts.
+`npm run lint`, `npm run build`, `npm --prefix server run build`, `npm --prefix server test` (all green), new tests for items 1-5, 7. Show the final test counts.
 
 ## Report
 `task-w1-sec0-report.md`: files changed, gates, behavior changes the owner must know (new required env vars for production: `LOGS_SECRET_KEY`, `DEVELOPER_NOTES_SECRET`, `HOST`, `TRUST_PROXY`), decisions.

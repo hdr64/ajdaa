@@ -32,8 +32,8 @@ export interface DeveloperNoteMailPayload {
  * Alerts the developer inbox about a new developer note.
  *
  * Recipients come from `config.developer.emails`, and `Promise.all` keeps the
- * loop off the event loop between sends. A single bad recipient cannot lose the
- * others: `sendMail` reports its own failures without throwing.
+ * loop off the event loop between sends. A failing transport rejects the
+ * handler, which is what makes the queue retry the delivery.
  */
 export const sendDeveloperNoteEmailJob: QueueableJob<DeveloperNoteMailPayload> = {
   name: 'email:developer-note',

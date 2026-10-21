@@ -59,6 +59,8 @@ const loginOtpSettingsSchema = z.object({
 const OTP_EXPIRED_ERROR = 'رمز التحقق منتهي الصلاحية أو تم استخدامه، يرجى طلب رمز جديد / Verification code has expired or was already used, please request a new one';
 const OTP_INVALID_ERROR = 'رمز التحقق غير صحيح / Invalid verification code';
 const RESET_FAILED_ERROR = 'تعذّر إكمال إعادة التعيين: رمز غير صحيح أو منتهي الصلاحية / Could not reset the password: the code is invalid or has expired';
+const MAIL_UNAVAILABLE_ERROR =
+  'تعذّر إرسال رسالة البريد الإلكتروني، حاول بعد قليل / Could not send the verification email, please try again shortly';
 
 const RATE_LIMIT_ERROR_BODY = {
   statusCode: 429,
@@ -82,7 +84,9 @@ const changePasswordSchema = z.object({
 const createUserSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
-  password: z.string().min(8).default('password123'),
+  // No default: an account is never created with a password nobody chose.
+  // The policy itself is checked in the handler.
+  password: z.string().min(8),
   phone: z.string().trim().nullish(),
   role: z.string().optional(),
   roleId: z.string().optional(),
@@ -258,7 +262,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (await requiresLoginOtp(user)) {
         const { challengeId, code } = await issueChallenge(user.id, 'login');
-        await sendLoginOtpMail(user, code);
+        // The password is already proven here, so a dead SMTP server can be
+        // reported honestly instead of pretending a code was sent.
+        try {
+          await sendLoginOtpMail(user, code);
+        } catch {
+          return reply.status(503).send({ error: MAIL_UNAVAILABLE_ERROR });
+        }
 
         return reply.status(200).send({
           otpRequired: true,
@@ -375,7 +385,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // The new code belongs to a challenge that superseded the old one, so the
       // previous `challengeId` (and its code) stop working from here on.
-      await sendLoginOtpMail(user, result.code);
+      try {
+        await sendLoginOtpMail(user, result.code);
+      } catch {
+        return reply.status(503).send({ error: MAIL_UNAVAILABLE_ERROR });
+      }
 
       return { sent: true };
     }
@@ -403,7 +417,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (user && user.status === 'active') {
         const { code } = await issueChallenge(user.id, 'password_reset');
-        await sendPasswordResetMail(user, code);
+        try {
+          await sendPasswordResetMail(user, code);
+        } catch {
+          // The endpoint always answers 200 so it cannot be used to discover
+          // which addresses have an account. A dead SMTP server must not turn
+          // that into an oracle, so the failure stays invisible here (the
+          // mail service has already logged it).
+        }
       }
 
       return { sent: true };
@@ -744,6 +765,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Email already exists' });
       }
 
+      // An admin-chosen password obeys the same policy as a self-service one.
+      if (!meetsPasswordPolicy(body.password)) {
+        return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
+      }
+
       const passwordHash = await bcrypt.hash(body.password, 10);
       const created = await prisma.adminUser.create({
         data: {
@@ -877,12 +903,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // An admin-chosen password obeys the same policy as a self-service one.
+      if (body.password !== undefined && !meetsPasswordPolicy(body.password)) {
+        return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
+      }
+
+      const passwordHash = body.password ? await bcrypt.hash(body.password, 10) : undefined;
+
       const updated = await prisma.adminUser.update({
         where: { id },
         data: {
           name: body.name,
           email: body.email ? body.email.toLowerCase() : undefined,
-          passwordHash: body.password ? await bcrypt.hash(body.password, 10) : undefined,
+          passwordHash,
           role: resolvedRoleKey,
           roleAr: resolvedRoleAr,
           roleId: resolvedRoleId !== undefined ? resolvedRoleId : undefined,

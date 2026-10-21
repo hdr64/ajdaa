@@ -11,7 +11,7 @@ import {
   Power,
 } from 'lucide-react';
 import { uploadMedia } from '../../../services/mediaService';
-import { api, reportClientError } from '../../../services/api';
+import { ApiError, api, reportClientError } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useLanguage } from '../../../hooks/useLanguage';
 import type { AdminSection } from '../../../pages/admin/adminRoutes';
@@ -39,6 +39,60 @@ const SECTION_LABELS: Record<AdminSection, { ar: string; en: string }> = {
 
 const STORAGE_KEY_ENABLED = 'ajda.feedback_pet.enabled';
 const STORAGE_KEY_POSITION = 'ajda.feedback_pet.position';
+
+/**
+ * The longest values the developer-notes endpoint accepts
+ * (`server/src/routes/developerNotes.routes.ts`). The inputs carry the same
+ * limits so the browser refuses what the server would reject anyway.
+ */
+const MAX_TITLE_LENGTH = 200;
+const MAX_BODY_LENGTH = 5000;
+const MAX_SOLUTION_LENGTH = 5000;
+
+/**
+ * The field names the developer-notes endpoint validates, in the language of
+ * the panel, so a refusal reads as "the title is too long" and not as a raw
+ * API field name.
+ */
+const FIELD_LABELS: Record<string, { ar: string; en: string }> = {
+  title: { ar: 'العنوان', en: 'Title' },
+  section: { ar: 'الصفحة أو الموضوع', en: 'Page / topic' },
+  body: { ar: 'التفاصيل', en: 'Description' },
+  solution: { ar: 'الحل المقترح', en: 'Suggested solution' },
+  screenshotUrl: { ar: 'رابط لقطة الشاشة', en: 'Screenshot link' },
+};
+
+/**
+ * The server's own explanation of a refused note, when the response carried
+ * one: the field messages of a validation failure first (with the field they
+ * belong to), then the error text. Returns `null` when nothing came from the
+ * server (network failure, timeout, server error), so the caller can fall back
+ * to its generic wording.
+ */
+function serverErrorMessage(error: unknown, isAr: boolean): string | null {
+  if (!(error instanceof ApiError)) return null;
+  // Only a client error (4xx) carries an actionable reason; a server error or
+  // a failed connection keeps the generic wording.
+  if (error.status < 400 || error.status >= 500) return null;
+
+  const parts = Object.entries(error.fieldErrors)
+    .flatMap(([field, messages]) =>
+      messages.map((message) => {
+        const label = FIELD_LABELS[field];
+        const name = label ? (isAr ? label.ar : label.en) : field;
+        return `${name}: ${message}`;
+      })
+    )
+    .filter((part) => part.trim().length > 0);
+  if (parts.length > 0) return parts.join(' • ');
+
+  // `details` is the parsed body of the response; the server writes its
+  // reason into `error`.
+  const payload = error.details as { error?: unknown; message?: unknown } | undefined;
+  const serverText =
+    typeof payload?.error === 'string' ? payload.error : typeof payload?.message === 'string' ? payload.message : null;
+  return serverText?.trim() || null;
+}
 
 interface Position {
   x: number;
@@ -308,7 +362,14 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
         section,
         title,
       });
-      showToast(isAr ? 'حدث خطأ أثناء إرسال الملاحظة، يرجى المحاولة لاحقاً' : 'Could not submit feedback, please try again');
+      // The server explains why it refused the note (a field too long, a
+      // rejected screenshot URL); showing that is more useful than the generic
+      // wording, which stays as the fallback for everything else.
+      const serverMessage = serverErrorMessage(err, isAr);
+      showToast(
+        serverMessage ??
+          (isAr ? 'حدث خطأ أثناء إرسال الملاحظة، يرجى المحاولة لاحقاً' : 'Could not submit feedback, please try again')
+      );
     } finally {
       setSubmitting(false);
     }
@@ -564,6 +625,7 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
                       id="fb-title"
                       type="text"
                       required
+                      maxLength={MAX_TITLE_LENGTH}
                       placeholder={isAr ? 'مثال: زر الحفظ لا يستجيب في صفحة المشاريع' : 'e.g., Save button not responding'}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
@@ -580,6 +642,7 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
                       id="fb-body"
                       required
                       rows={4}
+                      maxLength={MAX_BODY_LENGTH}
                       placeholder={isAr ? 'صف بالتفصيل ما الذي حدث وما الذي تتوقع أن يحدث...' : 'Describe what happened...'}
                       value={body}
                       onChange={(e) => setBody(e.target.value)}
@@ -595,6 +658,7 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
                     <textarea
                       id="fb-solution"
                       rows={2}
+                      maxLength={MAX_SOLUTION_LENGTH}
                       placeholder={isAr ? 'إذا كان لديك فكرة أو حل مفضل...' : 'Any ideas or preferred fix...'}
                       value={solution}
                       onChange={(e) => setSolution(e.target.value)}

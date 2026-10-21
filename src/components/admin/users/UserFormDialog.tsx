@@ -32,6 +32,7 @@ import {
   SUPER_ADMIN_ROLE_KEY,
   emptyPermissions,
   groupPermissions,
+  passwordPolicyError,
   permissionsFromRole,
   toAdminRole,
 } from './usersModel';
@@ -308,9 +309,8 @@ const UserForm: React.FC<UserFormProps> = ({
     if (form.name.trim() === '') found.name = 'الاسم الكامل مطلوب';
     if (!EMAIL_PATTERN.test(form.email.trim())) found.email = 'أدخل بريداً إلكترونياً صحيحاً';
     if (isCreate || form.replacePassword) {
-      if (form.password.length < MIN_PASSWORD_LENGTH) {
-        found.password = `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل`;
-      }
+      const policyError = passwordPolicyError(form.password);
+      if (policyError) found.password = policyError;
     }
     return found;
   };
@@ -430,7 +430,9 @@ const UserForm: React.FC<UserFormProps> = ({
               required={isCreate}
               error={errors.password}
               hint={
-                isCreate ? `${MIN_PASSWORD_LENGTH} أحرف على الأقل، تُستخدم عند أول دخول للحساب.` : undefined
+                isCreate
+                  ? `${MIN_PASSWORD_LENGTH} أحرف على الأقل، مع حرف واحد ورقم واحد على الأقل، تُستخدم عند أول دخول للحساب.`
+                  : undefined
               }
               className={isCreate ? '' : 'sm:col-start-2 sm:row-start-1'}
             >

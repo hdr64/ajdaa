@@ -26,6 +26,7 @@ export type TestEnvironment = {
   UPLOAD_DIR: string;
   LOGIN_OTP_RESEND_COOLDOWN_MS: string;
   QUEUE_DRIVER: string;
+  DEVELOPER_EMAIL: string;
 };
 
 /** Prisma's SQLite URL parser wants forward slashes even for Windows drive letters. */
@@ -51,6 +52,9 @@ export function createTestEnvironment(): TestEnvironment {
     // Every other test then exercises the deterministic inline path, and
     // `queue.test.ts` covers the Redis probe and fallback explicitly.
     QUEUE_DRIVER: 'sync',
+    // The developer notifications have no default address (it belongs to the
+    // deployment), so the suite pins one to keep the mail assertions honest.
+    DEVELOPER_EMAIL: 'developer@ajdaa.test',
   };
 }
 
@@ -92,6 +96,7 @@ export function requireTestEnvironment(): TestEnvironment {
     UPLOAD_DIR: process.env.UPLOAD_DIR as string,
     LOGIN_OTP_RESEND_COOLDOWN_MS: process.env.LOGIN_OTP_RESEND_COOLDOWN_MS as string,
     QUEUE_DRIVER: process.env.QUEUE_DRIVER as string,
+    DEVELOPER_EMAIL: process.env.DEVELOPER_EMAIL as string,
   };
 }
 

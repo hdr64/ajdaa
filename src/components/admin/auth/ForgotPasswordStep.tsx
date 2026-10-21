@@ -59,7 +59,7 @@ export const ForgotPasswordStep: React.FC<ForgotPasswordStepProps> = ({
               dir="ltr"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@ajdaa.sa"
+              placeholder="name@example.com"
               className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent font-mono"
             />
           </div>

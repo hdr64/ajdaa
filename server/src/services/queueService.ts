@@ -191,8 +191,8 @@ export function registerJob<T>(job: QueueableJob<T>): void {
 /**
  * Runs `job.handle(payload)` now, swallowing failures.
  *
- * `sendMail` already swallows its own errors, so this only guards the job body
- * itself. A failing notification must never fail the caller's request.
+ * Without Redis there is no retry: the job is executed inline, so a failing
+ * handler is logged and dropped instead of failing the caller's request.
  */
 async function runInline<T>(job: QueueableJob<T>, payload: T): Promise<void> {
   try {
