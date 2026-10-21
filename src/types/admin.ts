@@ -13,9 +13,12 @@ export interface AdminPermissions {
   publishProject: boolean;
   manageCms: boolean;
   manageClients: boolean;
+  managePastProjects: boolean;
   rollbackCms: boolean;
   manageUnits: boolean;
   viewInquiries: boolean;
+  viewApplications: boolean;
+  manageApplications: boolean;
   exportData: boolean;
   manageUsers: boolean;
   manageNotifications: boolean;

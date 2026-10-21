@@ -10,7 +10,8 @@ const schema = readFileSync(schemaPath, 'utf8');
 
 const prodSchema = schema
   .replace(
-    /provider = "sqlite" \/\/.*\n/,
+    // `[^\n]*` also swallows the carriage return of a CRLF checkout.
+    /provider = "sqlite" \/\/[^\n]*\n/,
     'provider = "postgresql"    // GENERATED for production (npm run db:gen:prod)\n'
   )
 

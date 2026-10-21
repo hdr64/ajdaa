@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import {
+  configuredEvents,
   createListener,
   deleteListener,
-  listenersConfigured,
   listListeners,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_EVENTS,
@@ -37,12 +37,18 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   // A fresh array per route (see settings.routes.ts for why).
   const guards = () => ({ onRequest: [authenticate, requirePermission('manageNotifications')] });
 
-  fastify.get('/listeners', guards(), async () => ({
-    configured: await listenersConfigured(),
-    events: NOTIFICATION_EVENTS,
-    channels: NOTIFICATION_CHANNELS,
-    listeners: await listListeners(),
-  }));
+  fastify.get('/listeners', guards(), async () => {
+    // The configured state is per event: `configured` keeps its old meaning
+    // ("a listener was ever created"), `configuredByEvent` says for which.
+    const configuredByEvent = await configuredEvents();
+    return {
+      configured: Object.values(configuredByEvent).some(Boolean),
+      configuredByEvent,
+      events: NOTIFICATION_EVENTS,
+      channels: NOTIFICATION_CHANNELS,
+      listeners: await listListeners(),
+    };
+  });
 
   fastify.post(
     '/listeners',

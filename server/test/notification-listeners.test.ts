@@ -2,6 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/services/prisma.js';
 import { clearSentMail, getSentMail } from '../src/services/mailService.js';
 import {
+  emailRecipientsFor,
+  NOTIFICATION_EVENTS,
+  NOTIFICATION_EVENT_LABELS,
+} from '../src/services/notificationListeners.js';
+import {
   authInject,
   closeApp,
   createThrowawayUser,
@@ -31,9 +36,11 @@ let viewerToken: string;
 let notifierId: string;
 let notifierToken: string;
 
+const CONFIGURED_KEYS = ['notifications', 'notifications.job_application'];
+
 async function resetListeners(): Promise<void> {
   await prisma.notificationListener.deleteMany();
-  await prisma.appSetting.deleteMany({ where: { key: 'notifications' } });
+  await prisma.appSetting.deleteMany({ where: { key: { in: CONFIGURED_KEYS } } });
 }
 
 async function submitInquiry(): Promise<void> {
@@ -70,6 +77,17 @@ afterAll(async () => {
   await closeApp();
 });
 
+describe('Notification events', () => {
+  it('labels every event, including the new job application event', () => {
+    expect(NOTIFICATION_EVENTS).toContain('job_application');
+
+    for (const event of NOTIFICATION_EVENTS) {
+      expect(NOTIFICATION_EVENT_LABELS[event].labelAr.trim()).not.toBe('');
+      expect(NOTIFICATION_EVENT_LABELS[event].labelEn.trim()).not.toBe('');
+    }
+  });
+});
+
 describe('Notification listener API (/api/notifications/listeners)', () => {
   it('needs manageNotifications: 401 anonymous, 403 without it, 200 with it', async () => {
     expect((await inject({ method: 'GET', url: '/api/notifications/listeners' })).statusCode).toBe(401);
@@ -79,7 +97,11 @@ describe('Notification listener API (/api/notifications/listeners)', () => {
 
     const allowed = await authInject(notifierToken, { method: 'GET', url: '/api/notifications/listeners' });
     expect(allowed.statusCode).toBe(200);
-    expect(allowed.json()).toMatchObject({ configured: false, listeners: [], events: ['inquiry.created'] });
+    expect(allowed.json()).toMatchObject({
+      configured: false,
+      listeners: [],
+      events: ['inquiry.created', 'job_application'],
+    });
   });
 
   it('lets a user with the permission create, update and delete a listener', async () => {
@@ -164,5 +186,40 @@ describe('New-inquiry email recipients', () => {
     await submitInquiry();
     // Deleting the last listener does not revert to the original recipients.
     expect(recipients()).toEqual([]);
+  });
+});
+
+describe('Per-event listener configuration', () => {
+  it('keeps the inquiry recipients on the legacy rule when a job_application listener exists', async () => {
+    const created = await authInject(superToken, {
+      method: 'POST',
+      url: '/api/notifications/listeners',
+      payload: emailListener({ event: 'job_application', name: 'Recruitment' }),
+    });
+    expect(created.statusCode).toBe(201);
+
+    // Only the job_application event is marked as configured.
+    const settings = await prisma.appSetting.findMany({
+      where: { key: { in: CONFIGURED_KEYS } },
+      select: { key: true },
+    });
+    expect(settings.map((row) => row.key)).toEqual(['notifications.job_application']);
+
+    // The inquiry notifications keep the original rule: the inquiry viewers.
+    await submitInquiry();
+    expect(recipients()).toContain(SEED_ADMINS.superAdmin);
+    expect(recipients()).not.toContain(EXTERNAL);
+  });
+
+  it('leaves the job_application event unconfigured when only an inquiry listener exists', async () => {
+    await authInject(superToken, {
+      method: 'POST',
+      url: '/api/notifications/listeners',
+      payload: emailListener(),
+    });
+
+    // The inquiry event took over; the job_application event did not.
+    expect(await emailRecipientsFor('job_application')).toBeNull();
+    expect(await emailRecipientsFor('inquiry.created')).toEqual([EXTERNAL]);
   });
 });

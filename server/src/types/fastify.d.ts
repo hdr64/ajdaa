@@ -19,9 +19,12 @@ export type AdminPermission =
   | 'publishProject'
   | 'manageCms'
   | 'manageClients'
+  | 'managePastProjects'
   | 'rollbackCms'
   | 'manageUnits'
   | 'viewInquiries'
+  | 'viewApplications'
+  | 'manageApplications'
   | 'exportData'
   | 'manageUsers'
   | 'manageNotifications';
