@@ -62,3 +62,5 @@ screenshots
 .antigravityignore
 .agents/rules/restrict-scan.md
 .env.backup
+server-10-21-2026.sql
+server-21-10-26.backup
