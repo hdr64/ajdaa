@@ -10,8 +10,8 @@ User=salah
 Group=salah
 WorkingDirectory=/srv/ajda/app/server
 
-# Secrets live here, not in this unit. Must be mode 600.
-EnvironmentFile=/srv/ajda/app/server/.env.backup
+EnvironmentFile=-/srv/ajda/app/server/.env
+EnvironmentFile=-/srv/ajda/app/server/.env.backup
 
 ExecStart=/srv/ajda/app/server/scripts/backup_db.sh
 
@@ -20,10 +20,6 @@ SuccessExitStatus=0
 TimeoutStartSec=30min
 
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
-ProtectHome=read-only
-ReadWritePaths=/var/backups/ajda
 
 StandardOutput=journal
 StandardError=journal
