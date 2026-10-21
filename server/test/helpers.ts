@@ -5,6 +5,16 @@ import { prisma } from '../src/services/prisma.js';
 
 export const SEED_PASSWORD = 'password';
 
+/**
+ * The password used for accounts created through the API.
+ *
+ * The seeded fixtures are inserted straight into the database, so they keep
+ * the short development password. An account created through
+ * `POST /api/auth/users` must satisfy the password policy, so the helper
+ * uses one that does.
+ */
+export const THROWAWAY_PASSWORD = 'Throwaway123';
+
 export const SEED_ADMINS = {
   superAdmin: 'admin@ajdaa.sa',
   projectManager: 'f.sudairy@ajdaa.sa',
@@ -33,9 +43,9 @@ export interface NewUser {
 
 let appInstance: FastifyInstance | undefined;
 
-export async function getApp(): Promise<FastifyInstance> {
+export async function getApp(loggerStream?: { write(message: string): void }): Promise<FastifyInstance> {
   if (!appInstance) {
-    appInstance = await buildApp();
+    appInstance = await buildApp(loggerStream ? { loggerStream } : {});
     // `buildApp` hard-codes a verbose pino logger; the suite would drown in it.
     appInstance.log.level = 'silent';
   }
@@ -114,7 +124,7 @@ function uniqueEmail(label: string): string {
  */
 export async function createThrowawayUser(overrides: Partial<NewUser> = {}): Promise<TestSession> {
   const superAdmin = await seedSession(SEED_ADMINS.superAdmin);
-  const password = overrides.password ?? SEED_PASSWORD;
+  const password = overrides.password ?? THROWAWAY_PASSWORD;
   const payload: NewUser = {
     name: overrides.name ?? 'Throwaway Admin',
     email: overrides.email ?? uniqueEmail('throwaway'),

@@ -11,6 +11,7 @@ import {
   removeUser,
   SEED_ADMINS,
   seedSession,
+  THROWAWAY_PASSWORD,
 } from './helpers.js';
 
 let superToken: string;
@@ -26,13 +27,13 @@ beforeAll(async () => {
   const exportOnly = await createThrowawayUser({ permissions: { exportData: true } });
   const usersOnly = await createThrowawayUser({ permissions: { manageUsers: true } });
   throwaway.push(exportOnly.id, usersOnly.id);
-  exportOnlyToken = (await login(exportOnly.email)).token;
+  exportOnlyToken = (await login(exportOnly.email, THROWAWAY_PASSWORD)).token;
 
   const draft = await prisma.project.create({
     data: { type: 'office', typeAr: 'إداري', title: 'مسودة للتصدير', priceType: 'إيجار', area: 10, city: 'جدة', image: '/x.webp', publishStatus: 'draft' },
   });
   draftId = draft.id;
-  usersOnlyToken = (await login(usersOnly.email)).token;
+  usersOnlyToken = (await login(usersOnly.email, THROWAWAY_PASSWORD)).token;
 });
 
 afterAll(async () => {

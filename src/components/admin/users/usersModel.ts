@@ -88,8 +88,32 @@ export const STATUS_LABELS: Record<AdminStatus, string> = {
   suspended: 'معطل',
 };
 
-/** Matches the server's `password: z.string().min(8)`. */
-export const MIN_PASSWORD_LENGTH = 8;
+/**
+ * Mirrors the server's password policy
+ * (`server/src/services/passwordPolicy.ts`): at least 10 characters, at least
+ * one letter and at least one digit.
+ */
+export const MIN_PASSWORD_LENGTH = 10;
+
+/**
+ * The client-side mirror of the server's password policy. Returns the Arabic
+ * error to show under the field, or `null` when the password is acceptable.
+ * The server is the authority; this only keeps the form from sending a
+ * password the API will reject.
+ */
+export function passwordPolicyError(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل`;
+  }
+  // The same letter and digit checks as `meetsPasswordPolicy` on the server.
+  if (!/\p{L}/u.test(password)) {
+    return 'كلمة المرور يجب أن تحتوي على حرف واحد على الأقل';
+  }
+  if (!/\d/.test(password)) {
+    return 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل';
+  }
+  return null;
+}
 
 export const STATUS_OPTIONS: readonly { value: string; label: string }[] = [
   { value: 'active', label: STATUS_LABELS.active },

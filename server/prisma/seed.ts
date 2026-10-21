@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import * as seedModule from './seed-data/projects.seed.ts';
 import { publishSeedMedia, resolveUploadDir, toStoredMediaUrl } from './seed-media.ts';
+import { meetsPasswordPolicy } from '../src/services/passwordPolicy.js';
 
 const seedProjects = seedModule.properties;
 
@@ -137,7 +138,41 @@ const CATEGORIES = [
   },
 ];
 
-const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'password';
+/**
+ * The password the seeded admin accounts receive.
+ *
+ * In production the seed refuses to run without an explicit
+ * `SEED_ADMIN_PASSWORD` that satisfies the password policy: a default
+ * password in a production database is a published credential. In development
+ * and test the default stays, so a fresh checkout works out of the box — it is
+ * a development fixture and must never reach a deployment.
+ */
+const DEFAULT_SEED_PASSWORD = 'password';
+
+function resolveSeedPassword(): string {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const configured = process.env.SEED_ADMIN_PASSWORD?.trim();
+
+  if (!configured) {
+    if (isProduction) {
+      throw new Error(
+        '[seed] SEED_ADMIN_PASSWORD is required in production. ' +
+          'Set it to a value of at least 10 characters containing a letter and a digit ' +
+          '(e.g. `openssl rand -base64 18`).'
+      );
+    }
+    return DEFAULT_SEED_PASSWORD;
+  }
+
+  if (isProduction && !meetsPasswordPolicy(configured)) {
+    throw new Error(
+      '[seed] SEED_ADMIN_PASSWORD does not meet the password policy: ' +
+        'it needs at least 10 characters, one letter and one digit.'
+    );
+  }
+
+  return configured;
+}
 
 const SEED_ROLES = [
   {
@@ -243,8 +278,8 @@ async function seedDepartments(): Promise<void> {
   }
 }
 
-async function seedAdminUsers(): Promise<void> {
-  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+async function seedAdminUsers(adminPassword: string): Promise<void> {
+  const passwordHash = await bcrypt.hash(adminPassword, 10);
 
   const usersMap = new Map<string, (typeof ADMIN_USERS)[number]>();
   for (const user of ADMIN_USERS) {
@@ -287,7 +322,11 @@ async function seedAdminUsers(): Promise<void> {
     });
   }
 
-  console.log(`✓ Admin users seeded (${usersToSeed.length}) — default password: "${ADMIN_PASSWORD}"`);
+  // The password is only echoed outside production: a production log file
+  // must never contain a working credential.
+  const passwordNote =
+    process.env.NODE_ENV === 'production' ? '' : ` — default password: "${adminPassword}"`;
+  console.log(`✓ Admin users seeded (${usersToSeed.length})${passwordNote}`);
 }
 
 async function seedCategories(): Promise<void> {
@@ -419,9 +458,13 @@ async function seedProjectData(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // The password is resolved before anything is written: a production seed
+  // that is refused must not leave half-seeded data behind.
+  const adminPassword = resolveSeedPassword();
+
   await seedRoles();
   await seedDepartments();
-  await seedAdminUsers();
+  await seedAdminUsers(adminPassword);
   await seedCategories();
   await seedProjectData();
 }

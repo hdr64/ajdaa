@@ -6,10 +6,11 @@ import { activeInquiryViewerEmails, emailRecipientsFor } from './notificationLis
 /**
  * Outbound admin notifications.
  *
- * Both entry points are fire-and-forget: the caller has already answered the
- * client, so a slow or failing SMTP handshake must not surface as an error. Each
- * function swallows its own failures (mail sending already does) and reports
- * how many messages went out, which is what the tests assert on.
+ * `notifyNewInquiry` runs inside the job queue, so a failing SMTP handshake
+ * propagates: the queue retries the delivery instead of losing it.
+ *
+ * `notifyPasswordChanged` is fire-and-forget — the caller has already answered
+ * the client — so it swallows its own failures.
  */
 
 const INQUIRIES_PATH = '/admin/inquiries';
@@ -65,5 +66,14 @@ export async function notifyPasswordChanged(input: {
     via: input.via,
   });
 
-  await sendMail({ to: input.email, ...content });
+  try {
+    await sendMail({ to: input.email, ...content });
+  } catch (error) {
+    // The password is already changed and the caller has been answered: a
+    // failed notification must not turn that into an error. The mail service
+    // has already logged the reason.
+    console.error(
+      `[mail] password-change notification failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }

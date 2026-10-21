@@ -24,10 +24,10 @@ import {
  * The settings come from `mailSettings.ts` (admin-saved values, else `.env`);
  * the transport is rebuilt whenever they change.
  *
- * `sendMail` never throws. A failed notification must not turn a successful
- * inquiry or password change into a 500, so failures are logged and swallowed;
- * flows that genuinely depend on a message being delivered (the OTP codes) are
- * written so the caller can still answer the client sensibly.
+ * `sendMail` throws when the transport fails, so the job queue can retry the
+ * delivery (BullMQ backs off and re-runs the handler). Callers that must not
+ * fail their own request — the inline queue fallback, the fire-and-forget
+ * notifications — catch it themselves.
  */
 
 export interface OutgoingMail {
@@ -111,21 +111,30 @@ export async function mailBrandName(): Promise<string> {
   return brandNameOf(await getEffectiveMailSettings());
 }
 
+/**
+ * Sends one message.
+ *
+ * A transport failure is logged and re-thrown: the queue needs the rejection
+ * to mark the job as failed and retry it. The log deliberately omits the
+ * recipient, the subject and the body — the inquiry notification interpolates
+ * a public form and the reset mail an address, so logging any of it would
+ * spill customer PII into the log file. `kind` is a fixed template id and
+ * identifies the failing mail on its own.
+ */
 export async function sendMail(message: OutgoingMail): Promise<void> {
   try {
     const settings = await getEffectiveMailSettings();
+
     if (!canDeliver(settings) && !disabledLogged) {
       disabledLogged = true;
       console.warn('[mail] mail disabled: no SMTP host configured (or NODE_ENV=test) — messages are not delivered');
     }
+
     await resolveTransport(settings)({ ...message, from: fromHeader(settings) });
   } catch (error) {
-    // Recipient, subject and body are deliberately omitted: the inquiry
-    // notification interpolates a public form, and the reset mail an address, so
-    // logging any of it would spill customer PII into the log file. `kind` is a
-    // fixed template id and identifies the failing mail on its own.
     const reason = error instanceof Error ? error.message : String(error);
     console.error(`[mail] failed to send "${message.kind}": ${reason}`);
+    throw error;
   }
 }
 
