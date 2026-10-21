@@ -42,3 +42,20 @@ export type CategoryType = (typeof CATEGORY_TYPES)[number];
 
 export const PUBLISH_STATUSES = ['draft', 'published', 'hidden'] as const;
 export type PublishStatus = (typeof PUBLISH_STATUSES)[number];
+
+export const JOB_APPLICATION_STATUSES = [
+  'new',
+  'reviewed',
+  'shortlisted',
+  'rejected',
+  'hired',
+] as const;
+export type JobApplicationStatus = (typeof JOB_APPLICATION_STATUSES)[number];
+
+export const JOB_APPLICATION_STATUS_AR: Record<JobApplicationStatus, string> = {
+  new: 'جديد',
+  reviewed: 'تمت المراجعة',
+  shortlisted: 'في القائمة المختصرة',
+  rejected: 'مرفوض',
+  hired: 'تم التوظيف',
+};

@@ -47,11 +47,14 @@ export const PERMISSION_KEYS: readonly (keyof AdminPermissions)[] = [
   'publishProject',
   'manageUnits',
   'viewInquiries',
+  'viewApplications',
+  'manageApplications',
   'exportData',
   'manageUsers',
   'manageNotifications',
   'manageCms',
   'manageClients',
+  'managePastProjects',
   'rollbackCms',
 ];
 
@@ -64,11 +67,14 @@ export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
   publishProject: 'نشر وإخفاء المشاريع',
   manageUnits: 'تعديل الوحدات والأدوار',
   viewInquiries: 'متابعة طلبات العملاء',
+  viewApplications: 'استعراض طلبات التوظيف',
+  manageApplications: 'إدارة طلبات التوظيف',
   exportData: 'تصدير التقارير',
   manageUsers: 'إدارة المستخدمين',
   manageNotifications: 'إدارة الإشعارات',
   manageCms: 'إدارة محتوى الموقع',
   manageClients: 'إدارة الشركاء والعملاء',
+  managePastProjects: 'إدارة أعمالنا السابقة',
   rollbackCms: 'استعادة نسخ محتوى الموقع',
 };
 
@@ -116,11 +122,14 @@ export const emptyPermissions = (): AdminPermissions => ({
   publishProject: false,
   manageUnits: false,
   viewInquiries: false,
+  viewApplications: false,
+  manageApplications: false,
   exportData: false,
   manageUsers: false,
   manageNotifications: false,
   manageCms: false,
   manageClients: false,
+  managePastProjects: false,
   rollbackCms: false,
 });
 
