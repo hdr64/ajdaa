@@ -70,3 +70,29 @@ find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'ajda-*.dump' \
 
 REMAINING="$(find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'ajda-*.dump' | wc -l | tr -d ' ')"
 log "done: ${REMAINING} archive(s) in ${BACKUP_DIR}"
+
+# --- Uploaded media ---------------------------------------------------------
+# The database dump does not contain uploaded files, so they are mirrored into
+# the backup directory as well.
+#
+# `rsync -a` WITHOUT --delete is deliberate: a file removed from the app stays
+# recoverable in the backup. --no-owner/--no-group keep the run green when a
+# file in the uploads tree is owned by another user.
+UPLOAD_DIR_RAW="${UPLOAD_DIR:-./uploads}"
+if [[ "${UPLOAD_DIR_RAW}" = /* ]]; then
+  UPLOADS_DIR="${UPLOAD_DIR_RAW}"
+else
+  UPLOADS_DIR="${SERVER_DIR}/${UPLOAD_DIR_RAW#./}"
+fi
+UPLOADS_BACKUP_DIR="${UPLOADS_BACKUP_DIR:-${BACKUP_DIR}/uploads}"
+
+if [[ ! -d "${UPLOADS_DIR}" ]]; then
+  log "WARNING: uploads directory ${UPLOADS_DIR} not found — media was NOT backed up"
+elif ! command -v rsync >/dev/null 2>&1; then
+  log "WARNING: rsync not found — media was NOT backed up"
+else
+  log "mirroring uploads to ${UPLOADS_BACKUP_DIR}"
+  mkdir -p "${UPLOADS_BACKUP_DIR}"
+  rsync -a --no-owner --no-group "${UPLOADS_DIR}/" "${UPLOADS_BACKUP_DIR}/"
+  log "uploads mirrored: $(find "${UPLOADS_BACKUP_DIR}" -type f | wc -l | tr -d ' ') file(s)"
+fi

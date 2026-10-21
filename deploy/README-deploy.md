@@ -1,274 +1,614 @@
-# Production Deployment — Ajda (no Docker)
+# Deployment — Ajda (production + test instance)
 
-Target: Ubuntu 24.04 + Node 22 + PostgreSQL 16 + Caddy, TLS via Cloudflare Origin
-Certificate. The API runs as a systemd service; the SPA is served as static files
-by Caddy.
+Bare-metal deployment: Ubuntu + PostgreSQL + Redis + Node 24 (nvm) + Caddy.
+The API runs as a systemd service, the SPA is served as static files by Caddy.
 
-Layout on the VPS:
+> `deploy/deploy.sh` was removed. The supported entry points are
+> `deploy/remote-deploy.sh` (server-side, **test instance only**) and the
+> GitHub Actions workflow `.github/workflows/deploy.yml`, which calls it over
+> SSH.
+>
+> **CI deploys the test instance only.** It has no production target at all:
+> `remote-deploy.sh` rejects every target except `test`, `ssh-entry.sh`
+> accepts only `test <sha>`, and the workflow has a single `test`
+> environment. **Production is deployed by hand**, with the runbook in §6.1.
 
-```
-/opt/ajda/                     # git clone
-├── src/, server/, deploy/     # the repo
-├── dist/                      # built SPA, served by Caddy at /var/www/ajda
-└── server/uploads/            # uploaded media (only writable path for the service)
-/etc/caddy/Caddyfile           # from deploy/Caddyfile
-/var/backups/ajda/             # pg_dump archives
-```
+## 1. Instances at a glance
 
-> **Deploy ordering matters.** `prisma/schema.postgresql.prisma` is generated and
-> gitignored, so `db:gen:prod` must run *before* `db:migrate`. See step 5.
+| | production | test |
+|---|---|---|
+| checkout | `/srv/ajda/app` | `/srv/ajda/test` |
+| systemd unit | `ajda-api` | `ajda-api-test` |
+| port | `4000` | `4001` |
+| health | `http://127.0.0.1:4000/api/health` | `http://127.0.0.1:4001/api/health` |
+| database | `ajda` (role `ajda`) | `ajda_test` (role `ajda_test`) |
+| Redis | DB 0 | DB 1 (`redis://127.0.0.1:6379/1`) |
+| env file | `/srv/ajda/app/server/.env` | `/srv/ajda/test/server/.env` |
+| hostname | `ajda.weghetk.com`, `ajdaa.sa` | `test-ajda.weghetk.com` (basic auth) |
+| Caddy root | `/srv/ajda/app/dist` (see §7) | `/srv/ajda/test/dist` |
+| uploads | `/srv/ajda/app/server/uploads` | `/srv/ajda/test/server/uploads` |
+| deployed by | **a human**, with the runbook in §6.1 | **GitHub Actions** (push to `deploy-test`) |
 
----
+Both instances run as the unprivileged user `salah`, use the node binary at
+`/home/salah/.nvm/versions/node/v24.21.0/bin/node`, and never share files.
+Production data and production uploads are never touched by a test deploy.
 
-## 1. System user and directories
+## 2. Production (already running — reference only)
 
-```bash
-sudo adduser --system --group --home /opt/ajda ajda
-sudo mkdir -p /var/www/ajda /var/backups/ajda /var/log/caddy
-sudo chown -R ajda:ajda /opt/ajda /var/backups/ajda
-sudo chmod 700 /var/backups/ajda
-```
-
-## 2. Node.js 22, PostgreSQL 16, and Redis 7
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs postgresql-16 postgresql-client-16 redis-server
-sudo systemctl enable --now postgresql redis-server
-
-# Database + role. Use a generated password, not a literal from this file.
-sudo -u postgres psql <<'SQL'
-CREATE ROLE ajda LOGIN PASSWORD 'REPLACE_WITH_A_LONG_RANDOM_PASSWORD';
-CREATE DATABASE ajda OWNER ajda ENCODING 'UTF8';
-SQL
-```
-
-## 3. Clone and install
+Production is **never** deployed by CI. The runbook for a manual production
+release is §6.1.
 
 ```bash
-sudo -u ajda git clone <your-repo-url> /opt/ajda
-cd /opt/ajda
-sudo -u ajda npm ci
-sudo -u ajda npm --prefix server ci
+sudo cp deploy/ajda-api.service deploy/ajda-backup.service deploy/ajda-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now ajda-api ajda-backup.timer
+curl -fsS http://127.0.0.1:4000/api/health
 ```
 
-## 4. Environment files
+The API unit hardens the service (`ProtectSystem=full`, `ProtectHome=read-only`,
+`PrivateTmp`, `PrivateDevices`, kernel/protection switches,
+`SystemCallArchitectures=native`, `RestrictAddressFamilies=AF_INET AF_INET6
+AF_UNIX`) and re-opens exactly two writable paths: the instance's
+`server/uploads` and its two log files (`prod.log`, `errors.log`).
+
+`ProtectHome=read-only` keeps `/home/salah` readable, so the nvm node binary
+under `/home/salah/.nvm` stays executable — it only forbids writes there.
+
+The backup unit reads **only** `/srv/ajda/app/server/.env.backup` (mode 600,
+owner `salah`); the application's `.env` is not exposed to it.
 
 ```bash
-sudo -u ajda cp server/.env.example server/.env
-sudo -u ajda openssl rand -base64 32      # use this for JWT_SECRET
-sudo chmod 600 server/.env
-sudo chown ajda:ajda server/.env
-```
-
-`server/.env` for production:
-
-```dotenv
-NODE_ENV=production
-PORT=4000
-DATABASE_URL="postgresql://ajda:<password>@localhost:5432/ajda?schema=public"
-JWT_SECRET="<output of openssl rand -base64 32>"
-CLIENT_ORIGIN="https://ajda.weghetk.com"
-UPLOAD_DIR="./uploads"
-
-# Background Job Queue (BullMQ + Redis with automatic sync fallback)
-REDIS_URL="redis://127.0.0.1:6379"
-QUEUE_DRIVER="auto"
-```
-
-`CLIENT_ORIGIN` accepts a comma-separated list if you add origins later
-(`https://ajda.weghetk.com,https://admin.example.com`). In production the
-`localhost:5173` development origins are **not** added, so a page on a developer's
-machine cannot make credentialed cross-origin calls to the live API.
-
-### Email and OTP (optional)
-
-The API boots with email disabled: with no `MAIL_HOST`, every send is a logged
-no-op, so OTP logins, password reset and inquiry notifications stay silent but
-nothing breaks. Add these to `server/.env` to switch it on (real SMTP values only
-on the VPS — never in the repo):
-
-```dotenv
-MAIL_HOST="<smtp host>"        # e.g. smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME="<smtp account>"
-MAIL_PASSWORD="<app password or SMTP key>"   # Gmail requires an app password
-MAIL_ENCRYPTION=tls             # tls = STARTTLS (587) | ssl = implicit TLS (465)
-MAIL_FROM_ADDRESS="<sender address>"
-MAIL_FROM_NAME="Ajda"           # sender name and the heading of every email
-APP_URL="https://ajda.weghetk.com"          # base for links inside emails
-LOGIN_OTP_REQUIRED="false"      # true = every admin login needs an emailed code
-NOTIFY_INQUIRY_EMAILS=""        # empty = every active admin with viewInquiries
-```
-
-`LOGIN_OTP_REQUIRED=true` locks the whole admin portal behind emailed codes —
-confirm SMTP works first, or nobody can log in. `NOTIFY_INQUIRY_EMAILS` takes a
-comma-separated allowlist; when set, new-inquiry notices go only to those
-addresses instead of to every active admin holding `viewInquiries`. Code lifetime
-(`LOGIN_OTP_TTL_MS`), attempt cap (`LOGIN_OTP_MAX_ATTEMPTS`) and resend cooldown
-(`LOGIN_OTP_RESEND_COOLDOWN_MS`) default to 10 minutes, 5 and 60 seconds.
-
-Secrets for the backup unit go in a separate file so they are not readable by the
-web-facing process:
-
-```bash
-sudo install -o root -g ajda -m 640 /dev/null server/.env.backup
-sudo tee server/.env.backup >/dev/null <<EOF
+sudo install -o salah -g salah -m 600 /dev/null /srv/ajda/app/server/.env.backup
+sudo tee /srv/ajda/app/server/.env.backup >/dev/null <<'EOF'
 DATABASE_URL="postgresql://ajda:<password>@localhost:5432/ajda?schema=public"
 BACKUP_DIR=/var/backups/ajda
 BACKUP_RETENTION_DAYS=14
 EOF
 ```
 
-## 5. Build and migrate
+### 2.1 Required variables in production
+
+`/srv/ajda/app/server/.env` runs with `NODE_ENV=production`, and the server
+**refuses to boot** unless these are set:
+
+| Variable | Rule |
+|---|---|
+| `JWT_SECRET` | at least 32 characters, and not a placeholder (`change me`, `secret`, `password`, … are refused) |
+| `LOGS_SECRET_KEY` | at least 24 characters |
+| `DEVELOPER_NOTES_SECRET` | at least 24 characters |
 
 ```bash
-cd /opt/ajda
-sudo -u ajda npm --prefix server run db:gen:prod   # generates Postgres schema & Prisma client
-sudo -u ajda npm run build                        # SPA -> dist/
-sudo -u ajda npm --prefix server run build         # API -> server/dist/
-sudo -u ajda npm --prefix server run db:migrate    # apply migrations
-sudo install -o root -g ajda -d -m 755 dist/. /var/www/ajda/
+openssl rand -base64 32    # a different value for each of the three
 ```
 
-Seed once on a brand-new empty database; it creates the first admin account:
+`TRUST_PROXY=1` is required as well. The API sits behind Caddy, which sets
+`X-Forwarded-For`; with `TRUST_PROXY=false` every visitor would arrive with
+the same IP (`127.0.0.1`) and the rate limiter would lock out the whole site
+at once. Set it to the real number of proxy hops in front of the API — one,
+here.
+
+> **Do not set `HOST=0.0.0.0`.** The API must only be reachable through
+> Caddy, on the loopback interface (`HOST=127.0.0.1`). `0.0.0.0` would expose
+> the API directly to the whole VPS network, bypassing Caddy's TLS, its
+> security headers and — on the test instance — the basic auth.
+
+## 3. Test instance (one-time, manual)
+
+### 3.1 Checkout and dependencies
 
 ```bash
-sudo -u ajda npm --prefix server run db:seed
+sudo mkdir -p /srv/ajda/test
+sudo chown salah:salah /srv/ajda/test
+git clone <your-repo-url> /srv/ajda/test
+cd /srv/ajda/test
+npm ci
+npm --prefix server ci
 ```
 
-> The seed is safe to re-run: admin users and categories are upserted, and projects
-> are seeded only when the `Project` table is empty. Otherwise it logs
-> `Projects already present (N) — skipping project seed.` and changes nothing, so
-> dashboard edits are never destroyed. `SEED_RESET_PROJECTS=1` forces the legacy
-> wipe-and-reseed of projects/floors/units.
+The test instance lives under `/srv`, next to the production checkout
+(`/srv/ajda/app`), so Caddy needs no special traverse rights on `/home/salah`
+(§7) and the deploy scripts do not depend on the home directory.
 
-> The seed also copies the bootstrap images from `src/assets/` into
-> `/opt/ajda/server/uploads/seed/` and stores `/uploads/seed/...` URLs, so the
-> service must be able to write there (it can — `ReadWritePaths` covers it) and
-> `/opt/ajda/server/uploads/` must be part of your backups. See the backup note in
-> §8.
-
-## 6. systemd
+### 3.2 Environment file
 
 ```bash
-sudo cp deploy/ajda-api.service deploy/ajda-backup.service deploy/ajda-backup.timer /etc/systemd/system/
+cp deploy/test.env.example server/.env
+chmod 600 server/.env
+openssl rand -base64 32     # JWT_SECRET, LOGS_SECRET_KEY, DEVELOPER_NOTES_SECRET
+```
+
+`deploy/test.env.example` is the full template. It pins `PORT=4001`,
+`HOST=127.0.0.1`, `TRUST_PROXY=1`,
+`CLIENT_ORIGIN=https://test-ajda.weghetk.com`, Redis DB `1`, and leaves every
+`MAIL_*` value empty so no real mail can ever be sent from the test instance.
+
+The same production rules as §2.1 apply to the test instance
+(`NODE_ENV=production`): `JWT_SECRET` (≥ 32 characters, no placeholder),
+`LOGS_SECRET_KEY` (≥ 24) and `DEVELOPER_NOTES_SECRET` (≥ 24) must all be set
+or the server refuses to boot.
+
+> `HOST` is honoured by the current server build (the sec0 bind-address
+> change): the API listens on `127.0.0.1:4001` and Caddy is the only public
+> entry point. **Do not set `HOST=0.0.0.0`** — the test port would be
+> reachable from the whole VPS network, bypassing Caddy's basic auth.
+>
+> `TRUST_PROXY=1` (one trusted hop, Caddy) is required: with `TRUST_PROXY=false`
+> every visitor would look like the same IP to the rate limiter.
+
+### 3.3 Database and role
+
+The role and the database of the test instance (the same two commands are
+step 1 of §3.4, which fills the test database with production data):
+
+```bash
+sudo -u postgres psql <<'SQL'
+CREATE ROLE ajda_test LOGIN PASSWORD 'REPLACE_WITH_A_LONG_RANDOM_PASSWORD';
+CREATE DATABASE ajda_test OWNER ajda_test ENCODING 'UTF8';
+SQL
+```
+
+Migrate and seed the empty database:
+
+```bash
+cd /srv/ajda/test
+npm --prefix server run db:gen:prod
+npm --prefix server run db:migrate
+SEED_ADMIN_PASSWORD='AjdaTest!2026' npm --prefix server run db:seed
+```
+
+`SEED_ADMIN_PASSWORD` is the shared password of every seeded admin account:
+at least 10 characters with at least one letter and one digit — the same rule
+the admin UI applies when an admin changes their own password. The seed reads
+it from the process environment (it does not load `.env` itself), so pass it
+inline as above or export it first:
+
+```bash
+set -a; . server/.env; set +a
+npm --prefix server run db:seed
+```
+
+> **Order matters: seed first, then the sanitize script — never the reverse.**
+> The seed rewrites the admin e-mails and passwords to their real values, so a
+> sanitize run that happened *before* the seed would be undone by it.
+
+### 3.4 Fill the test database with production data (owner, by hand)
+
+> ⚠️ **Never run these commands against `ajda`.** The only database this
+> section writes to is `ajda_test`, and every command that writes names it
+> explicitly. The `pg_dump` of `ajda` **only reads** production — it copies
+> data out, it never changes it.
+
+**Step 1 — the role and the database** (skip if §3.3 already created them):
+
+```bash
+sudo -u postgres psql <<'SQL'
+CREATE ROLE ajda_test LOGIN PASSWORD 'REPLACE_WITH_A_LONG_RANDOM_PASSWORD';
+CREATE DATABASE ajda_test OWNER ajda_test ENCODING 'UTF8';
+SQL
+```
+
+**Step 2 — a dump of production (read-only):**
+
+```bash
+sudo -u postgres pg_dump -Fc -d ajda --file=/tmp/ajda-prod.dump
+```
+
+This command only *reads* the production database. Nothing in production is
+modified by it.
+
+**Step 3 — restore the dump into `ajda_test`:**
+
+```bash
+sudo -u postgres pg_restore --no-owner --no-privileges --role=ajda_test -d ajda_test /tmp/ajda-prod.dump
+sudo rm -f /tmp/ajda-prod.dump
+```
+
+**Step 4 — sanitize `ajda_test`** (the script only ever touches `ajda_test`):
+
+```bash
+sudo -u postgres psql -d ajda_test -f /srv/ajda/test/deploy/sanitize-test-db.sql
+```
+
+**Step 5 — copy the uploads once** (see §3.5):
+
+```bash
+sudo cp -a /srv/ajda/app/server/uploads/. /srv/ajda/test/server/uploads/
+```
+
+The dump restores the real admin e-mails and the real lead data, so **always**
+run step 4 after step 3. The script is idempotent, so it can be re-run after
+any reseed.
+
+> **If you use the seed instead of the dump, run the seed first and the
+> sanitize script second — never the reverse.** The seed rewrites the admin
+> e-mails and password hashes to their real values, so sanitizing first and
+> seeding afterwards would put them back.
+
+`deploy/sanitize-test-db.sql`:
+
+* rewrites every `AdminUser` to `test-admin-<uuid>@example.test` with the
+  bcrypt hash of the test password `AjdaTest!2026` and no phone number;
+* deletes every `OtpChallenge` (login codes and reset tokens);
+* anonymizes `CustomerInquiry` (name, e-mail, phone, message, notes);
+* anonymizes `NewsletterSubscriber`;
+* deletes the stored SMTP credentials (`AppSetting` key `mail`) and the
+  notification configuration (key `notifications`);
+* disables every `NotificationListener` and empties its config;
+* strips the admin name/e-mail/metadata from the `developer_notes` rows;
+* deletes every row of the foundation table `job_applications` (name, e-mail,
+  phone, CV, cover letter — personal data that must not exist in the test
+  instance). The statement is guarded, so the script also runs on a database
+  that does not have that table yet.
+
+### 3.4.1 Logging in to the test instance
+
+After the script, the admin e-mails are no longer the production ones: each
+`AdminUser` row keeps its own uuid and gets the address
+`test-admin-<uuid>@example.test` (the `uuid` is the row id, so every account
+has a different address). List them with:
+
+```bash
+sudo -u postgres psql -d ajda_test -c "SELECT email, role FROM \"AdminUser\";"
+```
+
+The password is the documented test password **`AjdaTest!2026`** — the same
+value the sanitize script stores (as a bcrypt hash) and the same value
+`SEED_ADMIN_PASSWORD='AjdaTest!2026'` gives to the seeded accounts. There is
+no other account: the real `@ajdaa.sa` addresses no longer exist.
+
+Verify afterwards:
+
+```bash
+sudo -u postgres psql -d ajda_test -c "SELECT count(*) FROM \"AdminUser\" WHERE \"email\" LIKE '%@ajdaa.sa';"
+sudo -u postgres psql -d ajda_test -c "SELECT count(*) FROM \"CustomerInquiry\" WHERE \"email\" LIKE '%@ajdaa.sa';"
+```
+
+Both must be `0`.
+
+### 3.5 Uploads (one-time copy, never a symlink)
+
+The test instance gets its **own copy** of the media. It never shares a path
+with production and never symlinks into it.
+
+```bash
+# The nightly backup mirrors production uploads into /var/backups/ajda/uploads.
+# Copy the production uploads into the test instance (one time).
+mkdir -p /srv/ajda/test/server/uploads
+sudo cp -a /srv/ajda/app/server/uploads/. /srv/ajda/test/server/uploads/
+
+# Equivalent, straight from the backup mirror:
+# sudo cp -a /var/backups/ajda/uploads/. /srv/ajda/test/server/uploads/
+```
+
+It is always a real copy — never `ln -s`, never a shared path with
+production.
+
+> The copy also brings the uploaded CVs of the job applications, if any: the
+> sanitize script deletes the `job_applications` **rows**, not the files. Check
+> the copied upload directory for CV files and delete them by hand.
+
+### 3.6 systemd
+
+```bash
+sudo cp deploy/ajda-api-test.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now ajda-api
-sudo systemctl status ajda-api
-curl -fsS http://localhost:4000/api/health     # {"status":"ok",...}
+sudo systemctl enable --now ajda-api-test
+curl -fsS http://127.0.0.1:4001/api/health
+journalctl -u ajda-api-test -f
 ```
 
-The unit sets `ProtectSystem=strict` with `ReadWritePaths` limited to
-`/opt/ajda/server/uploads`, so a compromised process cannot write anywhere else.
-If you relocate uploads, change `ReadWritePaths` to match.
+The test unit is the production unit with test paths and `PORT=4001`. Its
+`ReadWritePaths` point at `/srv/ajda/test/server/...`; `ProtectHome=read-only`
+still allows reading the node binary under `/home/salah/.nvm`.
 
-Logs: `journalctl -u ajda-api -f`
+## 4. Deploy automation
 
-## 7. TLS certificate (Cloudflare Origin)
+### 4.1 The SSH key
 
-1. Cloudflare → SSL/TLS → Origin Server → Create Certificate (RSA 2048, host `ajda.weghetk.com`).
-2. On the VPS:
+Create a dedicated key (never reuse a personal key):
 
 ```bash
-sudo mkdir -p /etc/caddy
-sudo nano /etc/caddy/origin.pem      # paste the origin certificate
-sudo nano /etc/caddy/origin.key      # paste the private key
-sudo chmod 600 /etc/caddy/origin.key
+ssh-keygen -t ed25519 -C "ajda-deploy" -f ~/.ssh/ajda_deploy -N ''
 ```
 
-3. Cloudflare SSL/TLS mode → **Full (strict)**.
+* the **private** key (`~/.ssh/ajda_deploy`) becomes the GitHub secret
+  `SSH_KEY`;
+* the **public** key (`~/.ssh/ajda_deploy.pub`) goes into
+  `/home/salah/.ssh/authorized_keys`.
 
-## 8. Caddy
+### 4.2 authorized_keys (forced command)
 
 ```bash
-sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile   # always validate first
-sudo systemctl reload caddy
+sudo install -d -o salah -g salah -m 700 /home/salah/.ssh
+sudo install -d -o salah -g salah -m 755 /srv/ajda/deploy
+sudo install -o salah -g salah -m 755 deploy/ssh-entry.sh /srv/ajda/deploy/ssh-entry.sh
+
+cat >> /home/salah/.ssh/authorized_keys <<'EOF'
+command="/srv/ajda/deploy/ssh-entry.sh",restrict ssh-ed25519 AAAA... ajda-deploy
+EOF
+
+chmod 600 /home/salah/.ssh/authorized_keys
 ```
 
-`/api/*`, `/uploads/*` and `/socket.io/*` proxy to `localhost:4000`; everything else
-falls back to `index.html` for client-side routing. The websocket block sets
-`flush_interval -1` so unit-status broadcasts are not buffered.
+`restrict` disables pty, port forwarding, agent forwarding and X11 for that
+key; the forced command is the only thing it can run.
 
-## 9. Nightly backups
+`deploy/ssh-entry.sh` accepts exactly one command line —
+`^test [0-9a-f]{40}$` — and execs
+`/srv/ajda/test/deploy/remote-deploy.sh`, the copy in the **test** checkout.
+There is no production path: the key can only ever deploy the test instance.
+
+Git does not preserve the executable bit, so make the scripts runnable once
+after every checkout that changed them:
 
 ```bash
-sudo chmod 755 server/scripts/backup_db.sh
-sudo cp deploy/ajda-backup.service deploy/ajda-backup.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now ajda-backup.timer
-
-# Prove it works now, don't wait for 03:17:
-sudo systemctl start ajda-backup.service
-sudo -u ajda ls -l /var/backups/ajda
+chmod 755 /srv/ajda/test/deploy/remote-deploy.sh /srv/ajda/deploy/ssh-entry.sh
 ```
 
-Each run writes `ajda-<UTC timestamp>.dump` (custom format, compressed, mode 600),
-verifies it with `pg_restore --list`, refreshes `ajda-latest.dump`, and prunes
-archives older than `BACKUP_RETENTION_DAYS`. Test a restore at least once:
+The `salah` account also needs read access to the origin repository (an SSH
+deploy key or a token in the git configuration), because every deploy runs
+`git fetch --prune origin`.
+
+> The forced command always points at the installed wrapper
+> (`/srv/ajda/deploy/ssh-entry.sh`). The deploy script it runs comes from the
+> test checkout, so it is always the version of the commit being deployed.
+
+### 4.3 sudoers (one rule, the test unit)
 
 ```bash
+sudo tee /etc/sudoers.d/ajda-deploy >/dev/null <<'EOF'
+salah ALL=(root) NOPASSWD: /usr/bin/systemctl restart ajda-api-test
+EOF
+sudo chmod 440 /etc/sudoers.d/ajda-deploy
+sudo visudo -c
+```
+
+That is the only privileged operation the deploy needs, and it only restarts
+the **test** unit: CI can never restart the production API. Adjust the path if
+`systemctl` is not at `/usr/bin/systemctl` (`command -v systemctl`).
+
+### 4.4 Running a test deploy by hand
+
+```bash
+/srv/ajda/test/deploy/remote-deploy.sh test <40-hex-commit-sha>
+```
+
+The script:
+
+1. validates the target (`test` — anything else, `prod` included, is
+   rejected) and the ref (a 40-hex SHA, or a branch name matching
+   `^[A-Za-z0-9._/-]+$`);
+2. **checks the database**: it reads the database name out of `DATABASE_URL`
+   in `/srv/ajda/test/server/.env` and aborts unless the name ends with
+   `_test`. The URL, the user and the password are never printed;
+3. takes an `flock` on `/srv/ajda/test/.deploy/deploy.lock`;
+4. records the current commit in `/srv/ajda/test/.deploy/previous`;
+5. `git fetch --prune origin` + `git checkout --detach <sha>`;
+6. `npm ci`, `npm --prefix server ci`, `db:gen:prod`, `db:migrate`, server
+   build;
+7. builds the SPA into `dist.new` and swaps it in
+   (`dist` → `dist.old`, `dist.new` → `dist`);
+8. `sudo systemctl restart ajda-api-test` and polls the health endpoint for
+   30 s;
+9. on failure: checks the previous commit out again, rebuilds the API and the
+   SPA, restarts the unit and exits 1.
+
+It never runs `git clean`, never deletes anything under `server/uploads` and
+never reads, writes or removes a `.env` file itself — the single documented
+exception is step 2, which reads **only** the database name from
+`DATABASE_URL` to prove that the deploy cannot touch a non-test database.
+
+**Production is not deployed by this script.** See the runbook in §6.1.
+
+## 5. GitHub Actions
+
+`.github/workflows/deploy.yml` replaces the old GitHub Pages workflow. It
+deploys the **test instance only** — there is no production target.
+
+* **Trigger** — a push to `deploy-test` deploys the test instance; the
+  `workflow_dispatch` trigger takes an optional `ref` (branch or commit; empty
+  = the triggering ref). There is no `target` input.
+* **Gate** — the `verify` job runs `npm ci`, `npm run lint`, `npm run build`,
+  `npm --prefix server ci`, `npm --prefix server run build` and
+  `npm --prefix server test` on Node 24. The `deploy` job has
+  `needs: verify`. The gate checks out the ref that is deployed
+  (`ref: ${{ inputs.ref || github.sha }}`), so the tested commit and the
+  deployed commit are the same one.
+* **Environment** — the single GitHub environment `test`.
+* **Concurrency** — one test deploy at a time
+  (`group: deploy-test`, `cancel-in-progress: false`).
+* **Transport** — SSH with `StrictHostKeyChecking=yes` and the host key from
+  the `SSH_KNOWN_HOSTS` secret. The forced command always receives
+  `test <sha>`.
+
+Repository setup:
+
+1. Create the branch `deploy-test` and push to it.
+2. Settings → Environments: create `test`.
+3. Settings → Secrets (repository or environment scoped): `SSH_HOST`,
+   `SSH_USER` (`salah`), `SSH_KEY` (the private key from §4.1),
+   `SSH_KNOWN_HOSTS` (the host key line, e.g. from
+   `ssh-keyscan -H <host> >> known_hosts`).
+
+## 6. Backups and restore
+
+The nightly timer runs `ajda-backup.service` at 03:17:
+
+```bash
+sudo systemctl start ajda-backup.service      # run it now, don't wait
+sudo -u salah ls -l /var/backups/ajda
+```
+
+Each run writes `ajda-<UTC timestamp>.dump` (custom format, compressed, mode
+600), verifies it with `pg_restore --list`, refreshes `ajda-latest.dump`,
+prunes archives older than `BACKUP_RETENTION_DAYS`, and mirrors
+`server/uploads` into `/var/backups/ajda/uploads/` with `rsync -a` (no
+`--delete`, so a file deleted from the app stays recoverable in the backup).
+
+Restore:
+
+```bash
+# custom-format dump
 sudo -u postgres createdb ajda_restore_test
 sudo -u postgres pg_restore -d ajda_restore_test /var/backups/ajda/ajda-latest.dump
-sudo -u postgres psql -d ajda_restore_test -c 'SELECT count(*) FROM "Project";'
+
+# plain SQL dump
+sudo -u postgres psql -d ajda_restore_test -f /path/to/ajda-<stamp>.sql
+
+# uploaded media
+sudo -u salah rsync -a /var/backups/ajda/uploads/ /srv/ajda/app/server/uploads/
+
 sudo -u postgres dropdb ajda_restore_test
 ```
 
-> **The database dump does not include uploaded media.** A restore will otherwise
-> give you a healthy database pointing at missing images. Back up
-> `/opt/ajda/server/uploads/` separately, or add it to this script.
+**Migrations are not auto-reversible.** A rollback restores the *code* only;
+the database stays at the migrated schema. Restoring the data means restoring
+the dump above.
 
-## 10. Firewall
+### 6.1 Production deploy runbook (manual, owner only)
+
+> There is **no script** for production. These are the commands the owner runs
+> by hand, in this order, after the users have tested the test instance and
+> the owner has approved the release. CI never runs any of them.
+
+**Step 1 — a verified backup of production** (read + write to the backup
+directory only):
 
 ```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable     # PostgreSQL on 5432 stays closed; the API connects locally
+cd /srv/ajda/app
+sudo -u postgres pg_dump -Fc -d ajda --file=/var/backups/ajda/ajda-manual-$(date -u +%Y%m%dT%H%M%SZ).dump
+# the dump must be readable and not empty
+sudo -u postgres pg_restore --list /var/backups/ajda/ajda-manual-*.dump | head
+ls -l /var/backups/ajda/ajda-manual-*.dump      # must be far bigger than 1 KB
+# the uploads, mirrored without --delete
+sudo -u salah rsync -a /srv/ajda/app/server/uploads/ /var/backups/ajda/uploads/
 ```
 
----
-
-## Routine deploy
+**Step 2 — check out the approved commit:**
 
 ```bash
-# Automated 1-step deploy (handles backup, pull, build, migration, and reload):
-sudo bash deploy/deploy.sh feat/backend-admin
+cd /srv/ajda/app
+git fetch --prune origin
+git checkout --detach <approved-40-hex-sha>
+```
 
-# Or manually:
-cd /opt/ajda
-sudo -u ajda git pull
-sudo -u ajda npm ci && sudo -u ajda npm --prefix server ci
-sudo -u ajda npm --prefix server run db:gen:prod
-sudo -u ajda npm run build && sudo -u ajda npm --prefix server run build
-sudo -u ajda npm --prefix server run db:migrate
-sudo install -o root -g ajda -d -m 755 dist/. /var/www/ajda/
-sudo cp -a dist/. /var/www/ajda/
+**Step 3 — install and generate the Prisma schema** (no database access:
+`db:gen:prod` only writes the gitignored
+`server/prisma/schema.postgresql.prisma`):
+
+```bash
+npm ci
+npm --prefix server ci
+npm --prefix server run db:gen:prod
+```
+
+**Step 4 — read every pending migration before it runs:**
+
+```bash
+# prisma is a dependency of server/, so run it from there (no network fetch)
+(cd server && npx prisma migrate status --schema prisma/schema.postgresql.prisma)
+```
+
+For every migration folder that `migrate status` reports as pending, read the
+`migration.sql` file. **Do not continue if a pending migration contains
+`DROP`, `TRUNCATE`, `DELETE` or `ALTER ... DROP`.** A one-line helper for the
+pending folders only:
+
+```bash
+grep -nEi 'drop|truncate|delete' server/prisma/migrations/<pending-folder>/migration.sql
+```
+
+**Step 5 — only then migrate, build, swap the SPA and restart:**
+
+```bash
+npm --prefix server run db:migrate
+npm --prefix server run build
+./node_modules/.bin/tsc -b
+./node_modules/.bin/vite build --outDir dist.new --emptyOutDir
+mv dist dist.old && mv dist.new dist && rm -rf dist.old
 sudo systemctl restart ajda-api
-curl -fsS http://localhost:4000/api/health
+curl -fsS http://127.0.0.1:4000/api/health
 ```
 
-## Post-deploy smoke
+**Step 6 — rollback:** check the previous commit out again, rebuild and
+restart. If the data has to be restored as well, use the dump of step 1:
 
 ```bash
+sudo -u postgres pg_restore -d ajda --clean --if-exists /var/backups/ajda/ajda-manual-<stamp>.dump
+```
+
+Migrations are **not** auto-reversible: a `pg_restore` only gives the data
+back, the schema has to be fixed by hand.
+
+## 7. Caddy
+
+```bash
+sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile     # always validate first
+sudo systemctl reload caddy
+```
+
+`/api/*`, `/uploads/*` and `/socket.io/*` are proxied to the API port of the
+instance; everything else falls back to `index.html` for client-side routing.
+
+The test block (`test-ajda.weghetk.com`) proxies to `127.0.0.1:4001`, serves
+the SPA from `/srv/ajda/test/dist`, sends
+`X-Robots-Tag "noindex, nofollow"` and is protected by `basic_auth`. Replace
+the placeholder hash before deploying:
+
+```bash
+caddy hash-password --plaintext 'your-password'
+```
+
+The certificate must cover `test-ajda.weghetk.com`. If the VPS holds a
+wildcard certificate for `weghetk.com`, reuse `weghetk.com.pem` /
+`weghetk.com.key`.
+
+The test checkout lives under `/srv`, next to the production one, so Caddy
+needs no traverse rights on `/home/salah` any more. Make sure the directory
+exists and is readable by Caddy:
+
+```bash
+sudo mkdir -p /srv/ajda/test
+sudo chown salah:salah /srv/ajda/test
+namei -l /srv/ajda/test/dist
+```
+
+> The production block in `deploy/Caddyfile` still serves `/var/www/ajda`
+> while the verified production layout is `/srv/ajda/app/dist`. No automated
+> step mirrors the build any more (CI is test-only), so confirm which root the
+> live Caddyfile uses before replacing it and fix it by hand.
+
+## 8. Post-deploy smoke test
+
+```bash
+curl -fsS http://127.0.0.1:4000/api/health
 curl -fsS https://ajda.weghetk.com/api/health
 curl -fsSI https://ajda.weghetk.com/            # 200, index.html not cached
 curl -fsS  https://ajda.weghetk.com/api/projects | head -c 200
-# Then in a browser: public projects render, /admin login works, a unit status
-# change in one tab appears in another without a refresh.
+# test instance (basic auth credentials required)
+curl -fsS -u ajda-test:<password> https://test-ajda.weghetk.com/api/health
 ```
 
-## Rollback
+## 9. Known limitations
 
-```bash
-sudo -u ajda git log --oneline -5
-sudo -u ajda git checkout <sha>
-# repeat the Routine deploy steps
-```
-
-Database migrations are not auto-reversible. Take a dump before migrating:
-
-```bash
-sudo systemctl start ajda-backup.service
-```
+* The queue name (`ajda-jobs`) and the BullMQ key prefix are hardcoded in the
+  app; per-instance isolation comes from the Redis **database index**
+  (production DB 0, test DB 1).
+* `HOST` is honoured by the current server build; both instances bind the
+  loopback interface (`127.0.0.1`) and are reachable only through Caddy.
+  `HOST=0.0.0.0` would expose the API to the whole VPS network — do not set
+  it (see §2.1, §3.2).
+* The test instance shares the same Redis server, not the same database.
+* `deploy/sanitize-test-db.sql` covers the tables in
+  `server/prisma/schema.prisma` at the time of writing; re-check it after a
+  schema change that adds a table with personal data. The foundation tables
+  are handled defensively (the statement is skipped when the table does not
+  exist yet).
+* The test deploy script reads the database name out of
+  `/srv/ajda/test/server/.env` (the only `.env` read it ever does) to refuse
+  a non-`_test` database. It does not check the *host* of the URL, so a
+  `DATABASE_URL` that points at a remote host is not detected — the name
+  check is the guard.
+* Production is deployed by hand (§6.1). Nothing automates it, and nothing
+  in CI can restart the production unit.
