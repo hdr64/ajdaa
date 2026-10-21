@@ -16,7 +16,7 @@ Add a second (test) deployment of Ajda on the same VPS and a GitHub Actions work
 1. **Test instance:** dir `/home/salah/ajda/test-app`, port `4001`, DB `ajda_test` (role `ajda_test`), Redis DB index 1 with its own queue prefix if the code supports one (check `server/src/jobs`; if not, document it), systemd unit `ajda-api-test`, host `test-ajda.weghetk.com`.
 2. **`deploy/ajda-api-test.service`**: copy of the prod unit with test paths and `PORT=4001`.
 3. **Restore hardening** in both `ajda-api.service` and `ajda-backup.service` (the uncommitted diff stripped it): `PrivateTmp`, `PrivateDevices`, `ProtectSystem=full`, `ProtectHome=read-only`, `ProtectKernelTunables/Modules/ControlGroups`, `RestrictSUIDSGID`, `RestrictNamespaces`, `LockPersonality`, `SystemCallArchitectures=native`, `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`. `ReadWritePaths` = the instance's `server/uploads` and its two log files (`prod.log`, `errors.log`). Backup unit: `ReadWritePaths=/var/backups/ajda`, and ONLY `EnvironmentFile=/srv/ajda/app/server/.env.backup` (not `.env`). Keep the `.timer` path fix. Under `ProtectHome=read-only` the node binary under `/home/salah/.nvm` must stay readable; note this in the report.
-4. **Bind address:** in `server/src/server.ts` change `host: '0.0.0.0'` to `config.host` read from env `HOST`, default `127.0.0.1` (prod currently listens publicly on :4000, bypassing Caddy). Add `HOST` to `server/.env.example` and config schema. Update affected tests if any.
+4. **Bind address:** handled by another task (sec0). Do NOT edit `server/src/**`. In the test `.env` template just set `HOST=127.0.0.1`, `TRUST_PROXY=false`.
 5. **`deploy/remote-deploy.sh <test|prod> <git-ref>`** (bash, `set -euo pipefail`, runs on the server as `salah`, no sudo except `sudo systemctl restart <unit>` which the owner will allow via sudoers; document that line):
    - map env to dir/unit/health URL (`http://127.0.0.1:4001|4000/api/health`; verify the real health route path in `server/src/app.ts`);
    - flock to prevent concurrent runs; record previous commit to `.deploy/previous`;
@@ -51,7 +51,7 @@ Release-symlink scheme, Docker, CI for the frontend tests (none exist), any app 
 - Free model only.
 
 ## Gates (run all, paste results)
-- `npm run lint`, `npm run build` (root); `npm --prefix server run build`, `npm --prefix server test`
+- `npm run lint`, `npm run build` (root); `npm --prefix server run build`, `npm --prefix server test` (no server source edits expected, so just confirm they still pass)
 - `bash -n deploy/remote-deploy.sh deploy/ssh-entry.sh`; `shellcheck` on both if available
 - `systemd-analyze verify` on the units if available (otherwise say not run)
 - YAML parses: `node -e "require('yaml')"`-style check or `python -c "import yaml,sys;yaml.safe_load(open('.github/workflows/deploy.yml'))"`
