@@ -24,6 +24,11 @@ Merge order: schema, sec0, deploy.
 
 Merge order: projects, old-projects, careers (conflicts only in nav/admin route lists, resolved by Claude).
 
+## Wave 2b: monitoring (right after sec0 merges)
+| Lane | Task |
+|---|---|
+| monitoring | `/api/monitor/*` (status, logs, errors) for test and prod. External bearer-token access auto-expires (`MONITOR_EXTERNAL_UNTIL` = go-live + 30 days) and can be turned off; dashboard access for super admins stays permanent. Log rotation, exception handlers, redaction, admin "Server monitor" page. See `task-w2-monitoring-prompt.md`. |
+
 ## Wave 3: remove hard-coded data, tests, review fixes
 - remove `src/data/properties.ts` and its imports; everything from the API with loading/empty/error states
 - tests for gaps from the audit (logs, dev-notes, CMS, inquiries delete, lockout)
