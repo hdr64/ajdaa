@@ -11,6 +11,15 @@
     "preview": "vite preview",
     "deploy": "gh-pages -d dist --nojekyll",
     "dev:api": "npm --prefix server run dev",
+    "build:api": "npm --prefix server run build",
+    "start:api": "npm --prefix server run start",
+    "test:api": "npm --prefix server run test",
+    "db:gen:prod": "npm --prefix server run db:gen:prod",
+    "db:sync-data": "npm --prefix server run db:sync-data",
+    "db:push": "npm --prefix server run db:push",
+    "db:migrate": "npm --prefix server run db:migrate",
+    "db:seed": "npm --prefix server run db:seed",
+    "db:studio": "npm --prefix server run db:studio",
     "dev:all": "concurrently -k -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev\""
   },
   "dependencies": {
