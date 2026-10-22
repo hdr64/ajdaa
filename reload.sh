@@ -99,7 +99,7 @@ npm --prefix server run build
 step "Build SPA into dist.new, then swap"
 rm -rf dist.new
 ./node_modules/.bin/tsc -b
-./node_modules/.bin/vite build --outDir dist.new --emptyOutDir
+VITE_APP_ENV="$([ "$TARGET" = test ] && echo test)" ./node_modules/.bin/vite build --outDir dist.new --emptyOutDir
 [ -d dist ] && mv dist dist.old
 mv dist.new dist
 rm -rf dist.old
