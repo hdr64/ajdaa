@@ -64,3 +64,11 @@ screenshots
 .env.backup
 server-10-21-2026.sql
 server-21-10-26.backup
+
+# Deployment artifacts and local database dumps
+.deploy/
+*.backup
+*.sql
+# ... but the committed migration and sanitizing scripts must stay tracked.
+!server/prisma/migrations/**/migration.sql
+!deploy/sanitize-test-db.sql

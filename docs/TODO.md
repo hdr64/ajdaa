@@ -68,7 +68,7 @@
 
 1. **Production VPS Deployment**:
    - Provision Ubuntu 24.04 LTS VPS with native PostgreSQL 16 & Redis 7.
-   - Run automated deployment via `deploy/deploy.sh feat/backend-admin`.
+   - Deploy with `deploy/remote-deploy.sh <test|prod> <commit-sha>` (called by the GitHub Actions workflow `.github/workflows/deploy.yml`).
    - Configure Caddy 2 reverse proxy with Cloudflare Origin SSL certificate.
    - Enable systemd service units (`ajda-api.service`, `ajda-backup.timer`).
 2. **Dynamic SEO, Social Sharing (OpenGraph/Twitter Cards) & Schema.org JSON-LD**:
