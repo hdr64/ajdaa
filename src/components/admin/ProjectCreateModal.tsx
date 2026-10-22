@@ -4,6 +4,7 @@ import type { Property, PropertyUnit, PropertyType, UnitStatus } from '../../typ
 import { AdminStorage } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
 import { uploadMedia, isAcceptedMedia, MAX_UPLOAD_BYTES } from '../../services/mediaService';
+import { isHttpsUrl } from '../../utils/urlValidation';
 
 type PriceType = 'إيجار' | 'بيع' | 'استثمار';
 
@@ -35,6 +36,7 @@ const EMPTY_FORM = {
   unitsPerFloor: 4,
   imageUrl: '',
   brochureUrl: '',
+  model3dUrl: '',
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -106,6 +108,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [uploadingField, setUploadingField] = useState<'image' | 'brochure' | null>(null);
+  const [model3dError, setModel3dError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<'image' | 'brochure'>('image');
 
@@ -168,6 +171,11 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
       onShowToast('يرجى رفع صورة للمشروع');
       return;
     }
+    const model3dUrl = form.model3dUrl.trim();
+    if (model3dUrl && !isHttpsUrl(model3dUrl)) {
+      setModel3dError('أدخل رابطاً يبدأ بـ https:// بدون مسافات (حتى 500 حرف)');
+      return;
+    }
 
     setCreating(true);
     const floors = generateFloors(form);
@@ -185,8 +193,8 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
       gallery: [form.imageUrl],
       brochureUrl: form.brochureUrl || undefined,
       description: form.description.trim() || undefined,
+      model3dUrl: model3dUrl || undefined,
       floors,
-      virtualTour3dAvailable: true,
     };
 
     try {
@@ -417,6 +425,26 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
                 </button>
               )}
             </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>رابط المجسم ثلاثي الأبعاد</label>
+            <input
+              type="url"
+              dir="ltr"
+              inputMode="url"
+              value={form.model3dUrl}
+              onChange={(e) => {
+                setForm({ ...form, model3dUrl: e.target.value });
+                if (model3dError) setModel3dError('');
+              }}
+              placeholder="https://viewer.example.com/model/123"
+              className={inputClass}
+            />
+            {model3dError && <p className="mt-1 text-[10px] font-bold text-red-500">{model3dError}</p>}
+            <p className="mt-1 text-[10px] text-neutral-text/50">
+              اختياري، ويجب أن يبدأ بـ https://. بقية التفاصيل (الموقع، الفيديو، النصوص الإنجليزية) تُستكمل من صفحة المشروع.
+            </p>
           </div>
 
           <input

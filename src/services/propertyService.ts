@@ -75,6 +75,7 @@ interface ProjectDto {
   features: string[] | null;
   featuresEn: string[] | null;
   videoUrl: string | null;
+  model3dUrl: string | null;
   virtualTour3dAvailable: boolean;
   locationHighlightsAr: string[] | null;
   locationHighlightsEn: string[] | null;
@@ -98,7 +99,9 @@ export interface ProjectRequestOptions {
 /** Body accepted by POST/PUT /api/projects. Floors are managed by their own routes. */
 export type ProjectPayload = Omit<
   ProjectDto,
-  'id' | 'floors' | 'unitsCount' | 'unitsCountEn'
+  // `virtualTour3dAvailable` is derived server-side from `model3dUrl`, so it is
+  // never part of a request body.
+  'id' | 'floors' | 'unitsCount' | 'unitsCountEn' | 'virtualTour3dAvailable'
 > & {
   unitsCount?: string | null;
   unitsCountEn?: string | null;
@@ -187,6 +190,9 @@ export function toProperty(dto: ProjectDto): Property {
     features: dto.features ?? undefined,
     featuresEn: dto.featuresEn ?? undefined,
     videoUrl: optional(dto.videoUrl),
+    // Kept as-is (not run through resolveMediaUrl): the value is always an
+    // external https URL and must stay exactly that for the viewer iframe.
+    model3dUrl: optional(dto.model3dUrl),
     virtualTour3dAvailable: dto.virtualTour3dAvailable,
     locationHighlightsAr: dto.locationHighlightsAr ?? undefined,
     locationHighlightsEn: dto.locationHighlightsEn ?? undefined,
@@ -230,7 +236,7 @@ export function toProjectPayload(project: Property): ProjectPayload {
     features: project.features ?? [],
     featuresEn: project.featuresEn ?? [],
     videoUrl: project.videoUrl ?? null,
-    virtualTour3dAvailable: project.virtualTour3dAvailable ?? false,
+    model3dUrl: project.model3dUrl ?? null,
     locationHighlightsAr: project.locationHighlightsAr ?? [],
     locationHighlightsEn: project.locationHighlightsEn ?? [],
     lat: project.lat ?? null,

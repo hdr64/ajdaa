@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Property, PropertyUnit, UnitStatus } from '../types/property';
 import { AdminStorage } from '../services/adminStorage';
 import { getErrorMessage } from '../services/api';
@@ -7,6 +7,7 @@ import { useAsyncData } from '../hooks/useAsyncData';
 import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
 import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
+import { isHttpsUrl, isDownloadableMediaUrl } from '../utils/urlValidation';
 import {
   MapPin,
   Play,
@@ -24,6 +25,7 @@ import {
   Compass,
   Maximize2,
   ExternalLink,
+  Download,
   RefreshCw
 } from 'lucide-react';
 
@@ -72,6 +74,9 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [interestModalUnit, setInterestModalUnit] = useState<PropertyUnit | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos' | 'video'>('photos');
+  const [model3dModalOpen, setModel3dModalOpen] = useState(false);
+  const model3dButtonRef = useRef<HTMLButtonElement>(null);
+  const model3dWasOpenRef = useRef(false);
 
   // Keep the gallery selection valid once the project arrives or changes.
   useEffect(() => {
@@ -94,15 +99,16 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   const [submittingInterest, setSubmittingInterest] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
-  // Keyboard shortcut and scroll lock for video & interest modals
+  // Keyboard shortcut and scroll lock for video, interest & 3D modals
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setVideoModalOpen(false);
         setInterestModalUnit(null);
+        setModel3dModalOpen(false);
       }
     };
-    if (videoModalOpen || interestModalUnit !== null) {
+    if (videoModalOpen || interestModalUnit !== null || model3dModalOpen) {
       document.body.style.overflow = 'hidden';
       window.addEventListener('keydown', handleKeyDown);
     }
@@ -110,7 +116,19 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [videoModalOpen, interestModalUnit]);
+  }, [videoModalOpen, interestModalUnit, model3dModalOpen]);
+
+  // Return focus to the trigger whenever the 3D modal closes, from any path.
+  useEffect(() => {
+    if (model3dModalOpen) {
+      model3dWasOpenRef.current = true;
+      return;
+    }
+    if (model3dWasOpenRef.current) {
+      model3dWasOpenRef.current = false;
+      model3dButtonRef.current?.focus();
+    }
+  }, [model3dModalOpen]);
 
   const handleWatchVideo = (mode: 'hero' | 'modal' = 'hero') => {
     if (!project?.videoUrl) return;
@@ -181,6 +199,11 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
 
   const floors = project.floors || [];
   const activeFloor = floors[activeFloorIndex] || floors[0];
+
+  // Re-checked here as a last line of defence: never embed or link a scheme the
+  // server would not have accepted.
+  const safeModel3dUrl = isHttpsUrl(project.model3dUrl) ? project.model3dUrl : undefined;
+  const brochureUrl = isDownloadableMediaUrl(project.brochureUrl) ? project.brochureUrl : undefined;
 
   const handleOpenInterest = (unit?: PropertyUnit) => {
     setInterestModalUnit(unit || null);
@@ -506,15 +529,40 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   </button>
                 )}
 
-                {/* 3. 3D Tour (Disabled with "Coming Soon") */}
-                <div
-                  title={isAr ? 'الجولة الافتراضية 3D قريباً' : '3D Virtual Tour Coming Soon'}
-                  className="p-2.5 rounded-xl bg-surface/50 border border-muted-border/30 text-neutral-text/40 flex items-center justify-center gap-1.5 text-xs font-bold cursor-not-allowed select-none text-center"
-                >
-                  <Box className="w-3.5 h-3.5 shrink-0 opacity-50" />
-                  <span className="truncate">{isAr ? '3D قريباً' : '3D Tour (Soon)'}</span>
-                </div>
+                {/* 3. 3D model viewer; the placeholder remains for projects without one. */}
+                {safeModel3dUrl ? (
+                  <button
+                    ref={model3dButtonRef}
+                    onClick={() => setModel3dModalOpen(true)}
+                    className="brand-btn-secondary font-bold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:text-accent hover:border-accent transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <Box className="w-3.5 h-3.5 text-accent shrink-0" />
+                    <span className="truncate">{isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model'}</span>
+                  </button>
+                ) : (
+                  <div
+                    title={isAr ? 'الجولة الافتراضية 3D غير متوفرة لهذا المشروع' : 'No 3D model for this project'}
+                    className="p-2.5 rounded-xl bg-surface/50 border border-muted-border/30 text-neutral-text/40 flex items-center justify-center gap-1.5 text-xs font-bold cursor-not-allowed select-none text-center"
+                  >
+                    <Box className="w-3.5 h-3.5 shrink-0 opacity-50" />
+                    <span className="truncate">{isAr ? '3D غير متوفر' : '3D Unavailable'}</span>
+                  </div>
+                )}
               </div>
+
+              {/* 4. Project profile PDF (only when the admin attached one) */}
+              {brochureUrl && (
+                <a
+                  href={brochureUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full brand-btn-secondary font-bold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:text-accent hover:border-accent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Download className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span className="truncate">{isAr ? 'تحميل ملف المشروع (PDF)' : 'Download project profile (PDF)'}</span>
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -775,6 +823,70 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
           </div>
         )}
       </div>
+
+      {/* 3D Model Viewer Modal */}
+      {model3dModalOpen && safeModel3dUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-neutral-950/90 backdrop-blur-sm flex flex-col p-3 sm:p-5 md:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={isAr ? 'المجسم ثلاثي الأبعاد' : '3D model viewer'}
+        >
+          {/* Backdrop click closes */}
+          <div
+            className="absolute inset-0 cursor-pointer"
+            onClick={() => setModel3dModalOpen(false)}
+            aria-hidden="true"
+          />
+
+          <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col flex-1 min-h-0">
+            <div className="flex items-center justify-between gap-3 mb-3 text-white">
+              <div className="flex items-center gap-2 min-w-0">
+                <Box className="w-4 h-4 text-accent shrink-0" />
+                <span className="text-sm font-black truncate">{project.title}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={safeModel3dUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold border border-white/15 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}</span>
+                </a>
+                <button
+                  onClick={() => setModel3dModalOpen(false)}
+                  aria-label={isAr ? 'إغلاق المجسم' : 'Close 3D model'}
+                  title={isAr ? 'إغلاق (Esc)' : 'Close (Esc)'}
+                  className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/90 hover:text-white border border-white/15 flex items-center justify-center transition-all cursor-pointer hover:scale-105"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 rounded-2xl overflow-hidden bg-black border border-white/15 shadow-2xl">
+              <iframe
+                src={safeModel3dUrl}
+                title={isAr ? `المجسم ثلاثي الأبعاد - ${project.title}` : `3D model - ${project.title}`}
+                sandbox="allow-scripts allow-same-origin allow-popups"
+                referrerPolicy="no-referrer"
+                allow="fullscreen"
+                loading="lazy"
+                className="w-full h-full border-0"
+              />
+            </div>
+
+            <p className="mt-2 text-[11px] text-white/50 text-center">
+              {isAr
+                ? 'لا يظهر المجسم؟ بعض المواقع تمنع العرض داخل الصفحة، افتحه في تبويب جديد.'
+                : 'Model not loading? Some sites block embedding — open it in a new tab.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Video Preview Modal (Cinematic Theater Lightbox) */}
       {videoModalOpen && (

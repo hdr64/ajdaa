@@ -46,6 +46,9 @@ export function serializeFloor(floor: PropertyFloor & { units?: PropertyUnit[] }
 export function serializeProject(project: Project & { floors?: (PropertyFloor & { units?: PropertyUnit[] })[] }): SerializedProject {
   return {
     ...project,
+    // Derived, never stored-written: a project has a 3D tour exactly when it has
+    // a 3D viewer link. The legacy `virtualTour3dAvailable` column is ignored.
+    virtualTour3dAvailable: Boolean(project.model3dUrl),
     gallery: parseJsonArray(project.gallery),
     features: parseJsonArray(project.features),
     featuresEn: parseJsonArray(project.featuresEn),

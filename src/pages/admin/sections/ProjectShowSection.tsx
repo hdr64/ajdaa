@@ -27,6 +27,7 @@ import { InquiryStatusSelect } from './inquiryUi';
 import { ProjectUnitsPanel } from './ProjectUnitsPanel';
 import { formatAdminDate } from '../adminFormat';
 import { completenessIssues, publicProjectUrl, PUBLISH_STATUS_LABELS_AR, publishStatusOf, UNIT_STATUS_LABELS_AR } from '../projectLabels';
+import { isHttpsUrl } from '../../../utils/urlValidation';
 import { usePublishProject } from './usePublishProject';
 import { useDuplicateProject } from './useDuplicateProject';
 
@@ -392,6 +393,23 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             <Fact label="الحالة" value={project.status} />
             <Fact label="عدد الأدوار" value={project.floors?.length ?? 0} />
             <Fact label="الجولة الافتراضية" value={project.virtualTour3dAvailable ? 'متوفرة' : 'غير متوفرة'} />
+            <Fact
+              label="المجسم ثلاثي الأبعاد"
+              value={
+                project.model3dUrl && isHttpsUrl(project.model3dUrl) ? (
+                  <a
+                    href={project.model3dUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-accent hover:underline"
+                    dir="ltr"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    فتح المجسم
+                  </a>
+                ) : undefined
+              }
+            />
             <Fact
               label="الكتيّب"
               value={

@@ -8,6 +8,25 @@ import { serializeProject, serializeFloor } from '../services/serializers.js';
 import { buildCsv, sendCsv } from '../services/csv.js';
 import { PUBLISH_STATUSES, UNIT_STATUSES, type PublishStatus } from '../config/constants.js';
 
+// Mirrors the client-side guard in `src/utils/urlValidation.ts`: a plain https
+// URL, no whitespace or quote/angle/backslash characters that could break out of
+// an href or an iframe srcdoc.
+const HTTPS_URL_PATTERN = /^https:\/\/[^\s"'<>\\]+$/;
+
+/**
+ * Accepts an https URL, or nothing. Absent/empty/whitespace-only input collapses
+ * to null so the column never stores an unusable string.
+ */
+const optionalHttpsUrl = z
+  .string()
+  .trim()
+  .max(500)
+  .nullish()
+  .transform((value) => (value ? value : null))
+  .refine((value) => value === null || HTTPS_URL_PATTERN.test(value), {
+    message: 'Must be an https URL (max 500 characters)',
+  });
+
 const projectSchema = z.object({
   type: z.string().min(1),
   typeAr: z.string().min(1),
@@ -37,7 +56,11 @@ const projectSchema = z.object({
   features: z.array(z.string()).default([]),
   featuresEn: z.array(z.string()).default([]),
   videoUrl: z.string().nullish(),
-  virtualTour3dAvailable: z.boolean().default(false),
+  // External 3D viewer link. The API derives `virtualTour3dAvailable` from this.
+  model3dUrl: optionalHttpsUrl,
+  // Accepted but ignored: the stored column is legacy data and the API reports
+  // `virtualTour3dAvailable` as `Boolean(model3dUrl)` instead.
+  virtualTour3dAvailable: z.boolean().optional(),
   locationHighlightsAr: z.array(z.string()).default([]),
   locationHighlightsEn: z.array(z.string()).default([]),
   lat: z.number().nullish(),
@@ -131,7 +154,9 @@ function toCreateData(input: ProjectInput) {
     features: JSON.stringify(input.features),
     featuresEn: JSON.stringify(input.featuresEn),
     videoUrl: input.videoUrl,
-    virtualTour3dAvailable: input.virtualTour3dAvailable,
+    // `virtualTour3dAvailable` is deliberately not written: it is derived from
+    // `model3dUrl` on read, so the legacy column must stay untouched.
+    model3dUrl: input.model3dUrl,
     locationHighlightsAr: JSON.stringify(input.locationHighlightsAr),
     locationHighlightsEn: JSON.stringify(input.locationHighlightsEn),
     lat: input.lat,
