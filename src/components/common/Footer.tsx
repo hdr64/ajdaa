@@ -17,7 +17,7 @@ import logoEnLight from '../../assets/logos/en-1.png';
 import logoEnDark from '../../assets/logos/en-2.png';
 
 /** Only these nav targets stay inside the single-page shell. */
-const FOOTER_ROUTES: readonly NavPageKey[] = ['home', 'works', 'clients', 'booking', 'contact'];
+const FOOTER_ROUTES: readonly NavPageKey[] = ['home', 'works', 'pastWorks', 'clients', 'booking', 'contact'];
 
 interface FooterProps {
   onNavigate: (page: NavPageKey) => void;

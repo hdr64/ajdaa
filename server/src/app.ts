@@ -17,6 +17,7 @@ import { unitRoutes } from './routes/units.routes.js';
 import { inquiryRoutes } from './routes/inquiries.routes.js';
 import { mediaRoutes } from './routes/media.routes.js';
 import { categoryRoutes } from './routes/categories.routes.js';
+import { pastProjectRoutes } from './routes/pastProjects.routes.js';
 import { newsletterRoutes } from './routes/newsletter.routes.js';
 import { permissionRoutes } from './routes/permissions.routes.js';
 import { roleRoutes } from './routes/roles.routes.js';
@@ -248,6 +249,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await fastify.register(inquiryRoutes, { prefix: '/api/inquiries' });
   await fastify.register(mediaRoutes, { prefix: '/api/media' });
   await fastify.register(categoryRoutes, { prefix: '/api/categories' });
+  await fastify.register(pastProjectRoutes, { prefix: '/api/past-projects' });
   await fastify.register(newsletterRoutes, { prefix: '/api/newsletter' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
   await fastify.register(roleRoutes, { prefix: '/api/roles' });
