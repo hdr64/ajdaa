@@ -1,7 +1,7 @@
 import { config } from '../config/env.js';
 import { sendMail } from '../services/mailService.js';
 import { developerNoteNotification, type InquiryMailData } from '../services/mailTemplates.js';
-import { notifyNewInquiry } from '../services/notificationService.js';
+import { notifyNewInquiry, notifyNewJobApplication } from '../services/notificationService.js';
 import type { QueueableJob } from '../services/queueService.js';
 
 /**
@@ -84,5 +84,19 @@ export const sendInquiryNotificationJob: QueueableJob<InquiryNotificationPayload
     // cannot drift apart, and it means the payload stays exactly the data the
     // template renders.
     await notifyNewInquiry(payload);
+  },
+};
+
+export interface JobApplicationNotificationPayload {
+  name: string | null;
+  jobTitle: string | null;
+  createdAt: string | Date | null;
+}
+
+export const sendJobApplicationNotificationJob: QueueableJob<JobApplicationNotificationPayload> = {
+  name: 'email:job-application',
+
+  async handle(payload) {
+    await notifyNewJobApplication(payload);
   },
 };

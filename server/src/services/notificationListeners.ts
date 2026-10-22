@@ -36,6 +36,8 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export interface EmailListenerConfig {
   /** Every active admin who can view inquiries (the PII in the mail is theirs to see). */
   toInquiryViewers: boolean;
+  /** Every active admin who can view job applications. */
+  toApplicationViewers: boolean;
   emails: string[];
 }
 
@@ -70,10 +72,11 @@ function parseConfig(raw: string): EmailListenerConfig {
     const parsed = JSON.parse(raw) as Partial<EmailListenerConfig>;
     return {
       toInquiryViewers: parsed.toInquiryViewers === true,
+      toApplicationViewers: parsed.toApplicationViewers === true,
       emails: Array.isArray(parsed.emails) ? parsed.emails.filter((e): e is string => typeof e === 'string') : [],
     };
   } catch {
-    return { toInquiryViewers: false, emails: [] };
+    return { toInquiryViewers: false, toApplicationViewers: false, emails: [] };
   }
 }
 
@@ -102,7 +105,7 @@ function toView(row: {
 /** Lower-cased and de-duplicated, so one address is never mailed twice by one listener. */
 function normaliseConfig(config: EmailListenerConfig): string {
   const emails = [...new Set(config.emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
-  return JSON.stringify({ toInquiryViewers: config.toInquiryViewers, emails });
+  return JSON.stringify({ toInquiryViewers: config.toInquiryViewers, toApplicationViewers: config.toApplicationViewers, emails });
 }
 
 /** True once a listener for this event was created: the team took over. */
@@ -186,6 +189,21 @@ export async function activeInquiryViewerEmails(): Promise<string[]> {
     .map((admin) => admin.email);
 }
 
+export async function activeApplicationViewerEmails(): Promise<string[]> {
+  const admins = await prisma.adminUser.findMany({
+    where: { status: 'active' },
+    select: { email: true, role: true, permissions: true },
+  });
+  return admins
+    .filter((admin) =>
+      hasPermission(
+        { id: '', email: admin.email, role: admin.role, permissions: parsePermissions(admin.permissions) },
+        'viewApplications'
+      )
+    )
+    .map((admin) => admin.email);
+}
+
 /**
  * Email recipients for an event, de-duplicated across listeners. Null means no
  * listener was ever configured *for this event* and the caller should use its
@@ -198,15 +216,20 @@ export async function emailRecipientsFor(event: NotificationEvent): Promise<stri
     where: { event, channel: 'email', enabled: true },
   });
   const recipients = new Set<string>();
-  let viewers: string[] | undefined;
+  let inquiryViewers: string[] | undefined;
+  let applicationViewers: string[] | undefined;
 
   for (const listener of listeners) {
-    const config = parseConfig(listener.config);
-    if (config.toInquiryViewers) {
-      viewers ??= await activeInquiryViewerEmails();
-      viewers.forEach((email) => recipients.add(email.toLowerCase()));
+    const cfg = parseConfig(listener.config);
+    if (event === 'inquiry.created' && cfg.toInquiryViewers) {
+      inquiryViewers ??= await activeInquiryViewerEmails();
+      inquiryViewers.forEach((email) => recipients.add(email.toLowerCase()));
     }
-    config.emails.forEach((email) => recipients.add(email));
+    if (event === 'job_application' && cfg.toApplicationViewers) {
+      applicationViewers ??= await activeApplicationViewerEmails();
+      applicationViewers.forEach((email) => recipients.add(email.toLowerCase()));
+    }
+    cfg.emails.forEach((email) => recipients.add(email));
   }
   return [...recipients];
 }

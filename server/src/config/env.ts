@@ -97,6 +97,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters. Generate one with `openssl rand -base64 32`.'),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   UPLOAD_DIR: z.string().default('./uploads'),
+  PRIVATE_DIR: z.string().default('./private'),
   // The interface the server binds to. `127.0.0.1` keeps a development server
   // off the network; a deployment behind a reverse proxy binds `0.0.0.0`.
   HOST: z.preprocess(blankToUndefined, z.string().trim().min(1).default('127.0.0.1')),
@@ -310,6 +311,7 @@ export const config = {
   jwtSecret: env.JWT_SECRET,
   settingsEncryptionKey: env.SETTINGS_ENCRYPTION_KEY,
   uploadDir: path.resolve(env.UPLOAD_DIR),
+  privateDir: path.resolve(env.PRIVATE_DIR),
   clientOrigins,
   trustProxy: env.TRUST_PROXY,
   host: env.HOST,

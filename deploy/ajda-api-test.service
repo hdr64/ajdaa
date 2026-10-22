@@ -45,7 +45,7 @@ SystemCallArchitectures=native
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 # Uploads and log files of the test instance only.
-ReadWritePaths=/srv/ajda/test/server/uploads /srv/ajda/test/server/prod.log /srv/ajda/test/server/errors.log
+ReadWritePaths=/srv/ajda/test/server/uploads -/srv/ajda/test/server/private /srv/ajda/test/server/prod.log /srv/ajda/test/server/errors.log
 
 StandardOutput=journal
 StandardError=journal

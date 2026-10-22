@@ -22,14 +22,21 @@ const listenerSchema = z
     name: z.string().trim().min(1).max(100),
     enabled: z.boolean(),
     config: z.object({
-      toInquiryViewers: z.boolean(),
+      toInquiryViewers: z.boolean().default(false),
+      toApplicationViewers: z.boolean().default(false),
       emails: z.array(z.string().trim().toLowerCase().email().max(255)).max(MAX_EMAILS),
     }),
   })
-  .refine((listener) => listener.config.toInquiryViewers || listener.config.emails.length > 0, {
-    message: 'Choose at least one recipient',
-    path: ['config', 'emails'],
-  });
+  .refine(
+    (listener) =>
+      listener.config.toInquiryViewers ||
+      listener.config.toApplicationViewers ||
+      listener.config.emails.length > 0,
+    {
+      message: 'Choose at least one recipient',
+      path: ['config', 'emails'],
+    }
+  );
 
 const idParamsSchema = z.object({ id: z.string().min(1) });
 

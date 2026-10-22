@@ -612,3 +612,17 @@ curl -fsS -u ajda-test:<password> https://test-ajda.weghetk.com/api/health
   check is the guard.
 * Production is deployed by hand (§6.1). Nothing automates it, and nothing
   in CI can restart the production unit.
+
+## 10. CV storage (careers)
+
+CVs submitted through the public careers form are stored under
+`server/private` (env `PRIVATE_DIR`, default `./private`), **not** under the
+publicly served `server/uploads`. They are backed up by `server/scripts/backup_db.sh`
+into `${BACKUP_DIR}/private/`. They are **not** copied to the test instance, and
+the sanitize script deletes the `job_applications` rows.
+
+One-time step on both instances:
+
+```bash
+mkdir -p server/private && chmod 700 server/private
+```

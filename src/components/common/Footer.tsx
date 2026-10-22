@@ -163,6 +163,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                   </button>
                 );
               })}
+              <button
+                onClick={() => onNavigate('careers')}
+                className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+              >
+                <ChevronRight className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
+                {language === 'ar' ? 'قدّم على وظيفة' : 'Apply for a job'}
+              </button>
             </div>
           </div>
 

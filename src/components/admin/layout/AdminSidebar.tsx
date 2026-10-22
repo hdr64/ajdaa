@@ -60,6 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'العملاء',
     items: [
       { section: 'inquiries', label: 'طلبات الاهتمام', icon: Users, permission: 'viewInquiries' },
+      { section: 'applications', label: 'طلبات التوظيف', icon: Users, permission: 'viewApplications' },
       { section: 'newsletter', label: 'مشتركو النشرة', icon: Mail, permission: 'exportData' },
     ],
   },

@@ -1,11 +1,13 @@
 import { api } from './api';
 
-export type NotificationEvent = 'inquiry.created';
+export type NotificationEvent = 'inquiry.created' | 'job_application';
 export type NotificationChannel = 'email';
 
 export interface EmailListenerConfig {
   /** Every active admin who can view inquiries. */
   toInquiryViewers: boolean;
+  /** Every active admin who can view job applications. */
+  toApplicationViewers: boolean;
   emails: string[];
 }
 
