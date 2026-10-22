@@ -22,6 +22,9 @@ import { formatRelativeTime } from '../../../pages/admin/adminFormat';
  * Roles, statuses, permissions
  * ------------------------------------------------------------------ */
 
+/** Email validation pattern. */
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 /** The fixed roles the shared types know about; custom roles still travel as their own key. */
 const ADMIN_ROLES: readonly AdminRole[] = ['super_admin', 'project_manager', 'sales_agent', 'viewer'];
 
@@ -119,6 +122,33 @@ export function passwordPolicyError(password: string): string | null {
     return 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل';
   }
   return null;
+}
+
+/** Unbiased integer in [0, max) from the browser CSPRNG; every call is a fresh draw. */
+function randomIndex(max: number): number {
+  const limit = Math.floor(0x100000000 / max) * max;
+  const buffer = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(buffer);
+  } while (buffer[0] >= limit);
+  return buffer[0] % max;
+}
+
+/**
+ * A password that always passes `passwordPolicyError`: one character from each
+ * pool, the rest from all pools, then shuffled. Look-alike characters
+ * (0/O, 1/l/I, quotes, slashes) are left out so it can be read aloud.
+ */
+export function generateSecurePassword(length = 14): string {
+  const pools = ['ABCDEFGHJKMNPQRSTUVWXYZ', 'abcdefghjkmnpqrstuvwxyz', '23456789', '!@#$%^&'];
+  const all = pools.join('');
+  const chars = pools.map((pool) => pool[randomIndex(pool.length)]);
+  while (chars.length < length) chars.push(all[randomIndex(all.length)]);
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomIndex(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }
 
 export const STATUS_OPTIONS: readonly { value: string; label: string }[] = [

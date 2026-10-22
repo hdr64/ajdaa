@@ -1,15 +1,18 @@
 /**
  * Create / edit dialog for an admin account.
  *
- * The form talks to the same references the server does (`/api/roles`,
- * `/api/departments`, `/api/permissions`), so a role always arrives with its own
- * permission set: picking a role fills the checkboxes, which the admin may then
- * customise. Options and fields the current admin may not use are disabled with
- * the reason on screen rather than hidden, and a locked account sends only the
- * fields the server would accept.
+ * Create mode: 3-step wizard (UserCreateWizard).
+ * Edit mode: tabbed dialog with 3 tabs (Account, Role & Access, Security).
+ *
+ * The dialog is fed `rights` (per-target rules incl. `lockReason`), `roles`,
+ * `departments`, `permissions` (the server catalogue), `canAssignSuperAdmin`,
+ * `referenceLoading/Error`, `onSaved`, `showToast`. All of these props and the
+ * existing save logic (create vs update payloads, `changes` diff on edit,
+ * `normalizePermissions` flow, error mapping from the server) must keep
+ * working unchanged.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Eye, EyeOff, LoaderCircle, RefreshCw, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { AlertCircle, LoaderCircle, RefreshCw, X, User, Shield, Lock, Key, CheckCircle2 } from 'lucide-react';
 import type {
   AdminPermissions,
   AdminRole,
@@ -30,20 +33,24 @@ import {
   ROLE_AR_LABELS,
   STATUS_OPTIONS,
   SUPER_ADMIN_ROLE_KEY,
-  emptyPermissions,
-  groupPermissions,
   passwordPolicyError,
   permissionsFromRole,
   toAdminRole,
 } from './usersModel';
 import type { UserRights } from './usersModel';
+import { UserCreateWizard } from './UserCreateWizard';
+import { RoleCards } from './RoleCards';
+import { PermissionGrid } from './PermissionGrid';
+import { PasswordField } from './PasswordField';
+import { generateSecurePassword } from './usersModel';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const INPUT =
   'w-full px-3 py-2.5 rounded-xl bg-canvas border text-xs text-heading outline-none transition focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed';
 
-const inputTone = (invalid: boolean): string => (invalid ? `${INPUT} border-red-500/60` : `${INPUT} border-muted-border/50`);
+const inputTone = (invalid: boolean): string =>
+  invalid ? `${INPUT} border-red-500/60` : `${INPUT} border-muted-border/50`;
 
 interface UserFormDialogProps {
   /** `null` creates a new account. */
@@ -95,7 +102,7 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label={user ? `تعديل حساب ${user.name}` : 'إضافة مستخدم جديد'}
-        className="relative w-full max-w-3xl my-4 bg-surface rounded-3xl border border-muted-border/40 shadow-2xl"
+        className="relative w-full max-w-xl my-4 bg-surface rounded-3xl border border-muted-border/40 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-muted-border/30">
           <div className="min-w-0">
@@ -135,10 +142,20 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
               إعادة المحاولة
             </button>
           </div>
-        ) : (
-          <UserForm
+        ) : user ? (
+          <UserEditTabs
             user={user}
             rights={rights}
+            roles={roles}
+            departments={departments}
+            permissions={permissions}
+            canAssignSuperAdmin={canAssignSuperAdmin}
+            showToast={showToast}
+            onClose={onClose}
+            onSaved={onSaved}
+          />
+        ) : (
+          <UserCreateWizard
             roles={roles}
             departments={departments}
             permissions={permissions}
@@ -154,66 +171,30 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
 };
 
 /* ------------------------------------------------------------------ *
- * The form itself
+ * Edit mode: tabbed dialog
  * ------------------------------------------------------------------ */
 
-type UserFormProps = Omit<
-  UserFormDialogProps,
-  'referenceLoading' | 'referenceError' | 'onRetryReference'
->;
-
-interface RoleOption {
-  value: string;
-  label: string;
-  /** `null` for an account whose role record is gone — the label is kept as-is. */
-  role: Role | null;
+interface UserEditTabsProps {
+  user: AdminUser;
+  rights: UserRights | null;
+  roles: Role[];
+  departments: Department[];
+  permissions: PermissionDef[];
+  canAssignSuperAdmin: boolean;
+  showToast: (message: string) => void;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
 }
 
-interface DepartmentOption {
-  value: string;
-  label: string;
-}
+type EditTab = 'account' | 'role' | 'security';
 
-interface UserFormState {
-  name: string;
-  email: string;
-  password: string;
-  replacePassword: boolean;
-  roleId: string;
-  departmentId: string;
-  status: AdminStatus;
-  permissions: AdminPermissions;
-}
+const TAB_CONFIG: { id: EditTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'account', label: 'الحساب', icon: <User className="w-3.5 h-3.5" /> },
+  { id: 'role', label: 'الدور والصلاحيات', icon: <Shield className="w-3.5 h-3.5" /> },
+  { id: 'security', label: 'الأمان', icon: <Lock className="w-3.5 h-3.5" /> },
+];
 
-type FormErrors = Partial<Record<'name' | 'email' | 'password', string>>;
-
-interface FieldProps {
-  label: string;
-  required?: boolean;
-  hint?: React.ReactNode;
-  error?: string;
-  className?: string;
-  children: React.ReactNode;
-}
-
-const Field: React.FC<FieldProps> = ({ label, required, hint, error, className = '', children }) => (
-  <div className={className}>
-    <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-      {label}
-      {required && <span className="text-red-500"> *</span>}
-    </span>
-    {children}
-    {error ? (
-      <p role="alert" className="mt-1 text-[10px] font-bold text-red-500">
-        {error}
-      </p>
-    ) : (
-      hint && <p className="mt-1 text-[10px] text-neutral-text/55 leading-relaxed">{hint}</p>
-    )}
-  </div>
-);
-
-const UserForm: React.FC<UserFormProps> = ({
+const UserEditTabs: React.FC<UserEditTabsProps> = ({
   user,
   rights,
   roles,
@@ -224,18 +205,19 @@ const UserForm: React.FC<UserFormProps> = ({
   onClose,
   onSaved,
 }) => {
-  const isCreate = user === null;
   const accessLocked = rights?.accessLocked ?? false;
-
-  /* ------------------------- Roles & departments ------------------------- */
+  const lockReason = rights?.lockReason ?? null;
 
   const { roleOptions, initialRoleId, defaultRole } = useMemo(() => {
     const idByKey = new Map(roles.map((role) => [role.key, role.id]));
-    const options: RoleOption[] = roles.map((role) => ({ value: role.id, label: role.nameAr, role }));
+    const options: { value: string; label: string; role: Role | null }[] = roles.map((role) => ({
+      value: role.id,
+      label: role.nameAr,
+      role,
+    }));
     const known = new Set(options.map((option) => option.value));
-    // An account created before the roles table existed only carries its role key.
-    const currentRoleId = user ? (user.roleId ?? idByKey.get(user.role) ?? user.role) : '';
-    if (user && !known.has(currentRoleId)) {
+    const currentRoleId = user.roleId ?? idByKey.get(user.role) ?? user.role;
+    if (!known.has(currentRoleId)) {
       options.unshift({ value: currentRoleId, label: user.roleAr, role: null });
     }
     return {
@@ -247,68 +229,93 @@ const UserForm: React.FC<UserFormProps> = ({
 
   const { departmentOptions, initialDepartmentId } = useMemo(() => {
     const idByName = new Map(departments.map((department) => [department.nameAr.trim(), department.id]));
-    const options: DepartmentOption[] = [
+    const options: { value: string; label: string }[] = [
       ...departments.map((department) => ({ value: department.id, label: department.nameAr })),
       { value: NO_DEPARTMENT, label: NO_DEPARTMENT_LABEL },
     ];
     const known = new Set(options.map((option) => option.value));
-    const current = user
-      ? (user.departmentId ?? idByName.get((user.departmentName ?? user.department ?? '').trim()) ?? NO_DEPARTMENT)
-      : NO_DEPARTMENT;
-    if (user && !known.has(current)) {
+    const current = user.departmentId ?? idByName.get((user.departmentName ?? user.department ?? '').trim()) ?? NO_DEPARTMENT;
+    if (!known.has(current)) {
       options.splice(options.length - 1, 0, { value: current, label: user.departmentName || user.department });
     }
     return { departmentOptions: options, initialDepartmentId: current };
   }, [departments, user]);
 
-  /* -------------------------------- Form -------------------------------- */
-
-  const [form, setForm] = useState<UserFormState>(() => ({
-    name: user?.name ?? '',
-    email: user?.email ?? '',
-    password: '',
-    replacePassword: false,
+  const [activeTab, setActiveTab] = useState<EditTab>('account');
+  const [form, setForm] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    roleId: string;
+    departmentId: string;
+    status: AdminStatus;
+    permissions: AdminPermissions;
+    password: string;
+    replacePassword: boolean;
+    generatedPassword: string;
+  }>(() => ({
+    name: user.name,
+    email: user.email,
+    phone: user.phone ?? '',
     roleId: initialRoleId || (defaultRole?.id ?? ''),
     departmentId: initialDepartmentId,
-    status: user?.status ?? 'active',
-    permissions: user ? { ...user.permissions } : permissionsFromRole(defaultRole),
+    status: user.status,
+    permissions: { ...user.permissions },
+    password: '',
+    replacePassword: false,
+    generatedPassword: '',
   }));
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<'name' | 'email' | 'password', string>>>({});
   const [saving, setSaving] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [serverErrorTab, setServerErrorTab] = useState<EditTab | null>(null);
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+
+  // Track if form has changed
+  const hasChanges = useMemo(() => {
+    return (
+      form.name !== user.name ||
+      form.email !== user.email ||
+      form.phone !== (user.phone ?? '') ||
+      form.roleId !== initialRoleId ||
+      form.departmentId !== initialDepartmentId ||
+      form.status !== user.status ||
+      form.replacePassword ||
+      PERMISSION_KEYS.some((key) => form.permissions[key] !== user.permissions[key])
+    );
+  }, [form, user, initialRoleId, initialDepartmentId]);
 
   const selectedRoleOption = roleOptions.find((option) => option.value === form.roleId) ?? null;
   const selectedRole = selectedRoleOption?.role ?? null;
-  const groups = useMemo(() => groupPermissions(permissions), [permissions]);
-  const allPermissionsChecked = PERMISSION_KEYS.every((key) => form.permissions[key]);
 
   const pickRole = (roleId: string) => {
     const role = roleOptions.find((option) => option.value === roleId)?.role ?? null;
     setForm((current) => ({
       ...current,
       roleId,
-      // Picking a role fills its own permissions; the admin customises from there.
       permissions: role ? permissionsFromRole(role) : current.permissions,
     }));
   };
 
-  const togglePermission = (key: keyof AdminPermissions, checked: boolean) => {
-    setForm((current) => ({ ...current, permissions: { ...current.permissions, [key]: checked } }));
+  const handleRestoreRolePermissions = () => {
+    if (selectedRole) {
+      setForm((current) => ({
+        ...current,
+        permissions: permissionsFromRole(selectedRole),
+      }));
+    }
   };
 
-  const setAllPermissions = (checked: boolean) => {
-    const next = emptyPermissions();
-    for (const key of PERMISSION_KEYS) next[key] = checked;
-    setForm((current) => ({ ...current, permissions: next }));
+  const handleGeneratePassword = () => {
+    const generated = generateSecurePassword();
+    setForm((prev) => ({ ...prev, password: generated, generatedPassword: generated }));
   };
 
-  /* ------------------------------- Submit ------------------------------- */
-
-  const validate = (): FormErrors => {
-    const found: FormErrors = {};
+  const validate = (): Partial<Record<'name' | 'email' | 'password', string>> => {
+    const found: Partial<Record<'name' | 'email' | 'password', string>> = {};
     if (form.name.trim() === '') found.name = 'الاسم الكامل مطلوب';
     if (!EMAIL_PATTERN.test(form.email.trim())) found.email = 'أدخل بريداً إلكترونياً صحيحاً';
-    if (isCreate || form.replacePassword) {
+    if (form.replacePassword) {
       const policyError = passwordPolicyError(form.password);
       if (policyError) found.password = policyError;
     }
@@ -319,14 +326,19 @@ const UserForm: React.FC<UserFormProps> = ({
     event.preventDefault();
     const found = validate();
     setErrors(found);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      // Switch to tab with error
+      if (found.name || found.email) setActiveTab('account');
+      else if (found.password) setActiveTab('security');
+      return;
+    }
 
     const roleKey: AdminRole = toAdminRole(
       selectedRole?.key ?? selectedRoleOption?.value,
-      user ? toAdminRole(user.role) : DEFAULT_ROLE_KEY
+      toAdminRole(user.role)
     );
     const roleAr =
-      selectedRole?.nameAr ?? selectedRoleOption?.label ?? user?.roleAr ?? ROLE_AR_LABELS[roleKey];
+      selectedRole?.nameAr ?? selectedRoleOption?.label ?? user.roleAr ?? ROLE_AR_LABELS[roleKey];
     const selectedRoleId = selectedRoleOption ? (selectedRole?.id ?? selectedRoleOption.value) : null;
 
     const departmentOption =
@@ -336,291 +348,361 @@ const UserForm: React.FC<UserFormProps> = ({
       departmentId === null ? null : departments.find((d) => d.id === departmentId)?.nameAr ?? departmentOption?.label ?? null;
 
     setSaving(true);
-    try {
-      if (user) {
-        const changes: Partial<AdminUserInput> = {
-          name: form.name.trim(),
-          email: form.email.trim(),
-          department: departmentName,
-          departmentId,
-        };
-        // A locked account only sends what the server will accept for it.
-        if (!accessLocked) {
-          changes.role = roleKey;
-          changes.roleAr = roleAr;
-          changes.roleId = selectedRoleId;
-          changes.permissions = form.permissions;
-          if (form.status !== user.status) changes.status = form.status;
-        }
-        if (form.replacePassword && form.password) changes.password = form.password;
+    setServerError(null);
+    setServerErrorTab(null);
 
-        await AdminStorage.updateUser(user.id, changes);
-        showToast(`تم تحديث حساب ${form.name.trim()}`);
-      } else {
-        const input: AdminUserInput = {
-          name: form.name.trim(),
-          email: form.email.trim(),
-          password: form.password,
-          role: roleKey,
-          roleAr,
-          roleId: selectedRoleId,
-          department: departmentName,
-          departmentId,
-          permissions: form.permissions,
-        };
-        await AdminStorage.createUser(input);
-        showToast(`تمت إضافة المستخدم ${form.name.trim()} بنجاح`);
+    try {
+      const changes: Partial<AdminUserInput> = {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        department: departmentName,
+        departmentId,
+      };
+
+      if (!accessLocked) {
+        changes.role = roleKey;
+        changes.roleAr = roleAr;
+        changes.roleId = selectedRoleId;
+        changes.permissions = form.permissions;
+        if (form.status !== user.status) changes.status = form.status;
       }
+
+      if (form.replacePassword && form.password) changes.password = form.password;
+
+      await AdminStorage.updateUser(user.id, changes);
+      showToast(`تم تحديث حساب ${form.name.trim()}`);
       await onSaved();
       onClose();
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حفظ بيانات المستخدم'));
+      const message = getErrorMessage(error, 'تعذر حفظ بيانات المستخدم');
+      showToast(message);
+
+      // Map server errors to tabs
+      const errorStr = error instanceof Error ? error.message : String(error);
+      let targetTab: EditTab = 'account';
+      if (errorStr.includes('email') || errorStr.includes('بريد') || errorStr.includes('already exists') || errorStr.includes('موجود')) {
+        targetTab = 'account';
+      } else if (errorStr.includes('password') || errorStr.includes('كلمة مرور') || errorStr.includes('weak') || errorStr.includes('ضعيف')) {
+        targetTab = 'security';
+      } else if (errorStr.includes('role') || errorStr.includes('دور') || errorStr.includes('permission') || errorStr.includes('صلاحية')) {
+        targetTab = 'role';
+      }
+      setServerError(message);
+      setServerErrorTab(targetTab);
+      setActiveTab(targetTab);
     } finally {
       setSaving(false);
     }
   };
 
-  const isSuperAdminRoleSelected = selectedRole?.key === SUPER_ADMIN_ROLE_KEY;
+  // Unsaved changes guard
+  const handleClose = useCallback(() => {
+    if (hasChanges) {
+      if (window.confirm('لديك تغييرات غير محفوظة. هل تريد إغلاق النافذة دون حفظ؟')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  }, [hasChanges, onClose]);
+
+  // Keyboard: Escape to close (with guard)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleClose]);
+
+  const tabContent = activeTab === 'account' ? renderAccountTab() : activeTab === 'role' ? renderRoleTab() : renderSecurityTab();
 
   return (
     <form onSubmit={submit} className="flex flex-col max-h-[88vh]">
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="الاسم الكامل" required error={errors.name}>
-            <input
-              type="text"
-              autoFocus
-              value={form.name}
-              aria-invalid={Boolean(errors.name)}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
-              placeholder="مثال: خالد المنصور"
-              className={inputTone(Boolean(errors.name))}
-            />
-          </Field>
-
-          <Field label="البريد الإلكتروني" required error={errors.email}>
-            <input
-              type="email"
-              dir="ltr"
-              value={form.email}
-              aria-invalid={Boolean(errors.email)}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
-              placeholder="name@ajdaa.sa"
-              className={`${inputTone(Boolean(errors.email))} text-start`}
-            />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {!isCreate && (
-            <label className="flex items-center gap-2 text-[11px] font-bold text-neutral-text/70 cursor-pointer self-end pb-2.5">
-              <input
-                type="checkbox"
-                checked={form.replacePassword}
-                onChange={(event) => setForm({ ...form, replacePassword: event.target.checked })}
-                className="w-3.5 h-3.5 rounded accent-accent"
-              />
-              تعيين كلمة مرور جديدة
-            </label>
-          )}
-
-          {(isCreate || form.replacePassword) && (
-            <Field
-              label="كلمة المرور"
-              required={isCreate}
-              error={errors.password}
-              hint={
-                isCreate
-                  ? `${MIN_PASSWORD_LENGTH} أحرف على الأقل، مع حرف واحد ورقم واحد على الأقل، تُستخدم عند أول دخول للحساب.`
-                  : undefined
-              }
-              className={isCreate ? '' : 'sm:col-start-2 sm:row-start-1'}
-            >
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={form.password}
-                  aria-invalid={Boolean(errors.password)}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
-                  placeholder="••••••••"
-                  className={`${inputTone(Boolean(errors.password))} pe-10 text-start`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((visible) => !visible)}
-                  aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
-                  className="absolute end-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </Field>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
-          <Field label="الدور الوظيفي" hint={isSuperAdminRoleSelected ? 'حساب المدير العام يملك كل الصلاحيات فعلياً.' : undefined}>
-            <select
-              value={form.roleId}
-              disabled={accessLocked}
-              onChange={(event) => pickRole(event.target.value)}
-              title={rights?.lockReason ?? 'دور المستخدم'}
-              className={`${inputTone(false)} cursor-pointer disabled:cursor-not-allowed`}
-            >
-              {roleOptions.map((option) => {
-                const isSuperAdminOption = option.role?.key === SUPER_ADMIN_ROLE_KEY;
-                const blocked = isSuperAdminOption && !canAssignSuperAdmin;
-                return (
-                  <option key={option.value} value={option.value} disabled={blocked}>
-                    {option.label}
-                    {blocked ? ' — متاح لمدير عام فقط' : ''}
-                  </option>
-                );
-              })}
-            </select>
-          </Field>
-
-          <Field label="القسم / الإدارة" hint="«بدون قسم» للأعضاء غير المرتبطين بإدارة.">
-            <select
-              value={form.departmentId}
-              onChange={(event) => setForm({ ...form, departmentId: event.target.value })}
-              className={`${inputTone(false)} cursor-pointer`}
-            >
-              {departmentOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field
-            label="حالة الحساب"
-            hint={
-              isCreate
-                ? 'تُنشأ الحسابات الجديدة بحالة نشطة.'
-                : user.status === 'active'
-                  ? 'الحساب نشط الآن.'
-                  : 'الحساب معطل ولا يستطيع الدخول.'
-            }
+      {/* Tab bar */}
+      <div className="flex border-b border-muted-border/30 px-6" role="tablist">
+        {TAB_CONFIG.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`${tab.id}-panel`}
+            id={`${tab.id}-tab`}
+            onClick={() => setActiveTab(tab.id)}
+            className={`
+              flex items-center gap-1.5 px-4 py-3 text-sm font-bold transition-all border-b-2 -mb-px
+              ${activeTab === tab.id
+                ? 'border-accent text-accent'
+                : 'border-transparent text-neutral-text/60 hover:text-heading hover:border-muted-border/40'}
+            `}
           >
-            <select
-              value={form.status}
-              disabled={isCreate || accessLocked}
-              onChange={(event) => setForm({ ...form, status: event.target.value as AdminStatus })}
-              title={rights?.lockReason ?? 'حالة الحساب'}
-              className={`${inputTone(false)} cursor-pointer disabled:cursor-not-allowed`}
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        <div className="pt-1 border-t border-muted-border/30 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h4 className="text-xs font-black text-heading">تخصيص الصلاحيات</h4>
-              <p className="text-[10px] text-neutral-text/60 mt-0.5">
-                اختيار الدور يعبّئ صلاحياته، ويمكنك تخصيصها بعد ذلك.
-              </p>
-            </div>
-            {!accessLocked && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, permissions: permissionsFromRole(selectedRole) })}
-                  disabled={!selectedRole}
-                  title={selectedRole ? 'استعادة صلاحيات الدور' : 'اختر دوراً أولاً'}
-                  className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  مطابقة الدور
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAllPermissions(!allPermissionsChecked)}
-                  className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold cursor-pointer"
-                >
-                  {allPermissionsChecked ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {groups.length === 0 ? (
-            <p className="text-[11px] text-neutral-text/55">تعذر تحميل قائمة الصلاحيات، سيتم اعتماد صلاحيات الدور.</p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {groups.map((group) => (
-                <fieldset
-                  key={group.key}
-                  disabled={accessLocked}
-                  className="p-3 rounded-xl bg-canvas/60 border border-muted-border/30 disabled:opacity-70"
-                >
-                  <legend className="px-1 text-[11px] font-black text-heading">{group.label}</legend>
-                  <div className="space-y-2">
-                    {group.items.map((permission) => (
-                      <label key={permission.key} className="flex items-start gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={form.permissions[permission.key]}
-                          onChange={(event) => togglePermission(permission.key, event.target.checked)}
-                          className="mt-0.5 w-3.5 h-3.5 rounded accent-accent shrink-0 disabled:cursor-not-allowed"
-                        />
-                        <span className="min-w-0">
-                          <span className="block font-bold text-heading">{permission.labelAr}</span>
-                          <span className="block text-[10px] text-neutral-text/60 leading-relaxed">
-                            {permission.description}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              ))}
-            </div>
-          )}
-
-          {accessLocked && (
-            <p className="flex items-start gap-1 text-[10px] text-amber-500 leading-relaxed">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>{rights?.lockReason}</span>
-            </p>
-          )}
-        </div>
+      <div className="flex-1 overflow-y-auto px-6 py-5" role="tabpanel" id={`${activeTab}-panel`} aria-labelledby={`${activeTab}-tab`}>
+        {tabContent}
       </div>
 
       <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-muted-border/30 bg-surface rounded-b-3xl">
         <p className="text-[10px] text-neutral-text/55 hidden sm:block">
-          {isCreate
-            ? 'سيتم إنشاء الحساب نشطاً بكلمة المرور المحددة.'
-            : accessLocked
-              ? 'لن تتغير الصلاحيات أو الدور أو الحالة على هذا الحساب.'
-              : 'تُحفظ التغييرات فوراً ويسجّل النظام من قام بها.'}
+          {accessLocked
+            ? 'لن تتغير الصلاحيات أو الدور أو الحالة على هذا الحساب.'
+            : 'تُحفظ التغييرات فوراً ويسجّل النظام من قام بها.'}
         </p>
         <div className="flex items-center gap-2 ms-auto">
           <button
             type="button"
-            onClick={onClose}
-            className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
+            onClick={handleClose}
+            disabled={saving}
+            className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
           >
             إلغاء
           </button>
           <button
             type="submit"
-            disabled={saving}
-            className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+            disabled={saving || !hasChanges || accessLocked}
+            className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
-            {isCreate ? 'إضافة المستخدم' : 'حفظ التعديلات'}
+            حفظ التعديلات
           </button>
         </div>
       </div>
     </form>
   );
+
+  function renderAccountTab() {
+    return (
+      <div className="space-y-5">
+        {serverErrorTab === 'account' && serverError && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2 text-[11px] text-red-600">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{serverError}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="edit-name" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+              الاسم الكامل <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="edit-name"
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onBlur={() => setTouchedFields((prev) => ({ ...prev, name: true }))}
+              aria-invalid={Boolean(touchedFields.name && !form.name.trim())}
+              placeholder="مثال: خالد المنصور"
+              className={inputTone(touchedFields.name && !form.name.trim())}
+            />
+            {touchedFields.name && !form.name.trim() && (
+              <p role="alert" className="mt-1 text-[10px] font-bold text-red-500">الاسم الكامل مطلوب</p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="edit-email" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+              البريد الإلكتروني <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="edit-email"
+              type="email"
+              dir="ltr"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onBlur={() => setTouchedFields((prev) => ({ ...prev, email: true }))}
+              aria-invalid={Boolean(touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()))}
+              placeholder="name@ajdaa.sa"
+              className={`${inputTone(touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()))} text-start`}
+            />
+            {touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) && (
+              <p role="alert" className="mt-1 text-[10px] font-bold text-red-500">أدخل بريداً إلكترونياً صحيحاً</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="edit-phone" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+            رقم الهاتف
+          </label>
+          <input
+            id="edit-phone"
+            type="tel"
+            dir="ltr"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="+966 5X XXX XXXX"
+            className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent text-start"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  function renderRoleTab() {
+    return (
+      <div className="space-y-5">
+        {serverErrorTab === 'role' && serverError && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2 text-[11px] text-red-600">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{serverError}</span>
+          </div>
+        )}
+
+        <RoleCards
+          roles={roles}
+          selectedRoleId={form.roleId}
+          onSelect={pickRole}
+          canAssignSuperAdmin={canAssignSuperAdmin}
+          disabled={accessLocked}
+        />
+
+        <div>
+          <label htmlFor="edit-department" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+            القسم / الإدارة
+          </label>
+          <select
+            id="edit-department"
+            value={form.departmentId}
+            onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+            disabled={accessLocked}
+            className={`${inputTone(false)} cursor-pointer disabled:cursor-not-allowed`}
+          >
+            {departmentOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {accessLocked && lockReason && (
+            <p className="mt-1.5 flex items-start gap-1 text-[10px] text-amber-500 leading-relaxed">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{lockReason}</span>
+            </p>
+          )}
+        </div>
+
+        <PermissionGrid
+          permissions={form.permissions}
+          onChange={(newPermissions) => setForm((prev) => ({ ...prev, permissions: newPermissions }))}
+          role={selectedRole}
+          allPermissions={permissions}
+          accessLocked={accessLocked}
+          lockReason={lockReason}
+          showModifiedTag={selectedRole ? !isPermissionsEqual(form.permissions, permissionsFromRole(selectedRole)) : false}
+          onRestoreRolePermissions={handleRestoreRolePermissions}
+        />
+
+        {accessLocked && lockReason && (
+          <p className="flex items-start gap-1 text-[10px] text-amber-500 leading-relaxed">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{lockReason}</span>
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  function renderSecurityTab() {
+    const policyChecks = [
+      { label: `${MIN_PASSWORD_LENGTH} أحرف على الأقل`, passed: form.password.length >= MIN_PASSWORD_LENGTH },
+      { label: 'حرف واحد على الأقل', passed: /\p{L}/u.test(form.password) },
+      { label: 'رقم واحد على الأقل', passed: /\d/.test(form.password) },
+    ];
+    const allPolicyPassed = policyChecks.every((c) => c.passed);
+
+    return (
+      <div className="space-y-5">
+        {serverErrorTab === 'security' && serverError && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2 text-[11px] text-red-600">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{serverError}</span>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">حالة الحساب</label>
+          <select
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value as AdminStatus })}
+            disabled={accessLocked}
+            className={`${inputTone(false)} cursor-pointer disabled:cursor-not-allowed`}
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {accessLocked && lockReason && (
+            <p className="mt-1.5 flex items-start gap-1 text-[10px] text-amber-500 leading-relaxed">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{lockReason}</span>
+            </p>
+          )}
+        </div>
+
+        <div className="pt-3 border-t border-muted-border/30">
+          <label className="flex items-center gap-2 text-[11px] font-bold text-neutral-text/70 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.replacePassword}
+              onChange={(e) => setForm({ ...form, replacePassword: e.target.checked })}
+              className="w-3.5 h-3.5 rounded accent-accent"
+            />
+            تغيير كلمة المرور
+          </label>
+        </div>
+
+        {form.replacePassword && (
+          <PasswordField
+            value={form.password}
+            onChange={(value) => setForm({ ...form, password: value })}
+            error={errors.password}
+            showPolicyChecklist={true}
+            onGenerate={handleGeneratePassword}
+            generatedPassword={form.generatedPassword}
+            hint={<>كلمة مرور جديدة بـ 14 حرفاً على الأقل، مع حرف ورقم.</>}
+          />
+        )}
+
+        <div className="p-4 rounded-xl bg-canvas/60 border border-muted-border/30 space-y-3">
+          <h4 className="text-xs font-black text-heading flex items-center gap-1.5">
+            <Key className="w-3.5 h-3.5" />
+            سياسة كلمة المرور
+          </h4>
+          <div className="space-y-1.5">
+            {policyChecks.map((check) => (
+              <div key={check.label} className="flex items-center gap-1.5 text-[10px]">
+                {check.passed ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                ) : (
+                  <span className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span className={check.passed ? 'text-emerald-600' : 'text-neutral-text/60'}>
+                  {check.label}
+                </span>
+              </div>
+            ))}
+            {form.replacePassword && form.password.length > 0 && allPolicyPassed && (
+              <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                كلمة المرور تفي بالسياسة
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
+
+// Helper to compare permissions
+function isPermissionsEqual(a: AdminPermissions, b: AdminPermissions): boolean {
+  return PERMISSION_KEYS.every((key) => a[key] === b[key]);
+}
