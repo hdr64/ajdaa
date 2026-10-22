@@ -228,7 +228,7 @@ resolve_ref_sha() {
 build_frontend() {
   rm -rf dist.new dist.old
   ./node_modules/.bin/tsc -b
-  ./node_modules/.bin/vite build --outDir dist.new --emptyOutDir
+  VITE_APP_ENV=test ./node_modules/.bin/vite build --outDir dist.new --emptyOutDir
   if [[ -d dist ]]; then
     mv dist dist.old
   fi
@@ -317,6 +317,9 @@ build_instance() {
 # rolls the instance back to the previous commit.
 restart_and_verify() {
   log info "event=service.restart unit=${UNIT}"
+  # The unit sandbox (ReadWritePaths) fails with 226/NAMESPACE if these are missing.
+  mkdir -p "${APP_DIR}/server/uploads"
+  touch "${APP_DIR}/server/prod.log" "${APP_DIR}/server/errors.log"
 
   if ! sudo systemctl restart "$UNIT"; then
     log error "event=service.restart_failed unit=${UNIT}"

@@ -39,7 +39,11 @@ confirm() { # confirm "<question>" "<word to type>"
 
 # --- 0. guards -------------------------------------------------------------
 step "Instance: $TARGET ($DIR), commit $(git rev-parse --short HEAD)"
-git status --short --untracked-files=no | grep -q . && { echo "Tracked files are modified; clean the checkout first." >&2; exit 1; }
+if git -c core.fileMode=false status --short --untracked-files=no | grep -q .; then
+  echo "Tracked files are modified (permission-only changes are ignored); clean the checkout first:" >&2
+  git -c core.fileMode=false status --short --untracked-files=no >&2
+  exit 1
+fi
 
 DB_NAME="$(sed -n 's/^DATABASE_URL=.*\/\([A-Za-z0-9_]*\)\(?.*\)\{0,1\}"\{0,1\}$/\1/p' server/.env | head -1)"
 [ -n "$DB_NAME" ] || { echo "Could not read the database name from server/.env." >&2; exit 1; }
@@ -105,7 +109,9 @@ mv dist.new dist
 rm -rf dist.old
 
 # private storage for CVs (careers); idempotent
-mkdir -p server/private && chmod 700 server/private
+mkdir -p server/uploads server/private && chmod 700 server/private
+# systemd (ReadWritePaths) fails with status 226/NAMESPACE if these files are missing
+touch server/prod.log server/errors.log
 
 # --- 5. restart + health ----------------------------------------------------
 step "Restart $UNIT"
