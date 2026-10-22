@@ -1,0 +1,76 @@
+# TEST instance only (ajda.weghetk.com). Installed as /etc/caddy/Caddyfile.test.ajda
+# and pulled into the server's main Caddyfile with ONE line:
+#
+#     import /etc/caddy/Caddyfile.test.ajda
+#
+# Site blocks only: global options live in the main /etc/caddy/Caddyfile, which
+# is owned by hand and never overwritten from this repo.
+#
+# Install / update:
+#   diff -u /etc/caddy/Caddyfile.test.ajda deploy/Caddyfile.test.ajda   # read it first
+#   sudo cp deploy/Caddyfile.test.ajda /etc/caddy/Caddyfile.test.ajda
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# ajda.weghetk.com used to be a second name for production; it now serves the
+# test instance (port 4001, /srv/ajda/test).
+
+# TEST instance: one port and one checkout away from production.
+# TLS: the Cloudflare origin certificate that already serves ajda.weghetk.com.
+# Caddy serves the SPA straight from the test checkout, so the deploy swap
+# (dist -> dist.old, dist.new -> dist) takes effect without a copy step.
+ajda.weghetk.com {
+	tls /etc/caddy/ajda-origin.pem /etc/caddy/ajda-origin.key
+	encode zstd gzip
+
+	# Password-protected: the test instance must not be public.
+	# New hash:  caddy hash-password --plaintext 'your-password'
+	#basicauth {
+	#	ajda-test $2b$10$y4lsu6OJV3.7qGzHVZ6MjeHJawi33F84mNnJcLa7PxkM7hjtQDZNu
+	#}
+
+	# Keep the test instance out of the search engines.
+	header X-Robots-Tag "noindex, nofollow"
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4001
+	}
+
+	handle /uploads/* {
+		reverse_proxy 127.0.0.1:4001
+	}
+
+	handle /socket.io/* {
+		reverse_proxy 127.0.0.1:4001 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /srv/ajda/test/dist
+
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+
+		@index path /index.html
+		header @index Cache-Control "no-cache, no-store, must-revalidate"
+
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/ajda-test-access.log {
+			roll_size 20MiB
+			roll_keep 10
+		}
+	}
+}

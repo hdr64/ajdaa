@@ -1,0 +1,70 @@
+# PRODUCTION only (ajdaa.sa). Installed as /etc/caddy/Caddyfile.ajda and pulled
+# into the server's main Caddyfile with ONE line:
+#
+#     import /etc/caddy/Caddyfile.ajda
+#
+# Site blocks only: global options live in the main /etc/caddy/Caddyfile, which
+# is owned by hand and never overwritten from this repo. The test instance has
+# its own file, Caddyfile.test.ajda.
+#
+# Install / update:
+#   diff -u /etc/caddy/Caddyfile.ajda deploy/Caddyfile.ajda     # read it first
+#   sudo cp deploy/Caddyfile.ajda /etc/caddy/Caddyfile.ajda
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+
+# Production. SPA served from /srv/ajda/app/dist (deploy/README-deploy.md §6.1).
+# TLS: Caddy obtains the ajdaa.sa certificate itself.
+ajdaa.sa {
+	encode zstd gzip
+
+	# --- API: JSON, auth, inquiries ---
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	# --- Uploaded media (WebP images, PDF brochures) ---
+	handle /uploads/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	# --- Socket.io realtime ---
+	# The websocket upgrade must reach the API; no buffering here.
+	handle /socket.io/* {
+		reverse_proxy 127.0.0.1:4000 {
+			flush_interval -1
+		}
+	}
+
+	# --- SPA ---
+	handle {
+		root * /srv/ajda/app/dist
+
+		# Hashed asset filenames are safe to cache aggressively.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+
+		# index.html must never be cached, or clients pin to a stale bundle.
+		@index path /index.html
+		header @index Cache-Control "no-cache, no-store, must-revalidate"
+
+		# Client-side routing: unknown paths render the SPA shell.
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/ajda-access.log {
+			roll_size 20MiB
+			roll_keep 10
+		}
+	}
+}

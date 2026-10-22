@@ -18,8 +18,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 case "$DIR" in
-  /srv/ajda/test) TARGET=test; UNIT=ajda-api-test; PORT=4001; PUBLIC_URL="" ;;
-  /srv/ajda/app)  TARGET=prod; UNIT=ajda-api;      PORT=4000; PUBLIC_URL="https://ajdaa.sa" ;;
+  /srv/ajda/test) TARGET=test; UNIT=ajda-api-test; PORT=4001; PUBLIC_URL=""; CADDY_FILE=Caddyfile.test.ajda ;;
+  /srv/ajda/app)  TARGET=prod; UNIT=ajda-api;      PORT=4000; PUBLIC_URL="https://ajdaa.sa"; CADDY_FILE=Caddyfile.ajda ;;
   *) echo "reload.sh must live in /srv/ajda/test or /srv/ajda/app (found in $DIR)." >&2; exit 2 ;;
 esac
 [ $# -eq 0 ] || { echo "reload.sh takes no arguments; the instance is the folder it is in ($TARGET)." >&2; exit 2; }
@@ -124,9 +124,11 @@ curl -fsS "http://127.0.0.1:$PORT/api/health"; echo
 
 # --- 6. things that are NOT automated ---------------------------------------
 step "Reminders"
-if ! diff -q deploy/Caddyfile /etc/caddy/Caddyfile >/dev/null 2>&1; then
-  echo "deploy/Caddyfile differs from /etc/caddy/Caddyfile. If the change is intended:"
-  echo "  sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy"
+if ! diff -q "deploy/$CADDY_FILE" "/etc/caddy/$CADDY_FILE" >/dev/null 2>&1; then
+  echo "deploy/$CADDY_FILE differs from /etc/caddy/$CADDY_FILE. Read the diff first:"
+  echo "  diff -u /etc/caddy/$CADDY_FILE deploy/$CADDY_FILE"
+  echo "If intended (the main /etc/caddy/Caddyfile is never touched):"
+  echo "  sudo cp deploy/$CADDY_FILE /etc/caddy/$CADDY_FILE && sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy"
 fi
 if ! diff -q "deploy/$UNIT.service" "/etc/systemd/system/$UNIT.service" >/dev/null 2>&1; then
   echo "deploy/$UNIT.service differs from the installed unit. If intended:"
