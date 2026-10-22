@@ -15,6 +15,7 @@ import { authRoutes } from './routes/auth.routes.js';
 import { projectRoutes } from './routes/projects.routes.js';
 import { unitRoutes } from './routes/units.routes.js';
 import { inquiryRoutes } from './routes/inquiries.routes.js';
+import { careersRoutes } from './routes/careers.routes.js';
 import { mediaRoutes } from './routes/media.routes.js';
 import { categoryRoutes } from './routes/categories.routes.js';
 import { pastProjectRoutes } from './routes/pastProjects.routes.js';
@@ -34,7 +35,7 @@ import {
   queueDriver,
   registerJob,
 } from './services/queueService.js';
-import { sendDeveloperNoteEmailJob, sendInquiryNotificationJob } from './jobs/emailJobs.js';
+import { sendDeveloperNoteEmailJob, sendInquiryNotificationJob, sendJobApplicationNotificationJob } from './jobs/emailJobs.js';
 
 /**
  * The path of a URL without its query string.
@@ -247,6 +248,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await fastify.register(projectRoutes, { prefix: '/api/projects' });
   await fastify.register(unitRoutes, { prefix: '/api/units' });
   await fastify.register(inquiryRoutes, { prefix: '/api/inquiries' });
+  await fastify.register(careersRoutes, { prefix: '/api/careers' });
   await fastify.register(mediaRoutes, { prefix: '/api/media' });
   await fastify.register(categoryRoutes, { prefix: '/api/categories' });
   await fastify.register(pastProjectRoutes, { prefix: '/api/past-projects' });
@@ -264,6 +266,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // arrive. Registration is cheap and driver-independent.
   registerJob(sendDeveloperNoteEmailJob);
   registerJob(sendInquiryNotificationJob);
+  registerJob(sendJobApplicationNotificationJob);
 
   // 8. Job Queue — never fatal. A missing Redis degrades to inline execution so
   // a deployment without Redis still sends mail; `QUEUE_DRIVER=redis` is the

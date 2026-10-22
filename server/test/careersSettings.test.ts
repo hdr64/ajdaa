@@ -50,7 +50,7 @@ describe('Careers form config', () => {
       name: true,
       email: true,
       phone: true,
-      jobTitle: false,
+      jobTitle: true,
       message: true,
       cv: true,
     });
@@ -65,23 +65,24 @@ describe('Careers form config', () => {
 
     // The stored document itself keeps the identity fields on.
     const stored = JSON.parse(row?.value ?? '{}');
-    expect(stored.required).toMatchObject({ name: true, email: true, phone: true });
+    expect(stored.required).toMatchObject({ name: true, email: true, phone: true, jobTitle: true });
   });
 
   it('never lets the identity fields be switched off', async () => {
     const saved = await setCareersFormConfig(
-      { required: { name: false, email: false, phone: false } },
+      { required: { name: false, email: false, phone: false, jobTitle: false } },
       ADMIN_ID
     );
 
     expect(saved.required.name).toBe(true);
     expect(saved.required.email).toBe(true);
     expect(saved.required.phone).toBe(true);
+    expect(saved.required.jobTitle).toBe(true);
 
     // Even a hand-edited row cannot turn them off.
     await prisma.appSetting.update({
       where: { key: SETTING_KEY },
-      data: { value: JSON.stringify({ required: { name: false, email: false, phone: false } }) },
+      data: { value: JSON.stringify({ required: { name: false, email: false, phone: false, jobTitle: false } }) },
     });
     clearCareersFormConfigCache();
 
@@ -89,6 +90,7 @@ describe('Careers form config', () => {
     expect(reloaded.required.name).toBe(true);
     expect(reloaded.required.email).toBe(true);
     expect(reloaded.required.phone).toBe(true);
+    expect(reloaded.required.jobTitle).toBe(true);
   });
 
   it('rejects a configuration whose flags are not booleans', async () => {

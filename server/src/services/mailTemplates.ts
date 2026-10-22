@@ -13,7 +13,7 @@
  * can name the template in a log line without copying any user-supplied text.
  */
 
-export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'password-changed' | 'test' | 'developer-note';
+export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'job-application' | 'password-changed' | 'test' | 'developer-note';
 
 export interface MailContent {
   kind: MailKind;
@@ -249,6 +249,58 @@ export function newInquiryEmail(options: {
       '',
       `عرض الطلبات: ${dashboardUrl}`,
     ].join('\n'),
+  };
+}
+
+export interface JobApplicationMailData {
+  name: string | null;
+  jobTitle: string | null;
+  createdAt: string | Date | null;
+}
+
+export function jobApplicationEmail(options: {
+  brandName: string;
+  application: JobApplicationMailData;
+  dashboardUrl: string;
+}): MailContent {
+  const { brandName, application, dashboardUrl } = options;
+  const safeUrl = escapeHtml(dashboardUrl);
+  const timeLabel =
+    application.createdAt instanceof Date
+      ? application.createdAt.toISOString()
+      : application.createdAt
+        ? String(application.createdAt)
+        : '—';
+
+  return {
+    kind: 'job-application',
+    subject: `${brandName} — طلب توظيف جديد${application.name?.trim() ? ` من ${application.name.trim()}` : ''}`,
+    html: shell({
+      brandName,
+      heading: 'طلب توظيف جديد',
+      intro: 'تم استلام طلب توظيف جديد من موقع الشركة، وهذه تفاصيله:',
+      bodyHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px;">
+          ${detailRow('الاسم', application.name)}
+          ${detailRow('المسمى الوظيفي', application.jobTitle)}
+          ${detailRow('الوقت', timeLabel)}
+        </table>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="center">
+              <a href="${safeUrl}" style="display:inline-block;background:${COLORS.accent};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 26px;border-radius:6px;">عرض طلبات التوظيف</a>
+            </td>
+          </tr>
+        </table>`,
+    }),
+    text: [
+      `${brandName} — طلب توظيف جديد`,
+      '',
+      `الاسم:            ${application.name?.trim() || '—'}`,
+      `المسمى الوظيفي:   ${application.jobTitle?.trim() || '—'}`,
+      `الوقت:            ${timeLabel}`,
+      '',
+      `عرض طلبات التوظيف: ${dashboardUrl}`,
+    ].join('\\n'),
   };
 }
 

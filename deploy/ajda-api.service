@@ -45,7 +45,7 @@ SystemCallArchitectures=native
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 # The upload directory and production log files are writable.
-ReadWritePaths=/srv/ajda/app/server/uploads /srv/ajda/app/server/prod.log /srv/ajda/app/server/errors.log
+ReadWritePaths=/srv/ajda/app/server/uploads -/srv/ajda/app/server/private /srv/ajda/app/server/prod.log /srv/ajda/app/server/errors.log
 
 StandardOutput=journal
 StandardError=journal

@@ -24,6 +24,7 @@ import { OverviewSection } from './sections/OverviewSection';
 import { ProjectsSection } from './sections/ProjectsSection';
 import { UnitsSection } from './sections/UnitsSection';
 import { InquiriesSection } from './sections/InquiriesSection';
+import { ApplicationsSection } from './sections/ApplicationsSection';
 import { CategoriesSection } from './sections/CategoriesSection';
 import { PastProjectsSection } from './sections/PastProjectsSection';
 import { RolesSection } from './sections/RolesSection';
@@ -57,6 +58,11 @@ const SECTION_META: Record<AdminSection, { title: string; subtitle: string; perm
     title: 'طلبات الاهتمام والعملاء',
     subtitle: 'متابعة الطلبات الواردة من الموقع وتحديث حالاتها',
     permission: 'viewInquiries',
+  },
+  applications: {
+    title: 'طلبات التوظيف',
+    subtitle: 'متابعة طلبات التوظيف والسير الذاتية',
+    permission: 'viewApplications',
   },
   categories: { title: 'التصنيفات والوسوم', subtitle: 'تصنيفات المشاريع والوسوم المعتمدة' },
   pastProjects: { title: 'أعمالنا السابقة', subtitle: 'إدارة المشاريع السابقة المعروضة في صفحة أعمالنا السابقة', permission: 'managePastProjects' },
@@ -343,7 +349,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <UnitsSection />;
       case 'inquiries':
         return <InquiriesSection />;
-      case 'categories':
+      case 'applications':
+        return <ApplicationsSection />;      case 'categories':
         return <CategoriesSection />;
       case 'pastProjects':
         return <PastProjectsSection />;

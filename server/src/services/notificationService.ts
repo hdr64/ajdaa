@@ -1,7 +1,8 @@
 import { config } from '../config/env.js';
 import { mailBrandName, sendMail } from './mailService.js';
-import { newInquiryEmail, passwordChangedEmail } from './mailTemplates.js';
-import { activeInquiryViewerEmails, emailRecipientsFor } from './notificationListeners.js';
+import { jobApplicationEmail, newInquiryEmail, passwordChangedEmail } from './mailTemplates.js';
+import { activeApplicationViewerEmails, activeInquiryViewerEmails, emailRecipientsFor } from './notificationListeners.js';
+import { getCareersNotificationEmails } from './careersSettings.js';
 
 /**
  * Outbound admin notifications.
@@ -14,9 +15,14 @@ import { activeInquiryViewerEmails, emailRecipientsFor } from './notificationLis
  */
 
 const INQUIRIES_PATH = '/admin/inquiries';
+const APPLICATIONS_PATH = '/admin/applications';
 
 export function inquiryDashboardUrl(): string {
   return `${config.appUrl}${INQUIRIES_PATH}`;
+}
+
+export function applicationDashboardUrl(): string {
+  return `${config.appUrl}${APPLICATIONS_PATH}`;
 }
 
 interface InquiryMailInput {
@@ -49,6 +55,34 @@ export async function notifyNewInquiry(inquiry: InquiryMailInput): Promise<numbe
     brandName: await mailBrandName(),
     inquiry,
     dashboardUrl: inquiryDashboardUrl(),
+  });
+
+  await Promise.all(recipients.map((to) => sendMail({ to, ...content })));
+  return recipients.length;
+}
+
+interface JobApplicationMailInput {
+  name: string | null;
+  jobTitle: string | null;
+  createdAt: string | Date | null;
+}
+
+async function applicationRecipients(): Promise<string[]> {
+  const configured = await emailRecipientsFor('job_application');
+  if (configured !== null) return configured;
+  const settingsEmails = await getCareersNotificationEmails();
+  if (settingsEmails.length > 0) return settingsEmails;
+  return activeApplicationViewerEmails();
+}
+
+export async function notifyNewJobApplication(application: JobApplicationMailInput): Promise<number> {
+  const recipients = await applicationRecipients();
+  if (recipients.length === 0) return 0;
+
+  const content = jobApplicationEmail({
+    brandName: await mailBrandName(),
+    application,
+    dashboardUrl: applicationDashboardUrl(),
   });
 
   await Promise.all(recipients.map((to) => sendMail({ to, ...content })));

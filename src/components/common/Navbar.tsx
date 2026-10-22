@@ -16,7 +16,7 @@ import logoArDark from '../../assets/logos/ar-2.png';
 import logoEnLight from '../../assets/logos/en-1.png';
 import logoEnDark from '../../assets/logos/en-2.png';
 
-export type NavPageKey = 'home' | 'works' | 'pastWorks' | 'clients' | 'project' | 'booking' | 'contact' | 'admin_login' | 'admin';
+export type NavPageKey = 'home' | 'works' | 'pastWorks' | 'clients' | 'project' | 'booking' | 'contact' | 'careers' | 'admin_login' | 'admin';
 
 /** Pages the router owns; anything else is an external link. */
 const ROUTER_PAGES: readonly CmsNavPage[] = ['home', 'works', 'pastWorks', 'clients', 'booking', 'contact'];

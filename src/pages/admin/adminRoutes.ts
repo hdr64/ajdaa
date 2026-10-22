@@ -19,6 +19,7 @@ export type AdminSection =
   | 'projectEdit'
   | 'units'
   | 'inquiries'
+  | 'applications'
   | 'categories'
   | 'pastProjects'
   | 'cms'
@@ -40,6 +41,7 @@ const SIMPLE_SECTIONS: AdminSection[] = [
   'projects',
   'units',
   'inquiries',
+  'applications',
   'categories',
   'pastProjects',
   'cms',

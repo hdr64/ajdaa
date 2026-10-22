@@ -12,7 +12,7 @@ import { prisma } from './prisma.js';
  */
 
 /** The applicant's identity: an application without it cannot be answered. */
-export const ALWAYS_REQUIRED_FIELDS = ['name', 'email', 'phone'] as const;
+export const ALWAYS_REQUIRED_FIELDS = ['name', 'email', 'phone', 'jobTitle'] as const;
 
 /** Every field the public form can ask for. */
 export const CAREERS_FORM_FIELDS = [
@@ -143,4 +143,74 @@ export async function setCareersFormConfig(
 /** Drops the cached copy, e.g. after a write that bypassed this module. */
 export function clearCareersFormConfigCache(): void {
   cached = undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Careers notification recipients (AppSetting key `careers.notifications`)
+// ---------------------------------------------------------------------------
+
+const CAREERS_NOTIFICATIONS_KEY = 'careers.notifications';
+
+export function parseCareersNotificationEmails(value: string | null | undefined): string[] {
+  if (!value) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return [];
+  }
+  const emails = (parsed as { emails?: unknown } | null)?.emails;
+  if (!Array.isArray(emails)) return [];
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of emails) {
+    if (typeof entry !== 'string') continue;
+    const normalized = entry.trim().toLowerCase();
+    if (!normalized) continue;
+    // Lenient: keep syntactically valid addresses only.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= 10) break;
+  }
+  return result;
+}
+
+export async function getCareersNotificationEmails(): Promise<string[]> {
+  const row = await prisma.appSetting.findUnique({ where: { key: CAREERS_NOTIFICATIONS_KEY } });
+  return parseCareersNotificationEmails(row?.value);
+}
+
+function extractEmails(input: unknown): unknown {
+  if (Array.isArray(input)) return input;
+  if (input && typeof input === 'object') {
+    const obj = input as Record<string, unknown>;
+    if (Array.isArray(obj.emails)) return obj.emails;
+    if (Array.isArray(obj.notificationEmails)) return obj.notificationEmails;
+  }
+  return input;
+}
+
+export async function setCareersNotificationEmails(
+  input: unknown,
+  adminId: string
+): Promise<string[]> {
+  const emailsInput = extractEmails(input);
+  const arraySchema = z.array(z.string().trim().toLowerCase().email().max(255)).max(10);
+  const parsed = arraySchema.safeParse(emailsInput);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((issue) => `${issue.path.join('.') || 'config'}: ${issue.message}`)
+      .join('; ');
+    throw new Error(`Invalid careers notification emails (${issues})`);
+  }
+  const emails = [...new Set(parsed.data.map((e) => e.trim().toLowerCase()))].slice(0, 10);
+  const value = JSON.stringify({ emails });
+  await prisma.appSetting.upsert({
+    where: { key: CAREERS_NOTIFICATIONS_KEY },
+    create: { key: CAREERS_NOTIFICATIONS_KEY, value, updatedById: adminId },
+    update: { value, updatedById: adminId },
+  });
+  return emails;
 }
