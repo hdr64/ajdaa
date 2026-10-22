@@ -15,7 +15,7 @@ export const cmsNavItemSchema = z.object({
   id: z.string().min(1),
   labelAr: z.string().trim().min(1, 'Arabic label is required').max(100),
   labelEn: z.string().trim().min(1, 'English label is required').max(100),
-  page: z.enum(['home', 'works', 'clients', 'booking', 'contact', 'custom']),
+  page: z.enum(['home', 'works', 'pastWorks', 'clients', 'booking', 'contact', 'custom']),
   url: externalUrl.optional(),
   order: z.number().int().min(0),
   enabled: z.boolean(),

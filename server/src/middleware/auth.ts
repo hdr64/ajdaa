@@ -71,6 +71,15 @@ export function requirePermission(permission: AdminPermission) {
   };
 }
 
+/** Like `requirePermission`, but any one of the listed permissions is enough. */
+export function requireAnyPermission(...permissions: AdminPermission[]) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | void> => {
+    if (!permissions.some((permission) => hasPermission(request.admin, permission))) {
+      return reply.status(403).send({ error: 'Forbidden: insufficient permissions' });
+    }
+  };
+}
+
 /** Must run after `authenticate`. For settings that no permission flag should unlock. */
 export async function requireSuperAdmin(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | void> {
   if (request.admin?.role !== 'super_admin') {

@@ -6,7 +6,7 @@
  * and optionality must stay in lockstep with the server, so edit both together.
  */
 
-export type CmsNavPage = 'home' | 'works' | 'clients' | 'booking' | 'contact' | 'custom';
+export type CmsNavPage = 'home' | 'works' | 'pastWorks' | 'clients' | 'booking' | 'contact' | 'custom';
 
 export interface CmsNavItem {
   id: string;
@@ -391,9 +391,10 @@ export interface CmsContent extends CmsSectionsPayload {
 export const DEFAULT_NAV_ITEMS: CmsNavItem[] = [
   { id: 'nav-home', labelAr: 'الرئيسية', labelEn: 'Home', page: 'home', order: 1, enabled: true },
   { id: 'nav-works', labelAr: 'مشاريعنا', labelEn: 'Projects', page: 'works', order: 2, enabled: true },
-  { id: 'nav-clients', labelAr: 'عملاؤنا وشركاؤنا', labelEn: 'Clients & Partners', page: 'clients', order: 3, enabled: true },
-  { id: 'nav-booking', labelAr: 'حجز معاينة', labelEn: 'Book a Viewing', page: 'booking', order: 4, enabled: true, isCta: true },
-  { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 5, enabled: true },
+  { id: 'nav-past-works', labelAr: 'أعمالنا السابقة', labelEn: 'Past Works', page: 'pastWorks', order: 3, enabled: true },
+  { id: 'nav-clients', labelAr: 'عملاؤنا وشركاؤنا', labelEn: 'Clients & Partners', page: 'clients', order: 4, enabled: true },
+  { id: 'nav-booking', labelAr: 'حجز معاينة', labelEn: 'Book a Viewing', page: 'booking', order: 5, enabled: true, isCta: true },
+  { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 6, enabled: true },
 ];
 
 export const DEFAULT_SOCIALS: CmsSocialItem[] = [

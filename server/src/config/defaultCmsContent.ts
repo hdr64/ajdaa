@@ -11,9 +11,10 @@ import type {
 export const DEFAULT_NAV: CmsNavItem[] = [
   { id: 'nav-home', labelAr: 'الرئيسية', labelEn: 'Home', page: 'home', order: 1, enabled: true },
   { id: 'nav-works', labelAr: 'مشاريعنا', labelEn: 'Projects', page: 'works', order: 2, enabled: true },
-  { id: 'nav-clients', labelAr: 'عملاؤنا وشركاؤنا', labelEn: 'Clients & Partners', page: 'clients', order: 3, enabled: true },
-  { id: 'nav-booking', labelAr: 'حجز معاينة', labelEn: 'Book a Viewing', page: 'booking', order: 4, enabled: true, isCta: true },
-  { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 5, enabled: true },
+  { id: 'nav-past-works', labelAr: 'أعمالنا السابقة', labelEn: 'Past Works', page: 'pastWorks', order: 3, enabled: true },
+  { id: 'nav-clients', labelAr: 'عملاؤنا وشركاؤنا', labelEn: 'Clients & Partners', page: 'clients', order: 4, enabled: true },
+  { id: 'nav-booking', labelAr: 'حجز معاينة', labelEn: 'Book a Viewing', page: 'booking', order: 5, enabled: true, isCta: true },
+  { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 6, enabled: true },
 ];
 
 export const DEFAULT_FOOTER: CmsFooterSection = {

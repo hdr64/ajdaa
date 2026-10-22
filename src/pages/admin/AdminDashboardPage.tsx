@@ -25,6 +25,7 @@ import { ProjectsSection } from './sections/ProjectsSection';
 import { UnitsSection } from './sections/UnitsSection';
 import { InquiriesSection } from './sections/InquiriesSection';
 import { CategoriesSection } from './sections/CategoriesSection';
+import { PastProjectsSection } from './sections/PastProjectsSection';
 import { RolesSection } from './sections/RolesSection';
 import { DepartmentsSection } from './sections/DepartmentsSection';
 import { NewsletterSection } from './sections/NewsletterSection';
@@ -58,6 +59,7 @@ const SECTION_META: Record<AdminSection, { title: string; subtitle: string; perm
     permission: 'viewInquiries',
   },
   categories: { title: 'التصنيفات والوسوم', subtitle: 'تصنيفات المشاريع والوسوم المعتمدة' },
+  pastProjects: { title: 'أعمالنا السابقة', subtitle: 'إدارة المشاريع السابقة المعروضة في صفحة أعمالنا السابقة', permission: 'managePastProjects' },
   users: { title: 'المستخدمون والصلاحيات', subtitle: 'أعضاء الفريق وأذونات الوصول', permission: 'manageUsers' },
   roles: {
     title: 'الأدوار والصلاحيات',
@@ -343,6 +345,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <InquiriesSection />;
       case 'categories':
         return <CategoriesSection />;
+      case 'pastProjects':
+        return <PastProjectsSection />;
       case 'users':
         return <UsersPermissionsManager onShowToast={showToast} />;
       case 'roles':

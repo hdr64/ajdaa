@@ -1,4 +1,4 @@
-import type { Project, PropertyFloor, PropertyUnit } from '@prisma/client';
+import type { Project, PropertyFloor, PropertyUnit, PastProject } from '@prisma/client';
 
 export interface SerializedUnit extends Omit<PropertyUnit, 'features' | 'featuresEn'> {
   features: string[] | null;
@@ -16,6 +16,10 @@ export interface SerializedProject extends Omit<Project, 'gallery' | 'features' 
   locationHighlightsAr: string[] | null;
   locationHighlightsEn: string[] | null;
   floors: SerializedFloor[];
+}
+
+export interface SerializedPastProject extends Omit<PastProject, 'gallery'> {
+  gallery: string[];
 }
 
 export function parseJsonArray(value: string | null | undefined): string[] | null {
@@ -55,5 +59,12 @@ export function serializeProject(project: Project & { floors?: (PropertyFloor & 
     locationHighlightsAr: parseJsonArray(project.locationHighlightsAr),
     locationHighlightsEn: parseJsonArray(project.locationHighlightsEn),
     floors: (project.floors ?? []).map(serializeFloor),
+  };
+}
+
+export function serializePastProject(item: PastProject): SerializedPastProject {
+  return {
+    ...item,
+    gallery: parseJsonArray(item.gallery) ?? [],
   };
 }
