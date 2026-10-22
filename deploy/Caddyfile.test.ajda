@@ -23,11 +23,8 @@ ajda.weghetk.com {
 	tls /etc/caddy/ajda-origin.pem /etc/caddy/ajda-origin.key
 	encode zstd gzip
 
-	# Password-protected: the test instance must not be public.
-	# New hash:  caddy hash-password --plaintext 'your-password'
-	#basicauth {
-	#	ajda-test $2b$10$y4lsu6OJV3.7qGzHVZ6MjeHJawi33F84mNnJcLa7PxkM7hjtQDZNu
-	#}
+	# No basic auth: the test site is reachable without a password. Keep real
+	# personal data out of the test database (deploy/sanitize-test-db.sql).
 
 	# Keep the test instance out of the search engines.
 	header X-Robots-Tag "noindex, nofollow"
