@@ -1,0 +1,35 @@
+# Task w2-users-wizard — simpler user creation (3-step wizard) and a tidier edit dialog
+
+Worktree lane `users` (branch `lane/users`, based on `integration/wave1`). Owner request (2026-10-22): "improve the admin UI design, simplify the user creation dialog — wizard or a better idea". Scope of THIS task: the users dialog only. The wider admin design pass is a later task. Files: `src/components/admin/users/*` only (plus its section file if wiring requires, see Out of scope).
+
+## Read first
+`src/components/admin/users/UserFormDialog.tsx` (626 lines: one long form: name, email, password, role, department, status, permission grid), `usersModel.ts` (`UserRights`, `groupPermissions`, `permissionsFromRole`, `passwordPolicyError`, `emptyPermissions`, `SUPER_ADMIN_ROLE_KEY`, labels), `usersUi.tsx`, `useUsersDirectory.ts`, `UsersTable.tsx`, `src/components/admin/UsersPermissionsManager.tsx` (caller), `src/types/admin.ts`, one other dialog in the admin for visual language (`src/components/admin/ProjectCreateModal.tsx`), `src/index.css` (design tokens: `bg-surface`, `text-heading`, `accent`, `muted-border`).
+
+## Verified facts (keep behaviour)
+- The dialog is fed `rights` (per-target rules incl. `lockReason`), `roles`, `departments`, `permissions` (the server catalogue), `canAssignSuperAdmin`, `referenceLoading/Error`, `onSaved`, `showToast`. All of these props and the existing save logic (create vs update payloads, `changes` diff on edit, `normalizePermissions` flow, error mapping from the server) must keep working unchanged. The server password policy is mirrored by `passwordPolicyError` (≥10 chars, letter, digit).
+- The catalogue is server-driven: new permissions (`viewApplications`, `manageApplications`, `managePastProjects`, ...) appear automatically through `groupPermissions`; do not hard-code permission lists in the new UI.
+- Role selection prefills permissions (`permissionsFromRole`); a super-admin role grants everything and locks the grid; some targets are locked (`rights.lockReason`): self, last active super admin, super admin target when the actor is not super admin.
+
+## Decided design
+**Create = 3-step wizard** (a `UserCreateWizard` component, used by `UserFormDialog` when `user` is null; one dialog, same overlay, `max-w-xl`, on phones it is a full-height sheet with a sticky footer):
+1. **الحساب (Account):** full name, email (inline format check), phone (optional). Next is disabled until valid; errors appear after blur or after pressing Next.
+2. **الدور والصلاحيات (Role and access):** roles shown as selectable cards (name, one-line description from the role if present, a count "N صلاحيات"), a department select, and below the cards a summary of what the chosen role allows (grouped, read-only chips using the catalogue labels). A collapsed "تخصيص الصلاحيات (متقدم)" section reveals the existing grouped checkbox grid prefilled from the role; changing a box shows a "معدّل عن الدور" tag and a "استعادة صلاحيات الدور" button. Super-admin role: grid hidden, a note "كل الصلاحيات"; only offered when `canAssignSuperAdmin`.
+3. **كلمة المرور والمراجعة (Password and review):** password field with show/hide, a "توليد كلمة مرور قوية" button that fills a random 14-character password that satisfies the policy (use `crypto.getRandomValues`, mix letters/digits/symbols, exclude look-alike characters) and a "نسخ" button (clipboard, with toast; the generated value is also shown so it can be handed over), a live checklist of the three policy rules (✓/✗), account status (active/suspended, default active), and a read-only review card (name, email, phone, role, department, number of permissions, status). Primary button "إنشاء الحساب" calls the existing create path.
+- Stepper at the top (3 numbered steps, current highlighted, completed steps clickable to go back, not forward past an invalid step), Back / Next buttons in a footer, Enter advances when valid, Escape closes (confirm discard only if the user typed something), focus moves to the first field of each step, `aria-current="step"`, all controls keyboard reachable, RTL-correct (Next points left in RTL). Server validation errors returned on create (e.g. email already exists, weak password) must jump back to the step that owns the field and show the message there.
+- Never log or store the password anywhere except the request; clear it from state when the dialog closes.
+
+**Edit = same dialog, sectioned with three tabs** (not a wizard): **الحساب** (name, email, phone), **الدور والصلاحيات** (same role cards + advanced grid as step 2, honouring `rights`/`lockReason` exactly as today, including disabled states and the explanatory hint), **الأمان** (status, optional "تغيير كلمة المرور" toggle that reveals the password field + generator, same policy checklist). Footer: Save (disabled when nothing changed) and Cancel. Unsaved-change guard on close.
+
+Share the pieces between create and edit as small components in the same folder (`RoleCards.tsx`, `PermissionSummary.tsx`, `PermissionGrid.tsx`, `PasswordField.tsx`, `Stepper.tsx`); keep `UserFormDialog.tsx` as the entry point and reduce it to orchestration. No file over ~300 lines. Use the existing design tokens and Tailwind patterns; no new dependencies; respect `prefers-reduced-motion` for any transition.
+
+## Out of scope
+Server code, other admin screens, the users list/table/grid design, roles screen, sidebar, `UsersPermissionsManager` behaviour (only change it if the dialog's props must change, and then keep the change minimal and say so), translations to English.
+
+## Constraints
+No commits, no installs (node_modules exist), never read or write `.env*` except: for a manual smoke test you may `cp server/.env.example server/.env` in this worktree (never commit, delete at the end) then `npm --prefix server run db:push` and `db:seed`. Smoke-test ports: API `PORT=4014`, Vite `--port 5184` with `VITE_API_PROXY_TARGET=http://localhost:4014`. Free model only.
+
+## Gates
+`npm run lint`, `npm run build`, `npm --prefix server run build`, `npm --prefix server test` (all green; counts). There is no frontend test runner: do not add one; put pure helpers (password generator, step validation) in `usersModel.ts` or a small `usersWizard.ts` so they are testable, and prove them with a throwaway script/vitest probe you delete afterwards (generator: 1000 outputs all pass `passwordPolicyError`, length 14, no look-alike characters). Manual smoke test in the browser, describing what you saw: create a user through all three steps (including going back, an invalid email, a weak password, generating and copying a password, customising one permission), log in as that user; trigger a server error (duplicate email) and see the jump back to step 1; edit a user through the three tabs; open the dialog as a non-super-admin and confirm super-admin options and locked targets behave as before; check a 375 px wide viewport and keyboard-only operation.
+
+## Report
+Write `task-w2-users-wizard-report.md`: files changed, gate output, smoke test observations, decisions, what you could not verify.
