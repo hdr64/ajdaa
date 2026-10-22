@@ -1,19 +1,44 @@
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
-import { config } from '../config/env.js';
+import { config, secretMatches } from '../config/env.js';
+import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { loggerService } from '../services/loggerService.js';
 import { dispatch } from '../services/queueService.js';
 import { sendDeveloperNoteEmailJob } from '../jobs/emailJobs.js';
+import { ADMINS_ROOM } from '../sockets/index.js';
+
+/** Longest accepted value for each free-text field. */
+const MAX_TITLE_LENGTH = 200;
+const MAX_SECTION_LENGTH = 100;
+const MAX_BODY_LENGTH = 5000;
+const MAX_SOLUTION_LENGTH = 5000;
+const MAX_SCREENSHOT_URL_LENGTH = 500;
+
+/**
+ * A screenshot is either served by this API or hosted somewhere else over
+ * https. Nothing else is accepted: `javascript:` would become a link in the
+ * export, and a path with spaces or quotes would break the markdown the
+ * export is written in.
+ */
+const SCREENSHOT_URL_PATTERN = /^(https:\/\/|\/uploads\/)[^\s"'<>\\]+$/;
 
 const createNoteSchema = z.object({
-  title: z.string().trim().min(1, 'Title is required').max(200),
-  section: z.string().trim().min(1, 'Section is required'),
-  body: z.string().trim().min(1, 'Description is required'),
-  solution: z.string().trim().optional(),
-  screenshotUrl: z.string().trim().optional(),
-  adminName: z.string().trim().optional(),
-  adminEmail: z.string().trim().optional(),
+  title: z.string().trim().min(1, 'Title is required').max(MAX_TITLE_LENGTH),
+  section: z.string().trim().min(1, 'Section is required').max(MAX_SECTION_LENGTH),
+  body: z.string().trim().min(1, 'Description is required').max(MAX_BODY_LENGTH),
+  solution: z.string().trim().max(MAX_SOLUTION_LENGTH).optional(),
+  // Only a remote https URL or a path served by this API: anything else would
+  // turn the note into a tracker for whoever opens the export.
+  screenshotUrl: z
+    .string()
+    .trim()
+    .max(MAX_SCREENSHOT_URL_LENGTH)
+    .optional()
+    .refine((value) => value === undefined || SCREENSHOT_URL_PATTERN.test(value), {
+      message: 'screenshotUrl must be an https:// URL or a /uploads/ path',
+    }),
+  adminName: z.string().trim().max(MAX_TITLE_LENGTH).optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']).optional().default('medium'),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -21,11 +46,10 @@ const createNoteSchema = z.object({
 const updateNoteSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'resolved', 'closed']).optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
-  solution: z.string().trim().optional(),
+  solution: z.string().trim().max(MAX_SOLUTION_LENGTH).optional(),
 });
 
 const querySchema = z.object({
-  key: z.string().optional(),
   status: z.enum(['all', 'pending', 'in_progress', 'resolved', 'closed']).optional().default('all'),
   priority: z.enum(['all', 'low', 'medium', 'high', 'critical']).optional().default('all'),
   search: z.string().optional(),
@@ -34,53 +58,43 @@ const querySchema = z.object({
 });
 
 /**
- * Access guard for developer notes management:
- * Only accessible via:
- * 1. Matching developer secret key (?key=... or x-dev-key or Bearer <key>)
- * 2. Super Admin JWT token
+ * The shared developer key is the second factor of the management endpoints,
+ * and it is only accepted in a header: a query parameter would end up in
+ * access logs, proxy logs and browser history.
  */
-function isDeveloperAuthorized(request: FastifyRequest): boolean {
-  const queryKey = (request.query as { key?: string })?.key;
-  const headerKey = request.headers['x-dev-key'] as string | undefined;
-  const authHeader = request.headers['authorization'];
-  let bearerKey: string | undefined;
+async function requireDeveloperKey(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<FastifyReply | void> {
+  const header = request.headers['x-dev-notes-key'];
+  const provided = typeof header === 'string' ? header : undefined;
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    bearerKey = authHeader.substring(7).trim();
+  if (!secretMatches(provided, config.developer.secretKey)) {
+    return reply.status(401).send({
+      error: 'Unauthorized: the developer key is missing or wrong',
+      message: 'Provide the developer key in the `x-dev-notes-key` header.',
+    });
   }
-
-  const candidateKey = queryKey || headerKey || bearerKey;
-  if (candidateKey && candidateKey === config.developer.secretKey) {
-    return true;
-  }
-
-  // Also check if admin is super_admin
-  const admin = request.admin;
-  if (admin && admin.role === 'super_admin') {
-    return true;
-  }
-
-  return false;
 }
 
+/**
+ * Access guard for the developer-notes management endpoints:
+ * an active super admin (re-read from the database on every request) plus the
+ * shared developer key.
+ */
+const requireDeveloperAuth = [authenticate, requireSuperAdmin, requireDeveloperKey];
+
 export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
-  // 1. POST /api/developer/notes - Submit a new developer note
-  // Called by AdminFeedbackPet from anywhere in the admin dashboard
+  // 1. POST /api/developer/notes - Submit a new developer note.
+  // Called by the admin dashboard, so it needs a session — but any signed-in
+  // admin may report a problem, not only a super admin.
   fastify.post(
     '/',
     {
+      onRequest: [authenticate],
       config: { rateLimit: { max: 30, timeWindow: 60_000 } },
     },
     async (request, reply) => {
-      // Try to parse admin if token is present
-      try {
-        await request.jwtVerify();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        request.admin = request.user as any;
-      } catch {
-        // Optional auth
-      }
-
       const parsed = createNoteSchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({
@@ -92,8 +106,11 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
       const data = parsed.data;
       const adminUser = request.admin;
 
+      // The author is whoever is signed in. `adminEmail` from the body is
+      // ignored: a caller must not be able to file a note under someone
+      // else's name.
       const adminName = data.adminName || adminUser?.email || 'مسؤول النظام';
-      const adminEmail = adminUser?.email || data.adminEmail || null;
+      const adminEmail = adminUser?.email ?? null;
 
       const note = await prisma.developerNote.create({
         data: {
@@ -116,8 +133,9 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
         'developer-note'
       );
 
-      // Broadcast to active dev monitoring sockets
-      fastify.io?.emit('developer:note:new', {
+      // Only the signed-in admins hear about it: the note may carry internal
+      // details that must not reach a visitor's browser.
+      fastify.io?.to(ADMINS_ROOM).emit('developer:note:new', {
         id: note.id,
         title: note.title,
         section: note.section,
@@ -150,27 +168,10 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  const requireDeveloperAuth = async (request: FastifyRequest, reply: any) => {
-    try {
-      await request.jwtVerify();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      request.admin = request.user as any;
-    } catch {
-      // Proceed to developer key check
-    }
-
-    if (!isDeveloperAuthorized(request)) {
-      return reply.status(403).send({
-        error: 'Forbidden: Access restricted to authorized development team',
-        hint: 'Provide the developer secret key via ?key=... or x-dev-key header, or log in as super_admin.',
-      });
-    }
-  };
-
   // 2. GET /api/developer/notes - List developer notes
   fastify.get<{ Querystring: z.infer<typeof querySchema> }>(
     '/',
-    { preHandler: [requireDeveloperAuth] },
+    { preHandler: requireDeveloperAuth },
     async (request) => {
       const query = querySchema.parse(request.query);
       const take = query.limit;
@@ -235,7 +236,7 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // 3. GET /api/developer/notes/export - Export all notes as markdown or JSON
-  fastify.get('/export', { preHandler: [requireDeveloperAuth] }, async (request, reply) => {
+  fastify.get('/export', { preHandler: requireDeveloperAuth }, async (request, reply) => {
     const query = request.query as { format?: string };
     const notes = await prisma.developerNote.findMany({
       orderBy: { createdAt: 'desc' },
@@ -278,7 +279,7 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
   // 4. GET /api/developer/notes/:id - Get single note
   fastify.get<{ Params: { id: string } }>(
     '/:id',
-    { preHandler: [requireDeveloperAuth] },
+    { preHandler: requireDeveloperAuth },
     async (request, reply) => {
       const note = await prisma.developerNote.findUnique({
         where: { id: request.params.id },
@@ -295,7 +296,7 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
   // 5. PATCH /api/developer/notes/:id - Update note status/priority
   fastify.patch<{ Params: { id: string } }>(
     '/:id',
-    { preHandler: [requireDeveloperAuth] },
+    { preHandler: requireDeveloperAuth },
     async (request, reply) => {
       const parsed = updateNoteSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -317,7 +318,7 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
   // 6. DELETE /api/developer/notes/:id - Delete a note
   fastify.delete<{ Params: { id: string } }>(
     '/:id',
-    { preHandler: [requireDeveloperAuth] },
+    { preHandler: requireDeveloperAuth },
     async (request) => {
       await prisma.developerNote.delete({
         where: { id: request.params.id },

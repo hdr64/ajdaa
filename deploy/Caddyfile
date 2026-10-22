@@ -19,6 +19,10 @@ www.ajda.weghetk.com {
 	redir https://ajda.weghetk.com{uri} permanent
 }
 
+# NOTE: the production site below serves the SPA from /var/www/ajda, while the
+# verified production layout is /srv/ajda/app/dist. Production is deployed by
+# hand (see deploy/README-deploy.md) and no automated step mirrors the build
+# any more, so confirm which root the live Caddyfile uses before replacing it.
 ajda.weghetk.com {
 	encode zstd gzip
 
@@ -68,6 +72,74 @@ ajda.weghetk.com {
 
 	log {
 		output file /var/log/caddy/ajda-access.log {
+			roll_size 20MiB
+			roll_keep 10
+		}
+	}
+}
+
+# TEST instance — mirrors the block above, one port and one checkout away.
+#
+# The TLS certificate must cover test-ajda.weghetk.com. If the VPS holds a
+# wildcard certificate for weghetk.com, reuse it (weghetk.com.pem /
+# weghetk.com.key); otherwise issue a separate certificate for this hostname.
+#
+# Caddy serves the SPA straight from the test checkout, so the deploy swap
+# (dist -> dist.old, dist.new -> dist) takes effect without a copy step.
+test-ajda.weghetk.com {
+	encode zstd gzip
+
+	# Password-protected: the test instance must not be public.
+	# Generate a real hash with:  caddy hash-password --plaintext 'your-password'
+	# and replace the placeholder below.
+	basic_auth {
+		ajda-test $2b$10$y4lsu6OJV3.7qGzHVZ6MjeHJawi33F84mNnJcLa7PxkM7hjtQDZNu
+	}
+
+	# Keep the test instance out of the search engines.
+	header X-Robots-Tag "noindex, nofollow"
+
+	# --- API: JSON, auth, inquiries ---
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4001
+	}
+
+	# --- Uploaded media (WebP images, PDF brochures) ---
+	handle /uploads/* {
+		reverse_proxy 127.0.0.1:4001
+	}
+
+	# --- Socket.io realtime ---
+	handle /socket.io/* {
+		reverse_proxy 127.0.0.1:4001 {
+			flush_interval -1
+		}
+	}
+
+	# --- SPA ---
+	handle {
+		root * /srv/ajda/test/dist
+
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+
+		@index path /index.html
+		header @index Cache-Control "no-cache, no-store, must-revalidate"
+
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/test-ajda-access.log {
 			roll_size 20MiB
 			roll_keep 10
 		}

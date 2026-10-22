@@ -6,6 +6,7 @@ import {
   type UnitInput,
 } from './propertyService';
 import { categoryService, type CategoryInput } from './categoryService';
+import { pastProjectService, type PastProject, type PastProjectInput } from './pastProjectService';
 import { newsletterService, type NewsletterSubscriber } from './newsletterService';
 import { rolesService } from './rolesService';
 import { ApiError } from './api';
@@ -42,6 +43,7 @@ export type {
   PermissionDef,
 } from '../types/admin';
 export type { NewsletterSubscriber } from './newsletterService';
+export type { PastProject, PastProjectInput } from './pastProjectService';
 export type { LoginResult, AuthSession } from './authService';
 
 const CATEGORIES_KEY = 'ajdaa_categories';
@@ -334,6 +336,28 @@ export const AdminStorage = {
 
   deleteCategory(id: string): Promise<void> {
     return categoryService.remove(id);
+  },
+
+  /* --------------------------- Past Projects ----------------------------- */
+
+  listPastProjects(signal?: AbortSignal): Promise<PastProject[]> {
+    return pastProjectService.listAdmin(signal);
+  },
+
+  createPastProject(input: PastProjectInput): Promise<PastProject> {
+    return pastProjectService.create(input);
+  },
+
+  updatePastProject(id: number, input: Partial<PastProjectInput>): Promise<PastProject> {
+    return pastProjectService.update(id, input);
+  },
+
+  deletePastProject(id: number): Promise<void> {
+    return pastProjectService.remove(id);
+  },
+
+  setPastProjectPublished(id: number, published: boolean): Promise<PastProject> {
+    return pastProjectService.setPublished(id, published);
   },
 
   /* ------------------------------- Users --------------------------------- */

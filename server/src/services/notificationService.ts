@@ -1,21 +1,28 @@
 import { config } from '../config/env.js';
 import { mailBrandName, sendMail } from './mailService.js';
-import { newInquiryEmail, passwordChangedEmail } from './mailTemplates.js';
-import { activeInquiryViewerEmails, emailRecipientsFor } from './notificationListeners.js';
+import { jobApplicationEmail, newInquiryEmail, passwordChangedEmail } from './mailTemplates.js';
+import { activeApplicationViewerEmails, activeInquiryViewerEmails, emailRecipientsFor } from './notificationListeners.js';
+import { getCareersNotificationEmails } from './careersSettings.js';
 
 /**
  * Outbound admin notifications.
  *
- * Both entry points are fire-and-forget: the caller has already answered the
- * client, so a slow or failing SMTP handshake must not surface as an error. Each
- * function swallows its own failures (mail sending already does) and reports
- * how many messages went out, which is what the tests assert on.
+ * `notifyNewInquiry` runs inside the job queue, so a failing SMTP handshake
+ * propagates: the queue retries the delivery instead of losing it.
+ *
+ * `notifyPasswordChanged` is fire-and-forget — the caller has already answered
+ * the client — so it swallows its own failures.
  */
 
 const INQUIRIES_PATH = '/admin/inquiries';
+const APPLICATIONS_PATH = '/admin/applications';
 
 export function inquiryDashboardUrl(): string {
   return `${config.appUrl}${INQUIRIES_PATH}`;
+}
+
+export function applicationDashboardUrl(): string {
+  return `${config.appUrl}${APPLICATIONS_PATH}`;
 }
 
 interface InquiryMailInput {
@@ -54,6 +61,34 @@ export async function notifyNewInquiry(inquiry: InquiryMailInput): Promise<numbe
   return recipients.length;
 }
 
+interface JobApplicationMailInput {
+  name: string | null;
+  jobTitle: string | null;
+  createdAt: string | Date | null;
+}
+
+async function applicationRecipients(): Promise<string[]> {
+  const configured = await emailRecipientsFor('job_application');
+  if (configured !== null) return configured;
+  const settingsEmails = await getCareersNotificationEmails();
+  if (settingsEmails.length > 0) return settingsEmails;
+  return activeApplicationViewerEmails();
+}
+
+export async function notifyNewJobApplication(application: JobApplicationMailInput): Promise<number> {
+  const recipients = await applicationRecipients();
+  if (recipients.length === 0) return 0;
+
+  const content = jobApplicationEmail({
+    brandName: await mailBrandName(),
+    application,
+    dashboardUrl: applicationDashboardUrl(),
+  });
+
+  await Promise.all(recipients.map((to) => sendMail({ to, ...content })));
+  return recipients.length;
+}
+
 export async function notifyPasswordChanged(input: {
   email: string;
   name?: string | null;
@@ -65,5 +100,14 @@ export async function notifyPasswordChanged(input: {
     via: input.via,
   });
 
-  await sendMail({ to: input.email, ...content });
+  try {
+    await sendMail({ to: input.email, ...content });
+  } catch (error) {
+    // The password is already changed and the caller has been answered: a
+    // failed notification must not turn that into an error. The mail service
+    // has already logged the reason.
+    console.error(
+      `[mail] password-change notification failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }

@@ -24,7 +24,9 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
   const [step, setStep] = useState<AuthStep>('credentials');
-  const [email, setEmail] = useState('admin@ajdaa.sa');
+  // Empty by default: a prefilled address tells an unauthenticated visitor
+  // which account to attack, and it is a default credential on a public page.
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [challengeId, setChallengeId] = useState('');
   const [emailHint, setEmailHint] = useState('');

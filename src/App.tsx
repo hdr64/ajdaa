@@ -16,6 +16,8 @@ import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 // Lazy-loaded routes for code splitting
 const WorksPage = lazy(() => import('./components/works/WorksPage').then((m) => ({ default: m.WorksPage })));
 const ClientsPage = lazy(() => import('./pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
+const PastProjectsPage = lazy(() => import('./pages/PastProjectsPage').then((m) => ({ default: m.PastProjectsPage })));
+const CareersPage = lazy(() => import('./pages/CareersPage').then((m) => ({ default: m.CareersPage })));
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })));
 const InterestRegistrationView = lazy(() => import('./components/booking/InterestRegistrationView').then((m) => ({ default: m.InterestRegistrationView })));
 const ContactPage = lazy(() => import('./components/contact/ContactPage').then((m) => ({ default: m.ContactPage })));
@@ -62,6 +64,8 @@ const parsePath = (pathname: string): RouteState => {
     return AdminStorage.isAuthenticated() ? { page: 'admin', adminPath: adminMatch[1] ?? '' } : { page: 'admin_login' };
   }
   if (clean.endsWith('/clients')) return { page: 'clients' };
+  if (clean.endsWith('/past-works')) return { page: 'pastWorks' };
+  if (clean.endsWith('/careers')) return { page: 'careers' };
   if (clean.endsWith('/works')) return { page: 'works' };
   if (clean.endsWith('/booking') || clean.endsWith('/register-interest')) return { page: 'booking' };
   if (clean.endsWith('/contact')) return { page: 'contact' };
@@ -79,7 +83,7 @@ const getPathForRoute = (route: RouteState): string => {
   const pathname = window.location.pathname;
   // Strip any /admin/... sub-route first (it can have several segments).
   let basePath = pathname.replace(/\/$/, '').replace(/\/admin(?:\/.*)?$/i, '');
-  ['/works', '/clients', '/booking', '/register-interest', '/contact', '/admin/login', '/admin'].forEach((p) => {
+  ['/works', '/past-works', '/clients', '/careers', '/booking', '/register-interest', '/contact', '/admin/login', '/admin'].forEach((p) => {
     if (basePath.endsWith(p)) {
       basePath = basePath.slice(0, -p.length);
     }
@@ -105,6 +109,8 @@ const getPathForRoute = (route: RouteState): string => {
       return `${basePath}/admin${route.adminPath ? `/${route.adminPath}` : ''}`;
     case 'booking':
       return `${basePath}/booking`;
+    case 'pastWorks':
+      return `${basePath}/past-works`;
     default:
       return `${basePath}/${route.page}`;
   }
@@ -378,6 +384,14 @@ export function App() {
 
                 {currentPage === 'clients' && (
                   <ClientsPage onNavigate={navigateTo} />
+                )}
+
+                {currentPage === 'pastWorks' && (
+                  <PastProjectsPage onNavigate={navigateTo} />
+                )}
+
+                {currentPage === 'careers' && (
+                  <CareersPage onNavigate={navigateTo} />
                 )}
 
                 {currentPage === 'project' && (

@@ -3,18 +3,32 @@ import { hasPermission } from '../middleware/auth.js';
 import { parsePermissions } from '../config/permissions.js';
 
 /**
- * Listeners decide who is told about an event and how. Today there is one event
- * (`inquiry.created`) and one channel (`email`); both are enums so WhatsApp or
- * webhooks can be added without a schema change.
+ * Listeners decide who is told about an event and how. The events are
+ * (`inquiry.created`, `job_application`) and there is one channel (`email`);
+ * both are enums so WhatsApp or webhooks can be added without a schema change.
  *
- * Until someone creates the first listener, the pre-listener behaviour applies
- * (the caller's legacy recipients). Creating one records that the team took
- * control, so deleting every listener afterwards means "notify nobody" rather
- * than silently falling back.
+ * The "the team took control" state is per event: a listener for one event
+ * never silences another one. Until a listener exists for an event, that
+ * event's pre-listener behaviour applies (the caller's legacy recipients).
+ * Creating one records that the team took control of *that* event, so
+ * deleting every listener of an event afterwards means "notify nobody" for
+ * that event rather than silently falling back.
  */
 
-export const NOTIFICATION_EVENTS = ['inquiry.created'] as const;
+export const NOTIFICATION_EVENTS = ['inquiry.created', 'job_application'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
+
+/** Admin-facing names for the event keys, so a listener form can label them. */
+export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, { labelAr: string; labelEn: string }> = {
+  'inquiry.created': {
+    labelAr: 'عند وصول طلب اهتمام جديد',
+    labelEn: 'When a new inquiry arrives',
+  },
+  job_application: {
+    labelAr: 'عند وصول طلب توظيف جديد',
+    labelEn: 'When a new job application arrives',
+  },
+};
 
 export const NOTIFICATION_CHANNELS = ['email'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
@@ -22,6 +36,8 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export interface EmailListenerConfig {
   /** Every active admin who can view inquiries (the PII in the mail is theirs to see). */
   toInquiryViewers: boolean;
+  /** Every active admin who can view job applications. */
+  toApplicationViewers: boolean;
   emails: string[];
 }
 
@@ -39,17 +55,28 @@ export interface ListenerView extends ListenerInput {
   updatedAt: string;
 }
 
-const CONFIGURED_KEY = 'notifications';
+/**
+ * The settings row that records "the team configured this event". Every event
+ * has its own row, so configuring one never silences another one.
+ *
+ * `inquiry.created` keeps the historical `notifications` key: an existing
+ * deployment must behave exactly as it did before the rows were split.
+ */
+const CONFIGURED_KEYS: Record<NotificationEvent, string> = {
+  'inquiry.created': 'notifications',
+  'job_application': 'notifications.job_application',
+};
 
 function parseConfig(raw: string): EmailListenerConfig {
   try {
     const parsed = JSON.parse(raw) as Partial<EmailListenerConfig>;
     return {
       toInquiryViewers: parsed.toInquiryViewers === true,
+      toApplicationViewers: parsed.toApplicationViewers === true,
       emails: Array.isArray(parsed.emails) ? parsed.emails.filter((e): e is string => typeof e === 'string') : [],
     };
   } catch {
-    return { toInquiryViewers: false, emails: [] };
+    return { toInquiryViewers: false, toApplicationViewers: false, emails: [] };
   }
 }
 
@@ -78,12 +105,25 @@ function toView(row: {
 /** Lower-cased and de-duplicated, so one address is never mailed twice by one listener. */
 function normaliseConfig(config: EmailListenerConfig): string {
   const emails = [...new Set(config.emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
-  return JSON.stringify({ toInquiryViewers: config.toInquiryViewers, emails });
+  return JSON.stringify({ toInquiryViewers: config.toInquiryViewers, toApplicationViewers: config.toApplicationViewers, emails });
 }
 
-export async function listenersConfigured(): Promise<boolean> {
-  const row = await prisma.appSetting.findUnique({ where: { key: CONFIGURED_KEY } });
+/** True once a listener for this event was created: the team took over. */
+export async function listenersConfigured(event: NotificationEvent): Promise<boolean> {
+  const row = await prisma.appSetting.findUnique({ where: { key: CONFIGURED_KEYS[event] } });
   return row !== null;
+}
+
+/** The configured state of every event, for the admin panel. */
+export async function configuredEvents(): Promise<Record<NotificationEvent, boolean>> {
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { in: Object.values(CONFIGURED_KEYS) } },
+    select: { key: true },
+  });
+  const present = new Set(rows.map((row) => row.key));
+  return Object.fromEntries(
+    NOTIFICATION_EVENTS.map((event) => [event, present.has(CONFIGURED_KEYS[event])])
+  ) as Record<NotificationEvent, boolean>;
 }
 
 export async function listListeners(): Promise<ListenerView[]> {
@@ -92,13 +132,15 @@ export async function listListeners(): Promise<ListenerView[]> {
 }
 
 export async function createListener(input: ListenerInput, adminId: string): Promise<ListenerView> {
+  const key = CONFIGURED_KEYS[input.event];
   const row = await prisma.$transaction(async (tx) => {
     const created = await tx.notificationListener.create({
       data: { ...input, config: normaliseConfig(input.config), createdById: adminId },
     });
+    // The row marks *this* event as configured; the other events keep theirs.
     await tx.appSetting.upsert({
-      where: { key: CONFIGURED_KEY },
-      create: { key: CONFIGURED_KEY, value: JSON.stringify({ listenersConfigured: true }), updatedById: adminId },
+      where: { key },
+      create: { key, value: JSON.stringify({ listenersConfigured: true }), updatedById: adminId },
       update: {},
     });
     return created;
@@ -110,9 +152,19 @@ export async function createListener(input: ListenerInput, adminId: string): Pro
 export async function updateListener(id: string, input: ListenerInput): Promise<ListenerView | null> {
   const existing = await prisma.notificationListener.findUnique({ where: { id } });
   if (!existing) return null;
-  const row = await prisma.notificationListener.update({
-    where: { id },
-    data: { ...input, config: normaliseConfig(input.config) },
+  const key = CONFIGURED_KEYS[input.event];
+  const row = await prisma.$transaction(async (tx) => {
+    const updated = await tx.notificationListener.update({
+      where: { id },
+      data: { ...input, config: normaliseConfig(input.config) },
+    });
+    // The event may have changed: the new one is configured from now on.
+    await tx.appSetting.upsert({
+      where: { key },
+      create: { key, value: JSON.stringify({ listenersConfigured: true }) },
+      update: {},
+    });
+    return updated;
   });
   return toView(row);
 }
@@ -137,26 +189,47 @@ export async function activeInquiryViewerEmails(): Promise<string[]> {
     .map((admin) => admin.email);
 }
 
+export async function activeApplicationViewerEmails(): Promise<string[]> {
+  const admins = await prisma.adminUser.findMany({
+    where: { status: 'active' },
+    select: { email: true, role: true, permissions: true },
+  });
+  return admins
+    .filter((admin) =>
+      hasPermission(
+        { id: '', email: admin.email, role: admin.role, permissions: parsePermissions(admin.permissions) },
+        'viewApplications'
+      )
+    )
+    .map((admin) => admin.email);
+}
+
 /**
  * Email recipients for an event, de-duplicated across listeners. Null means no
- * listener was ever configured and the caller should use its legacy recipients.
+ * listener was ever configured *for this event* and the caller should use its
+ * legacy recipients.
  */
 export async function emailRecipientsFor(event: NotificationEvent): Promise<string[] | null> {
-  if (!(await listenersConfigured())) return null;
+  if (!(await listenersConfigured(event))) return null;
 
   const listeners = await prisma.notificationListener.findMany({
     where: { event, channel: 'email', enabled: true },
   });
   const recipients = new Set<string>();
-  let viewers: string[] | undefined;
+  let inquiryViewers: string[] | undefined;
+  let applicationViewers: string[] | undefined;
 
   for (const listener of listeners) {
-    const config = parseConfig(listener.config);
-    if (config.toInquiryViewers) {
-      viewers ??= await activeInquiryViewerEmails();
-      viewers.forEach((email) => recipients.add(email.toLowerCase()));
+    const cfg = parseConfig(listener.config);
+    if (event === 'inquiry.created' && cfg.toInquiryViewers) {
+      inquiryViewers ??= await activeInquiryViewerEmails();
+      inquiryViewers.forEach((email) => recipients.add(email.toLowerCase()));
     }
-    config.emails.forEach((email) => recipients.add(email));
+    if (event === 'job_application' && cfg.toApplicationViewers) {
+      applicationViewers ??= await activeApplicationViewerEmails();
+      applicationViewers.forEach((email) => recipients.add(email.toLowerCase()));
+    }
+    cfg.emails.forEach((email) => recipients.add(email));
   }
   return [...recipients];
 }

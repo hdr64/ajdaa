@@ -13,6 +13,7 @@ import {
   Mail,
   Settings,
   Globe,
+  Archive,
   X as CloseIcon,
   Moon,
   Sun,
@@ -54,12 +55,14 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'محتوى الموقع',
     items: [
       { section: 'cms', label: 'إدارة المحتوى (CMS)', icon: Globe, permission: 'manageCms' },
+      { section: 'pastProjects', label: 'أعمالنا السابقة', icon: Archive, permission: 'managePastProjects' },
     ],
   },
   {
     label: 'العملاء',
     items: [
       { section: 'inquiries', label: 'طلبات الاهتمام', icon: Users, permission: 'viewInquiries' },
+      { section: 'applications', label: 'طلبات التوظيف', icon: Users, permission: 'viewApplications' },
       { section: 'newsletter', label: 'مشتركو النشرة', icon: Mail, permission: 'exportData' },
     ],
   },

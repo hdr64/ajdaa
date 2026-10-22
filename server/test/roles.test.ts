@@ -10,8 +10,8 @@ import {
   login,
   removeUser,
   SEED_ADMINS,
-  SEED_PASSWORD,
   seedSession,
+  THROWAWAY_PASSWORD,
   type TestSession,
 } from './helpers.js';
 import type { PermissionDef } from '../src/config/permissions.js';
@@ -49,11 +49,21 @@ describe('1. Permissions catalogue', () => {
 
     const catalogue = res.json() as PermissionDef[];
     expect(Array.isArray(catalogue)).toBe(true);
-    expect(catalogue.length).toBe(14);
+    expect(catalogue.length).toBe(17);
 
     const keys = catalogue.map((c) => c.key);
     expect(keys).toEqual(
-      expect.arrayContaining(['manageProjects', 'manageUnits', 'viewInquiries', 'exportData', 'manageUsers', 'manageNotifications'])
+      expect.arrayContaining([
+        'manageProjects',
+        'manageUnits',
+        'viewInquiries',
+        'exportData',
+        'manageUsers',
+        'manageNotifications',
+        'managePastProjects',
+        'viewApplications',
+        'manageApplications',
+      ])
     );
 
     for (const item of catalogue) {
@@ -86,7 +96,11 @@ describe('2. Roles CRUD and validation', () => {
     expect(superAdminRole).toBeDefined();
     expect(superAdminRole?.isSystem).toBe(true);
     expect(superAdminRole?.userCount).toBeGreaterThanOrEqual(1);
-    expect(superAdminRole?.permissions).toHaveLength(5);
+    expect(superAdminRole?.permissions).toHaveLength(8);
+    // The super admin role template carries the new permissions as well.
+    expect(superAdminRole?.permissions).toEqual(
+      expect.arrayContaining(['managePastProjects', 'viewApplications', 'manageApplications'])
+    );
   });
 
   it('rejects invalid role keys with 400', async () => {
@@ -294,7 +308,7 @@ describe('5. Non-super manageUsers admin cannot manage roles with manageUsers', 
       await removeUser(manager.id);
     });
 
-    const managerSession = await login(manager.email, SEED_PASSWORD);
+    const managerSession = await login(manager.email, THROWAWAY_PASSWORD);
 
     // 1. Attempt to create role with manageUsers -> 403
     const createRes = await authInject(managerSession.token, {
@@ -512,7 +526,7 @@ describe('7. User create and update with roleId and departmentId', () => {
       await removeUser(manager.id);
     });
 
-    const managerSession = await login(manager.email, SEED_PASSWORD);
+    const managerSession = await login(manager.email, THROWAWAY_PASSWORD);
 
     // 1. Attempt create with roleId = role_super_admin
     const createRes = await authInject(managerSession.token, {

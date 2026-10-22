@@ -62,6 +62,7 @@ export const DEFAULT_PERMISSIONS = {
   manageNotifications: false,
   manageCms: false,
   manageClients: false,
+  managePastProjects: false,
   rollbackCms: false,
 } as const;
 
@@ -82,7 +83,10 @@ function normalizePermissions(raw: Record<string, boolean> | null | undefined) {
     manageNotifications: source.manageNotifications ?? false,
     manageCms: source.manageCms ?? false,
     manageClients: source.manageClients ?? source.manageCms ?? false,
+    managePastProjects: source.managePastProjects ?? false,
     rollbackCms: source.rollbackCms ?? false,
+    viewApplications: source.viewApplications ?? false,
+    manageApplications: source.manageApplications ?? false,
   };
 }
 

@@ -24,8 +24,10 @@ export type TestEnvironment = {
   DATABASE_URL: string;
   JWT_SECRET: string;
   UPLOAD_DIR: string;
+  PRIVATE_DIR: string;
   LOGIN_OTP_RESEND_COOLDOWN_MS: string;
   QUEUE_DRIVER: string;
+  DEVELOPER_EMAIL: string;
 };
 
 /** Prisma's SQLite URL parser wants forward slashes even for Windows drive letters. */
@@ -36,13 +38,17 @@ function toPosix(filePath: string): string {
 export function createTestEnvironment(): TestEnvironment {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), TEMP_DIR_PREFIX));
   const uploadDir = path.join(root, 'uploads');
+  const privateDir = path.join(root, 'private');
   fs.mkdirSync(uploadDir, { recursive: true });
+  fs.mkdirSync(privateDir, { recursive: true });
+  fs.mkdirSync(path.join(privateDir, 'cv'), { recursive: true });
 
   return {
     NODE_ENV: 'test',
     DATABASE_URL: `file:${toPosix(path.join(root, DB_FILENAME))}`,
     JWT_SECRET: crypto.randomBytes(32).toString('hex'),
     UPLOAD_DIR: uploadDir,
+    PRIVATE_DIR: privateDir,
     // Short enough for the resend-throttle test to wait it out, long enough that
     // two back-to-back requests still collide.
     LOGIN_OTP_RESEND_COOLDOWN_MS: '1500',
@@ -51,6 +57,9 @@ export function createTestEnvironment(): TestEnvironment {
     // Every other test then exercises the deterministic inline path, and
     // `queue.test.ts` covers the Redis probe and fallback explicitly.
     QUEUE_DRIVER: 'sync',
+    // The developer notifications have no default address (it belongs to the
+    // deployment), so the suite pins one to keep the mail assertions honest.
+    DEVELOPER_EMAIL: 'developer@ajdaa.test',
   };
 }
 
@@ -71,6 +80,8 @@ export function isTestEnvironment(): boolean {
     process.env.DATABASE_URL.includes(TEMP_DIR_PREFIX) &&
     typeof process.env.UPLOAD_DIR === 'string' &&
     process.env.UPLOAD_DIR.includes(TEMP_DIR_PREFIX) &&
+    typeof process.env.PRIVATE_DIR === 'string' &&
+    process.env.PRIVATE_DIR.includes(TEMP_DIR_PREFIX) &&
     typeof process.env.JWT_SECRET === 'string' &&
     process.env.JWT_SECRET.length >= 16
   );
@@ -90,8 +101,10 @@ export function requireTestEnvironment(): TestEnvironment {
     DATABASE_URL: process.env.DATABASE_URL as string,
     JWT_SECRET: process.env.JWT_SECRET as string,
     UPLOAD_DIR: process.env.UPLOAD_DIR as string,
+    PRIVATE_DIR: process.env.PRIVATE_DIR as string,
     LOGIN_OTP_RESEND_COOLDOWN_MS: process.env.LOGIN_OTP_RESEND_COOLDOWN_MS as string,
     QUEUE_DRIVER: process.env.QUEUE_DRIVER as string,
+    DEVELOPER_EMAIL: process.env.DEVELOPER_EMAIL as string,
   };
 }
 

@@ -12,6 +12,7 @@ import { SectionError, SectionLoading } from '../common/SectionState';
 
 const EVENT_LABELS: Record<string, string> = {
   'inquiry.created': 'عند وصول طلب اهتمام جديد',
+  'job_application': 'عند وصول طلب توظيف جديد',
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -26,16 +27,32 @@ const EMPTY_FORM: ListenerInput = {
   channel: 'email',
   name: '',
   enabled: true,
-  config: { toInquiryViewers: true, emails: [] },
+  config: { toInquiryViewers: true, toApplicationViewers: false, emails: [] },
 };
 
 /** Addresses may be separated by commas, spaces or new lines. */
 const parseEmails = (text: string): string[] =>
   [...new Set(text.split(/[\s,;]+/).map((value) => value.trim().toLowerCase()).filter(Boolean))];
 
+/** The viewers flag the server honours for an event; the other one is ignored for it. */
+function viewersFlagFor(event: string): 'toInquiryViewers' | 'toApplicationViewers' {
+  return event === 'job_application' ? 'toApplicationViewers' : 'toInquiryViewers';
+}
+
+function viewerFlags(event: string, enabled: boolean): Pick<ListenerInput['config'], 'toInquiryViewers' | 'toApplicationViewers'> {
+  const flag = viewersFlagFor(event);
+  return { toInquiryViewers: flag === 'toInquiryViewers' && enabled, toApplicationViewers: flag === 'toApplicationViewers' && enabled };
+}
+
 function recipientsSummary(listener: ListenerInput): string {
   const parts: string[] = [];
-  if (listener.config.toInquiryViewers) parts.push('كل من يملك صلاحية استعراض الطلبات');
+  if (listener.config[viewersFlagFor(listener.event)]) {
+    parts.push(
+      viewersFlagFor(listener.event) === 'toApplicationViewers'
+        ? 'كل من يملك صلاحية طلبات التوظيف'
+        : 'كل من يملك صلاحية استعراض الطلبات'
+    );
+  }
   if (listener.config.emails.length > 0) parts.push(listener.config.emails.join('، '));
   return parts.join(' + ');
 }
@@ -54,6 +71,8 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
   const [emailsText, setEmailsText] = useState(initial.config.emails.join('\n'));
   const [error, setError] = useState<string | null>(null);
 
+  const viewersFlag = viewersFlagFor(form.event);
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const emails = parseEmails(emailsText);
@@ -61,9 +80,14 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
     if (!form.name.trim()) return setError('أدخل اسماً للمستمع');
     if (invalid.length > 0) return setError(`عناوين غير صحيحة: ${invalid.join('، ')}`);
     if (emails.length > MAX_EMAILS) return setError(`الحد الأقصى ${MAX_EMAILS} عنواناً لكل مستمع`);
-    if (!form.config.toInquiryViewers && emails.length === 0) return setError('اختر مستلماً واحداً على الأقل');
+    if (!form.config[viewersFlag] && emails.length === 0) return setError('اختر مستلماً واحداً على الأقل');
     setError(null);
-    onSubmit({ ...form, name: form.name.trim(), config: { ...form.config, emails } });
+    // Only the flag of the chosen event means anything to the server; never store the other.
+    onSubmit({
+      ...form,
+      name: form.name.trim(),
+      config: { ...form.config, ...viewerFlags(form.event, form.config[viewersFlag]), emails },
+    });
   };
 
   const inputClass =
@@ -92,7 +116,10 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
           <select
             id="listener-event"
             value={form.event}
-            onChange={(e) => setForm((prev) => ({ ...prev, event: e.target.value as ListenerInput['event'] }))}
+            onChange={(e) => {
+              const nextEvent = e.target.value as ListenerInput['event'];
+              setForm((prev) => ({ ...prev, event: nextEvent, config: { ...prev.config, ...viewerFlags(nextEvent, true) } }));
+            }}
             className={`${inputClass} cursor-pointer`}
           >
             {events.map((event) => (
@@ -124,13 +151,15 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
       <label className="flex items-center gap-2 cursor-pointer text-xs text-heading">
         <input
           type="checkbox"
-          checked={form.config.toInquiryViewers}
+          checked={form.config[viewersFlag]}
           onChange={(e) =>
-            setForm((prev) => ({ ...prev, config: { ...prev.config, toInquiryViewers: e.target.checked } }))
+            setForm((prev) => ({ ...prev, config: { ...prev.config, [viewersFlag]: e.target.checked } }))
           }
           className="w-3.5 h-3.5 cursor-pointer"
         />
-        إرسال إلى كل مستخدم نشط يملك صلاحية «استعراض الطلبات»
+        {viewersFlag === 'toApplicationViewers'
+          ? 'إرسال إلى كل مستخدم نشط يملك صلاحية «طلبات التوظيف»'
+          : 'إرسال إلى كل مستخدم نشط يملك صلاحية «استعراض الطلبات»'}
       </label>
 
       <div className="space-y-1.5">
@@ -270,7 +299,7 @@ export const NotificationListenersPanel: React.FC = () => {
             type="button"
             disabled={saving}
             onClick={() =>
-              void save({ ...EMPTY_FORM, name: 'مسؤولو الطلبات', config: { toInquiryViewers: true, emails: [] } })
+              void save({ ...EMPTY_FORM, name: 'مسؤولو الطلبات', config: { toInquiryViewers: true, toApplicationViewers: false, emails: [] } })
             }
             className="brand-btn-secondary font-bold px-3 py-2 rounded-xl text-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
           >
@@ -304,7 +333,7 @@ export const NotificationListenersPanel: React.FC = () => {
             }`}
           >
             <span className="p-2 rounded-xl bg-accent/10 text-accent shrink-0">
-              {listener.config.toInquiryViewers ? <Users className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+              {listener.config[viewersFlagFor(listener.event)] ? <Users className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
             </span>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">

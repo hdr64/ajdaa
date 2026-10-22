@@ -1,0 +1,55 @@
+[Unit]
+Description=Ajda Real Estate API (Fastify) — TEST instance
+Documentation=https://github.com/your-org/ajda
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=salah
+Group=salah
+
+# Same layout as production, different checkout: the test instance never
+# shares files with production (uploads included).
+WorkingDirectory=/srv/ajda/test/server
+
+# Test secrets live in their own file, never in production's .env.
+EnvironmentFile=/srv/ajda/test/server/.env
+Environment=NODE_ENV=production
+Environment=PORT=4001
+
+ExecStart=/home/salah/.nvm/versions/node/v24.21.0/bin/node dist/server.js
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+
+# --- Hardening ---
+# ProtectHome=read-only still allows reading the node binary under
+# /home/salah/.nvm; the checkout itself lives under /srv, which ProtectSystem
+# only makes read-only, and the writable paths below re-open the two
+# directories the app needs.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Uploads and log files of the test instance only.
+ReadWritePaths=/srv/ajda/test/server/uploads -/srv/ajda/test/server/private /srv/ajda/test/server/prod.log /srv/ajda/test/server/errors.log
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ajda-api-test
+
+[Install]
+WantedBy=multi-user.target

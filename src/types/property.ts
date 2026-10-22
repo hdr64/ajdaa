@@ -67,6 +67,8 @@ export interface Property {
   featuresEn?: string[];
   // Extended fields for project page & admin
   videoUrl?: string;
+  /** External https link to a 3D model viewer. Presence of it = 3D tour available. */
+  model3dUrl?: string;
   virtualTour3dAvailable?: boolean;
   locationHighlightsAr?: string[];
   locationHighlightsEn?: string[];

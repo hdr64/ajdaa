@@ -1,8 +1,94 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import path from 'path';
+import crypto from 'crypto';
 
 dotenv.config();
+
+/**
+ * Shortest secret accepted in production. 24 characters is long enough that a
+ * shared secret cannot be guessed from a leaked word list.
+ */
+const MIN_SECRET_LENGTH = 24;
+
+/** Production JWT secrets must be long enough to resist offline brute force. */
+const MIN_JWT_SECRET_LENGTH = 32;
+
+/**
+ * Values that are never acceptable as a production secret: the literal
+ * placeholders people copy, plus the example value shipped in `.env.example`.
+ */
+const PLACEHOLDER_SECRETS = new Set([
+  'changeme',
+  'change_me',
+  'change-me',
+  'secret',
+  'secrets',
+  'password',
+  'password123',
+  'placeholder',
+  'example',
+  'your-secret-key',
+  'your_secret_key',
+  'yoursecretkey',
+  'ajda_secret_development_key_super_secure_2026',
+]);
+
+/**
+ * Words that make a secret a placeholder wherever they appear in it, as long
+ * as they stand on their own: "super_secret_key" is a placeholder, "secretary"
+ * is not.
+ */
+const PLACEHOLDER_WORDS = new Set(['password', 'secret', 'secrets', 'changeme', 'placeholder']);
+
+/** True when the value is an obvious placeholder rather than a real secret. */
+function isPlaceholderSecret(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (PLACEHOLDER_SECRETS.has(normalized)) return true;
+
+  const words = normalized.split(/[^a-z]+/).filter(Boolean);
+  if (words.some((word) => PLACEHOLDER_WORDS.has(word))) return true;
+
+  return (
+    normalized.includes('changeme') ||
+    normalized.includes('change_me') ||
+    normalized.includes('change-me') ||
+    normalized.includes('super_secure_2026')
+  );
+}
+
+/**
+ * Blank means "not configured": an empty `LOGS_SECRET_KEY=` in a `.env` must
+ * behave exactly like an absent one.
+ */
+const blankToUndefined = (value: unknown): unknown =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+/**
+ * A per-process random value. Used where a shared secret is missing outside
+ * production: two runs never share one, so the value cannot be guessed from a
+ * default that is published in the repository.
+ */
+function randomSecret(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * Constant-time comparison for the shared secrets.
+ *
+ * A length mismatch is a mismatch. `timingSafeEqual` requires buffers of the
+ * same length, and hashing first would change the length of the secret, so
+ * the comparison is done on the raw bytes.
+ */
+export function secretMatches(provided: string | undefined | null, expected: string): boolean {
+  if (!provided || !expected) return false;
+
+  const given = Buffer.from(provided, 'utf8');
+  const wanted = Buffer.from(expected, 'utf8');
+  if (given.length !== wanted.length) return false;
+
+  return crypto.timingSafeEqual(given, wanted);
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -11,11 +97,31 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters. Generate one with `openssl rand -base64 32`.'),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   UPLOAD_DIR: z.string().default('./uploads'),
+  PRIVATE_DIR: z.string().default('./private'),
+  // The interface the server binds to. `127.0.0.1` keeps a development server
+  // off the network; a deployment behind a reverse proxy binds `0.0.0.0`.
+  HOST: z.preprocess(blankToUndefined, z.string().trim().min(1).default('127.0.0.1')),
+  // `true` trusts every proxy, `false` trusts none, a number trusts that many
+  // hops. The default is `false`: trusting `X-Forwarded-For` blindly lets a
+  // client spoof its own IP.
   TRUST_PROXY: z
     .string()
     .optional()
-    .default('true')
-    .transform((val) => val === 'true' || val === '1'),
+    .default('false')
+    .transform((val, ctx) => {
+      const normalized = val.trim().toLowerCase();
+      if (normalized === '' || normalized === 'false' || normalized === '0') return false;
+      if (normalized === 'true' || normalized === '1') return true;
+
+      const hops = Number(normalized);
+      if (Number.isInteger(hops) && hops > 0) return hops;
+
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'TRUST_PROXY must be true, false or a positive hop count',
+      });
+      return z.NEVER;
+    }),
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(1000),
   RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().default(process.env.NODE_ENV === 'test' ? 100 : 10),
   RATE_LIMIT_LOGIN_WINDOW_MS: z.coerce.number().int().positive().default(60 * 1000),
@@ -76,7 +182,10 @@ const envSchema = z.object({
   // --- Production Logs & Monitoring ---
   LOG_FILE_PATH: z.string().default('./prod.log'),
   ERROR_LOG_FILE_PATH: z.string().default('./errors.log'),
-  LOGS_SECRET_KEY: z.string().default('ajda-logs-secret-2026'),
+  // Shared secret for the log endpoints. Required in production; unset
+  // elsewhere it becomes a random per-process value, so the endpoints are only
+  // reachable with an authenticated super admin.
+  LOGS_SECRET_KEY: z.preprocess(blankToUndefined, z.string().trim().optional().default(randomSecret)),
   LOGS_PUBLIC: z
     .string()
     .optional()
@@ -84,8 +193,12 @@ const envSchema = z.object({
     .transform((val) => val === 'true' || val === '1'),
 
   // --- Developer Notes & Technical Feedback ---
-  DEVELOPER_EMAIL: z.string().default('cloud.data.sa@gmail.com'),
-  DEVELOPER_NOTES_SECRET: z.string().default('ajda-dev-notes-2026'),
+  // Recipient(s) for the developer notifications. No default: the address is
+  // deployment specific and a hard-coded one leaks into every installation.
+  DEVELOPER_EMAIL: z.string().default(''),
+  // Shared secret for the developer-notes management endpoints. Same rules as
+  // LOGS_SECRET_KEY.
+  DEVELOPER_NOTES_SECRET: z.preprocess(blankToUndefined, z.string().trim().optional().default(randomSecret)),
 
   // --- Asynchronous Job Queue (Option C) ---
   // `auto` probes Redis and degrades to inline execution when it is unreachable,
@@ -94,6 +207,50 @@ const envSchema = z.object({
   REDIS_URL: z.string().default('redis://127.0.0.1:6379'),
   QUEUE_DRIVER: z.enum(['auto', 'redis', 'sync']).default('auto'),
 });
+
+/**
+ * Production-only hardening.
+ *
+ * These rules cannot live in the schema because they depend on `NODE_ENV`, and
+ * they must stop the boot rather than warn: a production server with a
+ * published default secret is exactly the situation this task removes.
+ *
+ * `rawEnv` is the untouched process environment: the parsed value of a secret
+ * that is not set is a random placeholder, so only the raw value can tell
+ * "not configured" from "configured with a random-looking string".
+ */
+export function productionConfigErrors(
+  env: { nodeEnv: string; jwtSecret: string },
+  rawEnv: Record<string, string | undefined>
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (env.nodeEnv !== 'production') return errors;
+
+  const logsSecret = rawEnv.LOGS_SECRET_KEY?.trim();
+  if (!logsSecret) {
+    errors.LOGS_SECRET_KEY =
+      'LOGS_SECRET_KEY is required in production. Generate one with `openssl rand -base64 32`.';
+  } else if (logsSecret.length < MIN_SECRET_LENGTH) {
+    errors.LOGS_SECRET_KEY = `LOGS_SECRET_KEY must be at least ${MIN_SECRET_LENGTH} characters.`;
+  }
+
+  const developerSecret = rawEnv.DEVELOPER_NOTES_SECRET?.trim();
+  if (!developerSecret) {
+    errors.DEVELOPER_NOTES_SECRET =
+      'DEVELOPER_NOTES_SECRET is required in production. Generate one with `openssl rand -base64 32`.';
+  } else if (developerSecret.length < MIN_SECRET_LENGTH) {
+    errors.DEVELOPER_NOTES_SECRET = `DEVELOPER_NOTES_SECRET must be at least ${MIN_SECRET_LENGTH} characters.`;
+  }
+
+  if (env.jwtSecret.length < MIN_JWT_SECRET_LENGTH) {
+    errors.JWT_SECRET = `JWT_SECRET must be at least ${MIN_JWT_SECRET_LENGTH} characters in production.`;
+  } else if (isPlaceholderSecret(env.jwtSecret)) {
+    errors.JWT_SECRET =
+      'JWT_SECRET still holds a placeholder value. Generate one with `openssl rand -base64 32`.';
+  }
+
+  return errors;
+}
 
 const parsed = envSchema.safeParse(process.env);
 
@@ -104,6 +261,17 @@ if (!parsed.success) {
 }
 
 const env = parsed.data;
+
+const productionErrors = productionConfigErrors(
+  { nodeEnv: env.NODE_ENV, jwtSecret: env.JWT_SECRET },
+  process.env
+);
+
+if (Object.keys(productionErrors).length > 0) {
+  console.error('[config] Refusing to start with an insecure production configuration:');
+  console.error(JSON.stringify(productionErrors, null, 2));
+  process.exit(1);
+}
 
 // CLIENT_ORIGIN is documented as a comma-separated list, so honour that instead
 // of treating the whole string as one unmatched origin.
@@ -143,8 +311,10 @@ export const config = {
   jwtSecret: env.JWT_SECRET,
   settingsEncryptionKey: env.SETTINGS_ENCRYPTION_KEY,
   uploadDir: path.resolve(env.UPLOAD_DIR),
+  privateDir: path.resolve(env.PRIVATE_DIR),
   clientOrigins,
   trustProxy: env.TRUST_PROXY,
+  host: env.HOST,
   rateLimitGlobalMax: env.RATE_LIMIT_GLOBAL_MAX,
   rateLimitLoginMax: env.RATE_LIMIT_LOGIN_MAX,
   rateLimitLoginWindowMs: env.RATE_LIMIT_LOGIN_WINDOW_MS,

@@ -1,4 +1,4 @@
-import type { Project, PropertyFloor, PropertyUnit } from '@prisma/client';
+import type { Project, PropertyFloor, PropertyUnit, PastProject } from '@prisma/client';
 
 export interface SerializedUnit extends Omit<PropertyUnit, 'features' | 'featuresEn'> {
   features: string[] | null;
@@ -16,6 +16,10 @@ export interface SerializedProject extends Omit<Project, 'gallery' | 'features' 
   locationHighlightsAr: string[] | null;
   locationHighlightsEn: string[] | null;
   floors: SerializedFloor[];
+}
+
+export interface SerializedPastProject extends Omit<PastProject, 'gallery'> {
+  gallery: string[];
 }
 
 export function parseJsonArray(value: string | null | undefined): string[] | null {
@@ -46,11 +50,21 @@ export function serializeFloor(floor: PropertyFloor & { units?: PropertyUnit[] }
 export function serializeProject(project: Project & { floors?: (PropertyFloor & { units?: PropertyUnit[] })[] }): SerializedProject {
   return {
     ...project,
+    // Derived, never stored-written: a project has a 3D tour exactly when it has
+    // a 3D viewer link. The legacy `virtualTour3dAvailable` column is ignored.
+    virtualTour3dAvailable: Boolean(project.model3dUrl),
     gallery: parseJsonArray(project.gallery),
     features: parseJsonArray(project.features),
     featuresEn: parseJsonArray(project.featuresEn),
     locationHighlightsAr: parseJsonArray(project.locationHighlightsAr),
     locationHighlightsEn: parseJsonArray(project.locationHighlightsEn),
     floors: (project.floors ?? []).map(serializeFloor),
+  };
+}
+
+export function serializePastProject(item: PastProject): SerializedPastProject {
+  return {
+    ...item,
+    gallery: parseJsonArray(item.gallery) ?? [],
   };
 }

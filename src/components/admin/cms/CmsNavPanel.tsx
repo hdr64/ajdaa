@@ -260,6 +260,7 @@ export const CmsNavPanel: React.FC = () => {
                   >
                     <option value="home">الصفحة الرئيسية (/)</option>
                     <option value="works">صفحة المشاريع (/works)</option>
+                    <option value="pastWorks">أعمالنا السابقة (/past-works)</option>
                     <option value="clients">العملاء والشركاء (/clients)</option>
                     <option value="booking">حجز معاينة (/booking)</option>
                     <option value="contact">تواصل معنا (/contact)</option>

@@ -22,6 +22,9 @@ import { formatRelativeTime } from '../../../pages/admin/adminFormat';
  * Roles, statuses, permissions
  * ------------------------------------------------------------------ */
 
+/** Email validation pattern. */
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 /** The fixed roles the shared types know about; custom roles still travel as their own key. */
 const ADMIN_ROLES: readonly AdminRole[] = ['super_admin', 'project_manager', 'sales_agent', 'viewer'];
 
@@ -47,11 +50,14 @@ export const PERMISSION_KEYS: readonly (keyof AdminPermissions)[] = [
   'publishProject',
   'manageUnits',
   'viewInquiries',
+  'viewApplications',
+  'manageApplications',
   'exportData',
   'manageUsers',
   'manageNotifications',
   'manageCms',
   'manageClients',
+  'managePastProjects',
   'rollbackCms',
 ];
 
@@ -64,11 +70,14 @@ export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
   publishProject: 'نشر وإخفاء المشاريع',
   manageUnits: 'تعديل الوحدات والأدوار',
   viewInquiries: 'متابعة طلبات العملاء',
+  viewApplications: 'استعراض طلبات التوظيف',
+  manageApplications: 'إدارة طلبات التوظيف',
   exportData: 'تصدير التقارير',
   manageUsers: 'إدارة المستخدمين',
   manageNotifications: 'إدارة الإشعارات',
   manageCms: 'إدارة محتوى الموقع',
   manageClients: 'إدارة الشركاء والعملاء',
+  managePastProjects: 'إدارة أعمالنا السابقة',
   rollbackCms: 'استعادة نسخ محتوى الموقع',
 };
 
@@ -88,8 +97,59 @@ export const STATUS_LABELS: Record<AdminStatus, string> = {
   suspended: 'معطل',
 };
 
-/** Matches the server's `password: z.string().min(8)`. */
-export const MIN_PASSWORD_LENGTH = 8;
+/**
+ * Mirrors the server's password policy
+ * (`server/src/services/passwordPolicy.ts`): at least 10 characters, at least
+ * one letter and at least one digit.
+ */
+export const MIN_PASSWORD_LENGTH = 10;
+
+/**
+ * The client-side mirror of the server's password policy. Returns the Arabic
+ * error to show under the field, or `null` when the password is acceptable.
+ * The server is the authority; this only keeps the form from sending a
+ * password the API will reject.
+ */
+export function passwordPolicyError(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل`;
+  }
+  // The same letter and digit checks as `meetsPasswordPolicy` on the server.
+  if (!/\p{L}/u.test(password)) {
+    return 'كلمة المرور يجب أن تحتوي على حرف واحد على الأقل';
+  }
+  if (!/\d/.test(password)) {
+    return 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل';
+  }
+  return null;
+}
+
+/** Unbiased integer in [0, max) from the browser CSPRNG; every call is a fresh draw. */
+function randomIndex(max: number): number {
+  const limit = Math.floor(0x100000000 / max) * max;
+  const buffer = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(buffer);
+  } while (buffer[0] >= limit);
+  return buffer[0] % max;
+}
+
+/**
+ * A password that always passes `passwordPolicyError`: one character from each
+ * pool, the rest from all pools, then shuffled. Look-alike characters
+ * (0/O, 1/l/I, quotes, slashes) are left out so it can be read aloud.
+ */
+export function generateSecurePassword(length = 14): string {
+  const pools = ['ABCDEFGHJKMNPQRSTUVWXYZ', 'abcdefghjkmnpqrstuvwxyz', '23456789', '!@#$%^&'];
+  const all = pools.join('');
+  const chars = pools.map((pool) => pool[randomIndex(pool.length)]);
+  while (chars.length < length) chars.push(all[randomIndex(all.length)]);
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomIndex(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
 
 export const STATUS_OPTIONS: readonly { value: string; label: string }[] = [
   { value: 'active', label: STATUS_LABELS.active },
@@ -116,11 +176,14 @@ export const emptyPermissions = (): AdminPermissions => ({
   publishProject: false,
   manageUnits: false,
   viewInquiries: false,
+  viewApplications: false,
+  manageApplications: false,
   exportData: false,
   manageUsers: false,
   manageNotifications: false,
   manageCms: false,
   manageClients: false,
+  managePastProjects: false,
   rollbackCms: false,
 });
 

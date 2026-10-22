@@ -10,8 +10,8 @@ User=salah
 Group=salah
 WorkingDirectory=/srv/ajda/app/server
 
-EnvironmentFile=-/srv/ajda/app/server/.env
-EnvironmentFile=-/srv/ajda/app/server/.env.backup
+# Secrets live here, not in the app's .env. The file must exist (mode 600).
+EnvironmentFile=/srv/ajda/app/server/.env.backup
 
 ExecStart=/srv/ajda/app/server/scripts/backup_db.sh
 
@@ -19,7 +19,23 @@ ExecStart=/srv/ajda/app/server/scripts/backup_db.sh
 SuccessExitStatus=0
 TimeoutStartSec=30min
 
+# --- Hardening ---
 NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# The dump directory (and the uploads mirror inside it) are writable.
+ReadWritePaths=/var/backups/ajda
 
 StandardOutput=journal
 StandardError=journal

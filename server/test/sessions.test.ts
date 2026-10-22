@@ -10,8 +10,8 @@ import {
   readJwtTimes,
   removeUser,
   SEED_ADMINS,
-  SEED_PASSWORD,
   seedSession,
+  THROWAWAY_PASSWORD,
   type TestSession,
 } from './helpers.js';
 
@@ -76,7 +76,7 @@ describe('a token does not outlive the account behind it', () => {
     const user = await createThrowawayUser({ role: 'viewer' });
     throwaways.push(user);
 
-    const session = await login(user.email, SEED_PASSWORD);
+    const session = await login(user.email, THROWAWAY_PASSWORD);
 
     const before = await authInject(session.token, { method: 'GET', url: '/api/auth/me' });
     expect(before.statusCode).toBe(200);
@@ -98,7 +98,7 @@ describe('a token does not outlive the account behind it', () => {
     const relogin = await inject({
       method: 'POST',
       url: '/api/auth/login',
-      payload: { email: user.email, password: SEED_PASSWORD },
+      payload: { email: user.email, password: THROWAWAY_PASSWORD },
     });
     expect(relogin.statusCode).toBe(403);
   });

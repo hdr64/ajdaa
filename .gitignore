@@ -43,6 +43,7 @@ server/dev.db-journal
 server/prisma/dev.db
 server/prisma/dev.db-journal
 server/uploads
+server/private
 server/prisma/schema.postgresql.prisma
 
 # Auto-generated directory-tree dumps from an external tool (regenerate, never edit)
@@ -64,3 +65,11 @@ screenshots
 .env.backup
 server-10-21-2026.sql
 server-21-10-26.backup
+
+# Deployment artifacts and local database dumps
+.deploy/
+*.backup
+*.sql
+# ... but the committed migration and sanitizing scripts must stay tracked.
+!server/prisma/migrations/**/migration.sql
+!deploy/sanitize-test-db.sql

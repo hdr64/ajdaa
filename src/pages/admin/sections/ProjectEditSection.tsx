@@ -25,6 +25,7 @@ import { PRICE_TYPES, PROJECT_TYPE_LABELS_AR, PROPERTY_TYPES } from '../projectL
 import { MapLocationPicker } from '../../../components/admin/projects/MapLocationPicker';
 import { CitySelect } from '../../../components/admin/projects/CitySelect';
 import { findSaudiCityByName } from '../../../data/saudiCities';
+import { isHttpsUrl } from '../../../utils/urlValidation';
 
 const INPUT_CLASS =
   'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
@@ -36,7 +37,11 @@ interface EditorForm {
   titleEn: string;
   type: PropertyType;
   typeAr: string;
+  typeEn: string;
   priceType: PriceType;
+  priceTypeEn: string;
+  price: string;
+  priceLabel: string;
   status: string;
   statusEn: string;
   badge: string;
@@ -44,17 +49,23 @@ interface EditorForm {
   city: string;
   cityEn: string;
   area: string;
+  rooms: string;
+  bathrooms: string;
+  unitsCount: string;
+  unitsCountEn: string;
   description: string;
   descriptionEn: string;
   features: string;
   featuresEn: string;
+  locationHighlightsAr: string;
+  locationHighlightsEn: string;
   lat: string;
   lng: string;
   videoUrl: string;
+  model3dUrl: string;
   image: string;
   gallery: string[];
   brochureUrl: string;
-  virtualTour3dAvailable: boolean;
 }
 
 const trimmedOrUndefined = (value: string) => value.trim() || undefined;
@@ -72,7 +83,11 @@ function toFormState(project: Property): EditorForm {
     titleEn: project.titleEn ?? '',
     type: project.type,
     typeAr: project.typeAr ?? '',
+    typeEn: project.typeEn ?? '',
     priceType: project.priceType,
+    priceTypeEn: project.priceTypeEn ?? '',
+    price: project.price == null ? '' : String(project.price),
+    priceLabel: project.priceLabel ?? '',
     status: project.status ?? '',
     statusEn: project.statusEn ?? '',
     badge: project.badge ?? '',
@@ -80,17 +95,23 @@ function toFormState(project: Property): EditorForm {
     city: project.city ?? '',
     cityEn: project.cityEn ?? '',
     area: project.area == null ? '' : String(project.area),
+    rooms: project.rooms == null ? '' : String(project.rooms),
+    bathrooms: project.bathrooms == null ? '' : String(project.bathrooms),
+    unitsCount: project.units ?? '',
+    unitsCountEn: project.unitsEn ?? '',
     description: project.description ?? '',
     descriptionEn: project.descriptionEn ?? '',
     features: (project.features ?? []).join('\n'),
     featuresEn: (project.featuresEn ?? []).join('\n'),
+    locationHighlightsAr: (project.locationHighlightsAr ?? []).join('\n'),
+    locationHighlightsEn: (project.locationHighlightsEn ?? []).join('\n'),
     lat: project.lat == null ? '' : String(project.lat),
     lng: project.lng == null ? '' : String(project.lng),
     videoUrl: project.videoUrl ?? '',
+    model3dUrl: project.model3dUrl ?? '',
     image: project.image ?? '',
     gallery: [...(project.gallery ?? [])],
     brochureUrl: project.brochureUrl ?? '',
-    virtualTour3dAvailable: project.virtualTour3dAvailable ?? false,
   };
 }
 
@@ -236,6 +257,23 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
     if (area === null || Number.isNaN(area)) found.area = 'المساحة مطلوبة ويجب أن تكون رقماً';
     else if (area < 0) found.area = 'المساحة لا يمكن أن تكون سالبة';
 
+    const price = parseNumber(form.price);
+    if (Number.isNaN(price)) found.price = 'السعر يجب أن يكون رقماً';
+    else if (price !== null && price < 0) found.price = 'السعر لا يمكن أن يكون سالباً';
+
+    // The server stores rooms/bathrooms as integers, so reject a fraction here.
+    const rooms = parseNumber(form.rooms);
+    if (Number.isNaN(rooms)) found.rooms = 'عدد الغرف يجب أن يكون رقماً';
+    else if (rooms !== null && !Number.isInteger(rooms)) found.rooms = 'عدد الغرف يجب أن يكون رقماً صحيحاً';
+
+    const bathrooms = parseNumber(form.bathrooms);
+    if (Number.isNaN(bathrooms)) found.bathrooms = 'عدد الحمامات يجب أن يكون رقماً';
+    else if (bathrooms !== null && !Number.isInteger(bathrooms)) found.bathrooms = 'عدد الحمامات يجب أن يكون رقماً صحيحاً';
+
+    if (form.model3dUrl.trim() && !isHttpsUrl(form.model3dUrl)) {
+      found.model3dUrl = 'أدخل رابطاً يبدأ بـ https:// بدون مسافات (حتى 500 حرف)';
+    }
+
     const lat = parseNumber(form.lat);
     const lng = parseNumber(form.lng);
     if (Number.isNaN(lat)) found.lat = 'خط العرض يجب أن يكون رقماً';
@@ -339,7 +377,11 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
       titleEn: trimmedOrUndefined(form.titleEn),
       type: form.type,
       typeAr: form.typeAr.trim() || PROJECT_TYPE_LABELS_AR[form.type],
+      typeEn: trimmedOrUndefined(form.typeEn),
       priceType: form.priceType,
+      priceTypeEn: trimmedOrUndefined(form.priceTypeEn),
+      price: parseNumber(form.price) ?? undefined,
+      priceLabel: trimmedOrUndefined(form.priceLabel),
       status: trimmedOrUndefined(form.status),
       statusEn: trimmedOrUndefined(form.statusEn),
       badge: trimmedOrUndefined(form.badge),
@@ -347,17 +389,23 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
       city: form.city.trim(),
       cityEn: trimmedOrUndefined(form.cityEn),
       area: parseNumber(form.area) as number,
+      rooms: parseNumber(form.rooms) ?? undefined,
+      bathrooms: parseNumber(form.bathrooms) ?? undefined,
+      units: trimmedOrUndefined(form.unitsCount),
+      unitsEn: trimmedOrUndefined(form.unitsCountEn),
       description: trimmedOrUndefined(form.description),
       descriptionEn: trimmedOrUndefined(form.descriptionEn),
       features: splitLines(form.features),
       featuresEn: splitLines(form.featuresEn),
+      locationHighlightsAr: splitLines(form.locationHighlightsAr),
+      locationHighlightsEn: splitLines(form.locationHighlightsEn),
       lat: lat ?? undefined,
       lng: lng ?? undefined,
       videoUrl: embedUrl ?? undefined,
+      model3dUrl: trimmedOrUndefined(form.model3dUrl),
       image: form.image,
       gallery: [...form.gallery],
       brochureUrl: form.brochureUrl || undefined,
-      virtualTour3dAvailable: form.virtualTour3dAvailable,
     };
 
     setSaving(true);
@@ -448,6 +496,9 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 <Field label="وصف النوع المعروض" htmlFor="pe-typeAr">
                   <input id="pe-typeAr" type="text" value={form.typeAr} onChange={(e) => patch({ typeAr: e.target.value })} className={INPUT_CLASS} />
                 </Field>
+                <Field label="وصف النوع المعروض (بالإنجليزية)" htmlFor="pe-typeEn">
+                  <input id="pe-typeEn" type="text" dir="ltr" value={form.typeEn} onChange={(e) => patch({ typeEn: e.target.value })} className={INPUT_CLASS} />
+                </Field>
                 <Field label="طبيعة العقد" htmlFor="pe-priceType">
                   <select id="pe-priceType" value={form.priceType} onChange={(e) => patch({ priceType: e.target.value as PriceType })} className={`${INPUT_CLASS} cursor-pointer`}>
                     {PRICE_TYPES.map((priceType) => (
@@ -457,8 +508,29 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     ))}
                   </select>
                 </Field>
+                <Field label="طبيعة العقد (بالإنجليزية)" htmlFor="pe-priceTypeEn">
+                  <input id="pe-priceTypeEn" type="text" dir="ltr" value={form.priceTypeEn} onChange={(e) => patch({ priceTypeEn: e.target.value })} className={INPUT_CLASS} />
+                </Field>
+                <Field label="السعر" htmlFor="pe-price" error={errors.price}>
+                  <input id="pe-price" type="number" step="any" min={0} dir="ltr" value={form.price} onChange={(e) => patch({ price: e.target.value })} className={INPUT_CLASS} />
+                </Field>
+                <Field label="تسمية السعر" htmlFor="pe-priceLabel">
+                  <input id="pe-priceLabel" type="text" placeholder="يبدأ من" value={form.priceLabel} onChange={(e) => patch({ priceLabel: e.target.value })} className={INPUT_CLASS} />
+                </Field>
                 <Field label="المساحة (م²) *" htmlFor="pe-area" error={errors.area}>
                   <input id="pe-area" type="number" min={0} value={form.area} onChange={(e) => patch({ area: e.target.value })} className={INPUT_CLASS} />
+                </Field>
+                <Field label="عدد الغرف" htmlFor="pe-rooms" error={errors.rooms}>
+                  <input id="pe-rooms" type="number" step="1" min={0} dir="ltr" value={form.rooms} onChange={(e) => patch({ rooms: e.target.value })} className={INPUT_CLASS} />
+                </Field>
+                <Field label="عدد الحمامات" htmlFor="pe-bathrooms" error={errors.bathrooms}>
+                  <input id="pe-bathrooms" type="number" step="1" min={0} dir="ltr" value={form.bathrooms} onChange={(e) => patch({ bathrooms: e.target.value })} className={INPUT_CLASS} />
+                </Field>
+                <Field label="عدد الوحدات" htmlFor="pe-unitsCount">
+                  <input id="pe-unitsCount" type="text" placeholder="24 وحدة" value={form.unitsCount} onChange={(e) => patch({ unitsCount: e.target.value })} className={INPUT_CLASS} />
+                </Field>
+                <Field label="عدد الوحدات (بالإنجليزية)" htmlFor="pe-unitsCountEn">
+                  <input id="pe-unitsCountEn" type="text" dir="ltr" placeholder="24 Units" value={form.unitsCountEn} onChange={(e) => patch({ unitsCountEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
                 <div className="sm:col-span-2">
                   <Field label="المدينة *" htmlFor="pe-city" error={errors.city}>
@@ -524,6 +596,17 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 </Field>
                 <Field label="بالإنجليزية" htmlFor="pe-featuresEn">
                   <textarea id="pe-featuresEn" rows={7} dir="ltr" value={form.featuresEn} onChange={(e) => patch({ featuresEn: e.target.value })} placeholder={'Prime location\nPrivate parking'} className={`${INPUT_CLASS} resize-y leading-loose`} />
+                </Field>
+              </div>
+            </Card>
+
+            <Card title="أبرز معالم الموقع" description="عنصر واحد في كل سطر.">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="بالعربية" htmlFor="pe-locationHighlightsAr">
+                  <textarea id="pe-locationHighlightsAr" rows={6} value={form.locationHighlightsAr} onChange={(e) => patch({ locationHighlightsAr: e.target.value })} placeholder={'قريب من طريق الملك فهد\nخلف مطار الرياض'} className={`${INPUT_CLASS} resize-y leading-loose`} />
+                </Field>
+                <Field label="بالإنجليزية" htmlFor="pe-locationHighlightsEn">
+                  <textarea id="pe-locationHighlightsEn" rows={6} dir="ltr" value={form.locationHighlightsEn} onChange={(e) => patch({ locationHighlightsEn: e.target.value })} placeholder={'Close to King Fahd Road\nBehind Riyadh Airport'} className={`${INPUT_CLASS} resize-y leading-loose`} />
                 </Field>
               </div>
             </Card>
@@ -652,7 +735,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
               )}
             </Card>
 
-            <Card title="الكتيّب والجولة الافتراضية">
+            <Card title="الكتيّب والمجسم ثلاثي الأبعاد">
               <div>
                 <span className={LABEL_CLASS}>ملف الكتيّب (PDF)</span>
                 {form.brochureUrl ? (
@@ -680,10 +763,21 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                   </button>
                 )}
               </div>
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input type="checkbox" checked={form.virtualTour3dAvailable} onChange={(e) => patch({ virtualTour3dAvailable: e.target.checked })} className="w-4 h-4 cursor-pointer accent-[var(--accent)]" />
-                <span className="text-[11px] font-bold text-heading">الجولة الافتراضية ثلاثية الأبعاد متوفرة</span>
-              </label>
+              <Field label="رابط المجسم ثلاثي الأبعاد" htmlFor="pe-model3dUrl" error={errors.model3dUrl}>
+                <input
+                  id="pe-model3dUrl"
+                  type="url"
+                  dir="ltr"
+                  inputMode="url"
+                  placeholder="https://viewer.example.com/model/123"
+                  value={form.model3dUrl}
+                  onChange={(e) => patch({ model3dUrl: e.target.value })}
+                  className={INPUT_CLASS}
+                />
+              </Field>
+              <p className="text-[10px] text-neutral-text/50">
+                اتركه فارغاً إن لم يوجد مجسم. يجب أن يبدأ الرابط بـ https://، وتظهر الجولة في الموقع تلقائياً عند إضافته.
+              </p>
             </Card>
           </div>
         </div>

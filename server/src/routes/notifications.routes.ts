@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import {
+  configuredEvents,
   createListener,
   deleteListener,
-  listenersConfigured,
   listListeners,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_EVENTS,
@@ -22,14 +22,21 @@ const listenerSchema = z
     name: z.string().trim().min(1).max(100),
     enabled: z.boolean(),
     config: z.object({
-      toInquiryViewers: z.boolean(),
+      toInquiryViewers: z.boolean().default(false),
+      toApplicationViewers: z.boolean().default(false),
       emails: z.array(z.string().trim().toLowerCase().email().max(255)).max(MAX_EMAILS),
     }),
   })
-  .refine((listener) => listener.config.toInquiryViewers || listener.config.emails.length > 0, {
-    message: 'Choose at least one recipient',
-    path: ['config', 'emails'],
-  });
+  .refine(
+    (listener) =>
+      listener.config.toInquiryViewers ||
+      listener.config.toApplicationViewers ||
+      listener.config.emails.length > 0,
+    {
+      message: 'Choose at least one recipient',
+      path: ['config', 'emails'],
+    }
+  );
 
 const idParamsSchema = z.object({ id: z.string().min(1) });
 
@@ -37,12 +44,18 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   // A fresh array per route (see settings.routes.ts for why).
   const guards = () => ({ onRequest: [authenticate, requirePermission('manageNotifications')] });
 
-  fastify.get('/listeners', guards(), async () => ({
-    configured: await listenersConfigured(),
-    events: NOTIFICATION_EVENTS,
-    channels: NOTIFICATION_CHANNELS,
-    listeners: await listListeners(),
-  }));
+  fastify.get('/listeners', guards(), async () => {
+    // The configured state is per event: `configured` keeps its old meaning
+    // ("a listener was ever created"), `configuredByEvent` says for which.
+    const configuredByEvent = await configuredEvents();
+    return {
+      configured: Object.values(configuredByEvent).some(Boolean),
+      configuredByEvent,
+      events: NOTIFICATION_EVENTS,
+      channels: NOTIFICATION_CHANNELS,
+      listeners: await listListeners(),
+    };
+  });
 
   fastify.post(
     '/listeners',

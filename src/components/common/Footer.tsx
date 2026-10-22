@@ -17,7 +17,7 @@ import logoEnLight from '../../assets/logos/en-1.png';
 import logoEnDark from '../../assets/logos/en-2.png';
 
 /** Only these nav targets stay inside the single-page shell. */
-const FOOTER_ROUTES: readonly NavPageKey[] = ['home', 'works', 'clients', 'booking', 'contact'];
+const FOOTER_ROUTES: readonly NavPageKey[] = ['home', 'works', 'pastWorks', 'clients', 'booking', 'contact'];
 
 interface FooterProps {
   onNavigate: (page: NavPageKey) => void;
@@ -163,6 +163,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                   </button>
                 );
               })}
+              <button
+                onClick={() => onNavigate('careers')}
+                className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+              >
+                <ChevronRight className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
+                {language === 'ar' ? 'قدّم على وظيفة' : 'Apply for a job'}
+              </button>
             </div>
           </div>
 

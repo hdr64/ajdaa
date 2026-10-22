@@ -1,10 +1,11 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import jwt from '@fastify/jwt';
 import fastifyStatic from '@fastify/static';
+import helmet from '@fastify/helmet';
 
 import { config } from './config/env.js';
 import { authenticate } from './middleware/auth.js';
@@ -14,8 +15,10 @@ import { authRoutes } from './routes/auth.routes.js';
 import { projectRoutes } from './routes/projects.routes.js';
 import { unitRoutes } from './routes/units.routes.js';
 import { inquiryRoutes } from './routes/inquiries.routes.js';
+import { careersRoutes } from './routes/careers.routes.js';
 import { mediaRoutes } from './routes/media.routes.js';
 import { categoryRoutes } from './routes/categories.routes.js';
+import { pastProjectRoutes } from './routes/pastProjects.routes.js';
 import { newsletterRoutes } from './routes/newsletter.routes.js';
 import { permissionRoutes } from './routes/permissions.routes.js';
 import { roleRoutes } from './routes/roles.routes.js';
@@ -32,14 +35,91 @@ import {
   queueDriver,
   registerJob,
 } from './services/queueService.js';
-import { sendDeveloperNoteEmailJob, sendInquiryNotificationJob } from './jobs/emailJobs.js';
+import { sendDeveloperNoteEmailJob, sendInquiryNotificationJob, sendJobApplicationNotificationJob } from './jobs/emailJobs.js';
 
-export async function buildApp(): Promise<FastifyInstance> {
-  const fastify = Fastify({ logger: true, trustProxy: config.trustProxy });
+/**
+ * The path of a URL without its query string.
+ *
+ * Query parameters are the one part of a URL that routinely carries a secret
+ * (`key`, `token`, `otp`, `password`), and they end up in access logs, proxy
+ * logs and browser history. Nothing that is logged may contain them.
+ */
+function stripQuery(url: string): string {
+  const queryStart = url.indexOf('?');
+  return queryStart === -1 ? url : url.slice(0, queryStart);
+}
+
+function requestPath(request: FastifyRequest): string {
+  return stripQuery(request.url);
+}
+
+/**
+ * The serializer for Fastify's own request log.
+ *
+ * The default one writes the full URL, query string included, which is
+ * exactly where a `?key=` or a `?token=` would end up.
+ */
+export function requestLogSerializer(request: FastifyRequest) {
+  const acceptVersion = request.headers?.['accept-version'];
+
+  return {
+    method: request.method,
+    url: stripQuery(request.url),
+    version: typeof acceptVersion === 'string' ? acceptVersion : undefined,
+    host: request.host,
+    remoteAddress: request.ip,
+    remotePort: request.raw?.socket?.remotePort,
+  };
+}
+
+/**
+ * Fastify has no hop-count option for `trustProxy`, but its trust function
+ * receives the hop index, so "trust the first N hops" is one line. A hop
+ * count is the safe choice behind a single reverse proxy: `true` would also
+ * trust the `X-Forwarded-For` header of a client that reached the proxy
+ * directly.
+ */
+function trustProxyOption(value: boolean | number): boolean | ((address: string, hop: number) => boolean) {
+  if (typeof value === 'number') {
+    return (_address, hop) => hop < value;
+  }
+  return value;
+}
+
+export interface BuildAppOptions {
+  /**
+   * Where the request log is written. The server writes to the standard
+   * output; the tests pass a buffer to assert on what was logged.
+   */
+  loggerStream?: { write(message: string): void };
+}
+
+export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
+  const fastify = Fastify({
+    logger: {
+      stream: options.loggerStream,
+      serializers: { req: requestLogSerializer },
+    },
+    trustProxy: trustProxyOption(config.trustProxy),
+  });
 
   // Rate Limiting (global default off; strict per-route limits configured on endpoints)
   await fastify.register(rateLimit, {
     global: false,
+  });
+
+  // 0. Security headers
+  // CSP is switched off for now: the API serves JSON, the SPA is served by
+  // another origin, and a policy that is not tested against the real front end
+  // would break it. Re-enable it once the deployed pages are known.
+  await fastify.register(helmet, {
+    contentSecurityPolicy: false,
+    // HSTS is only correct on a real HTTPS deployment; sending it over plain
+    // HTTP (or on a bare development host) only breaks the browser.
+    hsts: config.isProduction ? { maxAge: 15_552_000, includeSubDomains: true } : false,
+    // Uploaded images are served from this origin and displayed by the SPA on
+    // another one, so they must stay loadable.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
   });
 
   // 1. CORS
@@ -113,7 +193,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     loggerService.error(
       `Unhandled request error: ${(error as Error).message}`,
       {
-        url: request.url,
+        url: requestPath(request),
         method: request.method,
         code,
         stack: (error as Error).stack,
@@ -121,6 +201,21 @@ export async function buildApp(): Promise<FastifyInstance> {
       'http'
     );
     return reply.status(500).send({ error: 'Internal server error' });
+  });
+
+  // The default not-found handler logs the raw URL — query string included —
+  // and echoes it back to the caller. A request for a URL that carries a key
+  // must not put that key in the log or in the response.
+  fastify.setNotFoundHandler(async (request, reply) => {
+    const path = requestPath(request);
+
+    request.log.warn({ url: path, method: request.method }, 'Route not found');
+
+    return reply.status(404).send({
+      message: `Route ${request.method}:${path} not found`,
+      error: 'Not Found',
+      statusCode: 404,
+    });
   });
 
   // Automatically log incoming HTTP responses to loggerService
@@ -132,9 +227,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     const statusCode = reply.statusCode;
     const level = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
 
+    // Only the path is logged: the query string may hold a key, a token or a
+    // password, and this log ends up in a file that is copied around.
     loggerService.log(
       level,
-      `${request.method} ${request.url} - ${statusCode} (${latency.toFixed(1)}ms)`,
+      `${request.method} ${requestPath(request)} - ${statusCode} (${latency.toFixed(1)}ms)`,
       {
         ip: request.ip,
         statusCode,
@@ -151,8 +248,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(projectRoutes, { prefix: '/api/projects' });
   await fastify.register(unitRoutes, { prefix: '/api/units' });
   await fastify.register(inquiryRoutes, { prefix: '/api/inquiries' });
+  await fastify.register(careersRoutes, { prefix: '/api/careers' });
   await fastify.register(mediaRoutes, { prefix: '/api/media' });
   await fastify.register(categoryRoutes, { prefix: '/api/categories' });
+  await fastify.register(pastProjectRoutes, { prefix: '/api/past-projects' });
   await fastify.register(newsletterRoutes, { prefix: '/api/newsletter' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
   await fastify.register(roleRoutes, { prefix: '/api/roles' });
@@ -167,6 +266,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // arrive. Registration is cheap and driver-independent.
   registerJob(sendDeveloperNoteEmailJob);
   registerJob(sendInquiryNotificationJob);
+  registerJob(sendJobApplicationNotificationJob);
 
   // 8. Job Queue — never fatal. A missing Redis degrades to inline execution so
   // a deployment without Redis still sends mail; `QUEUE_DRIVER=redis` is the
