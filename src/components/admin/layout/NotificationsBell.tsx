@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, BellRing } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { formatRelativeTime } from '../../../pages/admin/adminFormat';
 import { desktopNotificationsSupported } from './inquiryNotifications';
 
@@ -39,6 +40,7 @@ const timeOf = (value: string | undefined): number => {
  * all flagged at once.
  */
 export const NotificationsBell: React.FC = () => {
+  const { t } = useAdminT();
   const { can, currentUser, inquiries, location, navigate } = useAdmin();
   const adminId = currentUser?.id;
   const [open, setOpen] = useState(false);
@@ -121,8 +123,8 @@ export const NotificationsBell: React.FC = () => {
         onClick={toggle}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={unread > 0 ? `الإشعارات: ${unread} طلب جديد` : 'الإشعارات'}
-        title="طلبات الاهتمام الجديدة"
+        aria-label={unread > 0 ? t('layout.notifications.ariaNew', { count: unread }) : t('layout.notifications.aria')}
+        title={t('layout.notifications.title')}
         className="relative p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:text-accent bg-surface transition cursor-pointer text-neutral-text/70 shadow-xs"
       >
         {unread > 0 ? <BellRing className="w-4 h-4 text-accent" /> : <Bell className="w-4 h-4" />}
@@ -139,25 +141,25 @@ export const NotificationsBell: React.FC = () => {
           className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl bg-surface border border-muted-border/40 shadow-xl overflow-hidden z-30"
         >
           <div className="px-4 py-3 border-b border-muted-border/30 flex items-center justify-between gap-2">
-            <span className="text-xs font-black text-heading">طلبات الاهتمام الأخيرة</span>
+            <span className="text-xs font-black text-heading">{t('layout.notifications.recent')}</span>
             {permission === 'default' && (
               <button
                 type="button"
                 onClick={() => void enableDesktop()}
                 className="text-[10px] font-bold text-accent hover:underline cursor-pointer"
               >
-                تفعيل إشعارات سطح المكتب
+                {t('layout.notifications.enableDesktop')}
               </button>
             )}
             {permission === 'denied' && (
-              <span className="text-[10px] text-neutral-text/50" title="اسمح بالإشعارات من إعدادات المتصفح">
-                إشعارات المتصفح محظورة
+              <span className="text-[10px] text-neutral-text/50" title={t('layout.notifications.blockedHint')}>
+                {t('layout.notifications.blocked')}
               </span>
             )}
           </div>
 
           {recent.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-neutral-text/60">لا توجد طلبات بعد</p>
+            <p className="px-4 py-6 text-center text-xs text-neutral-text/60">{t('layout.notifications.empty')}</p>
           ) : (
             <ul className="max-h-96 overflow-y-auto divide-y divide-muted-border/20">
               {recent.map((item) => {
@@ -203,7 +205,7 @@ export const NotificationsBell: React.FC = () => {
             }}
             className="w-full px-4 py-2.5 border-t border-muted-border/30 text-xs font-bold text-accent hover:bg-canvas cursor-pointer"
           >
-            عرض كل الطلبات
+            {t('layout.notifications.viewAll')}
           </button>
         </div>
       )}

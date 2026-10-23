@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../services/api';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { applyUnitStatus, removeUnit, useRealtimeUnits } from '../../hooks/useRealtimeUnits';
 import { AdminSidebar } from '../../components/admin/layout/AdminSidebar';
+import { useAdminT } from '../../i18n/admin/useAdminT';
 import { AdminPageHeader } from '../../components/admin/layout/AdminPageHeader';
 import { newInquiryMessage, showDesktopNotification } from '../../components/admin/layout/inquiryNotifications';
 import { ConfirmDialog } from '../../components/admin/common/ConfirmDialog';
@@ -45,57 +46,26 @@ interface AdminDashboardPageProps {
   onLogout: () => void;
   /** Kept for App compatibility; the sidebar now opens the site in a new tab. */
   onNavigateHome?: () => void;
-  onShowToast: (msg: string) => void;
+  onShowToast: (msg: string, kind?: 'success' | 'error' | 'info') => void;
 }
 
-const SECTION_META: Record<AdminSection, { title: string; subtitle: string; permission?: AdminPermission }> = {
-  overview: { title: 'لوحة التحكم والمؤشرات', subtitle: 'متابعة المحفظة العقارية، نسب الإشغال وطلبات العملاء' },
-  projects: { title: 'المشاريع العقارية', subtitle: 'إضافة المشاريع وتعديل بياناتها وصورها ومواقعها' },
-  project: { title: 'تفاصيل المشروع', subtitle: 'بيانات المشروع ووحداته وطلبات الاهتمام به' },
-  projectEdit: { title: 'تعديل المشروع', subtitle: 'تعديل بيانات العرض العامة للمشروع', permission: 'manageProjects' },
-  units: { title: 'المخطط البصري للأدوار', subtitle: 'إدارة الأدوار والوحدات وحالاتها لحظياً' },
-  inquiries: {
-    title: 'طلبات الاهتمام والعملاء',
-    subtitle: 'متابعة الطلبات الواردة من الموقع وتحديث حالاتها',
-    permission: 'viewInquiries',
-  },
-  applications: {
-    title: 'طلبات التوظيف',
-    subtitle: 'متابعة طلبات التوظيف والسير الذاتية',
-    permission: 'viewApplications',
-  },
-  categories: { title: 'التصنيفات والوسوم', subtitle: 'تصنيفات المشاريع والوسوم المعتمدة' },
-  pastProjects: { title: 'أعمالنا السابقة', subtitle: 'إدارة المشاريع السابقة المعروضة في صفحة أعمالنا السابقة', permission: 'managePastProjects' },
-  users: { title: 'المستخدمون والصلاحيات', subtitle: 'أعضاء الفريق وأذونات الوصول', permission: 'manageUsers' },
-  roles: {
-    title: 'الأدوار والصلاحيات',
-    subtitle: 'أدوار الفريق ومجموعات الصلاحيات الممنوحة لكل دور',
-    permission: 'manageUsers',
-  },
-  departments: {
-    title: 'الأقسام والإدارات',
-    subtitle: 'تنظيم أعضاء الفريق في أقسام العمل',
-    permission: 'manageUsers',
-  },
-  newsletter: {
-    title: 'مشتركو النشرة البريدية',
-    subtitle: 'العناوين المسجلة من نموذج الاشتراك في الموقع',
-    permission: 'exportData',
-  },
-  settings: {
-    title: 'الإعدادات',
-    subtitle: 'معلومات التواصل في الموقع، الإشعارات، وخادم البريد',
-    // Super admins pass `can` too; each tab narrows access further.
-    permission: 'manageNotifications',
-  },
-  cms: {
-    title: 'إدارة محتوى الموقع',
-    subtitle: 'التحكم في كافة نصوص الموقع، الأقسام، الشركاء، القائمة والتذييل',
-  },
-  profile: {
-    title: 'الملف الشخصي والحساب',
-    subtitle: 'إدارة البيانات الشخصية، كلمة المرور وخيارات الأمان',
-  },
+const SECTION_META: Record<AdminSection, { permission?: AdminPermission }> = {
+  overview: {},
+  projects: {},
+  project: {},
+  projectEdit: { permission: 'manageProjects' },
+  units: {},
+  inquiries: { permission: 'viewInquiries' },
+  applications: { permission: 'viewApplications' },
+  categories: {},
+  pastProjects: { permission: 'managePastProjects' },
+  users: { permission: 'manageUsers' },
+  roles: { permission: 'manageUsers' },
+  departments: { permission: 'manageUsers' },
+  newsletter: { permission: 'exportData' },
+  settings: { permission: 'manageNotifications' },
+  cms: {},
+  profile: {},
 };
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -104,6 +74,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onLogout,
   onShowToast,
 }) => {
+  const { t } = useAdminT();
   const location = useMemo(() => parseAdminPath(adminPath), [adminPath]);
 
   // Stable callbacks: App re-creates its handlers on every render.
@@ -115,7 +86,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const showToastRef = useRef(onShowToast);
   showToastRef.current = onShowToast;
-  const showToast = useCallback((message: string) => showToastRef.current(message), []);
+  const showToast = useCallback((message: string, kind: 'success' | 'error' | 'info' = 'success') => showToastRef.current(message, kind), []);
 
   /* ------------------------------ Identity ------------------------------ */
 
@@ -198,7 +169,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       (payload: unknown) => {
         if (!canViewInquiries) return;
         void reloadInquiries();
-        showToast(newInquiryMessage(payload));
+        showToast(newInquiryMessage(payload), 'info');
         showDesktopNotification(payload, () => navigate({ section: 'inquiries' }));
       },
       [canViewInquiries, reloadInquiries, showToast, navigate]
@@ -210,11 +181,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const refreshAll = useCallback(async () => {
     try {
       await Promise.all([reloadProjects(), canViewInquiries ? reloadInquiries() : Promise.resolve()]);
-      showToast('تم تحديث البيانات');
+      showToast(t('dashboard.toast.refreshed'));
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر تحديث البيانات'));
+      showToast(getErrorMessage(error, t('dashboard.toast.refreshFailed')), 'error');
     }
-  }, [reloadProjects, reloadInquiries, canViewInquiries, showToast]);
+  }, [reloadProjects, reloadInquiries, canViewInquiries, showToast, t]);
 
   /* ------------------------------- Confirm ------------------------------ */
 
@@ -254,11 +225,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     (options: DeleteConfirmOptions) =>
       confirm({
         title: options.title,
-        message: options.message ?? 'لا يمكن التراجع عن هذا الإجراء.',
-        confirmLabel: options.confirmLabel ?? 'حذف',
+        message: options.message ?? t('dashboard.confirm.notUndo'),
+        confirmLabel: options.confirmLabel ?? t('common.action.delete'),
         danger: true,
       }),
-    [confirm]
+    [confirm, t]
   );
   const resolveConfirm = useCallback(
     (value: boolean, remember: boolean) => {
@@ -288,9 +259,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       : undefined;
   const pageTitle = currentProject
     ? location.section === 'projectEdit'
-      ? `تعديل: ${currentProject.title}`
+      ? t('dashboard.project.editTitle', { title: currentProject.title })
       : currentProject.title
-    : meta.title;
+    : t(`dashboard.section.${location.section}.title` as any);
   const allowed =
     location.section === 'cms'
       ? can('manageCms') || can('manageClients')
@@ -306,8 +277,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
-    document.title = `${pageTitle} | لوحة تحكم أجدا`;
-  }, [location.section, pageTitle]);
+    document.title = t('dashboard.documentTitle', { title: pageTitle });
+  }, [location.section, pageTitle, t]);
 
   const contextValue = useMemo<AdminContextValue>(
     () => ({
@@ -384,7 +355,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col">
             <AdminPageHeader
               title={pageTitle}
-              subtitle={meta.subtitle}
+              subtitle={t(`dashboard.section.${location.section}.subtitle` as any)}
               onOpenMenu={() => setMenuOpen(true)}
               actionsSlotRef={setActionsSlot}
             />

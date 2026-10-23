@@ -27,6 +27,21 @@ export interface DeleteConfirmOptions {
   confirmLabel?: string;
 }
 
+export type ToastKind = 'success' | 'error' | 'info';
+
+export interface AdminToast {
+  message: string;
+  /** Decides the icon and the border colour; the default is `success`. */
+  kind: ToastKind;
+}
+
+/** Error toasts stay up long enough to be read; the rest are quick acknowledgements. */
+export const TOAST_DURATION_MS: Record<ToastKind, number> = {
+  success: 3500,
+  error: 6000,
+  info: 3500,
+};
+
 export interface AdminContextValue {
   currentUser: AdminUser | null;
   /** super_admin implicitly holds every permission, mirroring the server. */
@@ -40,7 +55,7 @@ export interface AdminContextValue {
   location: AdminLocation;
   navigate: (location: AdminLocation, options?: { replace?: boolean }) => void;
 
-  showToast: (message: string) => void;
+  showToast: (message: string, kind?: ToastKind) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   /**
    * The one way to confirm a delete or removal: always asks (never remembered),

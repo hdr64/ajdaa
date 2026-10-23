@@ -1,7 +1,8 @@
 /**
  * Admin sub-routes live under `/admin/*`. App.tsx keeps the part after `/admin/`
  * as `adminPath`, so refresh, deep links and back/forward all land on the same
- * section.
+ * section. The path is matched case-insensitively (`/admin/pastProjects` is the
+ * same section as `/admin/pastprojects`).
  *
  *   overview | projects | inquiries | categories | users | profile
  *   newsletter              newsletter subscribers
@@ -64,18 +65,19 @@ export function parseAdminPath(adminPath: string | undefined): AdminLocation {
   const segments = (adminPath ?? '').split('/').filter(Boolean);
   const [first, second, third] = segments;
 
-  if (first === 'projects' && second) {
+  if (first?.toLowerCase() === 'projects' && second) {
     const projectId = Number(second);
-    const section = PROJECT_SUBROUTES[third ?? ''];
+    const section = PROJECT_SUBROUTES[(third ?? '').toLowerCase()];
     if (Number.isInteger(projectId) && projectId > 0 && section && segments.length <= 3) {
       return { section, projectId };
     }
     return { section: 'projects' };
   }
 
-  if (first && (SIMPLE_SECTIONS as string[]).includes(first)) {
-    return { section: first as AdminSection };
-  }
+  const match = first
+    ? SIMPLE_SECTIONS.find((candidate) => candidate.toLowerCase() === first.toLowerCase())
+    : undefined;
+  if (match) return { section: match };
 
   return { section: 'overview' };
 }

@@ -1,0 +1,126 @@
+import { defineStrings } from './core';
+
+/** Shell chrome: sidebar, header, the language pill and the notifications bell. */
+export const layout = defineStrings(
+  'layout',
+  {
+    'brand.short': 'أجدا',
+    'brand.name': 'أجدا للتطوير العقاري',
+    'brand.dashboard': 'لوحة الإدارة',
+    'language.group': 'لغة الواجهة',
+
+    'sidebar.aria': 'قائمة لوحة التحكم',
+    'sidebar.close': 'إغلاق القائمة',
+    'sidebar.expand': 'توسيع القائمة',
+    'sidebar.collapse': 'طي القائمة',
+
+    'header.openMenu': 'فتح القائمة',
+    'header.refresh': 'تحديث البيانات',
+    'header.live': 'البيانات حية ومزامنة',
+    'header.connecting': 'في انتظار الاتصال الحي',
+
+    'action.openSite': 'عرض الموقع الحي',
+    'action.logout': 'تسجيل الخروج',
+
+    'theme.toLight': 'الوضع الفاتح',
+    'theme.toDark': 'الوضع الداكن',
+    'variant.classic': 'الهوية الكلاسيكية',
+    'variant.prime': 'هوية أجدا برايم',
+
+    'nav.group.main': 'الرئيسية',
+    'nav.group.portfolio': 'المحفظة العقارية',
+    'nav.group.content': 'محتوى الموقع',
+    'nav.group.customers': 'العملاء',
+    'nav.group.management': 'الإدارة',
+
+    'nav.overview': 'نظرة عامة',
+    'nav.projects': 'المشاريع',
+    'nav.units': 'المخطط البصري',
+    'nav.categories': 'التصنيفات',
+    'nav.cms': 'إدارة المحتوى (CMS)',
+    'nav.pastProjects': 'أعمالنا السابقة',
+    'nav.inquiries': 'طلبات الاهتمام',
+    'nav.applications': 'طلبات التوظيف',
+    'nav.newsletter': 'مشتركو النشرة',
+    'nav.users': 'المستخدمون والصلاحيات',
+    'nav.roles': 'الأدوار والصلاحيات',
+    'nav.departments': 'الأقسام والإدارات',
+    'nav.settings': 'الإعدادات',
+
+    'badge.drafts': '{count} مسودة',
+    'badge.newInquiries': '{count} طلب جديد',
+
+    'notifications.title': 'طلبات الاهتمام الجديدة',
+    'notifications.recent': 'طلبات الاهتمام الأخيرة',
+    'notifications.aria': 'الإشعارات',
+    'notifications.ariaNew': 'الإشعارات: {count} طلب جديد',
+    'notifications.enableDesktop': 'تفعيل إشعارات سطح المكتب',
+    'notifications.blocked': 'إشعارات المتصفح محظورة',
+    'notifications.blockedHint': 'اسمح بالإشعارات من إعدادات المتصفح',
+    'notifications.empty': 'لا توجد طلبات بعد',
+    'notifications.viewAll': 'عرض كل الطلبات',
+    'notifications.newInquiry': 'طلب اهتمام جديد',
+    'notifications.fromName': 'من {name}',
+    'notifications.about': '— {about}',
+  },
+  {
+    'brand.short': 'Ajda',
+    'brand.name': 'Ajda Real Estate',
+    'brand.dashboard': 'Admin dashboard',
+    'language.group': 'Interface language',
+
+    'sidebar.aria': 'Admin navigation',
+    'sidebar.close': 'Close menu',
+    'sidebar.expand': 'Expand menu',
+    'sidebar.collapse': 'Collapse menu',
+
+    'header.openMenu': 'Open menu',
+    'header.refresh': 'Refresh data',
+    'header.live': 'Live and synced',
+    'header.connecting': 'Waiting for live connection',
+
+    'action.openSite': 'View live site',
+    'action.logout': 'Log out',
+
+    'theme.toLight': 'Light mode',
+    'theme.toDark': 'Dark mode',
+    'variant.classic': 'Classic identity',
+    'variant.prime': 'Ajda Prime identity',
+
+    'nav.group.main': 'Home',
+    'nav.group.portfolio': 'Portfolio',
+    'nav.group.content': 'Site content',
+    'nav.group.customers': 'Customers',
+    'nav.group.management': 'Management',
+
+    'nav.overview': 'Overview',
+    'nav.projects': 'Projects',
+    'nav.units': 'Visual plan',
+    'nav.categories': 'Categories',
+    'nav.cms': 'Content (CMS)',
+    'nav.pastProjects': 'Past works',
+    'nav.inquiries': 'Inquiries',
+    'nav.applications': 'Job applications',
+    'nav.newsletter': 'Newsletter subscribers',
+    'nav.users': 'Users & permissions',
+    'nav.roles': 'Roles & permissions',
+    'nav.departments': 'Departments',
+    'nav.settings': 'Settings',
+
+    'badge.drafts': '{count} drafts',
+    'badge.newInquiries': '{count} new inquiries',
+
+    'notifications.title': 'New inquiries',
+    'notifications.recent': 'Recent inquiries',
+    'notifications.aria': 'Notifications',
+    'notifications.ariaNew': 'Notifications: {count} new',
+    'notifications.enableDesktop': 'Enable desktop notifications',
+    'notifications.blocked': 'Browser notifications blocked',
+    'notifications.blockedHint': 'Allow notifications in your browser settings',
+    'notifications.empty': 'No inquiries yet',
+    'notifications.viewAll': 'View all inquiries',
+    'notifications.newInquiry': 'New inquiry',
+    'notifications.fromName': 'from {name}',
+    'notifications.about': '— {about}',
+  }
+);
