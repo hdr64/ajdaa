@@ -1,6 +1,6 @@
 # Ajda Real Estate Platform — Task Status & Roadmap
 
-> **Last Updated**: 2026-10-01  
+> **Last Updated**: 2026-10-23  
 > **Current Status**: CMS Engine & Admin Suite Completed | Production VPS Deployment Ready
 
 ---
@@ -64,15 +64,61 @@
 
 ---
 
-## 3. Active Sprint & Next Priorities
+## 3. Open tasks (updated 2026-10-23)
 
-1. **Production VPS Deployment**:
-   - Provision Ubuntu 24.04 LTS VPS with native PostgreSQL 16 & Redis 7.
-   - Deploy with `deploy/remote-deploy.sh <test|prod> <commit-sha>` (called by the GitHub Actions workflow `.github/workflows/deploy.yml`).
-   - Configure Caddy 2 reverse proxy with Cloudflare Origin SSL certificate.
-   - Enable systemd service units (`ajda-api.service`, `ajda-backup.timer`).
-2. **Dynamic SEO, Social Sharing (OpenGraph/Twitter Cards) & Schema.org JSON-LD**:
-   - Add dynamic meta tags connected to CMS SEO fields for rich link previews.
-   - Inject Schema.org JSON-LD structured data for Google RealEstateAgent rich snippets.
+Every prompt ends with mandatory quality guards (`clean-code-guard`, `test-guard`, `docs-guard`); a report without `## Guard results` goes back.
 
+Statuses: ✅ done · 🟡 reviewed, not committed · ⏳ prompt ready to run · 🔒 blocked · ⬜ no prompt yet.
+Wave 1 and Wave 2 are merged into `feat/backend-admin`. Each task is run by OpenCode from its `task-<x>-prompt.md`; Claude reviews the report.
 
+### Phase 1 — Auth chain (worktree `ajda-wt/auth`, branch `lane/auth`; strictly in order)
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 1 | w3-login-eye (password eye button) | ✅ committed | Reviewed. |
+| 2 | w3-auth-a (email verification, two-step password change) | 🟡 | Reviewed; pending-activation bypass fixed in review. Needs a browser check at :5191, then commit. |
+| 3 | w3-auth-a2 (email code, `verifyUsers` permission, "send password" checkbox) | ⏳ | Depends on #2 committed. |
+| 4 | w3-auth-b (authenticator 2FA + recovery codes) | ⏳ | After #3 reviewed and committed. |
+| 5 | w3-auth-c (passkeys) | ⏳ | After #4. Decide `WEBAUTHN_RP_ID` before the production deploy. |
+| 6 | Merge `lane/auth` into `feat/backend-admin` | ⬜ Claude | After #5. Then run the three new migrations by hand on production. |
+
+### Phase 2 — Admin translation AR/EN (worktree `ajda-wt/i18n-core` and one per lane)
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 7 | w4-i18n-core | 🟡 | Reviewed. Raw-key bug found in browser (registry never loaded) and fixed in `useAdminT.ts`; re-check AR/EN at :5192, then commit and merge. Everything below depends on it. |
+| 8 | w4-i18n-l1 (section pages, applications, past projects) | ⏳ | After #7. No auth overlap; may run in parallel with Phase 1. |
+| 9 | w4-i18n-l3 (users, roles, projects, floor plan) | ⏳ | After #7 and #6 (A2, B and C all change the users files it owns). |
+| 10 | w4-i18n-l2 (CMS, settings, profile, feedback) | ⏳ | After #7 and #6 (B and C change the profile page and the security settings panel). |
+| 11 | w4-i18n-server (localised API messages) | ⏳ | After #6 (rewrites messages in `auth.routes.ts`). |
+| 11b | w4-i18n-auth (login, verify, accept-invite pages and `src/components/admin/auth/*`) | ⬜ no prompt | After #6 and #7; excluded from every other lane by `docs/ADMIN-I18N.md`. |
+
+`docs/ADMIN-I18N.md` (both copies) now requires a browser check that no raw keys appear and no `missing key` console warning (added 2026-10-23).
+
+### Phase 3 — Independent (any time, in parallel)
+- ⏳ w4-public-polish (careers form, past-works page)
+- ⏳ w4-create-dev-user (CLI script to create developer admin users). After #6 merges, the script must also set `emailVerifiedAt` (Claude does this at merge time).
+
+### Phase 4 — Infrastructure
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 12 | w4-postgres-dev (PostgreSQL for dev and tests, one schema, `migrate dev`) | ⏳ | After #6 so the drift check covers the auth migrations. Ends SQLite use. |
+| 13 | w2-monitoring | 🔒 | Needs owner decisions: `MONITOR_ALLOWED_IPS`, `MONITOR_EXTERNAL_UNTIL` (go-live + 30 days). Run after #6, #7 and #12 (uses the admin i18n system). |
+
+### Phase 5 — Claude only (no prompt)
+- ⬜ 14. Browser verification of all merged lanes (AR/EN, auth flows, careers, past works, 3D and PDF buttons)
+- ⬜ 15. Commit the uncommitted deploy work in the main repo (`deploy/README-deploy.md`, `deploy/mkuser.sh`, `docs/ADMIN-I18N.md`, `docs/github-actions-deploy.md`) — needs owner approval
+- ⬜ 16. Owner notes 6 and 7: full admin UI review, then finish missing features
+- ⬜ 17. Dynamic SEO, OpenGraph/Twitter cards, Schema.org JSON-LD (after notes 1-5)
+- ⬜ 18. Note 8: production-readiness checkup
+- ⏳ 19. Full code-quality review: `docs/prompts/code-quality-review-prompt.md` → `code-quality-review.md`. Reusable: run now for a baseline, again after each merged lane and before every production deploy.
+
+### Phase 6 — Owner actions (details in `salah-tasks.md`; do before go-live)
+- **Production secrets (C):** rotate Gmail app password, `JWT_SECRET`, DB password; `chmod 600 server/.env`; confirm port 4000 is blocked; change the `admin@ajdaa.sa` password if still `password`.
+- **Test instance (D):** repoint the `ajda.weghetk.com` Caddy block; create `ajda_test`, the CV folder, GitHub secrets and environments.
+- **First production deploy (E):** backup, then run migrations by hand; create the CV folder; grant `managePastProjects`, `viewApplications`, `manageApplications` (later `verifyUsers`); add "أعمالنا السابقة" to the menu; choose the job-application email recipients.
+
+### Production VPS deployment (reference)
+- Ubuntu 24.04 LTS with native PostgreSQL 16 and Redis 7; Caddy 2 with Cloudflare Origin SSL; systemd units (`ajda-api.service`, `ajda-backup.timer`).
+- Deploy with `deploy/remote-deploy.sh <test|prod> <commit-sha>` (called by `.github/workflows/deploy.yml`). CI deploys test only; production and production DB commands stay manual.

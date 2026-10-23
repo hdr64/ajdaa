@@ -30,3 +30,12 @@ Owner request (2026-10-22): UI review of the admin (details, dialogs, toasts, fe
 - Spec: `docs/ADMIN-I18N.md`. Order: `task-w4-i18n-core-prompt.md` (infrastructure, shell, typed toasts, deep-link fix) -> then lanes `task-w4-i18n-l1/l2/l3-prompt.md` in parallel. `task-w4-i18n-server-prompt.md` (localised API messages) can run in parallel with core.
 - Login translate + improve: NOT started on purpose; it rewrites the same files as the auth lane (`ajda-wt/auth`, tasks A/B/C: email verification, TOTP, passkeys). Write its prompt after the auth lane merges.
 - Review findings fixed by these tasks: `/admin/pastProjects` deep link, past-project dialog (Esc loses data, raw "Invalid URL", native alert, no success toast), native `window.confirm` in 3 dialogs, toast has no error kind, uneven toasts, past-works empty text hard-coded Arabic, empty dashboard chart. Public-site minor items (careers file input, title spacing, past-works empty text): `task-w4-public-polish-prompt.md`.
+
+## Auth follow-ups (owner, 2026-10-23)
+- Verification email also carries a 6-digit code; a pending user can open the admin login page and verify with the code.
+- New permission: mark a user as verified from admin Users (super admin always has it).
+- Create-user form: checkbox "send the password in the email".
+(Prompt: `docs/prompts/task-w3-auth-a2-prompt.md`)
+
+## Code-quality review (owner, 2026-10-23)
+- Reusable full review prompt (security, bugs, clean code, UI, perf, tests, ops, docs, i18n): `docs/prompts/code-quality-review-prompt.md`. Output `code-quality-review.md` (previous reports archived in `docs/reviews/`). Run any time and after every major update.

@@ -13,7 +13,7 @@ export const DEFAULT_NAV: CmsNavItem[] = [
   { id: 'nav-works', labelAr: 'مشاريعنا', labelEn: 'Projects', page: 'works', order: 2, enabled: true },
   { id: 'nav-past-works', labelAr: 'أعمالنا السابقة', labelEn: 'Past Works', page: 'pastWorks', order: 3, enabled: true },
   { id: 'nav-clients', labelAr: 'عملاؤنا وشركاؤنا', labelEn: 'Clients & Partners', page: 'clients', order: 4, enabled: true },
-  { id: 'nav-booking', labelAr: 'حجز معاينة', labelEn: 'Book a Viewing', page: 'booking', order: 5, enabled: true, isCta: true },
+  { id: 'nav-booking', labelAr: 'حجز معاينة', labelEn: 'Book a Viewing', page: 'booking', order: 5, enabled: true, isCta: false },
   { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 6, enabled: true },
 ];
 

@@ -73,3 +73,4 @@ server-21-10-26.backup
 # ... but the committed migration and sanitizing scripts must stay tracked.
 !server/prisma/migrations/**/migration.sql
 !deploy/sanitize-test-db.sql
+deploy/mkuser.sh

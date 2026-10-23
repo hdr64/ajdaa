@@ -6,7 +6,7 @@
 
 ## B. Decisions for you now
 - [ ] Approve merging `integration/wave1` into `feat/backend-admin` (Claude will do it when you say so)
-- [ ] Decide when to run the next OpenCode prompt: `task-w2-monitoring-prompt.md` (monitoring; needs `MONITOR_ALLOWED_IPS` and `MONITOR_EXTERNAL_UNTIL` below)
+- [ ] Decide when to run the next OpenCode prompt: `docs/prompts/task-w2-monitoring-prompt.md` (monitoring; needs `MONITOR_ALLOWED_IPS` and `MONITOR_EXTERNAL_UNTIL` below)
 - [ ] Monitoring: set `MONITOR_ALLOWED_IPS` to your own IP (recommended) and `MONITOR_EXTERNAL_UNTIL` = go-live + 30 days
 - [ ] Open the merged app once and look at: `/careers`, `/past-works`, a project page (3D + PDF buttons), admin "Users" create wizard, admin "Applications", admin "Past projects" (Claude will also check these in the browser)
 
@@ -22,12 +22,12 @@
 - [ ] Check Google Maps key restriction (HTTP referrers: ajdaa.sa, ajda.weghetk.com)
 - [ ] Never paste `.env` into chat; use `sed -E 's/=.*/=<hidden>/' server/.env`
 
-## D. For the test instance (test-ajda.weghetk.com)
-- [ ] Create the DNS record for `test-ajda.weghetk.com`
-- [ ] `openssl x509 -in /etc/caddy/weghetk.com.pem -noout -ext subjectAltName` — is it a wildcard? (paste output)
+## D. For the test instance (ajda.weghetk.com, repointed from production)
+- [ ] Replace the `ajda.weghetk.com` block in `/etc/caddy/Caddyfile` with the test block from `deploy/Caddyfile` (basic auth hash first: `caddy hash-password`), then `sudo caddy validate --config /etc/caddy/Caddyfile` and `sudo systemctl reload caddy`
+- [ ] Remove `ajda.weghetk.com` from production `CLIENT_ORIGIN`/`APP_URL` in `/srv/ajda/app/server/.env` (production is `ajdaa.sa` only) and check the Google Maps key referrers
 - [ ] Follow `deploy/README-deploy.md` (deploy SSH key, sudoers line, DB `ajda_test`, sanitized data, Caddy block, GitHub environments/secrets)
 - [ ] **New (careers):** on the test server create the CV folder BEFORE the first restart: `mkdir -p /srv/ajda/test/server/private && chmod 700 /srv/ajda/test/server/private`
-- [ ] Let users test `test-ajda` and tell Claude what you approve
+- [ ] Let users test `ajda.weghetk.com` and tell Claude what you approve
 
 ## E. Before and after the first production deploy (by hand, you only)
 - [ ] **New (careers):** create the CV folder on production before restarting: `mkdir -p /srv/ajda/app/server/private && chmod 700 /srv/ajda/app/server/private`
@@ -42,9 +42,10 @@
 - [ ] Backups now also copy `server/private` (CVs): check the backup folder permissions after the first run
 
 ## G. Auth work (new, 2026-10-22): run in OpenCode, one after the other
-- [ ] `task-w3-login-eye-prompt.md` in `D:\projects\html\ajda` (small: eye button on login). Send me `task-w3-login-eye-report.md`
-- [ ] `task-w3-auth-a-prompt.md` in `D:\projects\html\ajda-wt\auth` (email verification: invite user + create user, password-change email code, super admin exempt). Report: `task-w3-auth-a-report.md`
-- [ ] After I review and commit A: `task-w3-auth-b-prompt.md` (authenticator-app 2FA + recovery codes). Report: `task-w3-auth-b-report.md`
-- [ ] After I review and commit B: `task-w3-auth-c-prompt.md` (passkeys). Report: `task-w3-auth-c-report.md`
+- [x] Login eye button: done, reviewed, committed (archived in `docs/prompts/_archive/wave3/`)
+- [x] Auth A (email verification): done and reviewed, waiting for your browser check and commit approval (archived in `docs/prompts/_archive/wave3/`)
+- [ ] `docs/prompts/task-w3-auth-a2-prompt.md`, run in `D:\projects\html\ajda-wt\auth` (email code, `verifyUsers` permission, send-password checkbox). The report lands in `docs/prompts/`
+- [ ] After I review and commit A2: `docs/prompts/task-w3-auth-b-prompt.md` (authenticator-app 2FA + recovery codes)
+- [ ] After I review and commit B: `docs/prompts/task-w3-auth-c-prompt.md` (passkeys)
 - [ ] Before the production deploy of these: decide the passkey domain (`WEBAUTHN_RP_ID`, default = the site host; passkeys stop working if the domain changes later) and run the three new migrations by hand
 
