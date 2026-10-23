@@ -1,21 +1,24 @@
-/**
- * `ar-SA` defaults to the Hijri calendar; the admin shows Gregorian dates with
- * Latin digits so they line up with CSV exports and server logs.
- */
-const DATE_LOCALE = 'ar-SA-u-ca-gregory-nu-latn';
+import { adminLocale, documentLanguage, translateCurrent } from '../../i18n/admin/core';
 
-export function formatAdminDate(value: string | Date | null | undefined): string {
+/**
+ * Arabic renders Gregorian dates with Latin digits (`adminLocale`); English
+ * renders en-GB. Both are read from the running document language so every
+ * caller gets the right one without threading it through props.
+ */
+const currentLocale = () => adminLocale(documentLanguage());
+
+export function formatAdminDate(value: string | Date | null | undefined, locale = currentLocale()): string {
   if (!value) return '—';
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString(DATE_LOCALE, { year: 'numeric', month: 'short', day: 'numeric' });
+  return date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function formatAdminDateTime(value: string | Date | null | undefined): string {
+export function formatAdminDateTime(value: string | Date | null | undefined, locale = currentLocale()): string {
   if (!value) return '—';
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString(DATE_LOCALE, {
+  return date.toLocaleString(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -32,12 +35,12 @@ export function formatRelativeTime(value: string | Date | null | undefined): str
   if (Number.isNaN(diffMs)) return '—';
 
   const minutes = Math.round(diffMs / 60_000);
-  if (minutes < 1) return 'الآن';
-  if (minutes < 60) return `منذ ${minutes} دقيقة`;
+  if (minutes < 1) return translateCurrent('common.time.now');
+  if (minutes < 60) return translateCurrent('common.time.minutes', { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `منذ ${hours} ساعة`;
+  if (hours < 24) return translateCurrent('common.time.hours', { count: hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `منذ ${days} يوم`;
+  if (days < 7) return translateCurrent('common.time.days', { count: days });
   return formatAdminDate(date);
 }
 

@@ -59,12 +59,14 @@ import {
   X,
 } from 'lucide-react';
 import { usePersistentState } from '../../../hooks/usePersistentState';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
+import { translateCurrent } from '../../../i18n/admin/core';
+import type { AdminKey } from '../../../i18n/admin';
 import { EmptyState } from './EmptyState';
 import {
   ALIGN_CLASS,
   ALIGN_FLEX_CLASS,
   DEFAULT_PAGE_SIZE,
-  DENSITY_LABELS,
   PAGE_SIZES,
   SORT_ARIA,
   compareSortValues,
@@ -81,6 +83,12 @@ import {
 } from './dataTableTypes';
 
 const DENSITY_OPTIONS: readonly Density[] = ['comfortable', 'compact'];
+
+const DENSITY_KEYS: Record<Density, AdminKey> = {
+  comfortable: 'common.table.densityComfortable',
+  compact: 'common.table.densityCompact',
+};
+const COLUMNS_KEY: AdminKey = 'common.view.columns';
 
 /** Longest cell text kept on one line; the full value stays available as a tooltip. */
 const TRUNCATE_CELL = 'truncate max-w-[20rem]';
@@ -108,6 +116,7 @@ export function DataTable<T>({
   toolbarStart,
   initialSort,
 }: DataTableProps<T>) {
+  const { t } = useAdminT();
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -273,7 +282,7 @@ export function DataTable<T>({
       try {
         await action.onRun(selectedRows);
       } catch (error) {
-        setBulkError(error instanceof Error ? error.message : 'تعذر تنفيذ الإجراء المحدد');
+        setBulkError(error instanceof Error ? error.message : translateCurrent('common.state.actionFailed'));
       } finally {
         setPendingAction(null);
       }
@@ -325,15 +334,15 @@ export function DataTable<T>({
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="ابحث في النتائج..."
-                aria-label="بحث في النتائج"
+                placeholder={t('common.table.search')}
+                aria-label={t('common.table.searchAria')}
                 className="w-full ps-9 pe-8 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
               />
               {query !== '' && (
                 <button
                   type="button"
                   onClick={() => setQuery('')}
-                  aria-label="مسح البحث"
+                  aria-label={t('common.table.clearSearch')}
                   className="absolute end-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -346,7 +355,7 @@ export function DataTable<T>({
 
           <div className="ms-auto flex items-center gap-1.5">
             <span className="text-[11px] font-bold text-neutral-text/60 tabular-nums" aria-live="polite">
-              {sortedRows.length} من {rows.length}
+              {t('common.table.count', { shown: sortedRows.length, total: rows.length })}
             </span>
 
             {filterableColumns.length > 0 && (
@@ -357,7 +366,7 @@ export function DataTable<T>({
                 className="brand-btn-secondary px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" />
-                تصفية
+                {t('common.table.filter')}
                 {activeFilterCount > 0 && (
                   <span className="brand-fill text-canvas rounded-full min-w-[1rem] px-1 text-[10px] tabular-nums">{activeFilterCount}</span>
                 )}
@@ -374,14 +383,14 @@ export function DataTable<T>({
                   className="brand-btn-secondary px-2.5 py-1.5 rounded-xl text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Columns3 className="w-3.5 h-3.5" />
-                  الأعمدة
+                  {t(COLUMNS_KEY)}
                   <ChevronDown className={`w-3 h-3 transition-transform ${columnsOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {columnsOpen && (
                   <div
                     role="group"
-                    aria-label="الأعمدة المعروضة"
+                    aria-label={t('common.table.columnsShown')}
                     className="absolute end-0 mt-2 z-30 w-52 rounded-2xl bg-surface border border-muted-border/40 shadow-lg p-2"
                   >
                     {hideableColumns.map((column) => {
@@ -407,14 +416,14 @@ export function DataTable<T>({
                       onClick={() => setHiddenColumnIds(columns.filter((column) => column.defaultHidden).map((column) => column.id))}
                       className="w-full px-2 pt-2 mt-1 border-t border-muted-border/20 text-[11px] text-neutral-text/60 hover:text-accent cursor-pointer"
                     >
-                      إعادة الضبط
+                      {t('common.table.resetColumns')}
                     </button>
                   </div>
                 )}
               </div>
             )}
 
-            <div className="inline-flex rounded-xl border border-muted-border/40 p-0.5 bg-canvas" role="group" aria-label="كثافة العرض">
+            <div className="inline-flex rounded-xl border border-muted-border/40 p-0.5 bg-canvas" role="group" aria-label={t('common.table.density')}>
               {DENSITY_OPTIONS.map((option) => (
                 <button
                   key={option}
@@ -425,7 +434,7 @@ export function DataTable<T>({
                     density === option ? 'brand-fill text-canvas shadow-xs' : 'text-neutral-text/55 hover:text-heading'
                   }`}
                 >
-                  {DENSITY_LABELS[option]}
+                  {t(DENSITY_KEYS[option])}
                 </button>
               ))}
             </div>
@@ -443,7 +452,7 @@ export function DataTable<T>({
                     onChange={(event) => setFilter(column.id, event.target.value)}
                     className="w-full px-2 py-1.5 rounded-xl bg-surface border border-muted-border/50 text-xs text-heading outline-none focus:border-accent cursor-pointer"
                   >
-                    <option value="">الكل</option>
+                    <option value="">{t('common.table.filterAll')}</option>
                     {filter.options.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -455,8 +464,8 @@ export function DataTable<T>({
                     type="search"
                     value={filters[column.id] ?? ''}
                     onChange={(event) => setFilter(column.id, event.target.value)}
-                    placeholder="بحث..."
-                    aria-label={`تصفية حسب ${column.header}`}
+                    placeholder={t('common.table.filterSearch')}
+                    aria-label={t('common.table.filterBy', { column: column.header })}
                     className="w-full px-2 py-1.5 rounded-xl bg-surface border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
                   />
                 )}
@@ -470,7 +479,7 @@ export function DataTable<T>({
                 className="self-end justify-self-start px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
-                مسح الكل
+                {t('common.table.clearFilters')}
               </button>
             )}
           </div>
@@ -480,7 +489,7 @@ export function DataTable<T>({
       {/* --------------------------- Selection bar --------------------------- */}
       {selectable && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-accent/5 border-b border-muted-border/30">
-          <span className="text-[11px] font-bold text-accent tabular-nums">تم تحديد {selectedIds.length}</span>
+          <span className="text-[11px] font-bold text-accent tabular-nums">{t('common.table.selected', { count: selectedIds.length })}</span>
           {bulkActions?.map((action) => {
             const Icon = action.icon;
             return (
@@ -510,7 +519,7 @@ export function DataTable<T>({
             className="ms-auto px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-neutral-text/60 hover:text-heading inline-flex items-center gap-1 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
-            إلغاء التحديد
+            {t('common.table.clearSelection')}
           </button>
         </div>
       )}
@@ -518,7 +527,7 @@ export function DataTable<T>({
       {bulkError && (
         <div role="alert" className="flex items-center justify-between gap-2 px-4 py-2.5 bg-red-500/10 text-[11px] font-bold text-red-500">
           <span className="truncate">{bulkError}</span>
-          <button type="button" onClick={() => setBulkError(null)} aria-label="إغلاق الخطأ" className="cursor-pointer">
+          <button type="button" onClick={() => setBulkError(null)} aria-label={t('common.table.errorClose')} className="cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -537,7 +546,7 @@ export function DataTable<T>({
                     checked={allFilteredSelected}
                     onChange={toggleAllFiltered}
                     disabled={filteredIds.length === 0}
-                    aria-label="تحديد كل النتائج"
+                    aria-label={t('common.table.selectAll')}
                     className="w-3.5 h-3.5 rounded accent-accent"
                   />
                 </th>
@@ -558,7 +567,7 @@ export function DataTable<T>({
                       <button
                         type="button"
                         onClick={() => setSort(cycleSort(sort, column.id))}
-                        title={`ترتيب حسب ${column.header}`}
+                        title={t('common.table.sortBy', { column: column.header })}
                         className={`inline-flex items-center gap-1 cursor-pointer transition hover:text-heading ${
                           sortState ? 'text-accent' : ''
                         } ${ALIGN_FLEX_CLASS[align]}`}
@@ -586,7 +595,7 @@ export function DataTable<T>({
                   scope="col"
                   className="sticky end-0 top-0 z-20 bg-canvas border-s border-muted-border/30 px-3 py-2.5 text-end font-bold whitespace-nowrap"
                 >
-                  إجراءات
+                  {t('common.table.actions')}
                 </th>
               )}
             </tr>
@@ -600,11 +609,11 @@ export function DataTable<T>({
                     <EmptyState
                       icon={SearchX}
                       compact
-                      title={noRowsAtAll || !isFiltered ? 'لا توجد بيانات لعرضها' : 'لا توجد نتائج مطابقة'}
+                      title={noRowsAtAll || !isFiltered ? t('common.empty.noData') : t('common.empty.noResults')}
                       description={
                         noRowsAtAll || !isFiltered
                           ? undefined
-                          : 'جرّب تعديل كلمة البحث أو إزالة عوامل التصفية.'
+                          : t('common.empty.noResultsHint')
                       }
                     />
                   )}
@@ -643,7 +652,7 @@ export function DataTable<T>({
                           checked={selected}
                           onChange={() => toggleRow(id)}
                           onClick={(event) => event.stopPropagation()}
-                          aria-label="تحديد الصف"
+                          aria-label={t('common.table.selectRow')}
                           className="w-3.5 h-3.5 rounded accent-accent"
                         />
                       </td>
@@ -691,11 +700,11 @@ export function DataTable<T>({
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-muted-border/30">
         {rows.length > PAGE_SIZES[0] ? (
           <label className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-text/60">
-            <span>الصفوف</span>
+            <span>{t('common.table.rows')}</span>
             <select
               value={pageSize}
               onChange={(event) => setPageSize(Number(event.target.value))}
-              aria-label="عدد الصفوف في الصفحة"
+              aria-label={t('common.table.rowsPerPage')}
               className="px-2 py-1.5 rounded-xl bg-canvas border border-muted-border/50 text-xs font-bold text-heading outline-none focus:border-accent cursor-pointer tabular-nums"
             >
               {PAGE_SIZES.map((size) => (
@@ -706,18 +715,18 @@ export function DataTable<T>({
             </select>
           </label>
         ) : (
-          <span className="text-[11px] font-bold text-neutral-text/60 tabular-nums">المجموع: {rows.length}</span>
+          <span className="text-[11px] font-bold text-neutral-text/60 tabular-nums">{t('common.table.total', { count: rows.length })}</span>
         )}
 
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-bold text-neutral-text/60 tabular-nums me-1">
-            صفحة {currentPage} من {totalPages}
+            {t('common.table.page', { current: currentPage, pages: totalPages })}
           </span>
           <button
             type="button"
             disabled={currentPage === 1}
             onClick={() => setPage(currentPage - 1)}
-            aria-label="الصفحة السابقة"
+            aria-label={t('common.table.prevPage')}
             className="brand-btn-secondary p-2 rounded-xl text-heading disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             <ChevronRight className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />
@@ -726,7 +735,7 @@ export function DataTable<T>({
             type="button"
             disabled={currentPage === totalPages}
             onClick={() => setPage(currentPage + 1)}
-            aria-label="الصفحة التالية"
+            aria-label={t('common.table.nextPage')}
             className="brand-btn-secondary p-2 rounded-xl text-heading disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />

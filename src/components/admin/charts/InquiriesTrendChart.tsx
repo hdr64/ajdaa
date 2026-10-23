@@ -1,10 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import type { CustomerInquiry } from '../../../types/property';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
+import { adminLocale, documentLanguage } from '../../../i18n/admin/core';
+import { EmptyState } from '../common/EmptyState';
+import { Inbox } from 'lucide-react';
 import { ChartTable, ChartViewToggle } from './chartParts';
 
 const WEEKS = 12;
 const DAY_MS = 86_400_000;
-const LABEL_LOCALE = 'ar-SA-u-ca-gregory-nu-latn';
 
 /** Start of the week (Sunday, the Saudi working-week start) at local midnight. */
 function weekStart(date: Date): Date {
@@ -12,8 +15,6 @@ function weekStart(date: Date): Date {
   d.setDate(d.getDate() - d.getDay());
   return d;
 }
-
-const shortDate = (d: Date) => d.toLocaleDateString(LABEL_LOCALE, { day: 'numeric', month: 'short' });
 
 /** Round the axis maximum up to a readable step. */
 function niceMax(value: number): number {
@@ -34,6 +35,7 @@ interface Bucket {
  * view holds the same numbers.
  */
 export const InquiriesTrendChart: React.FC<{ inquiries: CustomerInquiry[] }> = ({ inquiries }) => {
+  const { t } = useAdminT();
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [hover, setHover] = useState<number | null>(null);
 
@@ -59,46 +61,50 @@ export const InquiriesTrendChart: React.FC<{ inquiries: CustomerInquiry[] }> = (
   const thisWeek = buckets[WEEKS - 1].count;
   const lastWeek = buckets[WEEKS - 2].count;
 
+  const shortDate = (d: Date) => d.toLocaleDateString(adminLocale(documentLanguage()), { day: 'numeric', month: 'short' });
+
   return (
     <section className="rounded-2xl bg-surface border border-muted-border/40 p-5 sm:p-6 shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
-          <h3 className="text-sm font-black text-heading">طلبات الاهتمام أسبوعياً</h3>
+          <h3 className="text-sm font-black text-heading">{t('charts.inquiriesTrend.title')}</h3>
           <p className="text-[11px] text-neutral-text/60 mt-0.5">
-            آخر {WEEKS} أسبوعاً · {total} طلب · هذا الأسبوع {thisWeek} (الأسبوع الماضي {lastWeek})
+            {t('charts.inquiriesTrend.subtitle', { weeks: WEEKS, total, thisWeek, lastWeek })}
           </p>
         </div>
-        <ChartViewToggle view={view} onChange={setView} />
+        {total > 0 && <ChartViewToggle view={view} onChange={setView} />}
       </div>
 
-      {view === 'table' ? (
+      {total === 0 ? (
+        <EmptyState icon={Inbox} compact title={t('charts.inquiriesTrend.empty', { weeks: WEEKS })} />
+      ) : view === 'table' ? (
         <ChartTable
-          caption="طلبات الاهتمام لكل أسبوع"
-          headers={['الأسبوع', 'عدد الطلبات']}
-          rows={buckets.map((b) => [`من ${shortDate(b.start)}`, b.count])}
+          caption={t('charts.inquiriesTrend.title')}
+          headers={[t('charts.inquiriesTrend.week'), t('charts.inquiriesTrend.count')]}
+          rows={buckets.map((b) => [t('charts.inquiriesTrend.weekOf', { date: shortDate(b.start) }), b.count])}
         />
       ) : (
         <div className="flex gap-2" dir="ltr">
           {/* Y axis: recessive, three ticks */}
           <div className="flex flex-col justify-between h-44 text-[10px] text-neutral-text/50 text-end w-6 shrink-0 -mt-1.5 pb-5">
-            {ticks.map((t) => (
-              <span key={t}>{t}</span>
+            {ticks.map((tick) => (
+              <span key={tick}>{tick}</span>
             ))}
           </div>
 
           <div className="relative flex-1 min-w-0">
             {/* Gridlines */}
             <div className="absolute inset-x-0 top-0 h-44 pb-5 flex flex-col justify-between pointer-events-none" aria-hidden="true">
-              {ticks.map((t) => (
-                <div key={t} className="border-t" style={{ borderColor: 'var(--viz-grid)' }} />
+              {ticks.map((tick) => (
+                <div key={tick} className="border-t" style={{ borderColor: 'var(--viz-grid)' }} />
               ))}
             </div>
 
             {/* Bars, oldest on the left (time reads left to right even in RTL) */}
-            <div className="relative h-44 pb-5 flex items-end gap-[2px]" role="list" aria-label="طلبات الاهتمام أسبوعياً">
+            <div className="relative h-44 pb-5 flex items-end gap-[2px]" role="list" aria-label={t('charts.inquiriesTrend.title')}>
               {buckets.map((bucket, index) => {
                 const height = max > 0 ? (bucket.count / max) * 100 : 0;
-                const label = `أسبوع ${shortDate(bucket.start)}: ${bucket.count} طلب`;
+                const label = t('charts.inquiriesTrend.barAria', { date: shortDate(bucket.start), count: bucket.count });
                 return (
                   <div
                     key={bucket.start.getTime()}
@@ -131,8 +137,8 @@ export const InquiriesTrendChart: React.FC<{ inquiries: CustomerInquiry[] }> = (
                         className="absolute bottom-full mb-1 z-10 px-2.5 py-1.5 rounded-lg bg-canvas border border-muted-border/50 shadow-lg whitespace-nowrap text-center pointer-events-none"
                         dir="rtl"
                       >
-                        <div className="text-xs font-black text-heading">{bucket.count} طلب</div>
-                        <div className="text-[10px] text-neutral-text/60">أسبوع يبدأ {shortDate(bucket.start)}</div>
+                        <div className="text-xs font-black text-heading">{t('charts.inquiriesTrend.requests', { count: bucket.count })}</div>
+                        <div className="text-[10px] text-neutral-text/60">{t('charts.inquiriesTrend.weekStarting', { date: shortDate(bucket.start) })}</div>
                       </div>
                     )}
                   </div>
