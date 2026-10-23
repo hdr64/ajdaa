@@ -52,6 +52,22 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
         setStep('otp');
       }
     } catch (caught) {
+      // Correct credentials on an unverified account are a 403, not a login
+      // failure: the address must be confirmed before a session can be issued.
+      const details = (caught as { details?: unknown }).details;
+      if (
+        caught instanceof ApiError &&
+        details &&
+        typeof details === 'object' &&
+        (details as { code?: unknown }).code === 'EMAIL_NOT_VERIFIED'
+      ) {
+        setError(
+          isAr
+            ? 'لم يتم تأكيد بريدك الإلكتروني بعد. افتح رابط التفعيل المرسل إلى بريدك أو اطلب من المسؤول إعادة إرساله.'
+            : 'Your email is not verified yet. Open the verification link sent to your email, or ask an admin to resend it.'
+        );
+        return;
+      }
       setError(
         getErrorMessage(
           caught,

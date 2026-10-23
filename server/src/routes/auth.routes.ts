@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
@@ -9,9 +10,18 @@ import { config } from '../config/env.js';
 import { parsePreferences, preferencesSchema } from '../config/preferences.js';
 import { loginOtpRequiredForAll } from '../services/securitySettings.js';
 import { loginFailureTracker } from '../services/loginFailureService.js';
-import { mailBrandName, sendMail } from '../services/mailService.js';
+import { mailBrandName, isMailEnabled, sendMail } from '../services/mailService.js';
 import { loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
 import { notifyPasswordChanged } from '../services/notificationService.js';
+import { dispatch } from '../services/queueService.js';
+import { sendInviteEmailJob, sendEmailVerificationJob, sendPasswordChangeCodeJob } from '../jobs/emailJobs.js';
+import {
+  consumeEmailVerificationToken,
+  issueEmailVerificationToken,
+  lastVerificationPurpose,
+  latestTokenIssuedAt,
+  type EmailVerificationPurpose,
+} from '../services/emailVerificationService.js';
 import {
   clearChallenges,
   findChallengeOwner,
@@ -62,6 +72,21 @@ const RESET_FAILED_ERROR = 'تعذّر إكمال إعادة التعيين: ر�
 const MAIL_UNAVAILABLE_ERROR =
   'تعذّر إرسال رسالة البريد الإلكتروني، حاول بعد قليل / Could not send the verification email, please try again shortly';
 
+const EMAIL_NOT_VERIFIED_ERROR =
+  'لم يتم تأكيد بريدك الإلكتروني بعد / Your email address has not been verified yet';
+const EMAIL_VERIFICATION_FAILED_ERROR =
+  'رابط التحقق غير صالح أو منتهي الصلاحية / The verification link is invalid or has expired';
+const INVITE_FAILED_ERROR = 'رابط الدعوة غير صالح أو منتهي الصلاحية / The invite link is invalid or has expired';
+const CODE_REQUIRED_ERROR = 'رمز تأكيد تغيير كلمة المرور مطلوب / A password-change confirmation code is required';
+const SUPER_ADMIN_PASSWORD_REQUIRED_ERROR =
+  'يحصل المدير العام على كلمة مرور يحددها المسؤول ولا يمكن دعوته / A super admin is created with an admin-set password and cannot be invited';
+const INVITE_PASSWORD_FORBIDDEN_ERROR =
+  'لا تُحدَّد كلمة مرور للمستخدم المدعو، فهو يختارها بنفسه / An invited user chooses their own password, so none may be set here';
+const EMAIL_ALREADY_VERIFIED_ERROR = 'تم تأكيد بريد هذا الحساب بالفعل / This account email is already verified';
+const PENDING_ACTIVATION_ERROR =
+  'لا يمكن تنشيط حساب لم يُؤكَّد بريده الإلكتروني بعد / An account with an unverified email cannot be activated';
+const RESEND_TOO_SOON_ERROR = 'يرجى الانتظار قبل إعادة إرسال الرابط / Please wait before requesting a new link';
+
 const RATE_LIMIT_ERROR_BODY = {
   statusCode: 429,
   error: 'Too Many Requests',
@@ -79,14 +104,35 @@ const updateProfileSchema = z
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
   newPassword: z.string().min(1, 'New password is required'),
+  // Required for a non-super-admin (the emailed confirmation step); a super
+  // admin keeps the one-step call and omits both.
+  challengeId: z.string().trim().min(1).optional(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits').optional(),
+});
+
+const requestPasswordChangeSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(1, 'New password is required'),
+});
+
+const verifyEmailSchema = z.object({
+  token: z.string().trim().min(1, 'Token is required'),
+});
+
+const acceptInviteSchema = z.object({
+  token: z.string().trim().min(1, 'Token is required'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 const createUserSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
+  // 'create' keeps today's flow (admin sets a password, account starts pending);
+  // 'invite' emails a link where the user picks their own password.
+  mode: z.enum(['create', 'invite']).default('create'),
   // No default: an account is never created with a password nobody chose.
   // The policy itself is checked in the handler.
-  password: z.string().min(8),
+  password: z.string().min(8).optional(),
   phone: z.string().trim().nullish(),
   role: z.string().optional(),
   roleId: z.string().optional(),
@@ -164,6 +210,34 @@ async function findActiveUser(id: string): Promise<OtpUser | null> {
   return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
 
+const VERIFICATION_MAIL_JOB = {
+  invite: sendInviteEmailJob,
+  verify: sendEmailVerificationJob,
+} as const;
+
+/**
+ * Issues a fresh verification link for the account and queues the matching mail.
+ *
+ * Mail never blocks account creation: the job runs through the queue (so a dead
+ * server is retried), and the returned flag reflects whether SMTP is configured
+ * at all — `false` is the UI's cue to offer "resend". In the in-memory transport
+ * the job still records the message for the tests to assert on.
+ */
+async function sendAccountVerificationMail(
+  user: { id: string; email: string; name: string },
+  purpose: EmailVerificationPurpose
+): Promise<boolean> {
+  const { token } = await issueEmailVerificationToken(user.id, purpose);
+  const mailSent = await isMailEnabled();
+  await dispatch(VERIFICATION_MAIL_JOB[purpose], { to: user.email, name: user.name, token });
+  return mailSent;
+}
+
+/** A bcrypt hash of a value nobody knows: an invited account has no usable password. */
+async function hashUnusablePassword(): Promise<string> {
+  return bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+}
+
 /**
  * The per-email lockout applies to the whole login flow: a correct password plus
  * a valid code must not be a way around it. Answers `429` and returns `true`
@@ -177,6 +251,18 @@ function rejectIfLocked(email: string, reply: FastifyReply): boolean {
   reply.status(429).send({
     error: 'تم تجاوز الحد الأقصى للمحاولات غير الصحيحة، يرجى المحاولة لاحقاً / Too many failed login attempts, please try again later',
   });
+  return true;
+}
+
+const PASSWORD_LOCKOUT_ERROR =
+  'تم تجاوز الحد الأقصى للمحاولات غير الصحيحة، يرجى المحاولة لاحقاً / Too many failed attempts, please try again later';
+
+/** The self-service password lockout, shared by the request and confirm steps. */
+function rejectPasswordChangeLockout(email: string, reply: FastifyReply): boolean {
+  const lockout = loginFailureTracker.isLocked(email);
+  if (!lockout.locked) return false;
+  reply.header('Retry-After', lockout.retryAfter.toString());
+  reply.status(429).send({ error: PASSWORD_LOCKOUT_ERROR });
   return true;
 }
 
@@ -259,6 +345,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // bounds guessing, and charging it here would let anyone holding a stolen
       // password lock the real owner out for the whole window.
       loginFailureTracker.recordSuccess(normalizedEmail);
+
+      // Only reached once the password is proven, so 503/403 here is never an
+      // oracle for a wrong password. A create-mode `pending` account has a real
+      // password and is told to verify; an invite account has an unusable one
+      // and already failed the bcrypt check above with a plain 401.
+      if (user.status === 'pending') {
+        return reply.status(403).send({ error: EMAIL_NOT_VERIFIED_ERROR, code: 'EMAIL_NOT_VERIFIED' });
+      }
 
       if (await requiresLoginOtp(user)) {
         const { challengeId, code } = await issueChallenge(user.id, 'login');
@@ -488,6 +582,87 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // Confirm a create-mode account's email (Public). Every failure answers the
+  // same 400 so the endpoint cannot be used to learn which links are live.
+  fastify.post(
+    '/verify-email',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitPasswordResetMax,
+          timeWindow: config.rateLimitPasswordResetWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(verifyEmailSchema)],
+    },
+    async (request, reply) => {
+      const { token } = verifyEmailSchema.parse(request.body ?? {});
+
+      const consumed = await consumeEmailVerificationToken(token, 'verify');
+      if (!consumed.ok) {
+        return reply.status(400).send({ error: EMAIL_VERIFICATION_FAILED_ERROR });
+      }
+
+      // The cascade deletes tokens with the account, so a live token always has
+      // an owner; the null check is the unreachable boundary guard.
+      const user = await prisma.adminUser.findUnique({ where: { id: consumed.adminUserId } });
+      if (!user) {
+        return reply.status(400).send({ error: EMAIL_VERIFICATION_FAILED_ERROR });
+      }
+
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date(), status: 'active' },
+      });
+
+      return { verified: true };
+    }
+  );
+
+  // Accept an invite: verify the address and set the first password (Public).
+  fastify.post(
+    '/accept-invite',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitPasswordResetMax,
+          timeWindow: config.rateLimitPasswordResetWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(acceptInviteSchema)],
+    },
+    async (request, reply) => {
+      const { token, password } = acceptInviteSchema.parse(request.body ?? {});
+
+      // The policy is checked before the token is touched: a weak password must
+      // not burn the recipient's only invite link.
+      if (!meetsPasswordPolicy(password)) {
+        return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
+      }
+
+      const consumed = await consumeEmailVerificationToken(token, 'invite');
+      if (!consumed.ok) {
+        return reply.status(400).send({ error: INVITE_FAILED_ERROR });
+      }
+
+      const user = await prisma.adminUser.findUnique({ where: { id: consumed.adminUserId } });
+      if (!user) {
+        return reply.status(400).send({ error: INVITE_FAILED_ERROR });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { passwordHash, passwordChangedAt: new Date(), emailVerifiedAt: new Date(), status: 'active' },
+      });
+
+      // No session is minted here: the UI sends the new admin to the login page.
+      return { activated: true };
+    }
+  );
+
   // Get current user profile
   fastify.get('/me', { onRequest: [authenticate] }, async (request, reply) => {
     const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
@@ -530,25 +705,21 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // Change password
+  // Start a self-service password change (step 1). Validates the current
+  // password and the policy, then emails a single-use code. The new password is
+  // never stored here — only the code's hash is — so a lost step cannot set it.
   fastify.post(
-    '/me/password',
-    { onRequest: [authenticate], preValidation: [validateBody(changePasswordSchema)] },
+    '/me/password/request',
+    { onRequest: [authenticate], preValidation: [validateBody(requestPasswordChangeSchema)] },
     async (request, reply) => {
-      const { currentPassword, newPassword } = changePasswordSchema.parse(request.body ?? {});
+      const { currentPassword, newPassword } = requestPasswordChangeSchema.parse(request.body ?? {});
 
       const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
       if (!user) {
         return reply.status(404).send({ error: 'User not found' });
       }
 
-      const lockout = loginFailureTracker.isLocked(user.email);
-      if (lockout.locked) {
-        reply.header('Retry-After', lockout.retryAfter.toString());
-        return reply.status(429).send({
-          error: 'تم تجاوز الحد الأقصى للمحاولات غير الصحيحة، يرجى المحاولة لاحقاً / Too many failed attempts, please try again later',
-        });
-      }
+      if (rejectPasswordChangeLockout(user.email, reply)) return reply;
 
       const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!isMatch) {
@@ -558,6 +729,62 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!meetsPasswordPolicy(newPassword, currentPassword)) {
         return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
+      }
+
+      loginFailureTracker.recordSuccess(user.email);
+
+      const { challengeId, code } = await issueChallenge(user.id, 'password_change');
+      await dispatch(sendPasswordChangeCodeJob, { to: user.email, name: user.name, code });
+
+      return { challengeId, emailHint: emailHint(user.email) };
+    }
+  );
+
+  // Change password. A super admin does this in one step; every other account
+  // must first obtain a code via `/me/password/request` and present it here.
+  fastify.post(
+    '/me/password',
+    { onRequest: [authenticate], preValidation: [validateBody(changePasswordSchema)] },
+    async (request, reply) => {
+      const { currentPassword, newPassword, challengeId, code } = changePasswordSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      const requiresCode = user.role !== 'super_admin';
+      if (requiresCode && (!challengeId || !code)) {
+        return reply.status(400).send({ error: CODE_REQUIRED_ERROR, code: 'CODE_REQUIRED' });
+      }
+
+      if (rejectPasswordChangeLockout(user.email, reply)) return reply;
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        loginFailureTracker.recordFailure(user.email);
+        return reply.status(401).send({ error: 'Current password is incorrect' });
+      }
+
+      if (!meetsPasswordPolicy(newPassword, currentPassword)) {
+        return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
+      }
+
+      // Verified last, after every other check: a wrong current password or a
+      // weak new one must not spend the emailed code.
+      if (requiresCode) {
+        const verdict = await verifyChallenge(challengeId!, code!, 'password_change');
+        if (!verdict.ok) {
+          if (verdict.reason === 'invalid') {
+            return reply.status(400).send({ error: OTP_INVALID_ERROR, attemptsLeft: verdict.attemptsLeft });
+          }
+          return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+        }
+        // The challenge must belong to the caller: a guessed or borrowed id is
+        // treated exactly like a dead one, so it never becomes an oracle.
+        if (verdict.adminUserId !== user.id) {
+          return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+        }
       }
 
       const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -765,12 +992,31 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Email already exists' });
       }
 
-      // An admin-chosen password obeys the same policy as a self-service one.
-      if (!meetsPasswordPolicy(body.password)) {
+      const targetIsSuperAdmin = resolvedRoleKey === 'super_admin';
+
+      if (body.mode === 'invite') {
+        if (targetIsSuperAdmin) {
+          return reply.status(400).send({ error: SUPER_ADMIN_PASSWORD_REQUIRED_ERROR });
+        }
+        if (body.password !== undefined) {
+          return reply.status(400).send({ error: INVITE_PASSWORD_FORBIDDEN_ERROR });
+        }
+      } else if (!meetsPasswordPolicy(body.password ?? '')) {
+        // An admin-chosen password obeys the same policy as a self-service one.
         return reply.status(400).send({ error: PASSWORD_POLICY_ERROR });
       }
 
-      const passwordHash = await bcrypt.hash(body.password, 10);
+      // Super admins are the only account that skips verification: born active,
+      // with a proven address and no mail. Everyone else starts `pending`.
+      const verificationPurpose: EmailVerificationPurpose | null = targetIsSuperAdmin
+        ? null
+        : body.mode === 'invite'
+          ? 'invite'
+          : 'verify';
+
+      const passwordHash =
+        body.mode === 'invite' ? await hashUnusablePassword() : await bcrypt.hash(body.password!, 10);
+
       const created = await prisma.adminUser.create({
         data: {
           name: body.name,
@@ -782,11 +1028,51 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           department: resolvedDepartmentText,
           departmentId: resolvedDepartmentId,
           permissions: JSON.stringify(resolvedPermissions),
-          status: 'active',
+          status: verificationPurpose === null ? 'active' : 'pending',
+          emailVerifiedAt: verificationPurpose === null ? new Date() : null,
         },
       });
 
-      return reply.status(201).send(serializeUser(created));
+      const mailSent = verificationPurpose
+        ? await sendAccountVerificationMail(
+            { id: created.id, email: created.email, name: created.name },
+            verificationPurpose
+          )
+        : true;
+
+      return reply.status(201).send({ ...serializeUser(created), mailSent });
+    }
+  );
+
+  // Re-send a pending account's verification link (manageUsers)
+  fastify.post(
+    '/users/:id/resend-verification',
+    { onRequest: [authenticate, requirePermission('manageUsers')] },
+    async (request, reply) => {
+      const { id } = userIdParamsSchema.parse(request.params);
+      const user = await prisma.adminUser.findUnique({ where: { id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+      if (user.emailVerifiedAt !== null || user.status !== 'pending') {
+        return reply.status(409).send({ error: EMAIL_ALREADY_VERIFIED_ERROR });
+      }
+
+      // A given account only ever carries one purpose, so the newest link's
+      // purpose is the flow it was created with.
+      const purpose = (await lastVerificationPurpose(user.id)) ?? 'verify';
+
+      const issuedAt = await latestTokenIssuedAt(user.id, purpose);
+      if (issuedAt) {
+        const elapsedMs = Date.now() - issuedAt.getTime();
+        if (elapsedMs < config.loginOtpResendCooldownMs) {
+          reply.header('Retry-After', Math.max(1, Math.ceil((config.loginOtpResendCooldownMs - elapsedMs) / 1000)).toString());
+          return reply.status(429).send({ error: RESEND_TOO_SOON_ERROR });
+        }
+      }
+
+      await sendAccountVerificationMail({ id: user.id, email: user.email, name: user.name }, purpose);
+      return { sent: true };
     }
   );
 
@@ -901,6 +1187,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         if (activeSuperAdmins <= 1) {
           return reply.status(400).send({ error: 'Cannot demote or suspend the last active super admin' });
         }
+      }
+
+      // A pending account must prove its address through the emailed link, never
+      // through an admin flipping its status here — that would bypass verification.
+      if (body.status === 'active' && target.status !== 'active' && target.emailVerifiedAt === null) {
+        return reply.status(400).send({ error: PENDING_ACTIVATION_ERROR });
       }
 
       // An admin-chosen password obeys the same policy as a self-service one.

@@ -429,7 +429,9 @@ describe('Password reset by email', () => {
   });
 
   it('notifies on a self-service password change too', async () => {
-    const user = await createThrowawayUser({ name: 'Change Notify', password: PASSWORD });
+    // Super admin takes the one-step change; the non-super-admin code flow is
+    // asserted in email-verification.test.ts.
+    const user = await createThrowawayUser({ name: 'Change Notify', password: PASSWORD, role: 'super_admin' });
     cleanupUsers.push(user.id);
     loginFailureTracker.recordSuccess(user.email);
     const session = await login(user.email, PASSWORD);

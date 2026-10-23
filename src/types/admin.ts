@@ -2,7 +2,7 @@ import type { PropertyType } from './property';
 
 export type AdminRole = 'super_admin' | 'project_manager' | 'sales_agent' | 'viewer';
 
-export type AdminStatus = 'active' | 'suspended';
+export type AdminStatus = 'active' | 'pending' | 'suspended';
 
 export interface AdminPermissions {
   manageProjects: boolean;
@@ -92,6 +92,8 @@ export interface AdminUserInput {
   name: string;
   email: string;
   password?: string;
+  /** 'create' keeps the admin-set-password flow; 'invite' emails a self-service link. */
+  mode?: 'create' | 'invite';
   role: AdminRole;
   roleAr: string;
   roleId?: string | null;

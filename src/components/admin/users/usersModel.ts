@@ -94,8 +94,17 @@ const PERMISSION_GROUP_LABELS: Record<string, string> = {
 
 export const STATUS_LABELS: Record<AdminStatus, string> = {
   active: 'نشط',
+  pending: 'بانتظار التفعيل',
   suspended: 'معطل',
 };
+
+/**
+ * The statuses an admin may set through the toggle / bulk actions. `pending` is
+ * deliberately excluded: it is server-managed (an account leaves it only by
+ * opening the emailed verify link, or, for the initial activation, is created
+ * active when it is a super admin), so no UI toggle may write it directly.
+ */
+export type ToggleableAdminStatus = 'active' | 'suspended';
 
 /**
  * Mirrors the server's password policy
@@ -379,4 +388,6 @@ export interface UserViewProps {
   onEdit: (user: AdminUser) => void;
   onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
+  /** Only reachable for pending accounts, so the row action is hidden otherwise. */
+  onResendVerification: (user: AdminUser) => void;
 }

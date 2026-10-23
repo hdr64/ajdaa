@@ -327,6 +327,9 @@ async function seedAdminUsers(adminPassword: string): Promise<void> {
         departmentId,
         permissions: JSON.stringify(user.permissions),
         status: 'active',
+        // Seeded accounts predate the email-verification flow: treat them as
+        // already verified so they are not locked out by the new rule.
+        emailVerifiedAt: new Date(),
       },
     });
   }

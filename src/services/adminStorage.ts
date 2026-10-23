@@ -151,8 +151,24 @@ export const AdminStorage = {
     return authService.updateProfile(input);
   },
 
-  changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
-    return authService.changePassword(currentPassword, newPassword);
+  changePassword(
+    currentPassword: string,
+    newPassword: string,
+    confirmation?: { challengeId: string; code: string }
+  ): Promise<{ message: string }> {
+    return authService.changePassword(currentPassword, newPassword, confirmation);
+  },
+
+  requestPasswordChange(currentPassword: string, newPassword: string): Promise<{ challengeId: string; emailHint: string }> {
+    return authService.requestPasswordChange(currentPassword, newPassword);
+  },
+
+  verifyEmail(token: string): Promise<{ verified: boolean }> {
+    return authService.verifyEmail(token);
+  },
+
+  acceptInvite(token: string, password: string): Promise<{ activated: boolean }> {
+    return authService.acceptInvite(token, password);
   },
 
   async getCurrentUser(): Promise<AdminUser> {
@@ -366,8 +382,12 @@ export const AdminStorage = {
     return authService.listUsers(signal);
   },
 
-  createUser(input: AdminUserInput): Promise<AdminUser> {
+  createUser(input: AdminUserInput): Promise<{ user: AdminUser; mailSent: boolean }> {
     return authService.createUser(input);
+  },
+
+  resendVerification(userId: string): Promise<{ sent: boolean }> {
+    return authService.resendVerification(userId);
   },
 
   updateUser(id: string, input: Partial<AdminUserInput>): Promise<AdminUser> {

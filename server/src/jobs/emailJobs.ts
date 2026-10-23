@@ -1,7 +1,9 @@
 import { config } from '../config/env.js';
-import { sendMail } from '../services/mailService.js';
-import { developerNoteNotification, type InquiryMailData } from '../services/mailTemplates.js';
+import { mailBrandName, sendMail } from '../services/mailService.js';
+import { developerNoteNotification, emailVerificationEmail, inviteEmail, passwordChangeCodeEmail, type InquiryMailData } from '../services/mailTemplates.js';
 import { notifyNewInquiry, notifyNewJobApplication } from '../services/notificationService.js';
+import { EMAIL_VERIFICATION_TTL_MS } from '../services/emailVerificationService.js';
+import { ttlMinutes } from '../services/otpService.js';
 import type { QueueableJob } from '../services/queueService.js';
 
 /**
@@ -98,5 +100,73 @@ export const sendJobApplicationNotificationJob: QueueableJob<JobApplicationNotif
 
   async handle(payload) {
     await notifyNewJobApplication(payload);
+  },
+};
+
+/**
+ * The invite for a user added without a password. The link URL is derived from
+ * `config.appUrl` inside the job so the queued payload stays just the data the
+ * template needs. A rejected `sendMail` fails the handler, which is what lets
+ * the queue retry the delivery.
+ */
+export interface InviteEmailPayload {
+  to: string;
+  name?: string | null;
+  token: string;
+}
+
+export const sendInviteEmailJob: QueueableJob<InviteEmailPayload> = {
+  name: 'email:invite',
+
+  async handle(payload) {
+    const content = inviteEmail({
+      brandName: await mailBrandName(),
+      name: payload.name,
+      inviteUrl: `${config.appUrl}/admin/accept-invite?token=${encodeURIComponent(payload.token)}`,
+      expiresInDays: Math.round(EMAIL_VERIFICATION_TTL_MS.invite / (24 * 60 * 60 * 1000)),
+    });
+    await sendMail({ to: payload.to, ...content });
+  },
+};
+
+export interface EmailVerificationPayload {
+  to: string;
+  name?: string | null;
+  token: string;
+}
+
+/** Confirms a create-mode account's address so it can leave `pending`. */
+export const sendEmailVerificationJob: QueueableJob<EmailVerificationPayload> = {
+  name: 'email:verify-email',
+
+  async handle(payload) {
+    const content = emailVerificationEmail({
+      brandName: await mailBrandName(),
+      name: payload.name,
+      verifyUrl: `${config.appUrl}/admin/verify-email?token=${encodeURIComponent(payload.token)}`,
+      expiresInHours: Math.round(EMAIL_VERIFICATION_TTL_MS.verify / (60 * 60 * 1000)),
+    });
+    await sendMail({ to: payload.to, ...content });
+  },
+};
+
+export interface PasswordChangeCodePayload {
+  to: string;
+  name?: string | null;
+  code: string;
+}
+
+/** Emails the confirmation code that gates a self-service password change. */
+export const sendPasswordChangeCodeJob: QueueableJob<PasswordChangeCodePayload> = {
+  name: 'email:password-change-code',
+
+  async handle(payload) {
+    const content = passwordChangeCodeEmail({
+      brandName: await mailBrandName(),
+      name: payload.name,
+      code: payload.code,
+      expiresInMinutes: ttlMinutes(),
+    });
+    await sendMail({ to: payload.to, ...content });
   },
 };

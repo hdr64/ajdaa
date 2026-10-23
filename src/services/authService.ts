@@ -1,5 +1,5 @@
 import { api, clearAuthToken, getAuthToken, setAuthToken } from './api';
-import type { AdminUser, AdminUserInput, AdminRole } from '../types/admin';
+import type { AdminUser, AdminUserInput, AdminRole, AdminStatus } from '../types/admin';
 
 export interface AuthSession {
   token: string;
@@ -108,7 +108,7 @@ export function toAdminUser(dto: UserDto): AdminUser {
     departmentName: dto.departmentName ?? dto.department ?? null,
     permissions: normalizePermissions(dto.permissions),
     lastLogin: dto.lastLogin ?? undefined,
-    status: dto.status === 'suspended' ? 'suspended' : 'active',
+    status: dto.status === 'suspended' ? 'suspended' : dto.status === 'pending' ? 'pending' : 'active',
     loginOtpEnabled: dto.loginOtpEnabled,
   };
 }
@@ -196,9 +196,11 @@ export const authService = {
     return users.map(toAdminUser);
   },
 
-  async createUser(input: AdminUserInput): Promise<AdminUser> {
-    const created = await api.post<UserDto>('/api/auth/users', input);
-    return toAdminUser(created);
+  async createUser(input: AdminUserInput): Promise<{ user: AdminUser; mailSent: boolean }> {
+    const created = await api.post<UserDto & { mailSent?: boolean }>('/api/auth/users', input);
+    // `mailSent: false` means no confirmation/invite mail left the server, so the
+    // UI should offer a resend instead of pretending the user was emailed.
+    return { user: toAdminUser(created), mailSent: created.mailSent ?? true };
   },
 
   async updateUser(id: string, input: Partial<AdminUserInput>): Promise<AdminUser> {
@@ -210,7 +212,7 @@ export const authService = {
     await api.delete(`/api/auth/users/${encodeURIComponent(id)}`);
   },
 
-  async setUserStatus(id: string, status: 'active' | 'suspended'): Promise<AdminUser> {
+  async setUserStatus(id: string, status: AdminStatus): Promise<AdminUser> {
     const updated = await api.put<UserDto>(`/api/auth/users/${encodeURIComponent(id)}`, { status });
     return toAdminUser(updated);
   },
@@ -221,13 +223,42 @@ export const authService = {
   },
 
   /** The server revokes older tokens on a password change and returns a fresh one for this session. */
-  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+    confirmation?: { challengeId: string; code: string }
+  ): Promise<{ message: string }> {
     const result = await api.post<{ message: string; token?: string }>('/api/auth/me/password', {
       currentPassword,
       newPassword,
+      challengeId: confirmation?.challengeId,
+      code: confirmation?.code,
     });
     if (result.token) setAuthToken(result.token);
     return { message: result.message };
+  },
+
+  /** Step 1 of a self-service password change: emails a confirmation code. */
+  requestPasswordChange(currentPassword: string, newPassword: string): Promise<{ challengeId: string; emailHint: string }> {
+    return api.post<{ challengeId: string; emailHint: string }>('/api/auth/me/password/request', {
+      currentPassword,
+      newPassword,
+    });
+  },
+
+  /** Confirms a create-mode account's email with the emailed one-time token. */
+  verifyEmail(token: string): Promise<{ verified: boolean }> {
+    return api.post<{ verified: boolean }>('/api/auth/verify-email', { token });
+  },
+
+  /** Accepts an invite: verifies the address and sets the first password. */
+  acceptInvite(token: string, password: string): Promise<{ activated: boolean }> {
+    return api.post<{ activated: boolean }>('/api/auth/accept-invite', { token, password });
+  },
+
+  /** Re-sends a pending account's invite/verification link (needs `manageUsers`). */
+  resendVerification(id: string): Promise<{ sent: boolean }> {
+    return api.post<{ sent: boolean }>(`/api/auth/users/${encodeURIComponent(id)}/resend-verification`, {});
   },
 };
 

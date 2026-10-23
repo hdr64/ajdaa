@@ -26,6 +26,7 @@ export const UsersGrid: React.FC<UsersGridProps> = ({
   onEdit,
   onToggleStatus,
   onDelete,
+  onResendVerification,
 }) => (
   <div className={`grid gap-4 ${gridColumnsClass(columns)}`}>
     {users.map((user) => {
@@ -94,6 +95,7 @@ export const UsersGrid: React.FC<UsersGridProps> = ({
                 onEdit={onEdit}
                 onToggleStatus={onToggleStatus}
                 onDelete={onDelete}
+                onResendVerification={onResendVerification}
                 variant="labels"
               />
             </div>

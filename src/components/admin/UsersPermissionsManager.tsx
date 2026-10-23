@@ -15,7 +15,7 @@ import { UsersTable } from './users/UsersTable';
 import { UsersGrid } from './users/UsersGrid';
 import { UsersList } from './users/UsersList';
 import { UserFormDialog } from './users/UserFormDialog';
-import { PERMISSION_LABELS, STATUS_LABELS, userSearchText } from './users/usersModel';
+import { PERMISSION_LABELS, STATUS_LABELS, userSearchText, type ToggleableAdminStatus } from './users/usersModel';
 
 interface UsersPermissionsManagerProps {
   onShowToast: (msg: string) => void;
@@ -31,6 +31,7 @@ type StatusFilter = 'all' | AdminStatus;
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'الكل' },
   { key: 'active', label: STATUS_LABELS.active },
+  { key: 'pending', label: STATUS_LABELS.pending },
   { key: 'suspended', label: STATUS_LABELS.suspended },
 ];
 
@@ -57,7 +58,8 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
   /** `null` means closed; `user: null` means the create form is open. */
   const [dialog, setDialog] = useState<{ user: AdminUser | null } | null>(null);
 
-  const { users, reference, rightsById, setStatus, setManyStatus, remove } = useUsersDirectory(onShowToast);
+  const { users, reference, rightsById, setStatus, setManyStatus, remove, resendVerification } =
+    useUsersDirectory(onShowToast);
 
   /** Server catalogue first, built-in labels as the offline fallback. */
   const permissionLabels = useMemo(() => {
@@ -67,7 +69,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
   }, [reference.data.permissions]);
 
   const statusCounts = useMemo(() => {
-    const counts: Record<StatusFilter, number> = { all: users.data.length, active: 0, suspended: 0 };
+    const counts: Record<StatusFilter, number> = { all: users.data.length, active: 0, pending: 0, suspended: 0 };
     for (const user of users.data) counts[user.status] += 1;
     return counts;
   }, [users.data]);
@@ -91,7 +93,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
   );
   const deleteUser = useCallback((user: AdminUser) => void remove(user), [remove]);
   const bulkStatus = useCallback(
-    (rows: AdminUser[], status: AdminStatus) => void setManyStatus(rows, status),
+    (rows: AdminUser[], status: ToggleableAdminStatus) => void setManyStatus(rows, status),
     [setManyStatus]
   );
 
@@ -168,6 +170,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     onEdit: openEdit,
     onToggleStatus: toggleStatus,
     onDelete: deleteUser,
+    onResendVerification: resendVerification,
   };
 
   const clearFilters = () => {

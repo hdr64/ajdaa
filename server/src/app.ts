@@ -35,7 +35,7 @@ import {
   queueDriver,
   registerJob,
 } from './services/queueService.js';
-import { sendDeveloperNoteEmailJob, sendInquiryNotificationJob, sendJobApplicationNotificationJob } from './jobs/emailJobs.js';
+import { sendDeveloperNoteEmailJob, sendInquiryNotificationJob, sendJobApplicationNotificationJob, sendInviteEmailJob, sendEmailVerificationJob, sendPasswordChangeCodeJob } from './jobs/emailJobs.js';
 
 /**
  * The path of a URL without its query string.
@@ -267,6 +267,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   registerJob(sendDeveloperNoteEmailJob);
   registerJob(sendInquiryNotificationJob);
   registerJob(sendJobApplicationNotificationJob);
+  registerJob(sendInviteEmailJob);
+  registerJob(sendEmailVerificationJob);
+  registerJob(sendPasswordChangeCodeJob);
 
   // 8. Job Queue — never fatal. A missing Redis degrades to inline execution so
   // a deployment without Redis still sends mail; `QUEUE_DRIVER=redis` is the

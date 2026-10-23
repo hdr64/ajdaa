@@ -44,22 +44,28 @@ model AdminUser {
   departmentId      String?
   departmentRef     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   permissions       String      @default("{}") // JSON string of permissions
-  status            String      @default("active") // active | suspended
+  status            String      @default("active") // active | pending | suspended (pending = must verify email before sign-in)
   lastLogin         String?
   passwordChangedAt DateTime?
+  // Set once the admin proved ownership of their address (verify link or
+  // accepted invite). Null for a `pending` account; every pre-existing row is
+  // backfilled by the migration so nobody is locked out.
+  emailVerifiedAt   DateTime?
   loginOtpEnabled   Boolean     @default(false)
   preferences       String      @default("{}") // JSON: per-admin UI choices, e.g. { skipConfirm: [...] }
   createdAt         DateTime    @default(now())
   otpChallenges     OtpChallenge[]
+  emailVerificationTokens EmailVerificationToken[]
 }
 
-/// A one-time code emailed to an admin: login verification (purpose = 'login')
-/// or password reset (purpose = 'password_reset'). Only `codeHash` is stored, so a
-/// database leak cannot be replayed as a valid code.
+/// A one-time code emailed to an admin: login verification ('login'), password
+/// reset ('password_reset'), or the confirmation step of a self-service password
+/// change ('password_change'). Only `codeHash` is stored, so a database leak
+/// cannot be replayed as a valid code.
 model OtpChallenge {
   id          String    @id @default(uuid())
   adminUserId String
-  purpose     String // login | password_reset
+  purpose     String // login | password_reset | password_change
   codeHash    String
   expiresAt   DateTime
   attempts    Int       @default(0)
@@ -69,6 +75,24 @@ model OtpChallenge {
 
   @@index([adminUserId, purpose])
   @@index([expiresAt])
+}
+
+/// A single-use emailed link that proves an admin owns their address:
+/// accepting an invite ('invite', where the admin also chooses their first
+/// password) or confirming a password-chosen account ('verify'). Only the
+/// SHA-256 of a random token is stored (peppered with JWT_SECRET), so a
+/// database dump cannot be replayed. Issuing a new one deletes the previous row.
+model EmailVerificationToken {
+  id          String    @id @default(uuid())
+  adminUserId String
+  purpose     String // invite | verify
+  tokenHash   String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
 }
 
 model Project {

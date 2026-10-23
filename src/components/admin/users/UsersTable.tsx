@@ -5,7 +5,7 @@
  */
 import React, { useMemo } from 'react';
 import { LogIn, LogOut } from 'lucide-react';
-import type { AdminStatus, AdminUser, Department, Role } from '../../../types/admin';
+import type { AdminUser, Department, Role } from '../../../types/admin';
 import { DataTable } from '../common/DataTable';
 import type { BulkAction, Column } from '../common/dataTableTypes';
 import {
@@ -17,7 +17,7 @@ import {
   userRoleLabel,
   userSearchText,
 } from './usersModel';
-import type { UserRights } from './usersModel';
+import type { UserRights, ToggleableAdminStatus } from './usersModel';
 import { PermissionCount, RolePill, StatusChip, UserActions } from './usersUi';
 
 export const USERS_TABLE_STORAGE_KEY = 'ajda.admin.users';
@@ -43,7 +43,8 @@ interface UsersTableProps {
   onEdit: (user: AdminUser) => void;
   onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
-  onBulkStatus: (users: AdminUser[], status: AdminStatus) => void;
+  onResendVerification: (user: AdminUser) => void;
+  onBulkStatus: (users: AdminUser[], status: ToggleableAdminStatus) => void;
 }
 
 export const UsersTable: React.FC<UsersTableProps> = ({
@@ -54,6 +55,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onEdit,
   onToggleStatus,
   onDelete,
+  onResendVerification,
   onBulkStatus,
 }) => {
   const roleIndex = useMemo(() => buildRoleIndex(users, roles), [users, roles]);
@@ -166,6 +168,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           onEdit={onEdit}
           onToggleStatus={onToggleStatus}
           onDelete={onDelete}
+          onResendVerification={onResendVerification}
           variant="icons"
         />
       )}

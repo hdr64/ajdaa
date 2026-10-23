@@ -38,6 +38,20 @@ interface UserCreateWizardProps {
   onSaved: () => Promise<void>;
 }
 
+/** Step 1 choice: invite the user to pick their own password, or set one now. */
+const MODE_OPTIONS: Array<{ value: 'invite' | 'create'; title: string; hint: string }> = [
+  {
+    value: 'invite',
+    title: 'دعوة مستخدم',
+    hint: 'يختار المستخدم كلمة مروره عبر رابط يُرسل إلى بريده',
+  },
+  {
+    value: 'create',
+    title: 'إنشاء مستخدم بكلمة مرور',
+    hint: 'تحدد كلمة مرور الآن، ويؤكد المستخدم بريده لاحقاً',
+  },
+];
+
 export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   roles,
   departments,
@@ -53,6 +67,8 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   const [serverError, setServerError] = useState<string | null>(null);
   const [serverErrorStep, setServerErrorStep] = useState<WizardStep | null>(null);
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  // 'invite' lets the user choose their own password from an emailed link; 'create' keeps the admin-set-password flow.
+  const [mode, setMode] = useState<'invite' | 'create'>('create');
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -81,6 +97,11 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   // Derived state
   const selectedRole = roles.find((r) => r.id === form.roleId) ?? null;
   const selectedDepartment = departments.find((d) => d.id === form.departmentId) ?? null;
+  // Only super-admin accounts can be created active immediately; every other role starts pending.
+  const selectedRoleIsSuperAdmin = selectedRole?.key === 'super_admin';
+  const accountStatusLabel = selectedRoleIsSuperAdmin
+    ? (form.status === 'active' ? 'نشط' : 'معطل')
+    : 'بانتظار التفعيل';
 
   // Focus first input on step change
   useEffect(() => {
@@ -109,12 +130,15 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     }
 
     if (stepToValidate === 3) {
-      const policyError = passwordPolicyError(form.password);
-      if (policyError) errors.password = policyError;
+      // Invite mode has no admin-set password: the user picks one from the emailed link.
+      if (mode === 'create') {
+        const policyError = passwordPolicyError(form.password);
+        if (policyError) errors.password = policyError;
+      }
     }
 
     return errors;
-  }, [form]);
+  }, [form, mode]);
 
   // Check if step is valid
   const isStepValid = useCallback((stepToCheck: WizardStep): boolean => {
@@ -211,20 +235,34 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       const input: AdminUserInput = {
         name: form.name.trim(),
         email: form.email.trim(),
-        password: form.password,
+        // 'invite' sends no password: the emailed link lets the user choose one.
+        mode,
+        password: mode === 'invite' ? undefined : form.password,
         role: roleKey,
         roleAr,
         roleId: selectedRoleId,
         department: departmentName,
         departmentId,
         permissions: form.permissions,
-        status: form.status,
+        // Status is only meaningful for super admins; everyone else starts pending.
+        ...(selectedRoleIsSuperAdmin ? { status: form.status } : {}),
       };
 
-      await AdminStorage.createUser(input);
-      showToast(`تمت إضافة المستخدم ${form.name.trim()} بنجاح`);
-      await onSaved();
-      onClose();
+      const { mailSent } = await AdminStorage.createUser(input);
+
+      if (mailSent === false) {
+        await onSaved();
+        onClose();
+        showToast(
+          mode === 'invite'
+            ? 'تم إنشاء الحساب، لكن تعذّر إرسال بريد الدعوة. يمكنك إعادة الإرسال من قائمة المستخدمين'
+            : 'تم إنشاء الحساب، لكن تعذّر إرسال بريد التفعيل. يمكنك إعادة الإرسال من قائمة المستخدمين'
+        );
+      } else {
+        showToast(`تمت إضافة المستخدم ${form.name.trim()} بنجاح`);
+        await onSaved();
+        onClose();
+      }
     } catch (error) {
       const message = getErrorMessage(error, 'تعذر حفظ بيانات المستخدم');
       showToast(message);
@@ -277,6 +315,31 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   // Step 1: Account
   const renderStep1 = () => (
     <div className="space-y-5" role="tabpanel" aria-labelledby="step1-label">
+      <div>
+        <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">طريقة الإضافة</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-label="طريقة الإضافة">
+          {MODE_OPTIONS.map((option) => {
+            const isActive = mode === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setMode(option.value)}
+                className={`p-3 rounded-xl border-2 text-start transition-all cursor-pointer ${
+                  isActive
+                    ? 'border-accent bg-accent/5 shadow-sm shadow-accent/10'
+                    : 'border-muted-border/40 bg-surface hover:border-accent/40 hover:bg-accent/5'
+                }`}
+              >
+                <span className="block text-xs font-black text-heading">{option.title}</span>
+                <span className="block text-[10px] text-neutral-text/60 mt-0.5">{option.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="name" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
@@ -408,28 +471,37 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   // Step 3: Password & Review
   const renderStep3 = () => (
     <div className="space-y-5" role="tabpanel" aria-labelledby="step3-label">
-      <PasswordField
-        value={form.password}
-        onChange={(value) => setForm({ ...form, password: value })}
-        error={serverErrorStep === 3 ? serverError ?? undefined : undefined}
-        showPolicyChecklist={true}
-        onGenerate={handleGeneratePassword}
-        generatedPassword={form.generatedPassword}
-        hint={<>14 حرفاً على الأقل، مع حرف ورقم، تُستخدم عند أول دخول للحساب.</>}
-      />
+      {mode === 'invite' ? (
+        <p className="text-[11px] text-neutral-text/60">
+          سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره
+        </p>
+      ) : (
+        <PasswordField
+          value={form.password}
+          onChange={(value) => setForm({ ...form, password: value })}
+          error={serverErrorStep === 3 ? serverError ?? undefined : undefined}
+          showPolicyChecklist={true}
+          onGenerate={handleGeneratePassword}
+          generatedPassword={form.generatedPassword}
+          hint={<>14 حرفاً على الأقل، مع حرف ورقم، تُستخدم عند أول دخول للحساب.</>}
+        />
+      )}
 
-      <div>
-        <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">حالة الحساب</label>
-        <select
-          value={form.status}
-          onChange={(e) => setForm({ ...form, status: e.target.value as AdminStatus })}
-          className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent cursor-pointer"
-        >
-          <option value="active">نشط</option>
-          <option value="suspended">معطل</option>
-        </select>
-        <p className="mt-1 text-[10px] text-neutral-text/55">تُنشأ الحسابات الجديدة بحالة نشطة افتراضياً.</p>
-      </div>
+      {/* حالة الحساب تُعرض لمدير عام فقط: هو الوحيد الذي يُنشأ نشطاً فوراً، وباقي الأدوار تبدأ بانتظار التفعيل. */}
+      {selectedRoleIsSuperAdmin && (
+        <div>
+          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">حالة الحساب</label>
+          <select
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value as AdminStatus })}
+            className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent cursor-pointer"
+          >
+            <option value="active">نشط</option>
+            <option value="suspended">معطل</option>
+          </select>
+          <p className="mt-1 text-[10px] text-neutral-text/55">تُنشأ الحسابات الجديدة بحالة نشطة افتراضياً.</p>
+        </div>
+      )}
 
       {/* Review Card */}
       <div className="p-4 rounded-xl bg-canvas/60 border border-muted-border/30 space-y-3">
@@ -466,10 +538,18 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           </div>
           <div className="flex justify-between">
             <span className="text-neutral-text/60">الحالة</span>
-            <span className="font-bold text-heading">{form.status === 'active' ? 'نشط' : 'معطل'}</span>
+            <span className="font-bold text-heading">{accountStatusLabel}</span>
           </div>
         </div>
       </div>
+
+      {!selectedRoleIsSuperAdmin && (
+        <p className="text-[10px] text-neutral-text/55">
+          {mode === 'invite'
+            ? 'سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره.'
+            : 'سيُفعَّل الحساب بعد أن يؤكد المستخدم بريده.'}
+        </p>
+      )}
 
       {serverErrorStep === 3 && serverError && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2 text-[11px] text-red-600">

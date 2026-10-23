@@ -8,11 +8,11 @@
  */
 import { useCallback, useMemo } from 'react';
 import { AdminStorage, type AdminUser } from '../../../services/adminStorage';
-import type { AdminStatus, Department, PermissionDef, Role } from '../../../types/admin';
-import { getErrorMessage } from '../../../services/api';
+import type { Department, PermissionDef, Role } from '../../../types/admin';
+import { ApiError, getErrorMessage } from '../../../services/api';
 import { useAsyncData, type AsyncResource } from '../../../hooks/useAsyncData';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
-import { getUserRights, type RightsContext, type UserRights } from './usersModel';
+import { getUserRights, type RightsContext, type ToggleableAdminStatus, type UserRights } from './usersModel';
 
 export interface DirectoryReference {
   roles: Role[];
@@ -26,9 +26,10 @@ export interface UsersDirectory {
   users: AsyncResource<AdminUser[]>;
   reference: AsyncResource<DirectoryReference>;
   rightsById: Map<string, UserRights>;
-  setStatus: (user: AdminUser, status: AdminStatus) => Promise<void>;
-  setManyStatus: (users: AdminUser[], status: AdminStatus) => Promise<void>;
+  setStatus: (user: AdminUser, status: ToggleableAdminStatus) => Promise<void>;
+  setManyStatus: (users: AdminUser[], status: ToggleableAdminStatus) => Promise<void>;
   remove: (user: AdminUser) => Promise<void>;
+  resendVerification: (user: AdminUser) => Promise<void>;
 }
 
 interface StatusCopy {
@@ -39,7 +40,7 @@ interface StatusCopy {
   danger: boolean;
 }
 
-const STATUS_COPY: Record<AdminStatus, StatusCopy> = {
+const STATUS_COPY: Record<ToggleableAdminStatus, StatusCopy> = {
   active: {
     label: 'تنشيط',
     message: 'سيتمكن من الدخول إلى لوحة التحكم فوراً بجميع صلاحياته.',
@@ -95,7 +96,7 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   );
 
   const setStatus = useCallback(
-    async (user: AdminUser, status: AdminStatus) => {
+    async (user: AdminUser, status: ToggleableAdminStatus) => {
       const copy = STATUS_COPY[status];
       const ok = await confirm({
         title: `${copy.label} حساب "${user.name}"؟`,
@@ -122,7 +123,7 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
    * how many were left out so the result never reads as a full success.
    */
   const setManyStatus = useCallback(
-    async (selected: AdminUser[], status: AdminStatus) => {
+    async (selected: AdminUser[], status: ToggleableAdminStatus) => {
       if (selected.length === 0) return;
       const copy = STATUS_COPY[status];
       const targets = selected.filter((user) => {
@@ -185,5 +186,24 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
     [confirmDelete, reloadUsers, showToast]
   );
 
-  return { users, reference, rightsById, setStatus, setManyStatus, remove };
+  /**
+   * Sends a fresh activation link for an account the server still holds as
+   * pending. No confirm dialog: the action is cheap, repeatable and harmless,
+   * and only a throttled request (429) has something worth stating verbatim.
+   */
+  const resendVerification = useCallback(
+    async (user: AdminUser) => {
+      try {
+        await AdminStorage.resendVerification(user.id);
+        await reloadUsers();
+        showToast(`تم إعادة إرسال رابط التفعيل إلى ${user.name}`);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 429) showToast(error.message);
+        else showToast(getErrorMessage(error, 'تعذر إعادة إرسال رابط التفعيل'));
+      }
+    },
+    [reloadUsers, showToast]
+  );
+
+  return { users, reference, rightsById, setStatus, setManyStatus, remove, resendVerification };
 }
