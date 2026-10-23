@@ -30,7 +30,7 @@ Historical source documents and review records are preserved in full integrity u
 - [`archive/original-content-inventory.md`](archive/original-content-inventory.md) — Initial site content inventory and assets baseline.
 - [`archive/cms-plan-kimi-review.md`](archive/cms-plan-kimi-review.md) — First external architectural review by Kimi.
 - [`archive/cms-plan-kimi-review-v2.md`](archive/cms-plan-kimi-review-v2.md) — Second external architectural review by Kimi approving v2.1.
-- [`archive/agy-task.md`](archive/agy-task.md) & [`archive/agy-response.md`](archive/agy-response.md) — Antigravity agent handoff briefs.
+- Task prompts and agent reports (active and finished, including the early agy/OpenCode hand-offs) live in [`prompts/`](prompts/README.md).
 - [`archive/RESUME.md`](archive/RESUME.md) — Context preservation record.
 
 ---

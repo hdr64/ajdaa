@@ -1,14 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import type { Property, UnitStatus } from '../../../types/property';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { ChartTable, ChartViewToggle } from './chartParts';
+import { UNIT_STATUS_KEYS } from '../../../pages/admin/projectLabels';
 
 /** Fixed series order; colours come from the validated --viz-* tokens in index.css. */
-const SERIES: { status: UnitStatus; label: string; color: string }[] = [
-  { status: 'available', label: 'متاح', color: 'var(--viz-available)' },
-  { status: 'reserved', label: 'محجوز', color: 'var(--viz-reserved)' },
-  { status: 'rented', label: 'مؤجر', color: 'var(--viz-rented)' },
-  { status: 'sold', label: 'مباع', color: 'var(--viz-sold)' },
-];
+const STATUS_ORDER: UnitStatus[] = ['available', 'reserved', 'rented', 'sold'];
 
 /** Segments narrower than this (in % of the widest bar) carry no inline number. */
 const MIN_LABEL_PERCENT = 7;
@@ -29,8 +26,11 @@ export const UnitStatusChart: React.FC<{ projects: Property[]; onOpenProject?: (
   projects,
   onOpenProject,
 }) => {
+  const { t } = useAdminT();
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [hover, setHover] = useState<{ project: number; status: UnitStatus } | null>(null);
+
+  const statusLabel = (status: UnitStatus) => t(UNIT_STATUS_KEYS[status]);
 
   const rows = useMemo<Row[]>(() => {
     return projects
@@ -45,18 +45,23 @@ export const UnitStatusChart: React.FC<{ projects: Property[]; onOpenProject?: (
 
   const totals = useMemo(() => {
     const result: Record<UnitStatus, number> = { available: 0, reserved: 0, rented: 0, sold: 0 };
-    for (const row of rows) for (const s of SERIES) result[s.status] += row.counts[s.status];
+    for (const row of rows) for (const s of STATUS_ORDER) result[s] += row.counts[s];
     return result;
   }, [rows]);
 
   const scale = Math.max(1, ...rows.map((r) => r.total));
 
+  const SERIES = STATUS_ORDER.map((status) => ({
+    status,
+    label: statusLabel(status),
+    color: `var(--viz-${status})`,  }));
+
   return (
     <section className="rounded-2xl bg-surface border border-muted-border/40 p-5 sm:p-6 shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-black text-heading">حالة الوحدات حسب المشروع</h3>
-          <p className="text-[11px] text-neutral-text/60 mt-0.5">عدد الوحدات في كل مشروع موزعة حسب الحالة</p>
+          <h3 className="text-sm font-black text-heading">{t('charts.unitStatus.title')}</h3>
+          <p className="text-[11px] text-neutral-text/60 mt-0.5">{t('charts.unitStatus.subtitle')}</p>
         </div>
         <ChartViewToggle view={view} onChange={setView} />
       </div>
@@ -73,11 +78,11 @@ export const UnitStatusChart: React.FC<{ projects: Property[]; onOpenProject?: (
       </ul>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-neutral-text/50 py-6 text-center">لا توجد وحدات مسجلة بعد.</p>
+        <p className="text-xs text-neutral-text/50 py-6 text-center">{t('charts.unitStatus.empty')}</p>
       ) : view === 'table' ? (
         <ChartTable
-          caption="حالة الوحدات حسب المشروع"
-          headers={['المشروع', ...SERIES.map((s) => s.label), 'الإجمالي']}
+          caption={t('charts.unitStatus.title')}
+          headers={[t('common.entity.project'), ...SERIES.map((s) => s.label), t('charts.unitStatus.total')]}
           rows={rows.map((r) => [r.project.title, ...SERIES.map((s) => r.counts[s.status]), r.total])}
         />
       ) : (
@@ -106,7 +111,7 @@ export const UnitStatusChart: React.FC<{ projects: Property[]; onOpenProject?: (
                     const share = (count / row.total) * 100;
                     const active = hover?.project === row.project.id && hover.status === s.status;
                     const dimmed = hover !== null && !active;
-                    const label = `${row.project.title} — ${s.label}: ${count} من ${row.total}`;
+                    const label = t('charts.unitStatus.barAria', { project: row.project.title, status: s.label, count, total: row.total });
                     return (
                       <div
                         key={s.status}
@@ -126,7 +131,7 @@ export const UnitStatusChart: React.FC<{ projects: Property[]; onOpenProject?: (
                         {active && (
                           <div className="absolute bottom-full mb-1.5 z-10 px-2.5 py-1.5 rounded-lg bg-canvas border border-muted-border/50 shadow-lg whitespace-nowrap pointer-events-none">
                             <div className="text-xs font-black text-heading">
-                              {count} <span className="font-bold text-neutral-text/60">من {row.total}</span>
+                              {t('charts.unitStatus.count', { count, total: row.total })}
                             </div>
                             <div className="flex items-center gap-1.5 text-[10px] text-neutral-text/65">
                               <span className="w-3 h-[2px] rounded" style={{ background: s.color }} aria-hidden="true" />

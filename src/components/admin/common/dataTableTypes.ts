@@ -123,11 +123,6 @@ export interface BulkAction<T> {
 
 export type Density = 'comfortable' | 'compact';
 
-export const DENSITY_LABELS: Record<Density, string> = {
-  comfortable: 'مريح',
-  compact: 'مضغوط',
-};
-
 export const PAGE_SIZES: readonly number[] = [10, 25, 50, 100];
 
 export const DEFAULT_PAGE_SIZE = 25;

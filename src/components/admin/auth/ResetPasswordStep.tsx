@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, KeyRound, AlertCircle, Info, type LucideIcon } from 'lucide-react';
+import { PasswordInput } from './PasswordInput';
 
 interface ResetPasswordStepProps {
   email: string;
@@ -110,36 +111,28 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
             {isAr ? 'كلمة المرور الجديدة (8 أحرف على الأقل)' : 'New Password (min 8 chars)'}
           </label>
-          <div className="relative flex items-center">
-            <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
-            <input
-              type="password"
-              required
-              dir="ltr"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
-            />
-          </div>
+          <PasswordInput
+            value={newPassword}
+            onChange={setNewPassword}
+            placeholder="••••••••"
+            required
+            autoComplete="new-password"
+            isAr={isAr}
+          />
         </div>
 
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
             {isAr ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password'}
           </label>
-          <div className="relative flex items-center">
-            <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
-            <input
-              type="password"
-              required
-              dir="ltr"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
-            />
-          </div>
+          <PasswordInput
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            placeholder="••••••••"
+            required
+            autoComplete="new-password"
+            isAr={isAr}
+          />
         </div>
 
         <button

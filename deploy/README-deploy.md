@@ -24,7 +24,7 @@ The API runs as a systemd service, the SPA is served as static files by Caddy.
 | database | `ajda` (role `ajda`) | `ajda_test` (role `ajda_test`) |
 | Redis | DB 0 | DB 1 (`redis://127.0.0.1:6379/1`) |
 | env file | `/srv/ajda/app/server/.env` | `/srv/ajda/test/server/.env` |
-| hostname | `ajda.weghetk.com`, `ajdaa.sa` | `test-ajda.weghetk.com` (basic auth) |
+| hostname | `ajdaa.sa` | `ajda.weghetk.com` (no password, noindex) |
 | Caddy root | `/srv/ajda/app/dist` (see §7) | `/srv/ajda/test/dist` |
 | uploads | `/srv/ajda/app/server/uploads` | `/srv/ajda/test/server/uploads` |
 | deployed by | **a human**, with the runbook in §6.1 | **GitHub Actions** (push to `deploy-test`) |
@@ -89,8 +89,8 @@ here.
 
 > **Do not set `HOST=0.0.0.0`.** The API must only be reachable through
 > Caddy, on the loopback interface (`HOST=127.0.0.1`). `0.0.0.0` would expose
-> the API directly to the whole VPS network, bypassing Caddy's TLS, its
-> security headers and — on the test instance — the basic auth.
+> the API directly to the whole VPS network, bypassing Caddy's TLS and its
+> security headers.
 
 ## 3. Test instance (one-time, manual)
 
@@ -119,7 +119,7 @@ openssl rand -base64 32     # JWT_SECRET, LOGS_SECRET_KEY, DEVELOPER_NOTES_SECRE
 
 `deploy/test.env.example` is the full template. It pins `PORT=4001`,
 `HOST=127.0.0.1`, `TRUST_PROXY=1`,
-`CLIENT_ORIGIN=https://test-ajda.weghetk.com`, Redis DB `1`, and leaves every
+`CLIENT_ORIGIN=https://ajda.weghetk.com`, Redis DB `1`, and leaves every
 `MAIL_*` value empty so no real mail can ever be sent from the test instance.
 
 The same production rules as §2.1 apply to the test instance
@@ -130,7 +130,7 @@ or the server refuses to boot.
 > `HOST` is honoured by the current server build (the sec0 bind-address
 > change): the API listens on `127.0.0.1:4001` and Caddy is the only public
 > entry point. **Do not set `HOST=0.0.0.0`** — the test port would be
-> reachable from the whole VPS network, bypassing Caddy's basic auth.
+> reachable from the whole VPS network, bypassing Caddy.
 >
 > `TRUST_PROXY=1` (one trusted hop, Caddy) is required: with `TRUST_PROXY=false`
 > every visitor would look like the same IP to the rate limiter.
@@ -542,27 +542,60 @@ back, the schema has to be fixed by hand.
 
 ## 7. Caddy
 
+The Ajda sites live in two files, one per instance:
+
+| File in the repo | Installed as | Site | Imported by the main Caddyfile with |
+|---|---|---|---|
+| `deploy/Caddyfile.ajda` | `/etc/caddy/Caddyfile.ajda` | `ajdaa.sa` (production) | `import /etc/caddy/Caddyfile.ajda` |
+| `deploy/Caddyfile.test.ajda` | `/etc/caddy/Caddyfile.test.ajda` | `ajda.weghetk.com` (test) | `import /etc/caddy/Caddyfile.test.ajda` |
+
+The server's main `/etc/caddy/Caddyfile` (global options and the unrelated
+`weghetk.com` sites) is owned by hand and is never overwritten from this repo; it
+only carries those two `import` lines at its end. `reload.sh` checks the file of
+the instance it lives in (production copy -> `Caddyfile.ajda`, test copy ->
+`Caddyfile.test.ajda`).
+
+One-time setup (a human, with a backup):
+
 ```bash
-sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile     # always validate first
+sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%F)
+sudo cp deploy/Caddyfile.ajda deploy/Caddyfile.test.ajda /etc/caddy/
+sudo nano /etc/caddy/Caddyfile
+#   1. make sure no `ajdaa.sa { ... }` or `ajda.weghetk.com { ... }` block remains
+#      (a site address may exist only once, otherwise caddy refuses to load)
+#   2. the last lines must be:
+#        import /etc/caddy/Caddyfile.ajda
+#        import /etc/caddy/Caddyfile.test.ajda
+sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
+
+Every later change (use the file of the instance you are changing):
+
+```bash
+diff -u /etc/caddy/Caddyfile.test.ajda deploy/Caddyfile.test.ajda    # read it first
+sudo cp deploy/Caddyfile.test.ajda /etc/caddy/Caddyfile.test.ajda
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+The Ajda files must contain site blocks only: global options (`servers`,
+`auto_https`, `email`) belong to the main Caddyfile, and a second global block is
+an error.
 
 `/api/*`, `/uploads/*` and `/socket.io/*` are proxied to the API port of the
 instance; everything else falls back to `index.html` for client-side routing.
 
-The test block (`test-ajda.weghetk.com`) proxies to `127.0.0.1:4001`, serves
+The test block (`ajda.weghetk.com`, in `Caddyfile.test.ajda`) proxies to `127.0.0.1:4001`, serves
 the SPA from `/srv/ajda/test/dist`, sends
-`X-Robots-Tag "noindex, nofollow"` and is protected by `basic_auth`. Replace
-the placeholder hash before deploying:
+`X-Robots-Tag "noindex, nofollow"` and carries no `basicauth` (public, noindex). Add one with `caddy hash-password` if that ever changes.
 
-```bash
-caddy hash-password --plaintext 'your-password'
-```
-
-The certificate must cover `test-ajda.weghetk.com`. If the VPS holds a
-wildcard certificate for `weghetk.com`, reuse `weghetk.com.pem` /
-`weghetk.com.key`.
+`ajda.weghetk.com` used to be a second hostname of production. It now points
+at the test instance and keeps using the Cloudflare origin certificate
+(`/etc/caddy/ajda-origin.pem` / `.key`), so no new DNS record or certificate is
+needed. Production is served only on `ajdaa.sa`: remove `ajda.weghetk.com`
+from production's `CLIENT_ORIGIN` / `APP_URL` and from any Google Maps key
+referrer list that should no longer allow it.
 
 The test checkout lives under `/srv`, next to the production one, so Caddy
 needs no traverse rights on `/home/salah` any more. Make sure the directory
@@ -574,20 +607,18 @@ sudo chown salah:salah /srv/ajda/test
 namei -l /srv/ajda/test/dist
 ```
 
-> The production block in `deploy/Caddyfile` still serves `/var/www/ajda`
-> while the verified production layout is `/srv/ajda/app/dist`. No automated
-> step mirrors the build any more (CI is test-only), so confirm which root the
-> live Caddyfile uses before replacing it and fix it by hand.
+> The production block in `deploy/Caddyfile.ajda` serves `/srv/ajda/app/dist`, the
+> verified production layout, with security headers and log rotation.
 
 ## 8. Post-deploy smoke test
 
 ```bash
 curl -fsS http://127.0.0.1:4000/api/health
+curl -fsS https://ajdaa.sa/api/health
+curl -fsSI https://ajdaa.sa/                    # 200, index.html not cached
+curl -fsS  https://ajdaa.sa/api/projects | head -c 200
+# test instance
 curl -fsS https://ajda.weghetk.com/api/health
-curl -fsSI https://ajda.weghetk.com/            # 200, index.html not cached
-curl -fsS  https://ajda.weghetk.com/api/projects | head -c 200
-# test instance (basic auth credentials required)
-curl -fsS -u ajda-test:<password> https://test-ajda.weghetk.com/api/health
 ```
 
 ## 9. Known limitations
@@ -625,4 +656,5 @@ One-time step on both instances:
 
 ```bash
 mkdir -p server/private && chmod 700 server/private
+touch server/prod.log server/errors.log   # the unit refuses to start (226/NAMESPACE) without these
 ```

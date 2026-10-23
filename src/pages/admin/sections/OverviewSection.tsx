@@ -1,24 +1,23 @@
 import React, { useMemo } from 'react';
 import { Building2, TrendingUp, Users, Layers, ArrowUpRight, Inbox } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { InquiryStatusSelect, WhatsAppLink } from './inquiryUi';
 import { formatAdminDate } from '../adminFormat';
+import { adminLocale, documentLanguage } from '../../../i18n/admin/core';
 import { InquiriesTrendChart } from '../../../components/admin/charts/InquiriesTrendChart';
 import { UnitStatusChart } from '../../../components/admin/charts/UnitStatusChart';
-
-const TYPE_LABEL_AR: Record<string, string> = {
-  commercial: 'تجاري',
-  office: 'إداري',
-  logistics: 'لوجستي',
-  residential: 'سكني',
-  hotel: 'فندقي',
-};
+import { PROJECT_TYPE_KEYS } from '../projectLabels';
+import type { AdminKey } from '../../../i18n/admin';
 
 export const OverviewSection: React.FC = () => {
+  const { t } = useAdminT();
   const { projects, inquiries, can, navigate } = useAdmin();
   const canViewInquiries = can('viewInquiries');
+
+  const locale = adminLocale(documentLanguage());
 
   const stats = useMemo(() => {
     let total = 0;
@@ -46,17 +45,17 @@ export const OverviewSection: React.FC = () => {
     const occupancy = total > 0 ? Math.round(((total - available) / total) * 100) : 0;
     const typeSummary = [...typeCounts.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([type, count]) => `${count} ${TYPE_LABEL_AR[type] ?? type}`)
+      .map(([type, count]) => `${count} ${t(PROJECT_TYPE_KEYS[type as keyof typeof PROJECT_TYPE_KEYS] as AdminKey)}`)
       .join(' · ');
 
     return { total, available, reserved, rented, sold, area, occupancy, typeSummary };
-  }, [projects.data]);
+  }, [projects.data, t]);
 
   const newInquiries = inquiries.data.filter((i) => i.status === 'new').length;
   const contactedInquiries = inquiries.data.filter((i) => i.status === 'contacted').length;
 
   if (projects.error) return <SectionError message={projects.error} onRetry={() => void projects.reload()} />;
-  if (projects.loading && projects.data.length === 0) return <SectionLoading label="جاري تحميل بيانات الأصول العقارية..." />;
+  if (projects.loading && projects.data.length === 0) return <SectionLoading label={t('dashboard.overview.loading')} />;
 
   const cardClass =
     'p-5 rounded-2xl bg-surface border border-muted-border/40 shadow-xs hover:border-accent/40 transition-all flex flex-col justify-between';
@@ -67,14 +66,15 @@ export const OverviewSection: React.FC = () => {
         <div className={cardClass}>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-neutral-text/60 font-bold text-xs">إجمالي المحفظة العقارية</span>
+              <span className="text-neutral-text/60 font-bold text-xs">{t('dashboard.overview.stat.portfolio')}</span>
               <div className="w-8 h-8 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
                 <Building2 className="w-4 h-4" />
               </div>
             </div>
             <div className="text-3xl font-black text-heading tracking-tight">{projects.data.length}</div>
             <div className="text-[11px] font-bold text-accent mt-1">
-              {stats.area.toLocaleString('en-US')} م² <span className="text-neutral-text/50 text-[10px]">مساحة إجمالية</span>
+              {stats.area.toLocaleString(locale)} {t('dashboard.overview.stat.areaUnit')}{' '}
+              <span className="text-neutral-text/50 text-[10px]">{t('dashboard.overview.stat.totalArea')}</span>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-muted-border/20 text-[10px] text-neutral-text/60 truncate" title={stats.typeSummary}>
@@ -85,7 +85,7 @@ export const OverviewSection: React.FC = () => {
         <div className={cardClass}>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-neutral-text/60 font-bold text-xs">معدل الإشغال الكلي</span>
+              <span className="text-neutral-text/60 font-bold text-xs">{t('dashboard.overview.stat.occupancy')}</span>
               <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
                 <TrendingUp className="w-4 h-4" />
               </div>
@@ -99,10 +99,10 @@ export const OverviewSection: React.FC = () => {
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-muted-border/20 grid grid-cols-4 gap-1 text-[10px] text-center">
-            <span className="text-emerald-500 font-bold">{stats.available} متاح</span>
-            <span className="text-amber-500 font-bold">{stats.reserved} محجوز</span>
-            <span className="text-sky-500 font-bold">{stats.rented} مؤجر</span>
-            <span className="text-neutral-text/60 font-bold">{stats.sold} مباع</span>
+            <span className="text-emerald-500 font-bold">{stats.available} {t('common.unitStatus.available')}</span>
+            <span className="text-amber-500 font-bold">{stats.reserved} {t('common.unitStatus.reserved')}</span>
+            <span className="text-sky-500 font-bold">{stats.rented} {t('common.unitStatus.rented')}</span>
+            <span className="text-neutral-text/60 font-bold">{stats.sold} {t('common.unitStatus.sold')}</span>
           </div>
         </div>
 
@@ -110,16 +110,16 @@ export const OverviewSection: React.FC = () => {
           <div className={cardClass}>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-neutral-text/60 font-bold text-xs">طلبات الاهتمام الواردة</span>
+                <span className="text-neutral-text/60 font-bold text-xs">{t('dashboard.overview.stat.inquiries')}</span>
                 <div className="w-8 h-8 rounded-xl bg-gold/15 flex items-center justify-center text-gold">
                   <Users className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-3xl font-black text-heading tracking-tight">{inquiries.data.length}</div>
-              <div className="text-[11px] font-bold text-emerald-500 mt-1">{newInquiries} طلبات جديدة</div>
+              <div className="text-[11px] font-bold text-emerald-500 mt-1">{t('dashboard.overview.inquiries.new', { count: newInquiries })}</div>
             </div>
             <div className="mt-3 pt-3 border-t border-muted-border/20 text-[10px] text-neutral-text/60">
-              {contactedInquiries} قيد المتابعة · {inquiries.data.length - newInquiries - contactedInquiries} مغلق
+              {t('dashboard.overview.inquiries.tally', { contacted: contactedInquiries, closed: inquiries.data.length - newInquiries - contactedInquiries })}
             </div>
           </div>
         )}
@@ -127,21 +127,21 @@ export const OverviewSection: React.FC = () => {
         <div className={cardClass}>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-neutral-text/60 font-bold text-xs">الوحدات العقارية</span>
+              <span className="text-neutral-text/60 font-bold text-xs">{t('dashboard.overview.stat.units')}</span>
               <div className="w-8 h-8 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
                 <Layers className="w-4 h-4" />
               </div>
             </div>
             <div className="text-3xl font-black text-heading tracking-tight">{stats.total}</div>
             <div className="text-[11px] font-bold text-neutral-text/70 mt-1">
-              موزعة على {projects.data.reduce((sum, p) => sum + (p.floors?.length ?? 0), 0)} دور
+              {t('dashboard.overview.units.acrossFloors', { count: projects.data.reduce((sum, p) => sum + (p.floors?.length ?? 0), 0) })}
             </div>
           </div>
           <button
             onClick={() => navigate({ section: 'units' })}
             className="mt-3 pt-3 border-t border-muted-border/20 text-[10px] text-accent font-bold text-start hover:underline cursor-pointer"
           >
-            فتح المخطط البصري للأدوار
+            {t('dashboard.overview.units.openPlan')}
           </button>
         </div>
       </div>
@@ -158,14 +158,14 @@ export const OverviewSection: React.FC = () => {
         <div className="rounded-2xl bg-surface border border-muted-border/40 p-5 sm:p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-muted-border/30">
             <div>
-              <h3 className="text-sm font-black text-heading">أحدث استفسارات المستثمرين والعملاء</h3>
-              <p className="text-[11px] text-neutral-text/60 mt-0.5">آخر 6 طلبات مسجلة عبر الموقع</p>
+              <h3 className="text-sm font-black text-heading">{t('dashboard.overview.latest.title')}</h3>
+              <p className="text-[11px] text-neutral-text/60 mt-0.5">{t('dashboard.overview.latest.subtitle')}</p>
             </div>
             <button
               onClick={() => navigate({ section: 'inquiries' })}
               className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
             >
-              <span>عرض كل الطلبات ({inquiries.data.length})</span>
+              <span>{t('dashboard.overview.latest.viewAll', { count: inquiries.data.length })}</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -176,8 +176,8 @@ export const OverviewSection: React.FC = () => {
             <EmptyState
               compact
               icon={Inbox}
-              title={inquiries.loading ? 'جاري تحميل الطلبات...' : 'لا توجد طلبات اهتمام بعد'}
-              description={inquiries.loading ? undefined : 'ستظهر هنا الطلبات فور تسجيلها من صفحة "سجل اهتمامك" في الموقع.'}
+              title={inquiries.loading ? t('dashboard.overview.latest.loading') : t('dashboard.overview.latest.empty')}
+              description={inquiries.loading ? undefined : t('dashboard.overview.latest.emptyHint')}
             />
           ) : (
             <div className="divide-y divide-muted-border/15">
@@ -195,7 +195,7 @@ export const OverviewSection: React.FC = () => {
                     </div>
                   </div>
                   <div className="min-w-0 flex-1 basis-40 text-xs">
-                    <span className="font-bold text-heading block truncate">{inq.projectTitle || 'استفسار عام'}</span>
+                    <span className="font-bold text-heading block truncate">{inq.projectTitle || t('dashboard.overview.latest.general')}</span>
                     <span className="text-[10px] text-neutral-text/60">
                       {inq.interestTypeAr} · {formatAdminDate(inq.createdAt)}
                     </span>

@@ -27,6 +27,8 @@ import { navSectionOf, type AdminSection } from '../../../pages/admin/adminRoute
 import { publicSiteUrl } from '../../../pages/admin/projectLabels';
 import { usePersistentState } from '../../../hooks/usePersistentState';
 import { useTheme } from '../../../hooks/useTheme';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
+import { AdminLanguageToggle } from './AdminLanguageToggle';
 
 interface NavItem {
   section: AdminSection;
@@ -41,41 +43,44 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  { label: 'الرئيسية', items: [{ section: 'overview', label: 'نظرة عامة', icon: LayoutDashboard }] },
-  {
-    label: 'المحفظة العقارية',
-    items: [
-      { section: 'projects', label: 'المشاريع', icon: Building2 },
-      { section: 'units', label: 'المخطط البصري', icon: Layers },
-      { section: 'categories', label: 'التصنيفات', icon: Tags },
-    ],
-  },
-  {
-    label: 'محتوى الموقع',
-    items: [
-      { section: 'cms', label: 'إدارة المحتوى (CMS)', icon: Globe, permission: 'manageCms' },
-      { section: 'pastProjects', label: 'أعمالنا السابقة', icon: Archive, permission: 'managePastProjects' },
-    ],
-  },
-  {
-    label: 'العملاء',
-    items: [
-      { section: 'inquiries', label: 'طلبات الاهتمام', icon: Users, permission: 'viewInquiries' },
-      { section: 'applications', label: 'طلبات التوظيف', icon: Users, permission: 'viewApplications' },
-      { section: 'newsletter', label: 'مشتركو النشرة', icon: Mail, permission: 'exportData' },
-    ],
-  },
-  {
-    label: 'الإدارة',
-    items: [
-      { section: 'users', label: 'المستخدمون والصلاحيات', icon: ShieldCheck, permission: 'manageUsers' },
-      { section: 'roles', label: 'الأدوار والصلاحيات', icon: KeyRound, permission: 'manageUsers' },
-      { section: 'departments', label: 'الأقسام والإدارات', icon: Building, permission: 'manageUsers' },
-      { section: 'settings', label: 'الإعدادات', icon: Settings, permission: 'manageNotifications' },
-    ],
-  },
-];
+/** Navigation groups, re-built when the language changes so every label follows it. */
+function navGroups(t: (key: any) => string): NavGroup[] {
+  return [
+    { label: t('layout.nav.group.main'), items: [{ section: 'overview', label: t('layout.nav.overview'), icon: LayoutDashboard }] },
+    {
+      label: t('layout.nav.group.portfolio'),
+      items: [
+        { section: 'projects', label: t('layout.nav.projects'), icon: Building2 },
+        { section: 'units', label: t('layout.nav.units'), icon: Layers },
+        { section: 'categories', label: t('layout.nav.categories'), icon: Tags },
+      ],
+    },
+    {
+      label: t('layout.nav.group.content'),
+      items: [
+        { section: 'cms', label: t('layout.nav.cms'), icon: Globe, permission: 'manageCms' },
+        { section: 'pastProjects', label: t('layout.nav.pastProjects'), icon: Archive, permission: 'managePastProjects' },
+      ],
+    },
+    {
+      label: t('layout.nav.group.customers'),
+      items: [
+        { section: 'inquiries', label: t('layout.nav.inquiries'), icon: Users, permission: 'viewInquiries' },
+        { section: 'applications', label: t('layout.nav.applications'), icon: Users, permission: 'viewApplications' },
+        { section: 'newsletter', label: t('layout.nav.newsletter'), icon: Mail, permission: 'exportData' },
+      ],
+    },
+    {
+      label: t('layout.nav.group.management'),
+      items: [
+        { section: 'users', label: t('layout.nav.users'), icon: ShieldCheck, permission: 'manageUsers' },
+        { section: 'roles', label: t('layout.nav.roles'), icon: KeyRound, permission: 'manageUsers' },
+        { section: 'departments', label: t('layout.nav.departments'), icon: Building, permission: 'manageUsers' },
+        { section: 'settings', label: t('layout.nav.settings'), icon: Settings, permission: 'manageNotifications' },
+      ],
+    },
+  ];
+}
 
 interface AdminSidebarProps {
   open: boolean;
@@ -94,6 +99,7 @@ function initialsOf(name: string): string {
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLogout }) => {
+  const { t } = useAdminT();
   const { can, currentUser, location, navigate, projects, inquiries } = useAdmin();
   const { theme, toggleTheme, variant, toggleVariant } = useTheme();
   // Desktop only: an icon rail that leaves more room for wide tables and the floor plan.
@@ -102,11 +108,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
 
   const groups = useMemo(
     () =>
-      NAV_GROUPS.map((group) => ({
+      navGroups(t).map((group) => ({
         ...group,
         items: group.items.filter((item) => !item.permission || can(item.permission)),
       })).filter((group) => group.items.length > 0),
-    [can]
+    [can, t]
   );
 
   const totalUnits = useMemo(
@@ -118,9 +124,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
 
   /** A number shown next to the label; `alert` ones are coloured and survive in rail mode as a dot. */
   const badgeFor = (section: AdminSection): { value: number; alert?: boolean; title?: string } | null => {
-    if (section === 'projects') return drafts > 0 ? { value: drafts, alert: true, title: `${drafts} مسودة` } : { value: projects.data.length };
+    if (section === 'projects') return drafts > 0 ? { value: drafts, alert: true, title: t('layout.badge.drafts', { count: drafts }) } : { value: projects.data.length };
     if (section === 'units') return totalUnits ? { value: totalUnits } : null;
-    if (section === 'inquiries') return newInquiries ? { value: newInquiries, alert: true, title: `${newInquiries} طلب جديد` } : null;
+    if (section === 'inquiries') return newInquiries ? { value: newInquiries, alert: true, title: t('layout.badge.newInquiries', { count: newInquiries }) } : null;
     return null;
   };
 
@@ -141,21 +147,21 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
         className={`fixed md:sticky top-0 z-50 md:z-auto h-screen shrink-0 bg-surface border-e border-muted-border/40 flex flex-col transition-[width,transform] duration-300 start-0 ${
           rail ? 'md:w-[76px] w-72' : 'w-72'
         } ${open ? 'translate-x-0' : 'max-md:ltr:-translate-x-full max-md:rtl:translate-x-full'}`}
-        aria-label="قائمة لوحة التحكم"
+        aria-label={t('layout.sidebar.aria')}
       >
         {/* Brand */}
         <div className={`flex items-center gap-3 border-b border-muted-border/30 ${rail ? 'md:justify-center md:px-2 px-4' : 'px-4'} h-16 sm:h-20 shrink-0`}>
           <div className="w-10 h-10 rounded-xl brand-fill text-canvas flex items-center justify-center font-black text-sm shadow-md shrink-0">
-            أجدا
+            {t('layout.brand.short')}
           </div>
           <div className={`min-w-0 flex-1 ${rail ? 'md:hidden' : ''}`}>
-            <div className="text-xs font-black text-heading truncate">أجدا للتطوير العقاري</div>
-            <div className="text-[10px] text-accent font-bold">لوحة الإدارة</div>
+            <div className="text-xs font-black text-heading truncate">{t('layout.brand.name')}</div>
+            <div className="text-[10px] text-accent font-bold">{t('layout.brand.dashboard')}</div>
           </div>
           <button
             onClick={onClose}
             className="md:hidden p-1.5 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer"
-            aria-label="إغلاق القائمة"
+            aria-label={t('layout.sidebar.close')}
           >
             <CloseIcon className="w-4 h-4" />
           </button>
@@ -229,7 +235,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
                 ? 'bg-accent/10 border-accent/40 text-accent'
                 : 'bg-canvas/70 border-transparent hover:bg-surface-hover hover:border-muted-border/40'
             } ${rail ? 'md:justify-center' : ''}`}
-            title={rail ? `${currentUser?.name ?? ''} · الملف الشخصي` : undefined}
+            title={rail ? `${currentUser?.name ?? ''} · ${t('common.entity.profile')}` : undefined}
           >
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 border transition ${
@@ -243,28 +249,29 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
             <div className={`min-w-0 flex-1 ${rail ? 'md:hidden' : ''}`}>
               <div className="text-xs font-bold text-heading truncate">{currentUser?.name ?? '…'}</div>
               <div className="text-[10px] text-neutral-text/55 truncate">
-                {currentUser?.roleAr ?? '…'} · الملف الشخصي
+                {currentUser?.roleAr ?? '…'} · {t('common.entity.profile')}
               </div>
             </div>
           </button>
 
+          <AdminLanguageToggle />
           <div className={`grid gap-1 ${rail ? 'md:grid-cols-1 grid-cols-5' : 'grid-cols-5'}`}>
             {[
               {
                 key: 'theme',
-                label: theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن',
+                label: theme === 'dark' ? t('layout.theme.toLight') : t('layout.theme.toDark'),
                 icon: theme === 'dark' ? Sun : Moon,
                 onClick: toggleTheme,
               },
               {
                 key: 'variant',
-                label: variant === 'prime' ? 'الهوية الكلاسيكية' : 'هوية أجدا برايم',
+                label: variant === 'prime' ? t('layout.variant.classic') : t('layout.variant.prime'),
                 icon: Sparkles,
                 onClick: toggleVariant,
               },
               {
                 key: 'collapse',
-                label: collapsed ? 'توسيع القائمة' : 'طي القائمة',
+                label: collapsed ? t('layout.sidebar.expand') : t('layout.sidebar.collapse'),
                 icon: collapsed ? PanelRightOpen : PanelRightClose,
                 onClick: () => setCollapsed(!collapsed),
                 desktopOnly: true,
@@ -286,8 +293,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
               href={publicSiteUrl()}
               target="_blank"
               rel="noopener noreferrer"
-              title="عرض الموقع الحي"
-              aria-label="عرض الموقع الحي"
+              title={t('layout.action.openSite')}
+              aria-label={t('layout.action.openSite')}
               className="flex items-center justify-center p-2 rounded-lg text-neutral-text/60 hover:text-accent hover:bg-surface-hover"
             >
               <ExternalLink className="w-4 h-4" />
@@ -295,8 +302,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
             <button
               type="button"
               onClick={onLogout}
-              title="تسجيل الخروج"
-              aria-label="تسجيل الخروج"
+              title={t('layout.action.logout')}
+              aria-label={t('layout.action.logout')}
               className="flex items-center justify-center p-2 rounded-lg text-red-500/80 hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
             >
               <LogOut className="w-4 h-4 ltr:rotate-180" />

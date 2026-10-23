@@ -1,4 +1,6 @@
 import { useCallback, useState, useRef, useEffect, lazy, Suspense } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { TOAST_DURATION_MS, type AdminToast, type ToastKind } from './pages/admin/adminContextDef';
 import type { Property } from './types/property';
 import { Navbar, type NavPageKey } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
@@ -11,7 +13,7 @@ import { AnnouncementBar } from './components/common/AnnouncementBar';
 import { MaintenanceScreen } from './components/common/MaintenanceScreen';
 import { useSiteSettings } from './hooks/useSiteSettings';
 import { useLanguage } from './hooks/useLanguage';
-import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 
 // Lazy-loaded routes for code splitting
 const WorksPage = lazy(() => import('./components/works/WorksPage').then((m) => ({ default: m.WorksPage })));
@@ -46,6 +48,28 @@ function AdminLoadingFallback() {
   );
 }
 
+/** Icon, border and text colour per toast kind, from the existing theme tokens. */
+const TOAST_LOOK: Record<ToastKind, { icon: LucideIcon; iconClass: string; borderClass: string }> = {
+  success: { icon: CheckCircle2, iconClass: 'text-success', borderClass: 'border-accent/40' },
+  error: { icon: AlertCircle, iconClass: 'text-red-500', borderClass: 'border-red-500/40' },
+  info: { icon: Info, iconClass: 'text-accent', borderClass: 'border-accent/40' },
+};
+
+/** The one toast, shared by the login portal, the admin dashboard and the public site. */
+function ToastView({ message, kind }: AdminToast) {
+  const { icon: Icon, iconClass, borderClass } = TOAST_LOOK[kind];
+  return (
+    <div
+      role={kind === 'error' ? 'alert' : 'status'}
+      aria-live={kind === 'error' ? 'assertive' : 'polite'}
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border ${borderClass} text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in`}
+    >
+      <Icon className={`w-4 h-4 shrink-0 ${iconClass}`} />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 export type PageKey = NavPageKey;
 
 interface RouteState {
@@ -56,7 +80,7 @@ interface RouteState {
 }
 
 // Matches `/admin` and everything below it except the login portal.
-const ADMIN_PATH_RE = /\/admin(?:\/(.*))?$/;
+const ADMIN_PATH_RE = /\/admin(?:\/(.*))?$/i;
 
 const parsePath = (pathname: string): RouteState => {
   const clean = pathname.replace(/\/$/, '').toLowerCase();
@@ -66,7 +90,7 @@ const parsePath = (pathname: string): RouteState => {
   // matched before the authenticated `/admin` branch.
   if (clean.endsWith('/admin/verify-email')) return { page: 'admin_verify_email' };
   if (clean.endsWith('/admin/accept-invite')) return { page: 'admin_accept_invite' };
-  const adminMatch = clean.match(ADMIN_PATH_RE);
+  const adminMatch = pathname.replace(/\/$/, '').match(ADMIN_PATH_RE);
   if (adminMatch) {
     return AdminStorage.isAuthenticated() ? { page: 'admin', adminPath: adminMatch[1] ?? '' } : { page: 'admin_login' };
   }
@@ -134,9 +158,10 @@ export function App() {
   const [route, setRoute] = useState<RouteState>(() => parsePath(window.location.pathname));
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [initialFilters, setInitialFilters] = useState<{ city?: string; type?: string; priceType?: string } | undefined>(undefined);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<AdminToast | null>(null);
   const [transition, setTransition] = useState<'idle' | 'out' | 'in'>('idle');
   const transitioningRef = useRef(false);
+  const toastTimerRef = useRef<number | null>(null);
   const scrollPositionsRef = useRef<Record<string, number>>({});
 
   const { settings } = useSiteSettings();
@@ -214,9 +239,11 @@ export function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (msg: string, kind: ToastKind = 'success') => {
+    // A new toast replaces the previous one and takes over its timer.
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+    setToast({ message: msg, kind });
+    toastTimerRef.current = window.setTimeout(() => setToast(null), TOAST_DURATION_MS[kind]);
   };
 
   const runTransition = (onSwap?: () => void) => {
@@ -289,12 +316,7 @@ export function App() {
             onNavigateHome={() => navigateTo('home')}
           />
         </Suspense>
-        {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
-            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
+        {toast && <ToastView message={toast.message} kind={toast.kind} />}
       </ThemeProvider>
     );
   }
@@ -338,12 +360,7 @@ export function App() {
             onShowToast={showToast}
           />
         </Suspense>
-        {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
-            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
+        {toast && <ToastView message={toast.message} kind={toast.kind} />}
       </ThemeProvider>
     );
   }
@@ -448,12 +465,7 @@ export function App() {
           </div>
         )}
 
-        {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
-            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
+        {toast && <ToastView message={toast.message} kind={toast.kind} />}
       </div>
     </ThemeProvider>
   );

@@ -11,12 +11,6 @@ export const VIEW_MODES: readonly ViewMode[] = ['table', 'list', 'grid'];
 export const isViewMode = (value: unknown): value is ViewMode =>
   value === 'table' || value === 'list' || value === 'grid';
 
-export const VIEW_MODE_LABELS: Record<ViewMode, string> = {
-  table: 'جدول',
-  list: 'قائمة',
-  grid: 'شبكة',
-};
-
 export type GridColumns = 1 | 2 | 3 | 4 | 5;
 
 export const isGridColumns = (value: unknown): value is GridColumns =>

@@ -1,8 +1,4 @@
-/**
- * Alerts for a new inquiry pushed over the realtime socket: the text for the
- * in-app toast, and an OS notification when the admin tab is in the background
- * (only after the admin allowed it from the bell).
- */
+import { documentLanguage, translateCurrent } from '../../../i18n/admin/core';
 
 interface NewInquiryPayload {
   id?: unknown;
@@ -22,7 +18,13 @@ export function newInquiryMessage(payload: unknown): string {
   const data = (payload && typeof payload === 'object' ? payload : {}) as NewInquiryPayload;
   const name = asText(data.name);
   const about = asText(data.projectTitle) || asText(data.interestTypeAr);
-  return ['طلب اهتمام جديد', name && `من ${name}`, about && `— ${about}`].filter(Boolean).join(' ');
+  return [
+    translateCurrent('layout.notifications.newInquiry'),
+    name && translateCurrent('layout.notifications.fromName', { name }),
+    about && translateCurrent('layout.notifications.about', { about }),
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function showDesktopNotification(payload: unknown, onClick: () => void): void {
@@ -31,11 +33,12 @@ export function showDesktopNotification(payload: unknown, onClick: () => void): 
 
   const data = (payload && typeof payload === 'object' ? payload : {}) as NewInquiryPayload;
   const id = asText(data.id);
+  const language = documentLanguage();
   try {
-    const notification = new Notification('طلب اهتمام جديد', {
+    const notification = new Notification(translateCurrent('layout.notifications.newInquiry'), {
       body: newInquiryMessage(payload),
-      lang: 'ar',
-      dir: 'rtl',
+      lang: language,
+      dir: language === 'ar' ? 'rtl' : 'ltr',
       // One notification per inquiry, even if the event arrives twice.
       tag: id ? `inquiry-${id}` : undefined,
     });
@@ -48,3 +51,5 @@ export function showDesktopNotification(payload: unknown, onClick: () => void): 
     // Some browsers (e.g. Android Chrome) only allow notifications from a service worker.
   }
 }
+
+// (documentLanguage is available via the import above.)

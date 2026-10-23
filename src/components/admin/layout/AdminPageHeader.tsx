@@ -1,6 +1,7 @@
 import React from 'react';
 import { Menu, RefreshCw } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { NotificationsBell } from './NotificationsBell';
 
 interface AdminPageHeaderProps {
@@ -18,6 +19,7 @@ interface AdminPageHeaderProps {
  */
 export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitle, onOpenMenu, actionsSlotRef }) => {
   const { realtimeConnected, refreshAll, projects, inquiries } = useAdmin();
+  const { t } = useAdminT();
   const refreshing = projects.loading || inquiries.loading;
 
   return (
@@ -26,7 +28,7 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitl
         <button
           onClick={onOpenMenu}
           className="md:hidden p-2 rounded-xl border border-muted-border/40 text-neutral-text/70 hover:text-heading cursor-pointer shrink-0"
-          aria-label="فتح القائمة"
+          aria-label={t('layout.header.openMenu')}
         >
           <Menu className="w-4 h-4" />
         </button>
@@ -43,17 +45,17 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitl
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
               : 'bg-amber-500/10 border-amber-500/20 text-amber-600'
           }`}
-          title={realtimeConnected ? 'البيانات حية ومزامنة' : 'في انتظار الاتصال الحي'}
+          title={realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}
         >
           <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-          <span className="hidden lg:inline">{realtimeConnected ? 'البيانات حية ومزامنة' : 'في انتظار الاتصال الحي'}</span>
+          <span className="hidden lg:inline">{realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}</span>
         </div>
 
         <button
           onClick={() => void refreshAll()}
           disabled={refreshing}
-          title="تحديث البيانات"
-          aria-label="تحديث البيانات"
+          title={t('layout.header.refresh')}
+          aria-label={t('layout.header.refresh')}
           className="p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:text-accent bg-surface transition cursor-pointer text-neutral-text/70 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />

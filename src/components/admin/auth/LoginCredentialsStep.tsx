@@ -1,5 +1,6 @@
 import React from 'react';
-import { Mail, Lock, AlertCircle, CheckCircle2, type LucideIcon } from 'lucide-react';
+import { Mail, AlertCircle, CheckCircle2, type LucideIcon } from 'lucide-react';
+import { PasswordInput } from './PasswordInput';
 
 interface LoginCredentialsStepProps {
   email: string;
@@ -69,18 +70,13 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
             {isAr ? 'كلمة المرور' : 'Password'}
           </label>
-          <div className="relative flex items-center">
-            <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
-            <input
-              type="password"
-              required
-              dir="ltr"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
-            />
-          </div>
+          <PasswordInput
+            value={password}
+            onChange={setPassword}
+            placeholder="••••••••"
+            required
+            isAr={isAr}
+          />
           <div className="flex justify-end pt-1.5">
             <button
               type="button"

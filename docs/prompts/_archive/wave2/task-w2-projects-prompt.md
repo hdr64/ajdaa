@@ -1,0 +1,32 @@
+# Task w2-projects — complete the project admin form, 3D link, brochure PDF button
+
+Worktree lane `projects` (branch `lane/projects`, based on `integration/wave1`). Owner notes 2, 3, 4 and the "PDF not shown" bug. Other lanes (`oldprojects`, `careers`) run in parallel on other files: stay inside your file list.
+
+## Read first
+`docs/MASTER-PLAN.md`, `refactor.md`, `server/prisma/schema.prisma` (model `Project`), `server/src/routes/projects.routes.ts`, `server/src/services/serializers.ts`, `src/types/property.ts`, `src/services/propertyService.ts`, `src/pages/admin/sections/ProjectEditSection.tsx`, `src/components/admin/ProjectCreateModal.tsx`, `src/pages/admin/sections/ProjectShowSection.tsx`, `src/pages/ProjectDetailPage.tsx`, `src/components/common/PropertyCard.tsx`, `src/pages/admin/sections/usePublishProject.ts`, one existing project test in `server/test/`.
+
+## Verified facts (do not re-investigate)
+- `brochureUrl` is stored and returned by the API, but NO public component reads it (`ProjectDetailPage.tsx`, `PropertyCard.tsx`). That is the "PDF not shown" bug.
+- The admin edit form (`ProjectEditSection.tsx`) lacks these Project fields: `typeEn`, `price`, `priceLabel`, `priceTypeEn`, `rooms`, `bathrooms`, `unitsCount`, `unitsCountEn`, `locationHighlightsAr`, `locationHighlightsEn`. The `Property` type and `propertyService.ts` already map them.
+- `Project.model3dUrl String?` exists in the schema (added by the foundation lane). No migration is needed in this lane and you must NOT add or change any migration or `schema.prisma`.
+
+## Decided design
+1. **Edit form fields.** Add inputs for the ten fields above to `ProjectEditSection.tsx`, in the existing visual style, Arabic labels first (English field labels in the existing `Ar / En` pairing style used by the form). `locationHighlightsAr/En` are textareas with one entry per line (like `features`). `price` and `rooms`/`bathrooms` are numeric (reuse the existing `parseNumber` pattern: empty = null, NaN = validation error shown under the field). Do NOT add `publishStatus` (publish/hide stays in `usePublishProject`). Make sure create (`ProjectCreateModal.tsx`) does not lose these fields if it already sends them; do not expand the create modal beyond adding `model3dUrl` and keeping `brochureUrl`.
+2. **3D link.** Server: `model3dUrl` accepted by the create and update zod schemas in `projects.routes.ts` as `z.string().trim().max(500).refine(v => /^https:\/\/[^\s"'<>\\]+$/.test(v))` or null/empty (empty string becomes null). It is returned by the project serializer. Frontend: add `model3dUrl` to `Property`, the DTO and mapping in `propertyService.ts`, an input in `ProjectEditSection.tsx` and `ProjectCreateModal.tsx` (label: "رابط المجسم ثلاثي الأبعاد"), validated https-only on the client with the same pattern, and shown in `ProjectShowSection.tsx` as a link.
+3. **`virtualTour3dAvailable` becomes derived (no data change, no migration).** In the server serializer the API field `virtualTour3dAvailable` is `Boolean(model3dUrl)`; the stored column is left untouched and is no longer written by the create/update routes (ignore an incoming value). Remove the manual toggle for it from the admin form and show the derived state read-only in `ProjectShowSection.tsx`. Do not touch `seed.ts` or the migration folder.
+4. **Public 3D viewer.** On `ProjectDetailPage.tsx`, when `model3dUrl` is set, show a button "عرض المجسم ثلاثي الأبعاد" (English: "View 3D model") that opens a modal with an `<iframe src={model3dUrl} sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" allow="fullscreen" loading="lazy">` plus an "open in new tab" link (`target="_blank" rel="noopener noreferrer"`) as fallback for sites that refuse framing. Close on Escape and backdrop click, focus returns to the button. Re-check the scheme is `https:` before rendering (never render any other scheme). Use the existing language hook for Arabic/English text.
+5. **Brochure PDF button.** On `ProjectDetailPage.tsx` and `PropertyCard.tsx`, when `brochureUrl` is set, show "تحميل ملف المشروع (PDF)" / "Download project profile (PDF)" as an `<a href download target="_blank" rel="noopener noreferrer">`. Hidden when unset. On the card it must not break the card's click-through (stop propagation; keyboard accessible; visible focus ring). Only `/uploads/...` or `https://` URLs are rendered as links (reuse any existing media URL resolver in `propertyService.ts`).
+6. **Create-time upload path.** Reproduce the reported bug: create a project through the admin modal with a PDF, confirm `brochureUrl` is saved (check the request body in `ProjectCreateModal.tsx` line ~186 and the `POST /api/projects` handler around `projects.routes.ts:139`), and confirm it is displayed publicly after your change 5. If you find an additional defect on the create path, fix it and describe it in the report; if the create path was already correct, say so.
+7. **Tests** (server, `server/test/`): `model3dUrl` accepted (https), rejected (`http://`, `javascript:`, spaces, > 500 chars), empty string stored as null; serializer returns `virtualTour3dAvailable=true` only when `model3dUrl` is set regardless of the stored column; the update route no longer writes `virtualTour3dAvailable`; `brochureUrl` round-trips on create and update. Frontend has no test runner: do not add one.
+
+## Out of scope
+Anything under `server/prisma/**`, notification/permission code, careers and past-projects features, `src/data/properties.ts` removal (wave 3), nav/footer/admin route registries (`App.tsx`, `adminRoutes.ts`, `AdminSidebar.tsx`, `Navbar.tsx`, `Footer.tsx`, `server/src/app.ts`), other lanes' files.
+
+## Constraints
+No commits, no installs (node_modules exist), never read or write `.env*` except: for a manual smoke test you may `cp server/.env.example server/.env` (this worktree's own file, never commit it, delete it at the end). Smoke-test ports for this lane: API `PORT=4011`, Vite `--port 5181` with `VITE_API_PROXY_TARGET=http://localhost:4011`. Free model only.
+
+## Gates
+`npm run lint`, `npm run build`, `npm --prefix server run build`, `npm --prefix server test` (all green; give final counts). Then a manual smoke test in the browser (admin: edit a project, fill the new fields, save, reload and see them persisted; public: 3D modal and PDF button on the detail page and card) and describe what you saw.
+
+## Report
+Write `task-w2-projects-report.md`: files changed, gate output (counts), what you saw in the smoke test, decisions made, anything you could not verify.

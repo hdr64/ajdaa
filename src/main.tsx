@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeProvider'
 import { LanguageProvider } from './context/LanguageContext'
 import { SiteSettingsProvider } from './context/SiteSettingsProvider'
 import { CmsProvider } from './context/CmsProvider'
+import { EnvBadge } from './components/common/EnvBadge'
 import { reportClientError } from './services/api'
 
 // Global browser error telemetry to server errors.log
@@ -37,6 +38,7 @@ createRoot(document.getElementById('root')!).render(
         <SiteSettingsProvider>
           <CmsProvider>
             <App />
+            <EnvBadge />
           </CmsProvider>
         </SiteSettingsProvider>
       </LanguageProvider>
