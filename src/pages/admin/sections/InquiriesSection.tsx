@@ -1,3 +1,5 @@
+// Registers every admin string area first: module-scope translateAdmin calls below need them.
+import '../../../i18n/admin';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCheck, Download, Inbox, Lock, Phone, RefreshCw, Search, SearchX, StickyNote, Trash2, X } from 'lucide-react';
 import type { CustomerInquiry } from '../../../types/property';
@@ -5,6 +7,7 @@ import type { InquiryStatus } from '../../../services/inquiryService';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { NoAccess, SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
@@ -17,10 +20,10 @@ import { InquiryStatusSelect, WhatsAppLink } from './inquiryUi';
 import { formatAdminDateTime } from '../adminFormat';
 
 const STATUS_FILTERS: { key: 'all' | InquiryStatus; label: string }[] = [
-  { key: 'all', label: 'الكل' },
-  { key: 'new', label: 'جديد' },
-  { key: 'contacted', label: 'تم التواصل' },
-  { key: 'closed', label: 'مغلق' },
+  { key: 'all', label: translateAdmin('ar', 'inquiries.status.all') },
+  { key: 'new', label: translateAdmin('ar', 'inquiries.status.new') },
+  { key: 'contacted', label: translateAdmin('ar', 'inquiries.status.contacted') },
+  { key: 'closed', label: translateAdmin('ar', 'inquiries.status.closed') },
 ];
 
 const STATUS_OPTIONS = STATUS_FILTERS.filter((filter) => filter.key !== 'all').map((filter) => ({
@@ -36,7 +39,8 @@ const TABLE_STORAGE_KEY = 'ajda.admin.inquiries';
 /** Below `md` the table has to scroll sideways, so phones always get the cards. */
 const PHONE_QUERY = '(max-width: 767px)';
 
-const GENERAL_PROJECT = 'استفسار عام';
+import { translateAdmin } from '../../../i18n/admin/core';
+const GENERAL_PROJECT = translateAdmin('ar', 'inquiries.generalProject');
 
 /** Mirrors the server export: same columns, same order, same line endings. */
 const CSV_HEADERS = [
@@ -128,6 +132,7 @@ function useIsPhone(): boolean {
 /** Inline notes editor; saves on demand, not on every keystroke. */
 const NotesEditor: React.FC<{ inquiry: CustomerInquiry; onDone: () => void }> = ({ inquiry, onDone }) => {
   const { inquiries, showToast } = useAdmin();
+  const { t } = useAdminT();
   const [value, setValue] = useState(inquiry.notes ?? '');
   const [saving, setSaving] = useState(false);
 
@@ -137,10 +142,10 @@ const NotesEditor: React.FC<{ inquiry: CustomerInquiry; onDone: () => void }> = 
       const notes = value.trim() || null;
       await AdminStorage.updateInquiry(inquiry.id, { notes });
       inquiries.setData((current) => current.map((item) => (item.id === inquiry.id ? { ...item, notes } : item)));
-      showToast('تم حفظ الملاحظات');
+      showToast(t('inquiries.notes.saved'));
       onDone();
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حفظ الملاحظات'));
+      showToast(getErrorMessage(error, t('inquiries.notes.saveError')));
     } finally {
       setSaving(false);
     }
@@ -153,19 +158,19 @@ const NotesEditor: React.FC<{ inquiry: CustomerInquiry; onDone: () => void }> = 
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="ملاحظات داخلية للفريق (لا تظهر للعميل)..."
+        placeholder={t('inquiries.notes.placeholder')}
         className="w-full px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent resize-y"
       />
       <div className="flex items-center justify-end gap-2">
         <button onClick={onDone} className="brand-btn-secondary px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer">
-          إلغاء
+          {t('inquiries.notes.cancel')}
         </button>
         <button
           onClick={() => void save()}
           disabled={saving}
           className="brand-btn-primary px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-50"
         >
-          {saving ? 'جارٍ الحفظ...' : 'حفظ الملاحظات'}
+          {saving ? t('inquiries.notes.saving') : t('inquiries.notes.save')}
         </button>
       </div>
     </div>
@@ -174,6 +179,7 @@ const NotesEditor: React.FC<{ inquiry: CustomerInquiry; onDone: () => void }> = 
 
 export const InquiriesSection: React.FC = () => {
   const { inquiries, can, isSuperAdmin, showToast, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
   const [view, setView] = usePersistentState<ViewMode>(VIEW_STORAGE_KEY, 'table', isViewMode);
   const isPhone = useIsPhone();
   const [search, setSearch] = useState('');
@@ -254,19 +260,19 @@ export const InquiriesSection: React.FC = () => {
       const updated = rows.length - failed.size;
       showToast(
         failed.size === 0
-          ? `تم تحديث حالة ${rows.length} من الطلبات`
-          : `تم تحديث ${updated} من ${rows.length} طلبات، وتعذر تحديث الباقي`
+          ? t('inquiries.bulk.statusAll', { count: rows.length })
+          : t('inquiries.bulk.statusPartial', { updated, total: rows.length })
       );
     },
-    [inquiries, showToast]
+    [inquiries, showToast, t]
   );
 
   const bulkDelete = useCallback(
     async (rows: CustomerInquiry[]) => {
       const ok = await confirmDelete({
-        title: `حذف ${rows.length} من الطلبات؟`,
-        message: 'سيتم حذف بيانات العملاء نهائياً ولا يمكن التراجع عن ذلك.',
-        confirmLabel: 'حذف الطلبات',
+        title: t('inquiries.bulk.deleteTitle', { count: rows.length }),
+        message: t('inquiries.bulk.deleteMessage'),
+        confirmLabel: t('inquiries.bulk.deleteLabel'),
       });
       if (!ok) return;
 
@@ -285,35 +291,35 @@ export const InquiriesSection: React.FC = () => {
 
       showToast(
         deleted.size === rows.length
-          ? `تم حذف ${deleted.size} من الطلبات`
-          : `تم حذف ${deleted.size} من ${rows.length} طلبات، وتعذر حذف الباقي`
+          ? t('inquiries.bulk.deletedAll', { count: deleted.size })
+          : t('inquiries.bulk.deletedPartial', { deleted: deleted.size, total: rows.length })
       );
     },
-    [confirmDelete, inquiries, showToast]
+    [confirmDelete, inquiries, showToast, t]
   );
 
   const bulkActions = useMemo<BulkAction<CustomerInquiry>[]>(
     () => [
       {
         id: 'contacted',
-        label: 'تحديد كـ تم التواصل',
+        label: t('inquiries.bulk.markContacted'),
         icon: CheckCheck,
         onRun: (rows) => bulkSetStatus(rows, 'contacted'),
       },
-      { id: 'closed', label: 'تحديد كـ مغلق', icon: Lock, onRun: (rows) => bulkSetStatus(rows, 'closed') },
+      { id: 'closed', label: t('inquiries.bulk.markClosed'), icon: Lock, onRun: (rows) => bulkSetStatus(rows, 'closed') },
       ...(isSuperAdmin
-        ? [{ id: 'delete', label: 'حذف', icon: Trash2, danger: true, onRun: bulkDelete }]
+        ? [{ id: 'delete', label: t('common.action.delete'), icon: Trash2, danger: true, onRun: bulkDelete }]
         : []),
-      { id: 'export', label: 'تصدير المحدد', icon: Download, onRun: downloadSelectedInquiries },
+      { id: 'export', label: t('inquiries.bulk.exportSelected'), icon: Download, onRun: downloadSelectedInquiries },
     ],
-    [bulkDelete, bulkSetStatus, isSuperAdmin]
+    [bulkDelete, bulkSetStatus, isSuperAdmin, t]
   );
 
   const columns = useMemo<Column<CustomerInquiry>[]>(
     () => [
       {
         id: 'customer',
-        header: 'العميل',
+        header: t('inquiries.table.client'),
         width: '170px',
         sortValue: (inq) => inq.name,
         filter: { type: 'text', value: (inq) => [inq.name, inq.phone, inq.email].filter(Boolean).join(' ') },
@@ -335,7 +341,7 @@ export const InquiriesSection: React.FC = () => {
       },
       {
         id: 'project',
-        header: 'المشروع / الوحدة',
+        header: t('inquiries.table.projectUnit'),
         width: '180px',
         sortValue: (inq) => inq.projectTitle ?? null,
         filter: { type: 'select', options: projectOptions, value: projectLabel },
@@ -350,7 +356,7 @@ export const InquiriesSection: React.FC = () => {
       },
       {
         id: 'interest',
-        header: 'نوع الاهتمام',
+        header: t('inquiries.table.interestType'),
         width: '130px',
         filter: { type: 'select', options: interestOptions, value: (inq) => inq.interestTypeAr },
         cell: (inq) => (
@@ -361,7 +367,7 @@ export const InquiriesSection: React.FC = () => {
       },
       {
         id: 'message',
-        header: 'الرسالة',
+        header: t('inquiries.table.message'),
         // No `sortValue`: the table only auto-truncates cells that declare one.
         cell: (inq) => (
           <div className="min-w-0 space-y-1.5">
@@ -373,7 +379,7 @@ export const InquiriesSection: React.FC = () => {
                 className="p-2 rounded-lg bg-gold/10 text-[10px] text-heading max-w-[20rem] truncate"
                 title={inq.notes}
               >
-                <span className="font-black text-gold">ملاحظة: </span>
+                <span className="font-black text-gold">{t('inquiries.table.noteLabel')}: </span>
                 {inq.notes}
               </p>
             )}
@@ -382,7 +388,7 @@ export const InquiriesSection: React.FC = () => {
       },
       {
         id: 'createdAt',
-        header: 'تاريخ التسجيل',
+        header: t('inquiries.table.date'),
         width: '150px',
         sortValue: (inq) => new Date(inq.createdAt),
         cell: (inq) => (
@@ -391,14 +397,14 @@ export const InquiriesSection: React.FC = () => {
       },
       {
         id: 'status',
-        header: 'الحالة',
+        header: t('inquiries.table.status'),
         width: '120px',
         sortValue: (inq) => inq.status,
         filter: { type: 'select', options: STATUS_OPTIONS, value: (inq) => inq.status },
         cell: (inq) => <InquiryStatusSelect inquiry={inq} />,
       },
     ],
-    [editingNotesId, interestOptions, projectOptions]
+    [editingNotesId, interestOptions, projectOptions, t]
   );
 
   if (!can('viewInquiries')) return <NoAccess />;
@@ -410,7 +416,7 @@ export const InquiriesSection: React.FC = () => {
     try {
       await AdminStorage.exportInquiriesCsv(statusFilter === 'all' ? {} : { status: statusFilter });
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر تصدير الملف'));
+      showToast(getErrorMessage(error, t('inquiries.exportError')));
     } finally {
       setExporting(false);
     }
@@ -418,17 +424,17 @@ export const InquiriesSection: React.FC = () => {
 
   const handleDelete = async (inquiry: CustomerInquiry) => {
     const ok = await confirmDelete({
-      title: `حذف طلب "${inquiry.name}"؟`,
-      message: 'سيتم حذف بيانات العميل نهائياً ولا يمكن التراجع عن ذلك.',
-      confirmLabel: 'حذف الطلب',
+      title: t('inquiries.delete.confirmTitle', { name: inquiry.name }),
+      message: t('inquiries.delete.confirmMessage'),
+      confirmLabel: t('inquiries.delete.confirmLabel'),
     });
     if (!ok) return;
     try {
       await AdminStorage.deleteInquiry(inquiry.id);
       inquiries.setData((current) => current.filter((item) => item.id !== inquiry.id));
-      showToast('تم حذف الطلب');
+      showToast(t('inquiries.delete.success'));
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حذف الطلب'));
+      showToast(getErrorMessage(error, t('inquiries.delete.error')));
     }
   };
 
@@ -439,8 +445,8 @@ export const InquiriesSection: React.FC = () => {
         <a
           href={`tel:${inq.phone}`}
           className="p-2 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition inline-flex items-center justify-center"
-          title="اتصال هاتفي"
-          aria-label="اتصال هاتفي"
+          title={t('inquiries.action.call')}
+          aria-label={t('inquiries.action.call')}
         >
           <Phone className="w-3.5 h-3.5" />
         </a>
@@ -450,8 +456,8 @@ export const InquiriesSection: React.FC = () => {
         className={`p-2 rounded-xl transition inline-flex items-center justify-center cursor-pointer ${
           inq.notes ? 'bg-gold/15 text-gold hover:bg-gold/25' : 'bg-canvas border border-muted-border/40 text-neutral-text/60 hover:text-heading'
         }`}
-        title={inq.notes ? 'تعديل الملاحظات' : 'إضافة ملاحظة'}
-        aria-label="ملاحظات"
+        title={inq.notes ? t('inquiries.action.editNotes') : t('inquiries.action.addNotes')}
+        aria-label={t('inquiries.action.notes')}
       >
         <StickyNote className="w-3.5 h-3.5" />
       </button>
@@ -459,8 +465,8 @@ export const InquiriesSection: React.FC = () => {
         <button
           onClick={() => void handleDelete(inq)}
           className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition inline-flex items-center justify-center cursor-pointer"
-          title="حذف الطلب"
-          aria-label="حذف الطلب"
+          title={t('inquiries.action.delete')}
+          aria-label={t('inquiries.action.delete')}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -476,10 +482,10 @@ export const InquiriesSection: React.FC = () => {
   const noMatches = (
     <EmptyState
       icon={SearchX}
-      title="لا توجد طلبات مطابقة"
+      title={t('inquiries.empty.noMatch')}
       action={
         <button onClick={clearFilters} className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-xl cursor-pointer">
-          مسح عوامل التصفية
+          {t('inquiries.empty.clearFilters')}
         </button>
       }
     />
@@ -496,10 +502,10 @@ export const InquiriesSection: React.FC = () => {
           onClick={() => void handleExport()}
           disabled={exporting || inquiries.data.length === 0}
           className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-          title={statusFilter === 'all' ? 'تصدير كل الطلبات' : 'تصدير الطلبات بالحالة المحددة'}
+          title={statusFilter === 'all' ? t('inquiries.export.all') : t('inquiries.export.filtered')}
         >
           {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          <span className="hidden sm:inline">تصدير CSV</span>
+          <span className="hidden sm:inline">{t('inquiries.export.csv')}</span>
         </button>
       )}
     </AdminHeaderActions>
@@ -517,7 +523,7 @@ export const InquiriesSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label="جاري تحميل الطلبات..." />
+        <SectionLoading label={t('inquiries.loading')} />
       </>
     );
   }
@@ -527,8 +533,8 @@ export const InquiriesSection: React.FC = () => {
         {header}
         <EmptyState
           icon={Inbox}
-          title="لا توجد طلبات اهتمام بعد"
-          description='ستظهر هنا الطلبات المسجلة من صفحات المشاريع ونموذج "سجل اهتمامك".'
+          title={t('inquiries.empty.title')}
+          description={t('inquiries.empty.description')}
         />
       </>
     );
@@ -545,7 +551,7 @@ export const InquiriesSection: React.FC = () => {
             <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-text/40" />
             <input
               type="search"
-              placeholder="ابحث بالاسم، الجوال، البريد، المشروع أو الملاحظات..."
+              placeholder={t('inquiries.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full ps-10 pe-4 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
@@ -576,14 +582,14 @@ export const InquiriesSection: React.FC = () => {
             <div className="rounded-2xl bg-surface border border-accent/30 shadow-xs p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-black text-heading truncate">ملاحظات الطلب: {editingInquiry.name}</p>
+                  <p className="text-xs font-black text-heading truncate">{t('inquiries.notes.editorTitle', { name: editingInquiry.name })}</p>
                   <p className="text-[10px] text-neutral-text/60 font-mono truncate" dir="ltr">
                     {editingInquiry.phone || editingInquiry.email || '—'}
                   </p>
                 </div>
                 <button
                   onClick={() => setEditingNotesId(null)}
-                  aria-label="إغلاق محرر الملاحظات"
+                  aria-label={t('inquiries.notes.closeEditor')}
                   className="p-1.5 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -634,7 +640,7 @@ export const InquiriesSection: React.FC = () => {
               {inq.message && <p className="text-[11px] text-neutral-text/75 leading-relaxed">{inq.message}</p>}
               {inq.notes && editingNotesId !== inq.id && (
                 <div className="p-2 rounded-lg bg-gold/10 text-[10px] text-heading">
-                  <span className="font-black text-gold">ملاحظة: </span>
+                  <span className="font-black text-gold">{t('inquiries.table.noteLabel')}: </span>
                   {inq.notes}
                 </div>
               )}

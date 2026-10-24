@@ -18,6 +18,7 @@ import { getErrorMessage } from '../../../services/api';
 import { isAcceptedMedia, MAX_UPLOAD_BYTES, uploadMedia } from '../../../services/mediaService';
 import { toYoutubeEmbedUrl } from '../../../services/youtube';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { NoAccess, SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
@@ -124,8 +125,8 @@ function parseNumber(value: string): number | null {
 }
 
 function validateImageFile(file: File): string | null {
-  if (!isAcceptedMedia(file) || !file.type.startsWith('image/')) return 'صيغة الصورة غير مدعومة (JPG, PNG, WebP, AVIF, GIF)';
-  if (file.size > MAX_UPLOAD_BYTES) return 'حجم الصورة يتجاوز 50 ميجابايت';
+  if (!isAcceptedMedia(file) || !file.type.startsWith('image/')) return 'projectEdit.upload.unsupportedImage';
+  if (file.size > MAX_UPLOAD_BYTES) return 'projectEdit.upload.imageTooLarge';
   return null;
 }
 
@@ -174,6 +175,7 @@ function Field({
 
 const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   const { projects, navigate, showToast, confirm, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
   const [baseline, setBaseline] = useState<EditorForm>(() => toFormState(project));
   const [form, setForm] = useState<EditorForm>(baseline);
   const [saving, setSaving] = useState(false);
@@ -212,9 +214,9 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   const removeGalleryImage = async (index: number) => {
     const url = form.gallery[index];
     const ok = await confirmDelete({
-      title: 'إزالة هذه الصورة من المعرض؟',
-      message: 'تُحذف من المشروع عند حفظ التعديلات.',
-      confirmLabel: 'إزالة الصورة',
+      title: t('projectEdit.gallery.removeConfirmTitle'),
+      message: t('projectEdit.gallery.removeConfirmMessage'),
+      confirmLabel: t('projectEdit.gallery.removeConfirmLabel'),
     });
     if (!ok) return;
     // By URL, not index: an upload may have appended images while the dialog was open.
@@ -226,9 +228,9 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
   const removeBrochure = async () => {
     const ok = await confirmDelete({
-      title: 'إزالة ملف الكتيّب؟',
-      message: 'يُحذف من المشروع عند حفظ التعديلات.',
-      confirmLabel: 'إزالة الكتيّب',
+      title: t('projectEdit.brochure.removeConfirmTitle'),
+      message: t('projectEdit.brochure.removeConfirmMessage'),
+      confirmLabel: t('projectEdit.brochure.removeConfirmLabel'),
     });
     if (ok) patch({ brochureUrl: '' });
   };
@@ -249,60 +251,60 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
   const validate = (): Record<string, string> => {
     const found: Record<string, string> = {};
-    if (!form.title.trim()) found.title = 'اسم المشروع مطلوب';
-    if (!form.city.trim()) found.city = 'المدينة مطلوبة';
-    if (!form.image.trim()) found.image = 'صورة المشروع الرئيسية مطلوبة';
+    if (!form.title.trim()) found.title = t('projectEdit.validation.titleRequired');
+    if (!form.city.trim()) found.city = t('projectEdit.validation.cityRequired');
+    if (!form.image.trim()) found.image = t('projectEdit.validation.imageRequired');
 
     const area = parseNumber(form.area);
-    if (area === null || Number.isNaN(area)) found.area = 'المساحة مطلوبة ويجب أن تكون رقماً';
-    else if (area < 0) found.area = 'المساحة لا يمكن أن تكون سالبة';
+    if (area === null || Number.isNaN(area)) found.area = t('projectEdit.validation.areaRequired');
+    else if (area < 0) found.area = t('projectEdit.validation.areaNegative');
 
     const price = parseNumber(form.price);
-    if (Number.isNaN(price)) found.price = 'السعر يجب أن يكون رقماً';
-    else if (price !== null && price < 0) found.price = 'السعر لا يمكن أن يكون سالباً';
+    if (Number.isNaN(price)) found.price = t('projectEdit.validation.priceNumber');
+    else if (price !== null && price < 0) found.price = t('projectEdit.validation.priceNegative');
 
     // The server stores rooms/bathrooms as integers, so reject a fraction here.
     const rooms = parseNumber(form.rooms);
-    if (Number.isNaN(rooms)) found.rooms = 'عدد الغرف يجب أن يكون رقماً';
-    else if (rooms !== null && !Number.isInteger(rooms)) found.rooms = 'عدد الغرف يجب أن يكون رقماً صحيحاً';
+    if (Number.isNaN(rooms)) found.rooms = t('projectEdit.validation.roomsNumber');
+    else if (rooms !== null && !Number.isInteger(rooms)) found.rooms = t('projectEdit.validation.roomsInteger');
 
     const bathrooms = parseNumber(form.bathrooms);
-    if (Number.isNaN(bathrooms)) found.bathrooms = 'عدد الحمامات يجب أن يكون رقماً';
-    else if (bathrooms !== null && !Number.isInteger(bathrooms)) found.bathrooms = 'عدد الحمامات يجب أن يكون رقماً صحيحاً';
+    if (Number.isNaN(bathrooms)) found.bathrooms = t('projectEdit.validation.bathroomsNumber');
+    else if (bathrooms !== null && !Number.isInteger(bathrooms)) found.bathrooms = t('projectEdit.validation.bathroomsInteger');
 
     if (form.model3dUrl.trim() && !isHttpsUrl(form.model3dUrl)) {
-      found.model3dUrl = 'أدخل رابطاً يبدأ بـ https:// بدون مسافات (حتى 500 حرف)';
+      found.model3dUrl = t('projectEdit.validation.model3dUrl');
     }
 
     const lat = parseNumber(form.lat);
     const lng = parseNumber(form.lng);
-    if (Number.isNaN(lat)) found.lat = 'خط العرض يجب أن يكون رقماً';
-    else if (lat !== null && (lat < -90 || lat > 90)) found.lat = 'خط العرض يجب أن يكون بين -90 و 90';
-    if (Number.isNaN(lng)) found.lng = 'خط الطول يجب أن يكون رقماً';
-    else if (lng !== null && (lng < -180 || lng > 180)) found.lng = 'خط الطول يجب أن يكون بين -180 و 180';
-    if ((lat === null) !== (lng === null)) found.lng = 'أدخل خطي العرض والطول معاً أو اتركهما فارغين';
+    if (Number.isNaN(lat)) found.lat = t('projectEdit.validation.latNumber');
+    else if (lat !== null && (lat < -90 || lat > 90)) found.lat = t('projectEdit.validation.latRange');
+    if (Number.isNaN(lng)) found.lng = t('projectEdit.validation.lngNumber');
+    else if (lng !== null && (lng < -180 || lng > 180)) found.lng = t('projectEdit.validation.lngRange');
+    if ((lat === null) !== (lng === null)) found.lng = t('projectEdit.validation.latLngPair');
 
-    if (embedUrl === undefined) found.videoUrl = 'رابط الفيديو غير صالح. استخدم رابط يوتيوب أو معرّف الفيديو (11 حرفاً)';
+    if (embedUrl === undefined) found.videoUrl = t('projectEdit.validation.videoUrl');
     return found;
   };
 
   const upload = async (kind: 'image' | 'brochure', file: File) => {
     if (kind === 'image') {
       const problem = validateImageFile(file);
-      if (problem) return showToast(problem);
+      if (problem) return showToast(t(problem as 'projectEdit.upload.unsupportedImage' | 'projectEdit.upload.imageTooLarge'));
     } else if (file.type !== 'application/pdf') {
-      return showToast('الكتيّب يجب أن يكون ملف PDF');
+      return showToast(t('projectEdit.upload.brochurePdfOnly'));
     } else if (file.size > MAX_UPLOAD_BYTES) {
-      return showToast('حجم الملف يتجاوز 50 ميجابايت');
+      return showToast(t('projectEdit.upload.fileTooLarge'));
     }
 
     setUploading(kind);
     try {
       const uploaded = await uploadMedia(file);
       patch(kind === 'image' ? { image: uploaded.url } : { brochureUrl: uploaded.url });
-      showToast(kind === 'image' ? 'تم رفع الصورة الرئيسية' : 'تم رفع الكتيّب');
+      showToast(kind === 'image' ? t('projectEdit.upload.imageSuccess') : t('projectEdit.upload.brochureSuccess'));
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر رفع الملف'));
+      showToast(getErrorMessage(error, t('projectEdit.upload.error')));
     } finally {
       setUploading(null);
     }
@@ -318,16 +320,16 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
       for (const file of selected) {
         const problem = validateImageFile(file);
         if (problem) {
-          showToast(problem);
+          showToast(t(problem as 'projectEdit.upload.unsupportedImage' | 'projectEdit.upload.imageTooLarge'));
           continue;
         }
         urls.push((await uploadMedia(file)).url);
       }
       if (urls.length > 0) {
-        showToast(urls.length === selected.length ? 'تم رفع صور المعرض' : `تم رفع ${urls.length} من ${selected.length} صورة`);
+        showToast(urls.length === selected.length ? t('projectEdit.upload.gallerySuccess') : t('projectEdit.upload.galleryPartial', { uploaded: urls.length, total: selected.length }));
       }
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر رفع صور المعرض'));
+      showToast(getErrorMessage(error, t('projectEdit.upload.galleryError')));
     } finally {
       // Append to the gallery as it is *now*: removals made during the upload stay removed.
       if (urls.length > 0) setForm((current) => ({ ...current, gallery: [...current.gallery, ...urls] }));
@@ -347,9 +349,9 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
     if (busy) return;
     if (isDirty) {
       const ok = await confirm({
-        title: 'تجاهل التعديلات غير المحفوظة؟',
-        message: 'ستفقد التغييرات التي لم تحفظها على هذا المشروع.',
-        confirmLabel: 'تجاهل التعديلات',
+        title: t('projectEdit.dirty.confirmTitle'),
+        message: t('projectEdit.dirty.confirmMessage'),
+        confirmLabel: t('projectEdit.dirty.confirmLabel'),
         danger: true,
       });
       if (!ok) return;
@@ -364,7 +366,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
     const found = validate();
     if (Object.keys(found).length > 0) {
       setErrors(found);
-      showToast('يرجى تصحيح الحقول المميزة قبل الحفظ');
+      showToast(t('projectEdit.save.validationError'));
       document.getElementById(`pe-${Object.keys(found)[0]}`)?.focus();
       return;
     }
@@ -412,11 +414,11 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
     try {
       await AdminStorage.updateProject(project.id, merged);
       setBaseline(form); // clears the dirty flag before leaving
-      showToast('تم حفظ تعديلات المشروع');
+      showToast(t('projectEdit.save.success'));
       await projects.reload();
       navigate({ section: 'project', projectId: project.id });
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حفظ التعديلات'));
+      showToast(getErrorMessage(error, t('projectEdit.save.error')));
     } finally {
       setSaving(false);
     }
@@ -435,17 +437,17 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
           disabled={saving}
           className="brand-btn-secondary px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
         >
-          إلغاء
+          {t('common.action.cancel')}
         </button>
         <button
           type="submit"
           form={FORM_ID}
           disabled={busy || !isDirty}
           className="brand-btn-primary px-3 sm:px-5 py-2.5 rounded-xl text-xs font-black cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-          title={!isDirty ? 'لا توجد تعديلات لحفظها' : undefined}
+          title={!isDirty ? t('projectEdit.save.noChanges') : undefined}
         >
           {busy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          <span className="hidden sm:inline">{saving ? 'جارٍ الحفظ...' : uploading ? 'جارٍ الرفع...' : 'حفظ التعديلات'}</span>
+          <span className="hidden sm:inline">{saving ? t('projectEdit.save.saving') : uploading ? t('projectEdit.save.uploading') : t('projectEdit.save.label')}</span>
         </button>
       </AdminHeaderActions>
 
@@ -456,27 +458,27 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
           className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-text/60 hover:text-accent cursor-pointer"
         >
           <ArrowRight className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />
-          العودة إلى صفحة المشروع
+          {t('projectEdit.backToProject')}
         </button>
 
         {isDirty && (
           <div className="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-600 text-[11px] font-bold">
-            لديك تعديلات غير محفوظة.
+            {t('projectEdit.dirtyNotice')}
           </div>
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5 items-start">
           {/* Content column */}
           <div className="xl:col-span-3 space-y-5">
-            <Card title="البيانات الأساسية">
+            <Card title={t('projectEdit.card.basic')}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="اسم المشروع *" htmlFor="pe-title" error={errors.title}>
+                <Field label={t('projectEdit.field.title')} htmlFor="pe-title" error={errors.title}>
                   <input id="pe-title" type="text" value={form.title} onChange={(e) => patch({ title: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="اسم المشروع (بالإنجليزية)" htmlFor="pe-titleEn">
+                <Field label={t('projectEdit.field.titleEn')} htmlFor="pe-titleEn">
                   <input id="pe-titleEn" type="text" dir="ltr" value={form.titleEn} onChange={(e) => patch({ titleEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="نوع المشروع" htmlFor="pe-type">
+                <Field label={t('projectEdit.field.type')} htmlFor="pe-type">
                   <select
                     id="pe-type"
                     value={form.type}
@@ -493,13 +495,13 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     ))}
                   </select>
                 </Field>
-                <Field label="وصف النوع المعروض" htmlFor="pe-typeAr">
+                <Field label={t('projectEdit.field.typeAr')} htmlFor="pe-typeAr">
                   <input id="pe-typeAr" type="text" value={form.typeAr} onChange={(e) => patch({ typeAr: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="وصف النوع المعروض (بالإنجليزية)" htmlFor="pe-typeEn">
+                <Field label={t('projectEdit.field.typeEn')} htmlFor="pe-typeEn">
                   <input id="pe-typeEn" type="text" dir="ltr" value={form.typeEn} onChange={(e) => patch({ typeEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="طبيعة العقد" htmlFor="pe-priceType">
+                <Field label={t('projectEdit.field.priceType')} htmlFor="pe-priceType">
                   <select id="pe-priceType" value={form.priceType} onChange={(e) => patch({ priceType: e.target.value as PriceType })} className={`${INPUT_CLASS} cursor-pointer`}>
                     {PRICE_TYPES.map((priceType) => (
                       <option key={priceType} value={priceType}>
@@ -508,32 +510,32 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     ))}
                   </select>
                 </Field>
-                <Field label="طبيعة العقد (بالإنجليزية)" htmlFor="pe-priceTypeEn">
+                <Field label={t('projectEdit.field.priceTypeEn')} htmlFor="pe-priceTypeEn">
                   <input id="pe-priceTypeEn" type="text" dir="ltr" value={form.priceTypeEn} onChange={(e) => patch({ priceTypeEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="السعر" htmlFor="pe-price" error={errors.price}>
+                <Field label={t('projectEdit.field.price')} htmlFor="pe-price" error={errors.price}>
                   <input id="pe-price" type="number" step="any" min={0} dir="ltr" value={form.price} onChange={(e) => patch({ price: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="تسمية السعر" htmlFor="pe-priceLabel">
-                  <input id="pe-priceLabel" type="text" placeholder="يبدأ من" value={form.priceLabel} onChange={(e) => patch({ priceLabel: e.target.value })} className={INPUT_CLASS} />
+                <Field label={t('projectEdit.field.priceLabel')} htmlFor="pe-priceLabel">
+                  <input id="pe-priceLabel" type="text" placeholder={t('projectEdit.placeholder.priceStart')} value={form.priceLabel} onChange={(e) => patch({ priceLabel: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="المساحة (م²) *" htmlFor="pe-area" error={errors.area}>
+                <Field label={t('projectEdit.field.area')} htmlFor="pe-area" error={errors.area}>
                   <input id="pe-area" type="number" min={0} value={form.area} onChange={(e) => patch({ area: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="عدد الغرف" htmlFor="pe-rooms" error={errors.rooms}>
+                <Field label={t('projectEdit.field.rooms')} htmlFor="pe-rooms" error={errors.rooms}>
                   <input id="pe-rooms" type="number" step="1" min={0} dir="ltr" value={form.rooms} onChange={(e) => patch({ rooms: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="عدد الحمامات" htmlFor="pe-bathrooms" error={errors.bathrooms}>
+                <Field label={t('projectEdit.field.bathrooms')} htmlFor="pe-bathrooms" error={errors.bathrooms}>
                   <input id="pe-bathrooms" type="number" step="1" min={0} dir="ltr" value={form.bathrooms} onChange={(e) => patch({ bathrooms: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="عدد الوحدات" htmlFor="pe-unitsCount">
-                  <input id="pe-unitsCount" type="text" placeholder="24 وحدة" value={form.unitsCount} onChange={(e) => patch({ unitsCount: e.target.value })} className={INPUT_CLASS} />
+                <Field label={t('projectEdit.field.unitsCount')} htmlFor="pe-unitsCount">
+                  <input id="pe-unitsCount" type="text" placeholder={t('projectEdit.unitsCountPlaceholder')} value={form.unitsCount} onChange={(e) => patch({ unitsCount: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="عدد الوحدات (بالإنجليزية)" htmlFor="pe-unitsCountEn">
+                <Field label={t('projectEdit.field.unitsCountEn')} htmlFor="pe-unitsCountEn">
                   <input id="pe-unitsCountEn" type="text" dir="ltr" placeholder="24 Units" value={form.unitsCountEn} onChange={(e) => patch({ unitsCountEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="المدينة *" htmlFor="pe-city" error={errors.city}>
+                  <Field label={t('projectEdit.field.city')} htmlFor="pe-city" error={errors.city}>
                     <CitySelect
                       id="pe-city"
                       valueAr={form.city}
@@ -543,27 +545,27 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     />
                   </Field>
                 </div>
-                <Field label="المدينة (بالإنجليزية)" htmlFor="pe-cityEn">
+                <Field label={t('projectEdit.field.cityEn')} htmlFor="pe-cityEn">
                   <input id="pe-cityEn" type="text" dir="ltr" value={form.cityEn} onChange={(e) => patch({ cityEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="حالة المشروع" htmlFor="pe-status">
-                  <input id="pe-status" type="text" placeholder="متاح للتأجير" value={form.status} onChange={(e) => patch({ status: e.target.value })} className={INPUT_CLASS} />
+                <Field label={t('projectEdit.field.status')} htmlFor="pe-status">
+                  <input id="pe-status" type="text" placeholder={t('projectEdit.statusPlaceholder')} value={form.status} onChange={(e) => patch({ status: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="حالة المشروع (بالإنجليزية)" htmlFor="pe-statusEn">
+                <Field label={t('projectEdit.field.statusEn')} htmlFor="pe-statusEn">
                   <input id="pe-statusEn" type="text" dir="ltr" value={form.statusEn} onChange={(e) => patch({ statusEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="الشارة" htmlFor="pe-badge">
-                  <input id="pe-badge" type="text" placeholder="مشروع رئيسي مميز" value={form.badge} onChange={(e) => patch({ badge: e.target.value })} className={INPUT_CLASS} />
+                <Field label={t('projectEdit.field.badge')} htmlFor="pe-badge">
+                  <input id="pe-badge" type="text" placeholder={t('projectEdit.badgePlaceholder')} value={form.badge} onChange={(e) => patch({ badge: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="الشارة (بالإنجليزية)" htmlFor="pe-badgeEn">
+                <Field label={t('projectEdit.field.badgeEn')} htmlFor="pe-badgeEn">
                   <input id="pe-badgeEn" type="text" dir="ltr" value={form.badgeEn} onChange={(e) => patch({ badgeEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
               </div>
             </Card>
 
             <Card
-              title="الموقع على الخريطة"
-              description="انقر على الخريطة لتثبيت موقع المشروع أو اسحب الدبوس لتحديد الإحداثيات بدقة."
+              title={t('projectEdit.card.map')}
+              description={t('projectEdit.map.hint')}
             >
               <MapLocationPicker
                 lat={Number.isNaN(lat) ? null : lat}
@@ -580,32 +582,32 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
               )}
             </Card>
 
-            <Card title="الوصف">
-              <Field label="الوصف (بالعربية)" htmlFor="pe-description">
+            <Card title={t('projectEdit.card.description')}>
+              <Field label={t('projectEdit.field.descriptionAr')} htmlFor="pe-description">
                 <textarea id="pe-description" rows={5} value={form.description} onChange={(e) => patch({ description: e.target.value })} className={`${INPUT_CLASS} resize-y leading-relaxed`} />
               </Field>
-              <Field label="الوصف (بالإنجليزية)" htmlFor="pe-descriptionEn">
+              <Field label={t('projectEdit.field.descriptionEn')} htmlFor="pe-descriptionEn">
                 <textarea id="pe-descriptionEn" rows={5} dir="ltr" value={form.descriptionEn} onChange={(e) => patch({ descriptionEn: e.target.value })} className={`${INPUT_CLASS} resize-y leading-relaxed`} />
               </Field>
             </Card>
 
-            <Card title="المزايا" description="عنصر واحد في كل سطر.">
+            <Card title={t('projectEdit.card.features')} description={t('projectEdit.listHint')}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="بالعربية" htmlFor="pe-features">
-                  <textarea id="pe-features" rows={7} value={form.features} onChange={(e) => patch({ features: e.target.value })} placeholder={'موقع استراتيجي\nمواقف خاصة'} className={`${INPUT_CLASS} resize-y leading-loose`} />
+                <Field label={t('projectEdit.label.ar')} htmlFor="pe-features">
+                  <textarea id="pe-features" rows={7} value={form.features} onChange={(e) => patch({ features: e.target.value })} placeholder={t('projectEdit.featuresPlaceholder')} className={`${INPUT_CLASS} resize-y leading-loose`} />
                 </Field>
-                <Field label="بالإنجليزية" htmlFor="pe-featuresEn">
+                <Field label={t('projectEdit.label.en')} htmlFor="pe-featuresEn">
                   <textarea id="pe-featuresEn" rows={7} dir="ltr" value={form.featuresEn} onChange={(e) => patch({ featuresEn: e.target.value })} placeholder={'Prime location\nPrivate parking'} className={`${INPUT_CLASS} resize-y leading-loose`} />
                 </Field>
               </div>
             </Card>
 
-            <Card title="أبرز معالم الموقع" description="عنصر واحد في كل سطر.">
+            <Card title={t('projectEdit.card.locationHighlights')} description={t('projectEdit.listHint')}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="بالعربية" htmlFor="pe-locationHighlightsAr">
-                  <textarea id="pe-locationHighlightsAr" rows={6} value={form.locationHighlightsAr} onChange={(e) => patch({ locationHighlightsAr: e.target.value })} placeholder={'قريب من طريق الملك فهد\nخلف مطار الرياض'} className={`${INPUT_CLASS} resize-y leading-loose`} />
+                <Field label={t('projectEdit.label.ar')} htmlFor="pe-locationHighlightsAr">
+                  <textarea id="pe-locationHighlightsAr" rows={6} value={form.locationHighlightsAr} onChange={(e) => patch({ locationHighlightsAr: e.target.value })} placeholder={t('projectEdit.locationHighlightsPlaceholder')} className={`${INPUT_CLASS} resize-y leading-loose`} />
                 </Field>
-                <Field label="بالإنجليزية" htmlFor="pe-locationHighlightsEn">
+                <Field label={t('projectEdit.label.en')} htmlFor="pe-locationHighlightsEn">
                   <textarea id="pe-locationHighlightsEn" rows={6} dir="ltr" value={form.locationHighlightsEn} onChange={(e) => patch({ locationHighlightsEn: e.target.value })} placeholder={'Close to King Fahd Road\nBehind Riyadh Airport'} className={`${INPUT_CLASS} resize-y leading-loose`} />
                 </Field>
               </div>
@@ -614,12 +616,12 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
           {/* Media column */}
           <div className="xl:col-span-2 space-y-5">
-            <Card title="الصور">
+            <Card title={t('projectEdit.card.images')}>
               <div>
-                <span className={LABEL_CLASS}>الصورة الرئيسية *</span>
+                <span className={LABEL_CLASS}>{t('projectEdit.field.mainImage')}</span>
                 {form.image ? (
                   <div className="relative rounded-2xl overflow-hidden border border-muted-border/50">
-                    <img src={form.image} alt="الصورة الرئيسية" className="w-full aspect-[16/9] object-cover" />
+                    <img src={form.image} alt={t('projectEdit.field.mainImage')} className="w-full aspect-[16/9] object-cover" />
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
@@ -627,7 +629,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                       className="absolute top-2 end-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/70 text-white text-[10px] font-bold hover:bg-black/85 cursor-pointer disabled:opacity-60"
                     >
                       {uploading === 'image' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ImageUp className="w-3 h-3" />}
-                      {uploading === 'image' ? 'جارٍ الرفع...' : 'استبدال'}
+                      {uploading === 'image' ? t('projectEdit.uploading') : t('projectEdit.action.replace')}
                     </button>
                   </div>
                 ) : (
@@ -639,39 +641,39 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     className="w-full aspect-[16/9] rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex flex-col items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                   >
                     {uploading === 'image' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ImageUp className="w-5 h-5" />}
-                    <span className="text-[10px] font-bold">{uploading === 'image' ? 'جارٍ الرفع...' : 'ارفع الصورة الرئيسية'}</span>
+                    <span className="text-[10px] font-bold">{uploading === 'image' ? t('projectEdit.uploading') : t('projectEdit.image.upload')}</span>
                   </button>
                 )}
                 {errors.image && <ErrorText>{errors.image}</ErrorText>}
               </div>
 
               <div>
-                <span className={LABEL_CLASS}>معرض الصور ({form.gallery.length})</span>
+                <span className={LABEL_CLASS}>{t('projectEdit.gallery.label', { count: form.gallery.length })}</span>
                 {form.gallery.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 mb-2">
                     {form.gallery.map((src, index) => (
                       <div key={`${src}-${index}`} className="relative group rounded-xl overflow-hidden border border-muted-border/40 aspect-square">
-                        <img src={src} alt={`صورة المعرض ${index + 1}`} className="w-full h-full object-cover" />
+                        <img src={src} alt={t('projectEdit.gallery.imageAlt', { index: index + 1 })} className="w-full h-full object-cover" />
                         <div className="absolute inset-x-1 bottom-1 flex items-center justify-between gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
                           <div className="flex gap-1">
-                            <button type="button" onClick={() => moveGalleryItem(index, -1)} disabled={index === 0} className="px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black disabled:opacity-30 cursor-pointer" aria-label="تقديم الصورة">
+                            <button type="button" onClick={() => moveGalleryItem(index, -1)} disabled={index === 0} className="px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black disabled:opacity-30 cursor-pointer" aria-label={t('projectEdit.gallery.moveEarlier')}>
                               →
                             </button>
-                            <button type="button" onClick={() => moveGalleryItem(index, 1)} disabled={index === form.gallery.length - 1} className="px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black disabled:opacity-30 cursor-pointer" aria-label="تأخير الصورة">
+                            <button type="button" onClick={() => moveGalleryItem(index, 1)} disabled={index === form.gallery.length - 1} className="px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black disabled:opacity-30 cursor-pointer" aria-label={t('projectEdit.gallery.moveLater')}>
                               ←
                             </button>
                           </div>
                           {form.image !== src && (
-                            <button type="button" onClick={() => patch({ image: src })} className="px-1.5 py-0.5 rounded bg-black/70 text-white text-[9px] font-bold cursor-pointer" title="اجعلها الصورة الرئيسية">
-                              رئيسية
+                            <button type="button" onClick={() => patch({ image: src })} className="px-1.5 py-0.5 rounded bg-black/70 text-white text-[9px] font-bold cursor-pointer" title={t('projectEdit.gallery.makeMain')}>
+                              {t('projectEdit.gallery.main')}
                             </button>
                           )}
                         </div>
                         <button
                           type="button"
                           onClick={() => void removeGalleryImage(index)}
-                          title="إزالة الصورة"
-                          aria-label="إزالة الصورة"
+                          title={t('projectEdit.action.removeImage')}
+                          aria-label={t('projectEdit.action.removeImage')}
                           className="absolute top-1 start-1 p-1 rounded-lg bg-black/70 text-white hover:bg-red-500 cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" />
@@ -687,17 +689,17 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                   className="w-full py-3 rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {uploading === 'gallery' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  <span className="text-[10px] font-bold">{uploading === 'gallery' ? 'جارٍ رفع الصور...' : 'إضافة صور للمعرض'}</span>
+                  <span className="text-[10px] font-bold">{uploading === 'gallery' ? t('projectEdit.gallery.uploading') : t('projectEdit.gallery.add')}</span>
                 </button>
               </div>
             </Card>
 
-            <Card title="الموقع على الخريطة" description="بدون إحداثيات لا يظهر المشروع على خريطة الموقع.">
+            <Card title={t('projectEdit.card.map')} description={t('projectEdit.map.noCoordsDescription')}>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="خط العرض (Latitude)" htmlFor="pe-lat" error={errors.lat}>
+                <Field label={t('projectEdit.field.lat')} htmlFor="pe-lat" error={errors.lat}>
                   <input id="pe-lat" type="number" step="any" dir="ltr" placeholder="24.7136" value={form.lat} onChange={(e) => patch({ lat: e.target.value })} className={INPUT_CLASS} />
                 </Field>
-                <Field label="خط الطول (Longitude)" htmlFor="pe-lng" error={errors.lng}>
+                <Field label={t('projectEdit.field.lng')} htmlFor="pe-lng" error={errors.lng}>
                   <input id="pe-lng" type="number" step="any" dir="ltr" placeholder="46.6753" value={form.lng} onChange={(e) => patch({ lng: e.target.value })} className={INPUT_CLASS} />
                 </Field>
               </div>
@@ -705,7 +707,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 <>
                   <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl border border-muted-border/50">
                     <iframe
-                      title="معاينة الموقع"
+                      title={t('projectEdit.map.preview')}
                       src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
                       className="w-full h-full"
                       loading="lazy"
@@ -714,40 +716,40 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                   </div>
                   <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[10px] font-bold text-accent hover:underline">
                     <MapPin className="w-3 h-3" />
-                    فتح في خرائط Google
+                    {t('projectEdit.map.openGoogle')}
                   </a>
                 </>
               ) : (
                 <p className="text-[11px] text-neutral-text/50">
-                  انسخ الإحداثيات من خرائط Google: انقر بزر الفأرة الأيمن على الموقع ثم انقر على الأرقام لنسخها.
+                  {t('projectEdit.map.copyCoordsHint')}
                 </p>
               )}
             </Card>
 
-            <Card title="الفيديو" description="يقبل رابط يوتيوب بأي صيغة (watch، youtu.be، shorts) أو معرّف الفيديو.">
-              <Field label="رابط الفيديو" htmlFor="pe-videoUrl" error={errors.videoUrl}>
+            <Card title={t('projectEdit.card.video')} description={t('projectEdit.video.description')}>
+              <Field label={t('projectEdit.field.videoUrl')} htmlFor="pe-videoUrl" error={errors.videoUrl}>
                 <input id="pe-videoUrl" type="text" dir="ltr" placeholder="https://youtu.be/XXXXXXXXXXX" value={form.videoUrl} onChange={(e) => patch({ videoUrl: e.target.value })} className={INPUT_CLASS} />
               </Field>
               {embedUrl && (
                 <div className="aspect-video w-full overflow-hidden rounded-2xl border border-muted-border/50 bg-neutral-950">
-                  <iframe src={embedUrl} title="معاينة الفيديو" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
+                  <iframe src={embedUrl} title={t('projectEdit.videoPreview')} allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
                 </div>
               )}
             </Card>
 
-            <Card title="الكتيّب والمجسم ثلاثي الأبعاد">
+            <Card title={t('projectEdit.card.brochureModel')}>
               <div>
-                <span className={LABEL_CLASS}>ملف الكتيّب (PDF)</span>
+                <span className={LABEL_CLASS}>{t('projectEdit.brochure.label')}</span>
                 {form.brochureUrl ? (
                   <div className="flex items-center gap-2 p-3 rounded-xl border border-muted-border/50 bg-canvas">
                     <FileText className="w-5 h-5 text-accent shrink-0" />
                     <a href={form.brochureUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-heading hover:text-accent truncate min-w-0">
-                      عرض الكتيّب
+                      {t('projectEdit.brochure.view')}
                     </a>
                     <button type="button" onClick={() => brochureInputRef.current?.click()} disabled={busy} className="ms-auto text-[10px] font-bold text-accent hover:underline cursor-pointer">
-                      استبدال
+                        {busy ? t('projectEdit.uploading') : t('projectEdit.action.replace')}
                     </button>
-                    <button type="button" onClick={() => void removeBrochure()} className="p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer" aria-label="إزالة الكتيّب" title="إزالة الكتيّب">
+                    <button type="button" onClick={() => void removeBrochure()} className="p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer" aria-label={t('projectEdit.action.removeBrochure')} title={t('projectEdit.action.removeBrochure')}>
                       <CloseIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -759,11 +761,11 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     className="w-full py-3 rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                   >
                     {uploading === 'brochure' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                    <span className="text-[10px] font-bold">{uploading === 'brochure' ? 'جارٍ الرفع...' : 'رفع ملف PDF'}</span>
+                    <span className="text-[10px] font-bold">{uploading === 'brochure' ? t('projectEdit.uploading') : t('projectEdit.brochure.upload')}</span>
                   </button>
                 )}
               </div>
-              <Field label="رابط المجسم ثلاثي الأبعاد" htmlFor="pe-model3dUrl" error={errors.model3dUrl}>
+              <Field label={t('projectEdit.field.model3dUrl')} htmlFor="pe-model3dUrl" error={errors.model3dUrl}>
                 <input
                   id="pe-model3dUrl"
                   type="url"
@@ -776,7 +778,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 />
               </Field>
               <p className="text-[10px] text-neutral-text/50">
-                اتركه فارغاً إن لم يوجد مجسم. يجب أن يبدأ الرابط بـ https://، وتظهر الجولة في الموقع تلقائياً عند إضافته.
+                {t('projectEdit.model3d.hint')}
               </p>
             </Card>
           </div>
@@ -822,20 +824,21 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
 export const ProjectEditSection: React.FC = () => {
   const { projects, location, can, navigate } = useAdmin();
+  const { t } = useAdminT();
   const project = projects.data.find((p) => p.id === location.projectId);
 
   if (!can('manageProjects')) return <NoAccess />;
   if (projects.error) return <SectionError message={projects.error} onRetry={() => void projects.reload()} />;
-  if (!project && projects.loading) return <SectionLoading label="جاري تحميل المشروع..." />;
+  if (!project && projects.loading) return <SectionLoading label={t('projectEdit.loading')} />;
   if (!project) {
     return (
       <EmptyState
         icon={SearchX}
-        title="المشروع غير موجود"
-        description="ربما تم حذفه أو أن الرابط غير صحيح."
+        title={t('projectEdit.notFoundTitle')}
+        description={t('projectEdit.notFoundDescription')}
         action={
           <button onClick={() => navigate({ section: 'projects' })} className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-xl cursor-pointer">
-            العودة إلى المشاريع
+            {t('projectEdit.backToProjects')}
           </button>
         }
       />

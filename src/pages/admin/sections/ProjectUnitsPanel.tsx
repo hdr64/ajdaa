@@ -4,9 +4,10 @@ import type { Property, PropertyFloor, PropertyUnit, UnitStatus } from '../../..
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { useFloorPlanEditor } from '../../../components/admin/floorplan/useFloorPlanEditor';
-import { UNIT_STATUS_LABELS_AR } from '../projectLabels';
+import { UNIT_STATUS_LABELS_AR, UNIT_STATUS_KEYS } from '../projectLabels';
 
 const STATUSES: UnitStatus[] = ['available', 'reserved', 'rented', 'sold'];
 
@@ -36,11 +37,12 @@ const UnitStatusControl: React.FC<{ unit: PropertyUnit; editable: boolean; onCha
   onChange,
   busy,
 }) => {
+  const { t } = useAdminT();
   if (!editable) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-heading whitespace-nowrap">
         <StatusDot status={unit.status} />
-        {UNIT_STATUS_LABELS_AR[unit.status]}
+        {t(UNIT_STATUS_KEYS[unit.status])}
       </span>
     );
   }
@@ -53,12 +55,12 @@ const UnitStatusControl: React.FC<{ unit: PropertyUnit; editable: boolean; onCha
         value={unit.status}
         disabled={busy}
         onChange={(e) => onChange(e.target.value as UnitStatus)}
-        aria-label={`حالة الوحدة ${unit.unitNumber}`}
+        aria-label={t('projects.unitsPanel.unitStatusAria', { number: unit.unitNumber })}
         className="ps-6 pe-2 py-1 rounded-lg bg-canvas border border-muted-border/50 text-[11px] font-bold text-heading outline-none cursor-pointer focus:border-accent disabled:opacity-50"
       >
         {STATUSES.map((status) => (
           <option key={status} value={status}>
-            {UNIT_STATUS_LABELS_AR[status]}
+            {t(UNIT_STATUS_KEYS[status])}
           </option>
         ))}
       </select>
@@ -71,6 +73,7 @@ const iconBtn =
 
 export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) => {
   const { can, showToast, projects } = useAdmin();
+  const { t } = useAdminT();
   const canUnits = can('manageUnits');
   const canFloors = can('manageProjects');
   const floors = useMemo(() => project.floors ?? [], [project.floors]);
@@ -140,10 +143,10 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
     setSavingUnit(unit.id);
     try {
       await AdminStorage.updateUnitStatus(unit.id, status);
-      showToast(`الوحدة ${unit.unitNumber}: ${UNIT_STATUS_LABELS_AR[status]}`);
+      showToast(t('projects.unitsPanel.statusChanged', { number: unit.unitNumber, status: t(UNIT_STATUS_KEYS[status]) }));
     } catch (error) {
       projects.setData(previous);
-      showToast(getErrorMessage(error, 'تعذر تحديث حالة الوحدة'));
+      showToast(getErrorMessage(error, t('projects.unitsPanel.statusError')));
     } finally {
       setSavingUnit(null);
     }
@@ -157,10 +160,10 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
   const unitActions = (floor: PropertyFloor, unit: PropertyUnit) =>
     canUnits && (
       <div className="flex items-center gap-0.5 justify-end">
-        <button type="button" onClick={() => editor.openEditUnit(floor, unit)} className={`${iconBtn} hover:text-accent`} title="تعديل الوحدة" aria-label={`تعديل ${unit.unitNumber}`}>
+        <button type="button" onClick={() => editor.openEditUnit(floor, unit)} className={`${iconBtn} hover:text-accent`} title={t('projects.unitsPanel.editUnit')} aria-label={t('projects.unitsPanel.editUnitAria', { number: unit.unitNumber })}>
           <Pencil className="w-3.5 h-3.5" />
         </button>
-        <button type="button" onClick={() => void editor.deleteUnit(unit)} className={`${iconBtn} hover:text-red-500`} title="حذف الوحدة" aria-label={`حذف ${unit.unitNumber}`}>
+        <button type="button" onClick={() => void editor.deleteUnit(unit)} className={`${iconBtn} hover:text-red-500`} title={t('projects.unitsPanel.deleteUnit')} aria-label={t('projects.unitsPanel.deleteUnitAria', { number: unit.unitNumber })}>
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -171,13 +174,13 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
       <>
         <EmptyState
           icon={Layers}
-          title="لا توجد أدوار في هذا المشروع"
-          description="ابدأ بإضافة دور ثم أضف وحداته."
+          title={t('projects.unitsPanel.noFloorsTitle')}
+          description={t('projects.unitsPanel.noFloorsDescription')}
           action={
             canFloors && (
               <button type="button" onClick={editor.openAddFloor} className="brand-btn-primary font-bold text-xs px-4 py-2 rounded-xl cursor-pointer inline-flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5" />
-                إضافة دور
+                {t('projects.unitsPanel.addFloor')}
               </button>
             )
           }
@@ -191,7 +194,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
     <div className="space-y-4">
       {/* Toolbar: status filter (with counts), search, expand all, add floor */}
       <div className="p-4 rounded-2xl bg-surface border border-muted-border/40 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto" role="group" aria-label="تصفية حسب الحالة">
+        <div className="flex items-center gap-1.5 overflow-x-auto" role="group" aria-label={t('projects.unitsPanel.filterByStatus')}>
           {(['all', ...STATUSES] as const).map((status) => (
             <button
               key={status}
@@ -205,7 +208,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
               }`}
             >
               {status !== 'all' && <StatusDot status={status} />}
-              {status === 'all' ? 'الكل' : UNIT_STATUS_LABELS_AR[status]}
+              {status === 'all' ? t('common.table.filterAll') : t(UNIT_STATUS_KEYS[status])}
               <span className="opacity-70 tabular-nums">({counts[status]})</span>
             </button>
           ))}
@@ -217,7 +220,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="رقم الوحدة أو النوع..."
+              placeholder={t('projects.unitsPanel.searchPlaceholder')}
               className="w-full ps-9 pe-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
             />
           </div>
@@ -226,7 +229,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
             onClick={() => setOpen(allOpen ? new Set() : new Set(visibleFloors.map(({ floor }) => floor.floorNumber)))}
             className="brand-btn-secondary px-3 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap cursor-pointer"
           >
-            {allOpen ? 'طي الكل' : 'توسيع الكل'}
+            {allOpen ? t('projects.unitsPanel.collapseAll') : t('projects.unitsPanel.expandAll')}
           </button>
           {canFloors && (
             <button
@@ -235,14 +238,14 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
               className="brand-btn-primary px-3 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap cursor-pointer inline-flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              دور جديد
+              {t('projects.unitsPanel.newFloor')}
             </button>
           )}
         </div>
       </div>
 
       {visibleFloors.length === 0 ? (
-        <EmptyState icon={SearchX} title="لا توجد وحدات مطابقة" />
+        <EmptyState icon={SearchX} title={t('projects.unitsPanel.noUnitsMatch')} />
       ) : (
         <div className="space-y-3">
           {visibleFloors.map(({ floor, units }) => {
@@ -263,7 +266,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
                     <div className="min-w-0 flex-1 basis-40">
                       <div className="text-xs font-black text-heading truncate">{floor.floorNameAr}</div>
                       <div className="text-[10px] text-neutral-text/55">
-                        {floor.units.length} وحدة{floor.totalArea ? ` · ${floor.totalArea.toLocaleString('en-US')} م²` : ''}
+                        {floor.units.length} {t('common.entity.unit')}{floor.totalArea ? ` · ${floor.totalArea.toLocaleString('en-US')} m²` : ''}
                         {floor.floorNameEn ? <span dir="ltr"> · {floor.floorNameEn}</span> : null}
                       </div>
                     </div>
@@ -281,7 +284,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
                         })}
                       </div>
                       <span className="text-[11px] text-neutral-text/65 whitespace-nowrap">
-                        <span className="font-black text-heading">{available}</span> متاح من {floor.units.length}
+                        <span className="font-black text-heading">{available}</span> {t('projects.unitsPanel.availableOf', { total: floor.units.length })}
                       </span>
                     </div>
                   </button>
@@ -289,16 +292,16 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
                   {(canUnits || canFloors) && (
                     <div className="flex items-center gap-0.5 pe-3 shrink-0">
                       {canUnits && (
-                        <button type="button" onClick={() => addUnitTo(floor)} className={`${iconBtn} hover:text-accent`} title="إضافة وحدة لهذا الدور" aria-label={`إضافة وحدة إلى ${floor.floorNameAr}`}>
+                        <button type="button" onClick={() => addUnitTo(floor)} className={`${iconBtn} hover:text-accent`} title={t('projects.unitsPanel.addUnitToFloor')} aria-label={t('projects.unitsPanel.addUnitToFloorAria', { name: floor.floorNameAr })}>
                           <Plus className="w-4 h-4" />
                         </button>
                       )}
                       {canFloors && (
                         <>
-                          <button type="button" onClick={() => editor.openEditFloor(floor)} className={`${iconBtn} hover:text-accent`} title="تعديل الدور" aria-label={`تعديل ${floor.floorNameAr}`}>
+                          <button type="button" onClick={() => editor.openEditFloor(floor)} className={`${iconBtn} hover:text-accent`} title={t('projects.unitsPanel.editFloor')} aria-label={t('projects.unitsPanel.editFloorAria', { name: floor.floorNameAr })}>
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button type="button" onClick={() => void editor.deleteFloor(floor)} className={`${iconBtn} hover:text-red-500`} title="حذف الدور" aria-label={`حذف ${floor.floorNameAr}`}>
+                          <button type="button" onClick={() => void editor.deleteFloor(floor)} className={`${iconBtn} hover:text-red-500`} title={t('projects.unitsPanel.deleteFloor')} aria-label={t('projects.unitsPanel.deleteFloorAria', { name: floor.floorNameAr })}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </>
@@ -311,10 +314,10 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
                   <div id={panelId} className="border-t border-muted-border/30">
                     {units.length === 0 ? (
                       <div className="px-4 py-6 text-center text-[11px] text-neutral-text/55">
-                        لا توجد وحدات في هذا الدور.
+                        {t('projects.unitsPanel.noUnitsInFloor')}
                         {canUnits && (
                           <button type="button" onClick={() => addUnitTo(floor)} className="ms-1.5 font-bold text-accent hover:underline cursor-pointer">
-                            إضافة وحدة
+                            {t('projects.unitsPanel.addUnit')}
                           </button>
                         )}
                       </div>
@@ -327,7 +330,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
                               <div className="min-w-0">
                                 <div className="text-xs font-black text-heading truncate">{unit.unitNumber}</div>
                                 <div className="text-[10px] text-neutral-text/60 truncate">
-                                  {unit.typeAr} · {unit.area.toLocaleString('en-US')} م²
+                                  {unit.typeAr} · {unit.area.toLocaleString('en-US')} m²
                                   {unit.sectionAr ? ` · ${unit.sectionAr}` : ''}
                                 </div>
                               </div>
@@ -341,13 +344,13 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
                         <table className="hidden md:table w-full text-xs">
                           <thead>
                             <tr className="text-neutral-text/50 text-[11px] bg-canvas/40">
-                              <th className="px-4 py-2 text-start font-bold">الوحدة</th>
-                              <th className="px-3 py-2 text-start font-bold">النوع</th>
-                              <th className="px-3 py-2 text-start font-bold">القسم</th>
-                              <th className="px-3 py-2 text-end font-bold">المساحة</th>
-                              <th className="px-3 py-2 text-start font-bold">السعر</th>
-                              <th className="px-3 py-2 text-start font-bold">الحالة</th>
-                              {canUnits && <th className="px-4 py-2 text-end font-bold">إجراءات</th>}
+                              <th className="px-4 py-2 text-start font-bold">{t('projects.unitsPanel.colUnit')}</th>
+                              <th className="px-3 py-2 text-start font-bold">{t('projects.unitsPanel.colType')}</th>
+                              <th className="px-3 py-2 text-start font-bold">{t('projects.unitsPanel.colSection')}</th>
+                              <th className="px-3 py-2 text-end font-bold">{t('projects.unitsPanel.colArea')}</th>
+                              <th className="px-3 py-2 text-start font-bold">{t('projects.unitsPanel.colPrice')}</th>
+                              <th className="px-3 py-2 text-start font-bold">{t('projects.unitsPanel.colStatus')}</th>
+                              {canUnits && <th className="px-4 py-2 text-end font-bold">{t('projects.unitsPanel.colActions')}</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-muted-border/15">
@@ -356,7 +359,7 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
                                 <td className="px-4 py-2.5 font-black text-heading whitespace-nowrap">{unit.unitNumber}</td>
                                 <td className="px-3 py-2.5 text-neutral-text/80">{unit.typeAr}</td>
                                 <td className="px-3 py-2.5 text-neutral-text/60">{unit.sectionAr || '—'}</td>
-                                <td className="px-3 py-2.5 text-end tabular-nums text-heading whitespace-nowrap">{unit.area.toLocaleString('en-US')} م²</td>
+                                <td className="px-3 py-2.5 text-end tabular-nums text-heading whitespace-nowrap">{unit.area.toLocaleString('en-US')} m²</td>
                                 <td className="px-3 py-2.5 text-neutral-text/70">{unit.priceLabel || '—'}</td>
                                 <td className="px-3 py-2">
                                   <UnitStatusControl unit={unit} editable={canUnits} busy={savingUnit === unit.id} onChange={(s) => void changeStatus(unit, s)} />

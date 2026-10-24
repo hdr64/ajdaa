@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bell, Contact, Mail, Megaphone, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { usePersistentState } from '../../../hooks/usePersistentState';
 import { NoAccess } from '../../../components/admin/common/SectionState';
 import { SiteSettingsPanel } from '../../../components/admin/settings/SiteSettingsPanel';
@@ -13,18 +14,18 @@ type SettingsTab = 'site' | 'announcement' | 'notifications' | 'security' | 'mai
 
 interface TabDef {
   id: SettingsTab;
-  label: string;
+  labelKey: string;
   icon: LucideIcon;
   /** Contact details and SMTP are super-admin only; notifications have their own permission. */
   visible: (access: { isSuperAdmin: boolean; canNotify: boolean }) => boolean;
 }
 
 const TABS: readonly TabDef[] = [
-  { id: 'site', label: 'معلومات التواصل', icon: Contact, visible: ({ isSuperAdmin }) => isSuperAdmin },
-  { id: 'announcement', label: 'الإعلان والصيانة', icon: Megaphone, visible: ({ isSuperAdmin }) => isSuperAdmin },
-  { id: 'notifications', label: 'الإشعارات', icon: Bell, visible: ({ canNotify }) => canNotify },
-  { id: 'security', label: 'الأمان', icon: ShieldCheck, visible: ({ isSuperAdmin }) => isSuperAdmin },
-  { id: 'mail', label: 'البريد (SMTP)', icon: Mail, visible: ({ isSuperAdmin }) => isSuperAdmin },
+  { id: 'site', labelKey: 'settings.section.tabSite', icon: Contact, visible: ({ isSuperAdmin }) => isSuperAdmin },
+  { id: 'announcement', labelKey: 'settings.section.tabAnnouncement', icon: Megaphone, visible: ({ isSuperAdmin }) => isSuperAdmin },
+  { id: 'notifications', labelKey: 'settings.section.tabNotifications', icon: Bell, visible: ({ canNotify }) => canNotify },
+  { id: 'security', labelKey: 'settings.section.tabSecurity', icon: ShieldCheck, visible: ({ isSuperAdmin }) => isSuperAdmin },
+  { id: 'mail', labelKey: 'settings.section.tabMail', icon: Mail, visible: ({ isSuperAdmin }) => isSuperAdmin },
 ];
 
 const isSettingsTab = (value: unknown): value is SettingsTab =>
@@ -33,6 +34,7 @@ const isSettingsTab = (value: unknown): value is SettingsTab =>
 /** Website and dashboard settings, one tab per area. */
 export const SettingsSection: React.FC = () => {
   const { isSuperAdmin, can } = useAdmin();
+  const { t } = useAdminT();
   const [stored, setStored] = usePersistentState<SettingsTab>('ajda.admin.settings.tab', 'site', isSettingsTab);
 
   const tabs = TABS.filter((tab) => tab.visible({ isSuperAdmin, canNotify: can('manageNotifications') }));
@@ -42,7 +44,7 @@ export const SettingsSection: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <div role="tablist" aria-label="أقسام الإعدادات" className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-surface border border-muted-border/40 w-fit">
+      <div role="tablist" aria-label={t('settings.section.tabsAria')} className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-surface border border-muted-border/40 w-fit">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const selected = tab.id === active.id;
@@ -58,7 +60,7 @@ export const SettingsSection: React.FC = () => {
               }`}
             >
               <Icon className="w-4 h-4" />
-              {tab.label}
+              {t(tab.labelKey as 'settings.section.tabSite' | 'settings.section.tabAnnouncement' | 'settings.section.tabNotifications' | 'settings.section.tabSecurity' | 'settings.section.tabMail')}
             </button>
           );
         })}

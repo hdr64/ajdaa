@@ -3,23 +3,23 @@ import { Download, Inbox, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { careersService, type JobApplicationDetail, type JobApplicationListItem } from '../../../services/careersService';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { NoAccess, SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { formatAdminDateTime } from '../adminFormat';
 
-const STATUSES: { key: string; label: string }[] = [
-  { key: 'all', label: 'الكل' },
-  { key: 'new', label: 'جديد' },
-  { key: 'reviewed', label: 'تمت المراجعة' },
-  { key: 'shortlisted', label: 'في القائمة المختصرة' },
-  { key: 'rejected', label: 'مرفوض' },
-  { key: 'hired', label: 'تم التوظيف' },
+const STATUSES: { key: string; labelKey: string }[] = [
+  { key: 'all', labelKey: 'applications.filter.all' },
+  { key: 'new', labelKey: 'applications.status.new' },
+  { key: 'reviewed', labelKey: 'applications.status.reviewed' },
+  { key: 'shortlisted', labelKey: 'applications.status.shortlisted' },
+  { key: 'rejected', labelKey: 'applications.status.rejected' },
+  { key: 'hired', labelKey: 'applications.status.hired' },
 ];
-
-const STATUS_AR: Record<string, string> = Object.fromEntries(STATUSES.filter((s) => s.key !== 'all').map((s) => [s.key, s.label]));
 
 export const ApplicationsSection: React.FC = () => {
   const { can, showToast, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
   const canManage = can('manageApplications');
 
   const [tab, setTab] = useState<'list' | 'settings'>('list');
@@ -62,11 +62,11 @@ export const ApplicationsSection: React.FC = () => {
       setItems(res.items);
       setTotal(res.total);
     } catch (e) {
-      setError(getErrorMessage(e, 'تعذر تحميل طلبات التوظيف'));
+      setError(getErrorMessage(e, t('applications.loadError')));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search, page]);
+  }, [statusFilter, search, page, t]);
 
   useEffect(() => {
     void load();
@@ -80,7 +80,7 @@ export const ApplicationsSection: React.FC = () => {
       setAdminNote(d.adminNote ?? '');
       setStatus(d.status);
     } catch (e) {
-      showToast(getErrorMessage(e, 'تعذر تحميل تفاصيل الطلب'));
+      showToast(getErrorMessage(e, t('applications.detailError')));
     } finally {
       setDetailLoading(false);
     }
@@ -96,9 +96,9 @@ export const ApplicationsSection: React.FC = () => {
       });
       setSelected(updated);
       setItems((prev) => prev.map((i) => (i.id === updated.id ? { ...i, status: updated.status, statusAr: updated.statusAr } : i)));
-      showToast('تم الحفظ');
+      showToast(t('applications.saved'));
     } catch (e) {
-      showToast(getErrorMessage(e, 'تعذر حفظ التغييرات'));
+      showToast(getErrorMessage(e, t('applications.saveError')));
     } finally {
       setSaving(false);
     }
@@ -107,18 +107,18 @@ export const ApplicationsSection: React.FC = () => {
   const handleDelete = async () => {
     if (!selected) return;
     const ok = await confirmDelete({
-      title: `حذف طلب "${selected.name}"؟`,
-      message: 'سيتم حذف الطلب وملف السيرة الذاتية نهائياً.',
-      confirmLabel: 'حذف الطلب',
+      title: t('applications.delete.confirmTitle', { name: selected.name }),
+      message: t('applications.delete.confirmMessage'),
+      confirmLabel: t('applications.delete.confirmLabel'),
     });
     if (!ok) return;
     try {
       await careersService.deleteApplication(selected.id);
       setSelected(null);
-      showToast('تم حذف الطلب');
+      showToast(t('applications.delete.success'));
       void load();
     } catch (e) {
-      showToast(getErrorMessage(e, 'تعذر حذف الطلب'));
+      showToast(getErrorMessage(e, t('applications.delete.error')));
     }
   };
 
@@ -127,7 +127,7 @@ export const ApplicationsSection: React.FC = () => {
     try {
       await careersService.downloadCv(selected.id, selected.cvOriginalName ?? 'cv.pdf');
     } catch (e) {
-      showToast(getErrorMessage(e, 'تعذر تحميل السيرة الذاتية'));
+      showToast(getErrorMessage(e, t('applications.cvDownloadError')));
     }
   };
 
@@ -140,11 +140,11 @@ export const ApplicationsSection: React.FC = () => {
       setReqCv(s.required.cv);
       setEmailsText((s.notificationEmails ?? []).join('\n'));
     } catch (e) {
-      setSettingsError(getErrorMessage(e, 'تعذر تحميل الإعدادات'));
+      setSettingsError(getErrorMessage(e, t('applications.settings.loadError')));
     } finally {
       setSettingsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (tab === 'settings') void loadSettings();
@@ -158,9 +158,9 @@ export const ApplicationsSection: React.FC = () => {
         required: { message: reqMessage, cv: reqCv },
         notificationEmails: emails,
       });
-      showToast('تم حفظ الإعدادات');
+      showToast(t('applications.settings.saved'));
     } catch (e) {
-      showToast(getErrorMessage(e, 'تعذر حفظ الإعدادات'));
+      showToast(getErrorMessage(e, t('applications.settings.saveError')));
     } finally {
       setSettingsSaving(false);
     }
@@ -178,45 +178,45 @@ export const ApplicationsSection: React.FC = () => {
           onClick={() => setTab('list')}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold ${tab === 'list' ? 'bg-accent/12 text-accent' : 'text-neutral-text/70 hover:text-heading'}`}
         >
-          الطلبات {newCount > 0 ? `(${newCount})` : ''}
+          {t('applications.tabRequests')} {newCount > 0 ? `(${newCount})` : ''}
         </button>
         {canManage && (
           <button
             onClick={() => setTab('settings')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold ${tab === 'settings' ? 'bg-accent/12 text-accent' : 'text-neutral-text/70 hover:text-heading'}`}
           >
-            الإعدادات
+            {t('applications.tabSettings')}
           </button>
         )}
       </div>
 
       {tab === 'settings' && (
         <div className="space-y-4">
-          {settingsLoading && <SectionLoading label="جاري تحميل الإعدادات..." />}
+          {settingsLoading && <SectionLoading label={t('applications.settings.loading')} />}
           {settingsError && <SectionError message={settingsError} onRetry={() => void loadSettings()} />}
           {!settingsLoading && !settingsError && (
             <div className="p-4 rounded-2xl bg-surface border border-muted-border/40 space-y-4">
               <div>
-                <h3 className="text-xs font-black text-heading mb-2">الحقول المطلوبة (اختياري)</h3>
+                <h3 className="text-xs font-black text-heading mb-2">{t('applications.settings.requiredTitle')}</h3>
                 <div className="space-y-2 text-xs">
                   {['name', 'email', 'phone', 'jobTitle'].map((f) => (
                     <label key={f} className="flex items-center gap-2 opacity-60">
                       <input type="checkbox" checked disabled className="w-3.5 h-3.5" />
-                      {f} (مطلوب دائماً)
+                      {f} {t('applications.settings.alwaysRequired')}
                     </label>
                   ))}
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={reqMessage} onChange={(e) => setReqMessage(e.target.checked)} className="w-3.5 h-3.5" />
-                    الرسالة (message)
+                    {t('applications.settings.messageField')}
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={reqCv} onChange={(e) => setReqCv(e.target.checked)} className="w-3.5 h-3.5" />
-                    السيرة الذاتية (cv)
+                    {t('applications.settings.cvField')}
                   </label>
                 </div>
               </div>
               <div>
-                <h3 className="text-xs font-black text-heading mb-2">بريد الإشعارات</h3>
+                <h3 className="text-xs font-black text-heading mb-2">{t('applications.settings.emailsTitle')}</h3>
                 <textarea
                   rows={4}
                   value={emailsText}
@@ -231,7 +231,7 @@ export const ApplicationsSection: React.FC = () => {
                 disabled={settingsSaving}
                 className="brand-btn-primary font-black px-4 py-2 rounded-xl text-xs cursor-pointer disabled:opacity-50"
               >
-                {settingsSaving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+                {settingsSaving ? t('applications.settings.saving') : t('applications.settings.save')}
               </button>
             </div>
           )}
@@ -241,9 +241,9 @@ export const ApplicationsSection: React.FC = () => {
       {tab === 'list' && (
         <>
           {error && <SectionError message={error} onRetry={() => void load()} />}
-          {loading && items.length === 0 && <SectionLoading label="جاري تحميل طلبات التوظيف..." />}
+          {loading && items.length === 0 && <SectionLoading label={t('applications.loading')} />}
           {!loading && !error && items.length === 0 && search === '' && statusFilter === 'all' && (
-            <EmptyState icon={Inbox} title="لا توجد طلبات توظيف بعد" />
+            <EmptyState icon={Inbox} title={t('applications.empty')} />
           )}
 
           {/* Filters */}
@@ -252,7 +252,7 @@ export const ApplicationsSection: React.FC = () => {
               <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-text/40" />
               <input
                 type="search"
-                placeholder="ابحث بالاسم، الجوال، البريد، المسمى..."
+                placeholder={t('applications.searchPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full ps-10 pe-4 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
@@ -267,16 +267,16 @@ export const ApplicationsSection: React.FC = () => {
                     statusFilter === f.key ? 'brand-fill text-canvas shadow-xs' : 'bg-canvas border border-muted-border/40 text-neutral-text/70 hover:text-heading'
                   }`}
                 >
-                  {f.label}
+                  {t(f.labelKey as 'applications.filter.all' | 'applications.status.new' | 'applications.status.reviewed' | 'applications.status.shortlisted' | 'applications.status.rejected' | 'applications.status.hired')}
                 </button>
               ))}
             </div>
           </div>
 
-          {loading && items.length > 0 && <div className="text-xs text-neutral-text/60">جاري التحديث...</div>}
+          {loading && items.length > 0 && <div className="text-xs text-neutral-text/60">{t('applications.updating')}</div>}
 
           {!loading && !error && items.length === 0 && (search !== '' || statusFilter !== 'all') && (
-            <EmptyState icon={Search} title="لا توجد نتائج مطابقة" />
+            <EmptyState icon={Search} title={t('applications.noResults')} />
           )}
 
           {items.length > 0 && (
@@ -293,7 +293,7 @@ export const ApplicationsSection: React.FC = () => {
                     <div className="text-[11px] text-neutral-text/70 mt-1">{item.jobTitle}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="px-2 py-0.5 rounded-full bg-accent/10 text-accent font-bold text-[10px]">{STATUS_AR[item.status] ?? item.status}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-accent/10 text-accent font-bold text-[10px]">{t(`applications.status.${item.status}` as 'applications.status.new' | 'applications.status.reviewed' | 'applications.status.shortlisted' | 'applications.status.rejected' | 'applications.status.hired')}</span>
                     <span className="text-[10px] text-neutral-text/50">{formatAdminDateTime(item.createdAt)}</span>
                     {item.hasCv && <span className="text-[10px] text-accent">CV</span>}
                   </div>
@@ -309,7 +309,7 @@ export const ApplicationsSection: React.FC = () => {
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-canvas border border-muted-border/40 disabled:opacity-50 cursor-pointer"
               >
-                السابق
+                {t('applications.prev')}
               </button>
               <span className="text-xs text-neutral-text/70">{page} / {totalPages}</span>
               <button
@@ -317,7 +317,7 @@ export const ApplicationsSection: React.FC = () => {
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-canvas border border-muted-border/40 disabled:opacity-50 cursor-pointer"
               >
-                التالي
+                {t('applications.next')}
               </button>
             </div>
           )}
@@ -339,10 +339,10 @@ export const ApplicationsSection: React.FC = () => {
             </div>
 
             <div className="space-y-2 text-xs">
-              <div><span className="font-bold text-neutral-text/70">المسمى: </span>{selected.jobTitle}</div>
-              <div><span className="font-bold text-neutral-text/70">التاريخ: </span>{formatAdminDateTime(selected.createdAt)}</div>
-              {selected.message && <div><span className="font-bold text-neutral-text/70">الرسالة: </span>{selected.message}</div>}
-              {selected.cvOriginalName && <div><span className="font-bold text-neutral-text/70">السيرة: </span>{selected.cvOriginalName}</div>}
+              <div><span className="font-bold text-neutral-text/70">{t('applications.detail.jobTitle')}: </span>{selected.jobTitle}</div>
+              <div><span className="font-bold text-neutral-text/70">{t('applications.detail.date')}: </span>{formatAdminDateTime(selected.createdAt)}</div>
+              {selected.message && <div><span className="font-bold text-neutral-text/70">{t('applications.detail.message')}: </span>{selected.message}</div>}
+              {selected.cvOriginalName && <div><span className="font-bold text-neutral-text/70">{t('applications.detail.cv')}: </span>{selected.cvOriginalName}</div>}
             </div>
 
             {selected.hasCv && (
@@ -350,26 +350,26 @@ export const ApplicationsSection: React.FC = () => {
                 onClick={() => void handleDownloadCv()}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl bg-accent/10 text-accent text-xs font-bold cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5" /> تحميل السيرة الذاتية
+                <Download className="w-3.5 h-3.5" /> {t('applications.detail.downloadCv')}
               </button>
             )}
 
             {canManage && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-neutral-text/70">الحالة</label>
+                  <label className="text-xs font-bold text-neutral-text/70">{t('applications.detail.status')}</label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
                   >
                     {STATUSES.filter((s) => s.key !== 'all').map((s) => (
-                      <option key={s.key} value={s.key}>{s.label}</option>
+                      <option key={s.key} value={s.key}>{t(s.labelKey as 'applications.filter.all' | 'applications.status.new' | 'applications.status.reviewed' | 'applications.status.shortlisted' | 'applications.status.rejected' | 'applications.status.hired')}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-neutral-text/70">ملاحظة إدارية</label>
+                  <label className="text-xs font-bold text-neutral-text/70">{t('applications.detail.adminNote')}</label>
                   <textarea
                     rows={3}
                     value={adminNote}
@@ -383,13 +383,13 @@ export const ApplicationsSection: React.FC = () => {
                     disabled={saving}
                     className="brand-btn-primary font-black px-4 py-2 rounded-xl text-xs cursor-pointer disabled:opacity-50"
                   >
-                    {saving ? 'جاري الحفظ...' : 'حفظ'}
+                    {saving ? t('applications.detail.saving') : t('applications.detail.save')}
                   </button>
                   <button
                     onClick={() => void handleDelete()}
                     className="px-4 py-2 rounded-xl text-xs font-bold bg-red-500/10 text-red-500 cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5 inline me-1" /> حذف
+                    <Trash2 className="w-3.5 h-3.5 inline me-1" /> {t('applications.detail.delete')}
                   </button>
                 </div>
               </>

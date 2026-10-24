@@ -4,6 +4,7 @@ import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAsyncData } from '../../../hooks/useAsyncData';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
@@ -12,6 +13,7 @@ import type { PastProject } from '../../../services/adminStorage';
 
 export const PastProjectsSection: React.FC = () => {
   const { can, showToast, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
   const canManage = can('managePastProjects');
   const projects = useAsyncData<PastProject[]>(
     useCallback((signal) => AdminStorage.listPastProjects(signal), []),
@@ -22,17 +24,17 @@ export const PastProjectsSection: React.FC = () => {
 
   const handleDelete = async (project: PastProject) => {
     const ok = await confirmDelete({
-      title: `حذف المشروع "${project.title}"؟`,
-      message: 'لا يمكن التراجع عن هذا الإجراء.',
-      confirmLabel: 'حذف',
+      title: t('pastProjects.delete.confirmTitle', { title: project.title }),
+      message: t('pastProjects.delete.confirmMessage'),
+      confirmLabel: t('pastProjects.delete.confirmLabel'),
     });
     if (!ok) return;
     try {
       await AdminStorage.deletePastProject(project.id);
       await projects.reload();
-      showToast('تم حذف المشروع');
+      showToast(t('pastProjects.delete.success'));
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حذف المشروع'));
+      showToast(getErrorMessage(error, t('pastProjects.delete.error')));
     }
   };
 
@@ -40,8 +42,9 @@ export const PastProjectsSection: React.FC = () => {
     try {
       await AdminStorage.setPastProjectPublished(project.id, !project.published);
       await projects.reload();
+      showToast(t('pastProjects.toggle.success'));
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر تغيير حالة النشر'));
+      showToast(getErrorMessage(error, t('pastProjects.toggle.error')));
     }
   };
 
@@ -53,7 +56,7 @@ export const PastProjectsSection: React.FC = () => {
           className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">مشروع جديد</span>
+          <span className="hidden sm:inline">{t('pastProjects.new')}</span>
         </button>
       )}
     </AdminHeaderActions>
@@ -71,7 +74,7 @@ export const PastProjectsSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label="جاري تحميل الأعمال السابقة..." />
+        <SectionLoading label={t('pastProjects.loading')} />
       </>
     );
   }
@@ -80,18 +83,18 @@ export const PastProjectsSection: React.FC = () => {
     <div className="space-y-5">
       {header}
       {projects.data.length === 0 ? (
-        <EmptyState icon={ImageIcon} title="لا توجد أعمال سابقة" description="أنشئ أول مشروع من زر «مشروع جديد» في الأعلى." />
+        <EmptyState icon={ImageIcon} title={t('pastProjects.emptyTitle')} description={t('pastProjects.emptyDescription')} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-muted-border/40 bg-surface">
           <table className="w-full text-xs">
             <thead className="bg-canvas/60 text-neutral-text/70">
               <tr>
-                <th className="text-start p-3 font-bold">الصورة</th>
-                <th className="text-start p-3 font-bold">العنوان</th>
-                <th className="text-start p-3 font-bold">التصنيف</th>
-                <th className="text-start p-3 font-bold">الترتيب</th>
-                <th className="text-start p-3 font-bold">الحالة</th>
-                <th className="text-start p-3 font-bold">إجراءات</th>
+                <th className="text-start p-3 font-bold">{t('pastProjects.table.image')}</th>
+                <th className="text-start p-3 font-bold">{t('pastProjects.table.title')}</th>
+                <th className="text-start p-3 font-bold">{t('pastProjects.table.category')}</th>
+                <th className="text-start p-3 font-bold">{t('pastProjects.table.order')}</th>
+                <th className="text-start p-3 font-bold">{t('pastProjects.table.status')}</th>
+                <th className="text-start p-3 font-bold">{t('pastProjects.table.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -115,7 +118,7 @@ export const PastProjectsSection: React.FC = () => {
                         project.published ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted-border/30 text-neutral-text/60'
                       }`}
                     >
-                      {project.published ? 'منشور' : 'مسودة'}
+                      {project.published ? t('pastProjects.status.published') : t('pastProjects.status.draft')}
                     </button>
                   </td>
                   <td className="p-3">
@@ -126,7 +129,7 @@ export const PastProjectsSection: React.FC = () => {
                             type="button"
                             onClick={() => setDialog({ project })}
                             className="p-1.5 rounded-lg text-neutral-text/60 hover:text-accent hover:bg-accent/10 cursor-pointer"
-                            aria-label="تعديل"
+                            aria-label={t('pastProjects.action.edit')}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -134,7 +137,7 @@ export const PastProjectsSection: React.FC = () => {
                             type="button"
                             onClick={() => void handleDelete(project)}
                             className="p-1.5 rounded-lg text-neutral-text/60 hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
-                            aria-label="حذف"
+                            aria-label={t('pastProjects.action.delete')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

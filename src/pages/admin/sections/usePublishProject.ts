@@ -3,6 +3,7 @@ import type { Property, PublishStatus } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { completenessIssues } from '../projectLabels';
 
 /**
@@ -12,6 +13,7 @@ import { completenessIssues } from '../projectLabels';
  */
 export function usePublishProject() {
   const { projects, confirm, showToast } = useAdmin();
+  const { t } = useAdminT();
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const apply = async (project: Property, status: PublishStatus, message: string) => {
@@ -21,34 +23,34 @@ export function usePublishProject() {
       projects.setData((list) => list.map((p) => (p.id === project.id ? { ...p, ...updated, floors: p.floors } : p)));
       showToast(message);
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر تغيير حالة النشر'));
+      showToast(getErrorMessage(error, t('projects.publish.changeError')));
     } finally {
       setBusyId(null);
     }
   };
 
   const publish = async (project: Property) => {
-    const issues = completenessIssues(project);
+    const issues = completenessIssues(project, t);
     const ok = await confirm({
-      title: `نشر "${project.title}" في الموقع؟`,
+      title: t('projects.publish.confirmTitle', { title: project.title }),
       message: issues.length
-        ? `سيظهر المشروع للزوار فوراً، لكن تنقصه بيانات: ${issues.join('، ')}.`
-        : 'سيظهر المشروع للزوار في قائمة المشاريع والخريطة فوراً.',
-      confirmLabel: issues.length ? 'نشر رغم النواقص' : 'نشر المشروع',
+        ? t('projects.publish.confirmMessageWithIssues', { issues: issues.join(', ') })
+        : t('projects.publish.confirmMessage'),
+      confirmLabel: issues.length ? t('projects.publish.confirmLabelWithIssues') : t('projects.publish.confirmLabel'),
       rememberKey: 'project.publish',
     });
-    if (ok) await apply(project, 'published', 'تم نشر المشروع');
+    if (ok) await apply(project, 'published', t('projects.publish.success'));
   };
 
   const hide = async (project: Property) => {
     const ok = await confirm({
-      title: `إخفاء "${project.title}" من الموقع؟`,
-      message: 'سيختفي المشروع من الموقع والخريطة فوراً، ويبقى متاحاً للتعديل هنا. يمكنك نشره مرة أخرى في أي وقت.',
-      confirmLabel: 'إخفاء المشروع',
+      title: t('projects.publish.hideTitle', { title: project.title }),
+      message: t('projects.publish.hideMessage'),
+      confirmLabel: t('projects.publish.hideLabel'),
       danger: true,
       rememberKey: 'project.publish',
     });
-    if (ok) await apply(project, 'hidden', 'تم إخفاء المشروع من الموقع');
+    if (ok) await apply(project, 'hidden', t('projects.publish.hiddenSuccess'));
   };
 
   return { publish, hide, busyId };

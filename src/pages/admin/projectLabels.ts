@@ -1,3 +1,5 @@
+// Registers every admin string area first: module-scope translateAdmin calls below need them.
+import '../../i18n/admin';
 import type { PriceType, Property, PropertyType, PublishStatus, UnitStatus } from '../../types/property';
 import { translateAdmin, translateCurrent, type TranslateFn } from '../../i18n/admin/core';
 import type { AdminKey } from '../../i18n/admin';

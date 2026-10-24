@@ -5,6 +5,8 @@ import { getErrorMessage } from '../../../services/api';
 import { ApiError } from '../../../services/api';
 import { uploadMedia } from '../../../services/mediaService';
 import type { PastProject, PastProjectInput } from '../../../services/adminStorage';
+import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 interface Props {
   initial: PastProject | null;
@@ -21,6 +23,9 @@ function FieldError({ errors }: { errors?: string[] }) {
 }
 
 export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSaved }) => {
+  const { showToast, confirm } = useAdmin();
+  const { t } = useAdminT();
+
   const [title, setTitle] = useState(initial?.title ?? '');
   const [titleEn, setTitleEn] = useState(initial?.titleEn ?? '');
   const [category, setCategory] = useState(initial?.category ?? '');
@@ -38,22 +43,40 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [dirty, setDirty] = useState(false);
+
+  const markDirty = () => setDirty(true);
+
+  const requestClose = async () => {
+    if (dirty) {
+      const ok = await confirm({
+        title: t('pastProjects.form.dirtyConfirmTitle'),
+        message: t('pastProjects.form.dirtyConfirmMessage'),
+        confirmLabel: t('pastProjects.form.dirtyConfirmLabel'),
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    onClose();
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') void requestClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty]);
 
   const handleImageUpload = async (file: File) => {
     setUploadingImage(true);
     try {
       const res = await uploadMedia(file);
       setImage(res.url);
+      markDirty();
     } catch (err) {
-      alert(getErrorMessage(err, 'تعذر رفع الصورة'));
+      showToast(getErrorMessage(err, t('pastProjects.form.uploadImageError')), 'error');
     } finally {
       setUploadingImage(false);
     }
@@ -66,8 +89,9 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
         const res = await uploadMedia(file);
         setGallery((prev) => [...prev, res.url]);
       }
+      markDirty();
     } catch (err) {
-      alert(getErrorMessage(err, 'تعذر رفع الصورة'));
+      showToast(getErrorMessage(err, t('pastProjects.form.uploadImageError')), 'error');
     } finally {
       setUploadingGallery(false);
     }
@@ -79,8 +103,9 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
       const res = await uploadMedia(file);
       setPdfUrl(res.url);
       setPdfName(file.name);
+      markDirty();
     } catch (err) {
-      alert(getErrorMessage(err, 'تعذر رفع الملف'));
+      showToast(getErrorMessage(err, t('pastProjects.form.uploadFileError')), 'error');
     } finally {
       setUploadingPdf(false);
     }
@@ -88,7 +113,18 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     setFieldErrors({});
+
+    // Client-side required checks.
+    const errors: Record<string, string[]> = {};
+    if (!title.trim()) errors.title = [t('pastProjects.form.validation.titleRequired')];
+    if (!image) errors.image = [t('pastProjects.form.validation.imageRequired')];
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
     const payload: PastProjectInput = {
       title: title.trim(),
       titleEn: titleEn.trim() || null,
@@ -104,16 +140,24 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
     };
     setSaving(true);
     try {
-      if (initial) await AdminStorage.updatePastProject(initial.id, payload);
-      else await AdminStorage.createPastProject(payload);
+      if (initial) {
+        await AdminStorage.updatePastProject(initial.id, payload);
+        showToast(t('pastProjects.form.successUpdate'));
+      } else {
+        await AdminStorage.createPastProject(payload);
+        showToast(t('pastProjects.form.successCreate'));
+      }
       await onSaved();
       onClose();
     } catch (err) {
       if (err instanceof ApiError) {
-        setFieldErrors(err.fieldErrors);
-      } else {
-        alert(getErrorMessage(err, 'تعذر حفظ المشروع'));
+        const mapped: Record<string, string[]> = {};
+        for (const field of Object.keys(err.fieldErrors ?? {})) {
+          mapped[field] = [t('pastProjects.form.error.invalid')];
+        }
+        setFieldErrors(mapped);
       }
+      showToast(getErrorMessage(err, t('pastProjects.form.saveError')), 'error');
     } finally {
       setSaving(false);
     }
@@ -123,81 +167,83 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
     <div
       className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) void requestClose();
       }}
     >
       <form
         onSubmit={submit}
+        noValidate
+        onChange={markDirty}
         role="dialog"
         aria-modal="true"
         className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 space-y-4"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-black text-heading">{initial ? 'تعديل مشروع سابق' : 'مشروع سابق جديد'}</h3>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer" aria-label="إغلاق">
+          <h3 className="text-base font-black text-heading">{initial ? t('pastProjects.form.editTitle') : t('pastProjects.form.newTitle')}</h3>
+          <button type="button" onClick={() => void requestClose()} className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer" aria-label={t('pastProjects.form.closeAria')}>
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="block">
-            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">العنوان بالعربية *</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} required />
+            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('pastProjects.form.titleArLabel')}</span>
+            <input value={title} onChange={(e) => { setTitle(e.target.value); markDirty(); }} className={inputClass} />
             <FieldError errors={fieldErrors.title} />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">العنوان بالإنجليزية</span>
-            <input dir="ltr" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} className={inputClass} />
+            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('pastProjects.form.titleEnLabel')}</span>
+            <input dir="ltr" value={titleEn} onChange={(e) => { setTitleEn(e.target.value); markDirty(); }} className={inputClass} />
             <FieldError errors={fieldErrors.titleEn} />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">التصنيف بالعربية</span>
-            <input value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass} />
+            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('pastProjects.form.categoryArLabel')}</span>
+            <input value={category} onChange={(e) => { setCategory(e.target.value); markDirty(); }} className={inputClass} />
             <FieldError errors={fieldErrors.category} />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">التصنيف بالإنجليزية</span>
-            <input dir="ltr" value={categoryEn} onChange={(e) => setCategoryEn(e.target.value)} className={inputClass} />
+            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('pastProjects.form.categoryEnLabel')}</span>
+            <input dir="ltr" value={categoryEn} onChange={(e) => { setCategoryEn(e.target.value); markDirty(); }} className={inputClass} />
             <FieldError errors={fieldErrors.categoryEn} />
           </label>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="block">
-            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">الوصف بالعربية</span>
-            <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputClass} resize-none`} />
+            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('pastProjects.form.descriptionArLabel')}</span>
+            <textarea rows={4} value={description} onChange={(e) => { setDescription(e.target.value); markDirty(); }} className={`${inputClass} resize-none`} />
             <FieldError errors={fieldErrors.description} />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">الوصف بالإنجليزية</span>
-            <textarea rows={4} dir="ltr" value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} className={`${inputClass} resize-none`} />
+            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('pastProjects.form.descriptionEnLabel')}</span>
+            <textarea rows={4} dir="ltr" value={descriptionEn} onChange={(e) => { setDescriptionEn(e.target.value); markDirty(); }} className={`${inputClass} resize-none`} />
             <FieldError errors={fieldErrors.descriptionEn} />
           </label>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="block">
-            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">ترتيب العرض (sortOrder)</span>
-            <input type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className={inputClass} />
+            <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('pastProjects.form.sortOrderLabel')}</span>
+            <input type="number" value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); markDirty(); }} className={inputClass} />
             <FieldError errors={fieldErrors.sortOrder} />
           </label>
           <label className="flex items-center gap-2 pt-6">
-            <input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />
-            <span className="text-xs font-bold text-heading">منشور (يظهر في الموقع)</span>
+            <input type="checkbox" checked={published} onChange={(e) => { setPublished(e.target.checked); markDirty(); }} />
+            <span className="text-xs font-bold text-heading">{t('pastProjects.form.publishedLabel')}</span>
           </label>
         </div>
 
         {/* Main image */}
         <div className="space-y-2">
-          <span className="block text-[11px] font-bold text-neutral-text/70">الصورة الرئيسية *</span>
+          <span className="block text-[11px] font-bold text-neutral-text/70">{t('pastProjects.form.mainImageLabel')}</span>
           {image && (
             <div className="relative w-40 h-28 rounded-xl overflow-hidden border border-muted-border/40">
               <img src={image} alt="main" className="w-full h-full object-cover" />
               <button
                 type="button"
-                onClick={() => setImage(null)}
+                onClick={() => { setImage(null); markDirty(); }}
                 className="absolute top-1 end-1 p-1 rounded-lg bg-black/60 text-white hover:bg-red-500 cursor-pointer"
-                aria-label="إزالة الصورة"
+                aria-label={t('pastProjects.form.removeImageAria')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -205,7 +251,7 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
           )}
           <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent">
             {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-            {image ? 'استبدال الصورة' : 'رفع صورة'}
+            {image ? t('pastProjects.form.replaceImage') : t('pastProjects.form.uploadImage')}
             <input
               type="file"
               accept="image/*"
@@ -222,16 +268,16 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
 
         {/* Gallery */}
         <div className="space-y-2">
-          <span className="block text-[11px] font-bold text-neutral-text/70">معرض الصور</span>
+          <span className="block text-[11px] font-bold text-neutral-text/70">{t('pastProjects.form.galleryLabel')}</span>
           <div className="flex flex-wrap gap-2">
             {gallery.map((url, idx) => (
               <div key={`${url}-${idx}`} className="relative w-24 h-20 rounded-xl overflow-hidden border border-muted-border/40">
                 <img src={url} alt={`gallery-${idx}`} className="w-full h-full object-cover" />
                 <button
                   type="button"
-                  onClick={() => setGallery((prev) => prev.filter((_, i) => i !== idx))}
+                  onClick={() => { setGallery((prev) => prev.filter((_, i) => i !== idx)); markDirty(); }}
                   className="absolute top-1 end-1 p-1 rounded-lg bg-black/60 text-white hover:bg-red-500 cursor-pointer"
-                  aria-label="إزالة"
+                  aria-label={t('pastProjects.form.removeAria')}
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -240,7 +286,7 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
           </div>
           <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent">
             {uploadingGallery ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            إضافة صور
+            {t('pastProjects.form.addImages')}
             <input
               type="file"
               accept="image/*"
@@ -258,19 +304,16 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
 
         {/* PDF */}
         <div className="space-y-2">
-          <span className="block text-[11px] font-bold text-neutral-text/70">ملف المشروع (PDF)</span>
+          <span className="block text-[11px] font-bold text-neutral-text/70">{t('pastProjects.form.pdfLabel')}</span>
           {pdfUrl && (
             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-canvas border border-muted-border/40">
               <FileText className="w-4 h-4 text-accent" />
-              <span className="text-xs font-bold text-heading truncate">{pdfName ?? 'ملف PDF'}</span>
+              <span className="text-xs font-bold text-heading truncate">{pdfName ?? t('pastProjects.form.pdfFallback')}</span>
               <button
                 type="button"
-                onClick={() => {
-                  setPdfUrl(null);
-                  setPdfName(null);
-                }}
+                onClick={() => { setPdfUrl(null); setPdfName(null); markDirty(); }}
                 className="ms-auto p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer"
-                aria-label="إزالة الملف"
+                aria-label={t('pastProjects.form.removeFileAria')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -278,7 +321,7 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
           )}
           <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent">
             {uploadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {pdfUrl ? 'استبدال الملف' : 'رفع ملف PDF'}
+            {pdfUrl ? t('pastProjects.form.replaceFile') : t('pastProjects.form.uploadPdf')}
             <input
               type="file"
               accept="application/pdf"
@@ -294,12 +337,12 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
         </div>
 
         <div className="flex justify-end gap-2 pt-2 border-t border-muted-border/30">
-          <button type="button" onClick={onClose} className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
-            إلغاء
+          <button type="button" onClick={() => void requestClose()} className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
+            {t('pastProjects.form.cancel')}
           </button>
           <button type="submit" disabled={saving} className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 inline-flex items-center gap-2">
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {initial ? 'حفظ التعديلات' : 'إنشاء'}
+            {initial ? t('pastProjects.form.save') : t('pastProjects.form.create')}
           </button>
         </div>
       </form>
