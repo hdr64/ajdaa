@@ -13,6 +13,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.postgresql.prisma",
     "db:seed": "tsx prisma/seed.ts",
+    "user:create-dev": "tsx scripts/create-dev-user.ts",
     "db:studio": "prisma studio",
     "test": "vitest run"
   },

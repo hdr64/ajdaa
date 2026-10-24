@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Loader2, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Loader2, CheckCircle2, Upload } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 import { careersService, type CareersFormConfig } from '../services/careersService';
 import { ApiError, getErrorMessage } from '../services/api';
@@ -22,6 +22,7 @@ export const CareersPage: React.FC<CareersPageProps> = () => {
   const [jobTitle, setJobTitle] = useState('');
   const [message, setMessage] = useState('');
   const [cv, setCv] = useState<File | null>(null);
+  const cvInputRef = useRef<HTMLInputElement>(null);
   const [website, setWebsite] = useState(''); // honeypot
 
   const [submitting, setSubmitting] = useState(false);
@@ -105,7 +106,7 @@ export const CareersPage: React.FC<CareersPageProps> = () => {
 
   if (success) {
     return (
-      <div className="pt-28 pb-24 min-h-screen flex items-center justify-center">
+      <div className="pt-28 sm:pt-36 pb-24 min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
           <h2 className="text-xl font-black text-heading">{ar ? 'تم إرسال طلبك بنجاح' : 'Application submitted successfully'}</h2>
@@ -124,11 +125,16 @@ export const CareersPage: React.FC<CareersPageProps> = () => {
   );
 
   return (
-    <div className="pt-28 pb-24 min-h-screen">
+    <div className="pt-28 sm:pt-36 pb-24 min-h-screen">
       <div className="max-w-2xl mx-auto px-4">
         <h1 className="text-2xl sm:text-3xl font-black text-heading mb-6 text-center">
           {ar ? 'قدّم على وظيفة' : 'Apply for a job'}
         </h1>
+        <p className="mt-4 text-sm sm:text-base text-neutral-text/75 leading-relaxed text-center">
+          {ar
+            ? 'نسعد بانضمامك إلى فريق أجدا. أرسل بياناتك وسيراجعها فريقنا.'
+            : "We'd be glad to have you on the Ajda team. Send your details and our team will review them."}
+        </p>
 
         {errors.form && <div className="mb-4 p-3 rounded-xl bg-red-500/10 text-red-500 text-xs">{errors.form}</div>}
 
@@ -170,13 +176,67 @@ export const CareersPage: React.FC<CareersPageProps> = () => {
 
           <div>
             {label('cv', ar ? 'السيرة الذاتية (PDF)' : 'CV (PDF)')}
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setCv(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-neutral-text/70"
-            />
-            {cv && <p className="text-xs text-neutral-text/60 mt-1">{cv.name}</p>}
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                ref={cvInputRef}
+                type="file"
+                accept="application/pdf"
+                id="cv-input"
+                className="peer sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setCv(file);
+                  if (file) {
+                    const next = { ...errors };
+                    delete next.cv;
+                    setErrors(next);
+                  }
+                }}
+              />
+              <label
+                htmlFor="cv-input"
+                className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl cursor-pointer inline-flex items-center gap-2 peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {cv
+                  ? ar
+                    ? 'تم اختيار ملف'
+                    : 'File chosen'
+                  : ar
+                    ? 'اختر السيرة الذاتية (PDF)'
+                    : 'Choose CV (PDF)'}
+              </label>
+              {cv && (
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="text-xs text-neutral-text/60 truncate max-w-[200px]"
+                    dir="ltr"
+                    title={cv.name}
+                  >
+                    {cv.name.length > 40 ? cv.name.slice(0, 40) + '…' : cv.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setCv(null);
+                      const next = { ...errors };
+                      delete next.cv;
+                      setErrors(next);
+                      if (cvInputRef.current) cvInputRef.current.value = '';
+                    }}
+                    aria-label={ar ? 'إزالة الملف' : 'Remove file'}
+                    className="text-xs text-red-500 hover:text-red-700 cursor-pointer font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
+            {/* CV_MAX_BYTES = 5 * 1024 * 1024 in server/src/routes/careers.routes.ts */}
+            <p className="text-xs text-neutral-text/60 mt-1">
+              {ar ? 'ملف PDF فقط، بحد أقصى 5 ميجابايت' : 'PDF only, up to 5 MB'}
+            </p>
             {errors.cv && <p className="text-xs text-red-500 mt-1">{errors.cv}</p>}
           </div>
 

@@ -117,7 +117,7 @@ export const PastProjectsPage: React.FC<Props> = () => {
         {!loading && !error && items.length === 0 && (
           <div className="text-center py-16">
             <Archive className="w-10 h-10 text-neutral-text/40 mx-auto mb-3" />
-            <p className="text-sm text-neutral-text/75">لا توجد أعمال سابقة حالياً</p>
+            <p className="text-sm text-neutral-text/75">{t('لا توجد أعمال سابقة حالياً', 'No past works yet')}</p>
           </div>
         )}
 

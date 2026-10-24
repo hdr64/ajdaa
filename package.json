@@ -19,6 +19,7 @@
     "db:push": "npm --prefix server run db:push",
     "db:migrate": "npm --prefix server run db:migrate",
     "db:seed": "npm --prefix server run db:seed",
+    "user:create-dev": "npm --prefix server run user:create-dev --",
     "db:studio": "npm --prefix server run db:studio",
     "dev:all": "concurrently -k -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev\""
   },
