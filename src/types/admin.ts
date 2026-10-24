@@ -21,6 +21,7 @@ export interface AdminPermissions {
   manageApplications: boolean;
   exportData: boolean;
   manageUsers: boolean;
+  verifyUsers: boolean;
   manageNotifications: boolean;
 }
 
@@ -101,6 +102,8 @@ export interface AdminUserInput {
   departmentId?: string | null;
   permissions: Partial<AdminPermissions>;
   status?: AdminStatus;
+  /** Create mode only: email the admin-typed password in a separated block. */
+  sendPasswordInEmail?: boolean;
 }
 
 export interface CategoryItem {

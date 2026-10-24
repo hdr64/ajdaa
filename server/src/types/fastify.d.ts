@@ -27,6 +27,7 @@ export type AdminPermission =
   | 'manageApplications'
   | 'exportData'
   | 'manageUsers'
+  | 'verifyUsers'
   | 'manageNotifications';
 
 /** The admin as currently stored in the database, resolved by `authenticate`. */

@@ -54,6 +54,7 @@ export const PERMISSION_KEYS: readonly (keyof AdminPermissions)[] = [
   'manageApplications',
   'exportData',
   'manageUsers',
+  'verifyUsers',
   'manageNotifications',
   'manageCms',
   'manageClients',
@@ -74,6 +75,7 @@ export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
   manageApplications: 'إدارة طلبات التوظيف',
   exportData: 'تصدير التقارير',
   manageUsers: 'إدارة المستخدمين',
+  verifyUsers: 'تأكيد حسابات المستخدمين',
   manageNotifications: 'إدارة الإشعارات',
   manageCms: 'إدارة محتوى الموقع',
   manageClients: 'إدارة الشركاء والعملاء',
@@ -189,6 +191,7 @@ export const emptyPermissions = (): AdminPermissions => ({
   manageApplications: false,
   exportData: false,
   manageUsers: false,
+  verifyUsers: false,
   manageNotifications: false,
   manageCms: false,
   manageClients: false,
@@ -321,12 +324,17 @@ export interface UserRights {
   toggleHint: string | null;
   canDelete: boolean;
   deleteHint: string | null;
+  /** Mark a pending account as verified without the emailed link or code. */
+  canMarkVerified: boolean;
+  markVerifiedHint: string | null;
   isSelf: boolean;
 }
 
 export interface RightsContext {
   currentUserId: string | null;
   isSuperAdmin: boolean;
+  /** The signed-in user holds `verifyUsers` (super admins always do). */
+  canVerifyUsers: boolean;
   /** Guards the last usable super admin, who cannot be demoted, suspended or deleted. */
   activeSuperAdminCount: number;
 }
@@ -358,6 +366,18 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
   const lockReason = accessLockReason(user, isSelf, context.isSuperAdmin, isLastActiveSuperAdmin);
   const accessLocked = lockReason !== null;
 
+  const canMarkVerified =
+    context.canVerifyUsers && user.status === 'pending' && !isSuperAdminTarget && !isSelf;
+  let markVerifiedHint: string | null = null;
+  if (!canMarkVerified) {
+    if (!context.canVerifyUsers) markVerifiedHint = 'تتطلب صلاحية «تأكيد حسابات المستخدمين»';
+    else if (isSuperAdminTarget)
+      markVerifiedHint = 'لا يمكن تأكيد حساب مدير عام من غير مدير عام';
+    else if (user.status !== 'pending')
+      markVerifiedHint = 'لا يمكن تأكيد حساب غير منتظر التفعيل';
+    else markVerifiedHint = 'لا يمكن تأكيد حسابك بنفسك';
+  }
+
   const canDelete = !isSelf && (!isSuperAdminTarget || context.isSuperAdmin) && !isLastActiveSuperAdmin;
   const deleteHint = canDelete
     ? null
@@ -376,6 +396,8 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     toggleHint: lockReason,
     canDelete,
     deleteHint,
+    canMarkVerified,
+    markVerifiedHint,
     isSelf,
   };
 }
@@ -390,4 +412,6 @@ export interface UserViewProps {
   onDelete: (user: AdminUser) => void;
   /** Only reachable for pending accounts, so the row action is hidden otherwise. */
   onResendVerification: (user: AdminUser) => void;
+  /** Mark a pending account as verified without the emailed link or code. */
+  onMarkVerified: (user: AdminUser) => void;
 }

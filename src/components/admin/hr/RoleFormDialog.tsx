@@ -14,6 +14,8 @@ import { AdminStorage, type RoleInput } from '../../../services/adminStorage';
 import {
   MANAGE_USERS_HINT,
   MANAGE_USERS_KEY,
+  VERIFY_USERS_HINT,
+  VERIFY_USERS_KEY,
   ROLE_KEY_HINT,
   ROLE_SAVE_ERROR,
   getRoleRights,
@@ -206,10 +208,19 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
 
   const permissionsLocked = rights ? !rights.permissionsEditable : false;
   const lockReason = rights?.permissionHint ?? null;
-  // manageUsers is the one permission that escalates: only a super admin grants it.
-  const isLocked = (key: PermissionKey): boolean => permissionsLocked || (key === MANAGE_USERS_KEY && !isSuperAdmin);
+  // manageUsers and verifyUsers both escalate: only a super admin grants them.
+  const isLocked = (key: PermissionKey): boolean =>
+    permissionsLocked ||
+    (key === MANAGE_USERS_KEY && !isSuperAdmin) ||
+    (key === VERIFY_USERS_KEY && !isSuperAdmin);
   const lockHint = (key: PermissionKey): string | null =>
-    permissionsLocked ? lockReason : key === MANAGE_USERS_KEY && !isSuperAdmin ? MANAGE_USERS_HINT : null;
+    permissionsLocked
+      ? lockReason
+      : key === MANAGE_USERS_KEY && !isSuperAdmin
+        ? MANAGE_USERS_HINT
+        : key === VERIFY_USERS_KEY && !isSuperAdmin
+          ? VERIFY_USERS_HINT
+          : null;
 
   const togglePermission = (key: PermissionKey, checked: boolean) => {
     if (isLocked(key)) return;

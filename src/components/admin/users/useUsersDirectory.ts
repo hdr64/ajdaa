@@ -30,6 +30,7 @@ export interface UsersDirectory {
   setManyStatus: (users: AdminUser[], status: ToggleableAdminStatus) => Promise<void>;
   remove: (user: AdminUser) => Promise<void>;
   resendVerification: (user: AdminUser) => Promise<void>;
+  markVerified: (user: AdminUser) => Promise<void>;
 }
 
 interface StatusCopy {
@@ -62,7 +63,7 @@ const DELETE_CONFIRM = {
 };
 
 export function useUsersDirectory(showToast: (message: string) => void): UsersDirectory {
-  const { currentUser, isSuperAdmin, confirm, confirmDelete } = useAdmin();
+  const { currentUser, isSuperAdmin, can, confirm, confirmDelete } = useAdmin();
 
   const users = useAsyncData<AdminUser[]>(useCallback((signal) => AdminStorage.getUsers(signal), []), [], []);
   const reloadUsers = users.reload;
@@ -86,8 +87,13 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   );
 
   const rightsContext = useMemo<RightsContext>(
-    () => ({ currentUserId: currentUser?.id ?? null, isSuperAdmin, activeSuperAdminCount }),
-    [currentUser?.id, isSuperAdmin, activeSuperAdminCount]
+    () => ({
+      currentUserId: currentUser?.id ?? null,
+      isSuperAdmin,
+      canVerifyUsers: isSuperAdmin || can('verifyUsers'),
+      activeSuperAdminCount,
+    }),
+    [currentUser?.id, isSuperAdmin, can, activeSuperAdminCount]
   );
 
   const rightsById = useMemo(
@@ -205,5 +211,35 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
     [reloadUsers, showToast]
   );
 
-  return { users, reference, rightsById, setStatus, setManyStatus, remove, resendVerification };
+  /**
+   * Marks a pending account as verified without the emailed link or code.
+   * Needs `verifyUsers` (server-enforced); the confirm dialog explains the
+   * email check is being skipped. A verified invite account still needs a
+   * password via "Forgot password".
+   */
+  const markVerified = useCallback(
+    async (user: AdminUser) => {
+      const ok = await confirm({
+        title: 'تأكيد الحساب يدويًا؟',
+        message: `سيتم تأكيد بريد "${user.name}" وتنشيط الحساب دون الحاجة إلى الرابط أو الرمز المرسل بالبريد. إذا كان الحساب دعوة، سيُطلب من مستخدمه اختيار كلمة مرور عبر "نسيت كلمة المرور" عند أول دخول.`,
+        confirmLabel: 'تأكيد الحساب',
+        danger: false,
+      });
+      if (!ok) return;
+      try {
+        const result = await AdminStorage.markVerified(user.id);
+        await reloadUsers();
+        if (result.needsPassword) {
+          showToast(`تم تأكيد الحساب. على ${user.name} اختيار كلمة مرور عبر "نسيت كلمة المرور" عند أول دخول.`);
+        } else {
+          showToast(`تم تأكيد حساب ${user.name} وتنشيطه`);
+        }
+      } catch (error) {
+        showToast(getErrorMessage(error, 'تعذر تأكيد الحساب'));
+      }
+    },
+    [confirm, reloadUsers, showToast]
+  );
+
+  return { users, reference, rightsById, setStatus, setManyStatus, remove, resendVerification, markVerified };
 }

@@ -133,6 +133,10 @@ export interface EmailVerificationPayload {
   to: string;
   name?: string | null;
   token: string;
+  /** 6-digit code shown in the mail (create mode only); absent for invite mode. */
+  code?: string | null;
+  /** Code lifetime in whole minutes, for the email wording. */
+  codeExpiresInMinutes?: number;
 }
 
 /** Confirms a create-mode account's address so it can leave `pending`. */
@@ -145,6 +149,8 @@ export const sendEmailVerificationJob: QueueableJob<EmailVerificationPayload> = 
       name: payload.name,
       verifyUrl: `${config.appUrl}/admin/verify-email?token=${encodeURIComponent(payload.token)}`,
       expiresInHours: Math.round(EMAIL_VERIFICATION_TTL_MS.verify / (60 * 60 * 1000)),
+      code: payload.code ?? undefined,
+      codeExpiresInMinutes: payload.codeExpiresInMinutes,
     });
     await sendMail({ to: payload.to, ...content });
   },

@@ -59,6 +59,7 @@ export const DEFAULT_PERMISSIONS = {
   viewInquiries: false,
   exportData: false,
   manageUsers: false,
+  verifyUsers: false,
   manageNotifications: false,
   manageCms: false,
   manageClients: false,
@@ -80,6 +81,7 @@ function normalizePermissions(raw: Record<string, boolean> | null | undefined) {
     viewInquiries: source.viewInquiries ?? false,
     exportData: source.exportData ?? false,
     manageUsers: source.manageUsers ?? false,
+    verifyUsers: source.verifyUsers ?? false,
     manageNotifications: source.manageNotifications ?? false,
     manageCms: source.manageCms ?? false,
     manageClients: source.manageClients ?? source.manageCms ?? false,
@@ -259,6 +261,31 @@ export const authService = {
   /** Re-sends a pending account's invite/verification link (needs `manageUsers`). */
   resendVerification(id: string): Promise<{ sent: boolean }> {
     return api.post<{ sent: boolean }>(`/api/auth/users/${encodeURIComponent(id)}/resend-verification`, {});
+  },
+
+  /** Verifies a pending create-mode account with its emailed 6-digit code. */
+  verifyEmailCode(email: string, password: string, code: string): Promise<{ verified: boolean }> {
+    return api.post<{ verified: boolean }>('/api/auth/verify-email-code', {
+      email: email.trim(),
+      password,
+      code: code.trim(),
+    });
+  },
+
+  /** Re-sends a fresh email verification code (and link) for a pending account. */
+  resendVerificationCode(email: string, password: string): Promise<{ sent: boolean }> {
+    return api.post<{ sent: boolean }>('/api/auth/verify-email-code/resend', {
+      email: email.trim(),
+      password,
+    });
+  },
+
+  /** Marks a pending account as verified without the emailed link or code (needs `verifyUsers`). */
+  markVerified(userId: string): Promise<{ verified: boolean; needsPassword: boolean }> {
+    return api.post<{ verified: boolean; needsPassword: boolean }>(
+      `/api/auth/users/${encodeURIComponent(userId)}/mark-verified`,
+      {}
+    );
   },
 };
 

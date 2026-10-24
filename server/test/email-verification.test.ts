@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { config } from '../src/config/env.js';
 import { prisma } from '../src/services/prisma.js';
 import { clearSentMail, getSentMail } from '../src/services/mailService.js';
+import { clearChallenges } from '../src/services/otpService.js';
 import {
   authInject,
   closeApp,
@@ -13,6 +14,8 @@ import {
   seedSession,
   SEED_ADMINS,
   sleep,
+  THROWAWAY_PASSWORD,
+  createThrowawayUser,
   type TestSession,
 } from './helpers.js';
 
@@ -43,6 +46,15 @@ function codeFromMail(): string {
   if (!mail) throw new Error('No password-change code mail was sent');
   const match = mail.text.match(/\b(\d{6})\b/);
   if (!match) throw new Error(`No 6-digit code in the mail:\n${mail.text}`);
+  return match[1];
+}
+
+/** The six-digit code carried by the newest verify-email mail. */
+function verificationCodeFromMail(): string {
+  const mail = [...getSentMail()].reverse().find((m) => m.kind === 'verify-email');
+  if (!mail) throw new Error('No verify-email mail was sent');
+  const match = mail.text.match(/\b(\d{6})\b/);
+  if (!match) throw new Error(`No 6-digit code in the verify-email mail:\n${mail.text}`);
   return match[1];
 }
 
@@ -464,5 +476,440 @@ describe('forgot/reset regression', () => {
 
     const oldToken = await authInject(session.token, { method: 'GET', url: '/api/auth/me' });
     expect(oldToken.statusCode).toBe(401);
+  });
+});
+
+describe('create-mode mail carries a code; invite mail does not', () => {
+  it('create-mode mail has a 6-digit code and the link', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `create.code.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    
+    const mail = getSentMail().find((m) => m.kind === 'verify-email');
+    expect(mail).toBeDefined();
+    expect(mail!.text).toContain(linkFor('verify-email', '/admin/verify-email'));
+    expect(verificationCodeFromMail()).toMatch(/^\d{6}$/);
+    expect(mail!.text).toMatch(/صالح لمدة \d+ دقيقة/);
+
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    expect(created).not.toBeNull();
+    cleanupUsers.push(created!.id);
+  });
+
+  it('invite-mode mail has the link but no code', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `invite.nocode.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'invite', email });
+    
+    const mail = getSentMail().find((m) => m.kind === 'invite');
+    expect(mail).toBeDefined();
+    expect(mail!.text).toContain(linkFor('invite', '/admin/accept-invite'));
+    expect(/\b\d{6}\b/.test(mail!.text)).toBe(false);
+
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    expect(created).not.toBeNull();
+    cleanupUsers.push(created!.id);
+  });
+});
+
+describe('verify-email-code (public)', () => {
+  it('success activates and clears the link token and challenges', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.ok.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(created!.id);
+
+    const code = verificationCodeFromMail();
+    const verified = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: GOOD_PASSWORD, code },
+    });
+    expect(verified.statusCode).toBe(200);
+    expect(verified.json()).toEqual({ verified: true });
+
+    const active = await prisma.adminUser.findUnique({ where: { email } });
+    expect(active!.status).toBe('active');
+    expect(active!.emailVerifiedAt).not.toBeNull();
+
+    // The link token is dead and no challenge is left.
+    const tokenRows = await prisma.emailVerificationToken.count({
+      where: { adminUserId: created!.id, purpose: 'verify' },
+    });
+    expect(tokenRows).toBe(0);
+    const challengeRows = await prisma.otpChallenge.count({
+      where: { adminUserId: created!.id, purpose: 'email_verification' },
+    });
+    expect(challengeRows).toBe(0);
+  });
+
+  it('wrong code returns 400 with attemptsLeft', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.wrong.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(created!.id);
+
+    const bad = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: GOOD_PASSWORD, code: '000000' },
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().attemptsLeft).toBeDefined();
+    expect(bad.json().attemptsLeft).toBeLessThanOrEqual(5);
+
+    // The account stays pending and unverified.
+    const still = await prisma.adminUser.findUnique({ where: { email } });
+    expect(still!.status).toBe('pending');
+    expect(still!.emailVerifiedAt).toBeNull();
+  });
+
+  it('wrong password returns the generic 401 and counts toward lockout', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.pw.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    
+    const first = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: 'NopeNope123', code: '000000' },
+    });
+    expect(first.statusCode).toBe(401);
+    expect(first.json().error).toBe('Invalid credentials');
+
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    expect(created!.status).toBe('pending');
+    cleanupUsers.push(created!.id);
+  });
+
+  it('an invite account cannot use the code', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.invite.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'invite', email });
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(created!.id);
+
+    const res = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: GOOD_PASSWORD, code: '123456' },
+    });
+    // Invite account has no usable password -> generic 401 (no oracle).
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe('Invalid credentials');
+
+    const still = await prisma.adminUser.findUnique({ where: { email } });
+    expect(still!.status).toBe('pending');
+  });
+
+  it('an already-active account answers like a failure (no oracle)', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.active.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, {
+      mode: 'create',
+      email,
+      password: GOOD_PASSWORD,
+    });
+    await prisma.adminUser.update({
+      where: { email },
+      data: { status: 'active', emailVerifiedAt: new Date() },
+    });
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(created!.id);
+
+    const res = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: GOOD_PASSWORD, code: '123456' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('رابط التحقق غير صالح أو منتهي الصلاحية / The verification link is invalid or has expired');
+  });
+
+  it('a dead/nonexistent code answers the expired message', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.dead.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(created!.id);
+
+    await clearChallenges(created!.id, 'email_verification');
+    const res = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: GOOD_PASSWORD, code: '123456' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe(
+      'رمز التحقق منتهي الصلاحية أو تم استخدامه، يرجى طلب رمز جديد / Verification code has expired or was already used, please request a new one'
+    );
+  });
+
+  it('link verification kills the code and vice versa', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.link.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(created!.id);
+
+    const token = tokenFromMail('verify-email');
+    const link = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email',
+      payload: { token },
+    });
+    expect(link.statusCode).toBe(200);
+
+    const code = verificationCodeFromMail();
+    const afterLink = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: GOOD_PASSWORD, code },
+    });
+    // The account is now active, so the code path answers like a failure (no oracle).
+    expect(afterLink.statusCode).toBe(400);
+  });
+});
+
+describe('verify-email-code/resend (public)', () => {
+  it('is throttled inside the cooldown, then issues a fresh code that supersedes the old', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `code.resend.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(created!.id);
+
+    const oldCode = verificationCodeFromMail(); // the first mail's code
+
+    const tooSoon = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code/resend',
+      payload: { email, password: GOOD_PASSWORD },
+    });
+    expect(tooSoon.statusCode).toBe(429);
+    expect(tooSoon.headers['retry-after']).toBeDefined();
+
+    await sleep(Number(process.env.LOGIN_OTP_RESEND_COOLDOWN_MS) + 250);
+
+    const resent = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code/resend',
+      payload: { email, password: GOOD_PASSWORD },
+    });
+    expect(resent.statusCode).toBe(200);
+    expect(resent.json()).toEqual({ sent: true });
+
+    const firstCodeUsed = await inject({
+      method: 'POST',
+      url: '/api/auth/verify-email-code',
+      payload: { email, password: GOOD_PASSWORD, code: oldCode },
+    });
+    // The old code's challenge was superseded by the resend, so it no longer works.
+    expect(firstCodeUsed.statusCode).toBe(400);
+  });
+});
+
+describe('mark-verified (admin)', () => {
+  async function managerWith(permissions: Record<string, boolean>) {
+    const user = await createThrowawayUser({ role: 'project_manager', permissions });
+    return login(user.email, THROWAWAY_PASSWORD);
+  }
+
+  it('requires verifyUsers permission (403 without)', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `mark.target.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    const target = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(target!.id);
+
+    const manager = await managerWith({ manageUsers: true });
+    const res = await authInject(manager.token, {
+      method: 'POST',
+      url: `/api/auth/users/${target!.id}/mark-verified`,
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('super admin is always allowed', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `mark.sa.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    const target = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(target!.id);
+
+    const res = await authInject(admin.token, {
+      method: 'POST',
+      url: `/api/auth/users/${target!.id}/mark-verified`,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().verified).toBe(true);
+
+    const active = await prisma.adminUser.findUnique({ where: { email } });
+    expect(active!.status).toBe('active');
+    expect(active!.emailVerifiedAt).not.toBeNull();
+  });
+
+  it('invite account returns needsPassword', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `mark.invite.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'invite', email });
+    const target = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(target!.id);
+
+    const res = await authInject(admin.token, {
+      method: 'POST',
+      url: `/api/auth/users/${target!.id}/mark-verified`,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().needsPassword).toBe(true);
+
+    const active = await prisma.adminUser.findUnique({ where: { email } });
+    expect(active!.emailVerifiedAt).not.toBeNull();
+    expect(active!.status).toBe('active');
+  });
+
+  it('suspended account stays suspended', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `mark.susp.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    await prisma.adminUser.update({ where: { email }, data: { status: 'suspended' } });
+    const target = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(target!.id);
+
+    const res = await authInject(admin.token, {
+      method: 'POST',
+      url: `/api/auth/users/${target!.id}/mark-verified`,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().verified).toBe(true);
+
+    const active = await prisma.adminUser.findUnique({ where: { email } });
+    expect(active!.status).toBe('suspended');
+    expect(active!.emailVerifiedAt).not.toBeNull();
+  });
+
+  it('already verified returns 409', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `mark.done.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, { mode: 'create', email, password: GOOD_PASSWORD });
+    await prisma.adminUser.update({
+      where: { email },
+      data: { status: 'active', emailVerifiedAt: new Date() },
+    });
+    const target = await prisma.adminUser.findUnique({ where: { email } });
+    cleanupUsers.push(target!.id);
+
+    const res = await authInject(admin.token, {
+      method: 'POST',
+      url: `/api/auth/users/${target!.id}/mark-verified`,
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('non-super-admin cannot target a super admin', async () => {
+    await seedSession(SUPER);
+    const target = await createThrowawayUser({ role: 'super_admin', password: THROWAWAY_PASSWORD });
+    cleanupUsers.push(target.id);
+    await prisma.adminUser.update({
+      where: { id: target.id },
+      data: { status: 'pending', emailVerifiedAt: null },
+    });
+
+    const manager = await managerWith({ verifyUsers: true, manageUsers: true });
+    const res = await authInject(manager.token, {
+      method: 'POST',
+      url: `/api/auth/users/${target.id}/mark-verified`,
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('only a super admin can grant verifyUsers to a role', async () => {
+    const manager = await createThrowawayUser({
+      role: 'project_manager',
+      permissions: { manageUsers: true, verifyUsers: false },
+    });
+    const managerSession = await login(manager.email, THROWAWAY_PASSWORD);
+    cleanupUsers.push(manager.id);
+
+    const roleKey = `grant_role_${Date.now()}`;
+    const created = await authInject(managerSession.token, {
+      method: 'POST',
+      url: '/api/roles',
+      payload: { key: roleKey, nameAr: 'دور تجريبي', nameEn: 'Grant Role', permissions: ['verifyUsers'] },
+    });
+    expect(created.statusCode).toBe(403);
+  });
+
+  it('a manageUsers admin can still edit a user who already holds verifyUsers', async () => {
+    const holder = await createThrowawayUser({
+      role: 'project_manager',
+      permissions: { verifyUsers: true },
+    });
+    cleanupUsers.push(holder.id);
+    const manager = await createThrowawayUser({
+      role: 'project_manager',
+      permissions: { manageUsers: true },
+    });
+    cleanupUsers.push(manager.id);
+    const managerSession = await login(manager.email, THROWAWAY_PASSWORD);
+
+    // The admin form always resends the permissions it loaded; an unchanged
+    // verifyUsers flag is not a grant.
+    const res = await authInject(managerSession.token, {
+      method: 'PUT',
+      url: `/api/auth/users/${holder.id}`,
+      payload: { name: 'Renamed Holder', permissions: { verifyUsers: true } },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('sendPasswordInEmail (create mode)', () => {
+  it('mail contains the password only when requested', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `pw.on.${Date.now()}@ajdaa.test`;
+    await createAccountAs(admin, {
+      mode: 'create',
+      email,
+      password: GOOD_PASSWORD,
+      sendPasswordInEmail: true,
+    });
+    
+    const mail = getSentMail().find((m) => m.kind === 'verify-email');
+    expect(mail!.text).toContain(GOOD_PASSWORD);
+    expect(mail!.text).toMatch(/كلمة المرور المؤقتة/);
+
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    expect(created).not.toBeNull();
+    cleanupUsers.push(created!.id);
+  });
+
+  it('rejects sendPasswordInEmail with invite via the API (400)', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `pw.invite.${Date.now()}@ajdaa.test`;
+    const res = await authInject(admin.token, {
+      method: 'POST',
+      url: '/api/auth/users',
+      payload: { name: 'Reject Invite', email, mode: 'invite', role: 'viewer', sendPasswordInEmail: true },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(await prisma.adminUser.findUnique({ where: { email } })).toBeNull();
+  });
+
+  it('rejects sendPasswordInEmail for a super-admin target (no mail is sent)', async () => {
+    const admin = await seedSession(SUPER);
+    const email = `pw.sa.${Date.now()}@ajdaa.test`;
+    const res = await authInject(admin.token, {
+      method: 'POST',
+      url: '/api/auth/users',
+      payload: { name: 'SA', email, mode: 'create', role: 'super_admin', password: GOOD_PASSWORD, sendPasswordInEmail: true },
+    });
+    expect(res.statusCode).toBe(201);
+    const created = await prisma.adminUser.findUnique({ where: { email } });
+    expect(created).not.toBeNull();
+    cleanupUsers.push(created!.id);
+    expect(getSentMail().filter((m) => m.kind === 'verify-email')).toHaveLength(0);
   });
 });

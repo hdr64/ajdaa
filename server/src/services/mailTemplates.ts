@@ -1,3 +1,5 @@
+import { ttlMinutes } from './otpService.js';
+
 /**
  * Arabic-first, RTL email bodies.
  *
@@ -233,17 +235,66 @@ export function inviteEmail(options: {
 
 /**
  * The confirmation link for an account an admin created with a password. Opening
- * it proves the address and activates the account; the password was chosen by
- * the admin and never appears in this mail.
+ * it proves the address and activates the account.
+ *
+ * When `code` is given (create mode only) the mail also carries a 6-digit code
+ * the user can enter on the admin login page instead of clicking the link. The
+ * code and the link invalidate each other: using either one consumes the other.
+ *
+ * When `password` is given (create mode only, `sendPasswordInEmail`) the typed
+ * password appears in a clearly separated block. The password never travels
+ * through the queue: this template is rendered and `sendMail` is called
+ * directly in the request handler so the secret never reaches Redis.
  */
 export function emailVerificationEmail(options: {
   brandName: string;
   name?: string | null;
   verifyUrl: string;
   expiresInHours: number;
+  /** 6-digit one-time code, shown large and monospaced (create mode only). */
+  code?: string | null;
+  /** Code lifetime in whole minutes, for the email wording. */
+  codeExpiresInMinutes?: number;
+  /** The admin-typed password, shown in a separated block (create mode only). */
+  password?: string | null;
 }): MailContent {
-  const { brandName, name, verifyUrl, expiresInHours } = options;
+  const { brandName, name, verifyUrl, expiresInHours, code, codeExpiresInMinutes, password } = options;
   const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+
+  let bodyHtml = linkBlock('تأكيد البريد الإلكتروني', verifyUrl);
+  if (code) {
+    bodyHtml =
+      codeBlock(code) +
+      `<p style="margin:6px 0 0;color:${COLORS.muted};font-size:13px;line-height:1.7;">يمكنك أيضًا إدخال هذا الرمز على صفحة تسجيل الدخول للمدير بعد تسجيل الدخول، أو فتح الرابط أعلاه.</p>` +
+      bodyHtml;
+  }
+  if (password) {
+    bodyHtml =
+      bodyHtml +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 4px;">
+        <tr>
+          <td align="center" style="background:${COLORS.goldSoft};border:1px solid ${COLORS.gold};border-radius:8px;padding:16px 8px;">
+            <span style="font-size:20px;font-weight:700;letter-spacing:4px;color:${COLORS.ink};direction:ltr;display:inline-block;">${escapeHtml(password)}</span>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:6px 0 0;color:${COLORS.muted};font-size:13px;line-height:1.7;">كلمة المرور المؤقتة — يُنصح بتغييرها بعد أول دخول.</p>`;
+  }
+
+  const textLines = [
+    `${brandName} — تأكيد البريد الإلكتروني`,
+    '',
+    greeting,
+    'لتأكيد بريدك الإلكتروني وتفعيل الحساب، افتح الرابط التالي:',
+    verifyUrl,
+    `الرابط صالح لمدة ${expiresInHours} ساعة.`,
+  ];
+  if (code) {
+    textLines.splice(4, 0, `رمز التأكيد: ${code}`, `الرمز صالح لمدة ${codeExpiresInMinutes ?? ttlMinutes()} دقيقة.`);
+  }
+  if (password) {
+    textLines.push('', 'كلمة المرور المؤقتة:', password, 'يُنصح بتغييرها بعد أول دخول.');
+  }
 
   return {
     kind: 'verify-email',
@@ -251,18 +302,11 @@ export function emailVerificationEmail(options: {
     html: shell({
       brandName,
       heading: 'تأكيد البريد الإلكتروني',
-      intro: `${greeting} تم إنشاء حساب لك في لوحة تحكم ${brandName}. اضغط الزر التالي لتأكيد بريدك الإلكتروني وتفعيل الحساب.`,
-      bodyHtml: linkBlock('تأكيد البريد الإلكتروني', verifyUrl),
+      intro: `${greeting} تم إنشاء حساب لك في لوحة تحكم ${brandName}.`,
+      bodyHtml,
       footnote: `صالح لمدة ${expiresInHours} ساعة. لا يمكنك تسجيل الدخول قبل تأكيد البريد.`,
     }),
-    text: [
-      `${brandName} — تأكيد البريد الإلكتروني`,
-      '',
-      greeting,
-      'لتأكيد بريدك الإلكتروني وتفعيل الحساب، افتح الرابط التالي:',
-      verifyUrl,
-      `الرابط صالح لمدة ${expiresInHours} ساعة.`,
-    ].join('\n'),
+    text: textLines.join('\n'),
   };
 }
 

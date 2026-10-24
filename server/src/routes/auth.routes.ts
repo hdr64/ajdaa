@@ -10,8 +10,9 @@ import { config } from '../config/env.js';
 import { parsePreferences, preferencesSchema } from '../config/preferences.js';
 import { loginOtpRequiredForAll } from '../services/securitySettings.js';
 import { loginFailureTracker } from '../services/loginFailureService.js';
+import { loggerService } from '../services/loggerService.js';
 import { mailBrandName, isMailEnabled, sendMail } from '../services/mailService.js';
-import { loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
+import { emailVerificationEmail, loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
 import { notifyPasswordChanged } from '../services/notificationService.js';
 import { dispatch } from '../services/queueService.js';
 import { sendInviteEmailJob, sendEmailVerificationJob, sendPasswordChangeCodeJob } from '../jobs/emailJobs.js';
@@ -20,11 +21,13 @@ import {
   issueEmailVerificationToken,
   lastVerificationPurpose,
   latestTokenIssuedAt,
+  EMAIL_VERIFICATION_TTL_MS,
   type EmailVerificationPurpose,
 } from '../services/emailVerificationService.js';
 import {
   clearChallenges,
   findChallengeOwner,
+  findLiveChallenge,
   issueChallenge,
   resendChallenge,
   ttlMinutes,
@@ -86,6 +89,12 @@ const EMAIL_ALREADY_VERIFIED_ERROR = 'تم تأكيد بريد هذا الحسا
 const PENDING_ACTIVATION_ERROR =
   'لا يمكن تنشيط حساب لم يُؤكَّد بريده الإلكتروني بعد / An account with an unverified email cannot be activated';
 const RESEND_TOO_SOON_ERROR = 'يرجى الانتظار قبل إعادة إرسال الرابط / Please wait before requesting a new link';
+const SEND_PASSWORD_INVITE_ERROR =
+  'لا تُرسل كلمة مرور مع دعوة، يختار المستخدم كلمة مروره عبر الرابط / Do not send a password with an invite; the user chooses their own password';
+const MARK_VERIFIED_NOT_FOUND = 'المستخدم غير موجود / User not found';
+const MARK_VERIFIED_ALREADY_VERIFIED = 'بريد هذا الحساب مؤكد بالفعل / This account email is already verified';
+const MARK_VERIFIED_SUPER_ADMIN_TARGET = 'لا يمكن تأكيد حساب مدير عام من غير مدير عام / Only a super admin can verify a super admin account';
+
 
 const RATE_LIMIT_ERROR_BODY = {
   statusCode: 429,
@@ -119,6 +128,17 @@ const verifyEmailSchema = z.object({
   token: z.string().trim().min(1, 'Token is required'),
 });
 
+const verifyEmailCodeSchema = z.object({
+  email: z.string().trim().email(),
+  password: z.string().min(1, 'Password is required'),
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+const resendVerificationCodeSchema = z.object({
+  email: z.string().trim().email(),
+  password: z.string().min(1, 'Password is required'),
+});
+
 const acceptInviteSchema = z.object({
   token: z.string().trim().min(1, 'Token is required'),
   password: z.string().min(1, 'Password is required'),
@@ -140,6 +160,9 @@ const createUserSchema = z.object({
   department: z.string().nullish(),
   departmentId: z.string().nullish(),
   permissions: z.record(z.boolean()).optional(),
+  // Create mode only: the admin-typed password is emailed in a separated block
+  // and never written to the queue or any log. Rejected with `invite`.
+  sendPasswordInEmail: z.boolean().optional().default(false),
 });
 
 const updateUserSchema = z
@@ -225,11 +248,54 @@ const VERIFICATION_MAIL_JOB = {
  */
 async function sendAccountVerificationMail(
   user: { id: string; email: string; name: string },
-  purpose: EmailVerificationPurpose
+  purpose: EmailVerificationPurpose,
+  options: { password?: string } = {}
 ): Promise<boolean> {
   const { token } = await issueEmailVerificationToken(user.id, purpose);
+  let code: string | undefined;
+  let codeExpiresInMinutes: number | undefined;
+
+  if (purpose === 'verify') {
+    const issued = await issueChallenge(user.id, 'email_verification');
+    code = issued.code;
+    codeExpiresInMinutes = ttlMinutes();
+  }
+
   const mailSent = await isMailEnabled();
-  await dispatch(VERIFICATION_MAIL_JOB[purpose], { to: user.email, name: user.name, token });
+
+  // A typed password must never reach the queue (Redis in production), so this
+  // one mail is rendered and sent directly. A transport failure must not fail
+  // account creation: the caller turns it into `mailSent = false`.
+  if (options.password !== undefined) {
+    const content = emailVerificationEmail({
+      brandName: await mailBrandName(),
+      name: user.name,
+      verifyUrl: `${config.appUrl}/admin/verify-email?token=${encodeURIComponent(token)}`,
+      expiresInHours: Math.round(EMAIL_VERIFICATION_TTL_MS.verify / (60 * 60 * 1000)),
+      code,
+      codeExpiresInMinutes,
+      password: options.password,
+    });
+    try {
+      await sendMail({ to: user.email, ...content });
+    } catch {
+      return false;
+    }
+    return mailSent;
+  }
+
+  const jobPayload: {
+    to: string;
+    name?: string | null;
+    token: string;
+    code?: string | null;
+    codeExpiresInMinutes?: number;
+  } = { to: user.email, name: user.name, token };
+  if (purpose === 'verify') {
+    jobPayload.code = code ?? null;
+    jobPayload.codeExpiresInMinutes = codeExpiresInMinutes;
+  }
+  await dispatch(VERIFICATION_MAIL_JOB[purpose], jobPayload);
   return mailSent;
 }
 
@@ -620,6 +686,143 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // Confirm a create-mode account's email with the 6-digit code (Public). The
+  // account must exist, be pending, unverified and hold a real password; invite
+  // accounts have an unusable password and fail the bcrypt check above, which
+  // is the correct (no-oracle) outcome.
+  fastify.post(
+    '/verify-email-code',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitPasswordResetMax,
+          timeWindow: config.rateLimitPasswordResetWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(verifyEmailCodeSchema)],
+    },
+    async (request, reply) => {
+      const { email, password, code } = verifyEmailCodeSchema.parse(request.body ?? {});
+      const normalizedEmail = email.toLowerCase().trim();
+
+      if (rejectIfLocked(normalizedEmail, reply)) return reply;
+
+      const user = await prisma.adminUser.findUnique({ where: { email: normalizedEmail } });
+      if (!user) {
+        // No account oracle: a missing address answers the same as a wrong one.
+        loginFailureTracker.recordFailure(normalizedEmail);
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        loginFailureTracker.recordFailure(normalizedEmail);
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+      // The password is proven, so clear any earlier failures. A wrong code is
+      // bounded by the challenge's own attempt cap, not this tracker.
+      loginFailureTracker.recordSuccess(normalizedEmail);
+
+      // Only a pending, unverified create-mode account can use the code. An
+      // already-verified or active account answers like a generic failure.
+      if (user.status !== 'pending' || user.emailVerifiedAt !== null) {
+        return reply.status(400).send({ error: EMAIL_VERIFICATION_FAILED_ERROR });
+      }
+
+      const challenge = await findLiveChallenge(user.id, 'email_verification');
+      if (!challenge) {
+        return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+      }
+
+      const result = await verifyChallenge(challenge.id, code, 'email_verification');
+      if (!result.ok) {
+        if (result.reason === 'dead') {
+          return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+        }
+        return reply.status(400).send({ error: OTP_INVALID_ERROR, attemptsLeft: result.attemptsLeft });
+      }
+
+      // The code is consumed by verifyChallenge above. Kill the verify link and
+      // any other email_verification challenge so neither can be replayed.
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date(), status: 'active' },
+      });
+      await prisma.emailVerificationToken.deleteMany({
+        where: { adminUserId: user.id, purpose: 'verify' },
+      });
+      await clearChallenges(user.id, 'email_verification');
+
+      return { verified: true };
+    }
+  );
+
+  // Re-send the email verification code (and a fresh link) for a pending
+  // create-mode account (Public). Same credential checks as verify-email-code,
+  // then the existing resend cooldown.
+  fastify.post(
+    '/verify-email-code/resend',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitPasswordResetMax,
+          timeWindow: config.rateLimitPasswordResetWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(resendVerificationCodeSchema)],
+    },
+    async (request, reply) => {
+      const { email, password } = resendVerificationCodeSchema.parse(request.body ?? {});
+      const normalizedEmail = email.toLowerCase().trim();
+
+      if (rejectIfLocked(normalizedEmail, reply)) return reply;
+
+      const user = await prisma.adminUser.findUnique({ where: { email: normalizedEmail } });
+      if (!user) {
+        loginFailureTracker.recordFailure(normalizedEmail);
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        loginFailureTracker.recordFailure(normalizedEmail);
+        return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+      loginFailureTracker.recordSuccess(normalizedEmail);
+
+      if (user.status !== 'pending' || user.emailVerifiedAt !== null) {
+        return reply.status(400).send({ error: EMAIL_VERIFICATION_FAILED_ERROR });
+      }
+
+      // Cooldown on the newest of the verify link and the email_verification
+      // challenge; re-issuing supersedes both.
+      const issuedAt = await latestTokenIssuedAt(user.id, 'verify');
+      const challenge = await prisma.otpChallenge.findFirst({
+        where: { adminUserId: user.id, purpose: 'email_verification' },
+        orderBy: { createdAt: 'desc' },
+      });
+      const newest =
+        issuedAt && challenge
+          ? new Date(Math.max(issuedAt.getTime(), challenge.createdAt.getTime()))
+          : issuedAt ?? challenge?.createdAt ?? null;
+      if (newest) {
+        const elapsedMs = Date.now() - newest.getTime();
+        if (elapsedMs < config.loginOtpResendCooldownMs) {
+          reply.header(
+            'Retry-After',
+            Math.max(1, Math.ceil((config.loginOtpResendCooldownMs - elapsedMs) / 1000)).toString()
+          );
+          return reply.status(429).send({ error: RESEND_TOO_SOON_ERROR });
+        }
+      }
+
+      await sendAccountVerificationMail({ id: user.id, email: user.email, name: user.name }, 'verify');
+      return { sent: true };
+    }
+  );
+
   // Accept an invite: verify the address and set the first password (Public).
   fastify.post(
     '/accept-invite',
@@ -994,12 +1197,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       const targetIsSuperAdmin = resolvedRoleKey === 'super_admin';
 
+      // Only a super admin may grant verifyUsers (it bypasses the email proof).
+      if (resolvedPermissions.verifyUsers && request.admin?.role !== 'super_admin') {
+        return reply.status(403).send({ error: 'Only a super admin can grant the verifyUsers permission' });
+      }
+
       if (body.mode === 'invite') {
         if (targetIsSuperAdmin) {
           return reply.status(400).send({ error: SUPER_ADMIN_PASSWORD_REQUIRED_ERROR });
         }
         if (body.password !== undefined) {
           return reply.status(400).send({ error: INVITE_PASSWORD_FORBIDDEN_ERROR });
+        }
+        if (body.sendPasswordInEmail) {
+          return reply.status(400).send({ error: SEND_PASSWORD_INVITE_ERROR });
         }
       } else if (!meetsPasswordPolicy(body.password ?? '')) {
         // An admin-chosen password obeys the same policy as a self-service one.
@@ -1030,13 +1241,25 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           permissions: JSON.stringify(resolvedPermissions),
           status: verificationPurpose === null ? 'active' : 'pending',
           emailVerifiedAt: verificationPurpose === null ? new Date() : null,
+          // A create-mode account had its password chosen at creation, so record
+          // when; an invite account never chose one (stays null until
+          // accept-invite), which is what `mark-verified` uses to decide if the
+          // user must set a password via "Forgot password".
+          ...(body.mode === 'create' ? { passwordChangedAt: new Date() } : {}),
         },
       });
 
       const mailSent = verificationPurpose
         ? await sendAccountVerificationMail(
             { id: created.id, email: created.email, name: created.name },
-            verificationPurpose
+            verificationPurpose,
+            // The typed password travels in the mail body only: sendMail is
+            // called directly inside sendAccountVerificationMail, never via the
+            // queue, so it never reaches Redis or a log.
+            {
+              password:
+                verificationPurpose === 'verify' && body.sendPasswordInEmail ? body.password : undefined,
+            }
           )
         : true;
 
@@ -1073,6 +1296,62 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       await sendAccountVerificationMail({ id: user.id, email: user.email, name: user.name }, purpose);
       return { sent: true };
+    }
+  );
+
+  // Mark a pending account as verified without the emailed link or code
+  // (Admin, `verifyUsers` permission). A super admin always holds this
+  // permission; only a super admin may grant it to a role or user.
+  fastify.post(
+    '/users/:id/mark-verified',
+    {
+      onRequest: [authenticate, requirePermission('verifyUsers')],
+    },
+    async (request, reply) => {
+      const { id } = userIdParamsSchema.parse(request.params);
+      const requesterIsSuperAdmin = request.admin?.role === 'super_admin';
+
+      const target = await prisma.adminUser.findUnique({ where: { id } });
+      if (!target) {
+        return reply.status(404).send({ error: MARK_VERIFIED_NOT_FOUND });
+      }
+      if (target.emailVerifiedAt !== null) {
+        return reply.status(409).send({ error: MARK_VERIFIED_ALREADY_VERIFIED });
+      }
+
+      // A non-super-admin may not act on a super admin account (same rule as
+      // other user mutations).
+      if (!requesterIsSuperAdmin && target.role === 'super_admin') {
+        return reply.status(403).send({ error: MARK_VERIFIED_SUPER_ADMIN_TARGET });
+      }
+
+      // Sets the verified timestamp, and activates only a pending account (a
+      // suspended account stays suspended). Deletes verification tokens and the
+      // email_verification challenges so nothing can be replayed.
+      await prisma.adminUser.update({
+        where: { id },
+        data: {
+          emailVerifiedAt: new Date(),
+          status: target.status === 'pending' ? 'active' : target.status,
+        },
+      });
+      await prisma.emailVerificationToken.deleteMany({ where: { adminUserId: id, purpose: 'verify' } });
+      await prisma.emailVerificationToken.deleteMany({ where: { adminUserId: id, purpose: 'invite' } });
+      await clearChallenges(id, 'email_verification');
+
+      // An invite-mode account never chose a password (its hash is unusable),
+      // so it must set one via "Forgot password" before it can log in. A
+      // create-mode account had its password set at creation
+      // (`passwordChangedAt` is set then), so it does not.
+      const needsPassword = target.passwordChangedAt === null;
+
+      loggerService.info(
+        '[auth] mark-verified',
+        { actor: request.admin?.id, target: id, role: target.role, needsPassword },
+        'auth'
+      );
+
+      return { verified: true, needsPassword };
     }
   );
 
@@ -1154,6 +1433,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // Nobody grants themselves access or lifts their own suspension.
       // The admin form always resends these fields, so only real changes count.
       const currentPermissions = parsePermissions(target.permissions);
+
+      // Only a super admin may newly grant verifyUsers (it bypasses the email
+      // proof). An unchanged flag on an existing holder must not block edits.
+      if (!requesterIsSuperAdmin && resolvedPermissions?.verifyUsers && !currentPermissions.verifyUsers) {
+        return reply.status(403).send({ error: 'Only a super admin can grant the verifyUsers permission' });
+      }
+
       const permissionsChanged =
         resolvedPermissions !== undefined &&
         [...new Set([...Object.keys(resolvedPermissions), ...Object.keys(currentPermissions)])].some(

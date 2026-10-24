@@ -5,6 +5,7 @@ import { ShieldCheck, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 import { LoginCredentialsStep } from '../../components/admin/auth/LoginCredentialsStep';
 import { LoginOtpStep } from '../../components/admin/auth/LoginOtpStep';
+import { VerifyEmailCodeStep } from '../../components/admin/auth/VerifyEmailCodeStep';
 import { ForgotPasswordStep } from '../../components/admin/auth/ForgotPasswordStep';
 import { ResetPasswordStep } from '../../components/admin/auth/ResetPasswordStep';
 
@@ -13,7 +14,7 @@ interface AdminLoginPageProps {
   onNavigateHome: () => void;
 }
 
-type AuthStep = 'credentials' | 'otp' | 'forgot' | 'reset';
+type AuthStep = 'credentials' | 'otp' | 'verifyCode' | 'forgot' | 'reset';
 
 export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   onLoginSuccess,
@@ -61,11 +62,12 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
         typeof details === 'object' &&
         (details as { code?: unknown }).code === 'EMAIL_NOT_VERIFIED'
       ) {
-        setError(
-          isAr
-            ? 'لم يتم تأكيد بريدك الإلكتروني بعد. افتح رابط التفعيل المرسل إلى بريدك أو اطلب من المسؤول إعادة إرساله.'
-            : 'Your email is not verified yet. Open the verification link sent to your email, or ask an admin to resend it.'
-        );
+        // Correct credentials on an unverified create-mode account: offer the
+        // emailed code step instead of a dead end, keeping the credentials in
+        // page state only.
+        setError(null);
+        setNotice(null);
+        setStep('verifyCode');
         return;
       }
       setError(
@@ -129,6 +131,59 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
           )
         );
       }
+    }
+  };
+
+  /* -------------------- Verify email code -------------------- */
+
+  const handleVerifyEmailCode = async (code: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await AdminStorage.verifyEmailCode(email, password, code);
+
+      // The account is now active. Sign the user in automatically by
+      // re-submitting the original login so they do not type credentials again.
+      const result = await AdminStorage.startLogin(email, password);
+      if (result.kind === 'session') {
+        setNotice(
+          isAr
+            ? 'تم تأكيد البريد الإلكتروني وتسجيل الدخول بنجاح.'
+            : 'Email confirmed and you are signed in.'
+        );
+        onLoginSuccess();
+      } else {
+        setChallengeId(result.challengeId);
+        setEmailHint(result.emailHint);
+        setStep('otp');
+      }
+    } catch (caught) {
+      // A wrong code answers 400 with `attemptsLeft`; the server's message is
+      // already bilingual.
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : getErrorMessage(
+              caught,
+              isAr ? 'تعذر تأكيد البريد الإلكتروني' : 'Could not verify email'
+            )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerificationCode = async () => {
+    setError(null);
+    try {
+      await AdminStorage.resendVerificationCode(email, password);
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر إعادة إرسال الرمز، يرجى الانتظار قليلاً' : 'Could not resend code, please wait'
+        )
+      );
     }
   };
 
@@ -243,6 +298,18 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
               emailHint={emailHint}
               onVerify={handleVerifyOtp}
               onResend={handleResendOtp}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
+
+          {step === 'verifyCode' && (
+            <VerifyEmailCodeStep
+              onVerify={handleVerifyEmailCode}
+              onResend={handleResendVerificationCode}
               onBack={handleBackToCredentials}
               loading={loading}
               error={error}

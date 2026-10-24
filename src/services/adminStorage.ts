@@ -390,6 +390,18 @@ export const AdminStorage = {
     return authService.resendVerification(userId);
   },
 
+  verifyEmailCode(email: string, password: string, code: string): Promise<{ verified: boolean }> {
+    return authService.verifyEmailCode(email, password, code);
+  },
+
+  resendVerificationCode(email: string, password: string): Promise<{ sent: boolean }> {
+    return authService.resendVerificationCode(email, password);
+  },
+
+  markVerified(userId: string): Promise<{ verified: boolean; needsPassword: boolean }> {
+    return authService.markVerified(userId);
+  },
+
   updateUser(id: string, input: Partial<AdminUserInput>): Promise<AdminUser> {
     return authService.updateUser(id, input);
   },

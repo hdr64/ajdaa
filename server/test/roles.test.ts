@@ -49,7 +49,7 @@ describe('1. Permissions catalogue', () => {
 
     const catalogue = res.json() as PermissionDef[];
     expect(Array.isArray(catalogue)).toBe(true);
-    expect(catalogue.length).toBe(17);
+    expect(catalogue.length).toBe(18);
 
     const keys = catalogue.map((c) => c.key);
     expect(keys).toEqual(
@@ -96,10 +96,15 @@ describe('2. Roles CRUD and validation', () => {
     expect(superAdminRole).toBeDefined();
     expect(superAdminRole?.isSystem).toBe(true);
     expect(superAdminRole?.userCount).toBeGreaterThanOrEqual(1);
-    expect(superAdminRole?.permissions).toHaveLength(8);
+    expect(superAdminRole?.permissions).toHaveLength(9);
     // The super admin role template carries the new permissions as well.
     expect(superAdminRole?.permissions).toEqual(
-      expect.arrayContaining(['managePastProjects', 'viewApplications', 'manageApplications'])
+      expect.arrayContaining([
+        'managePastProjects',
+        'viewApplications',
+        'manageApplications',
+        'verifyUsers',
+      ])
     );
   });
 
@@ -604,6 +609,7 @@ describe('8. Migration equivalence check', () => {
           viewInquiries: true,
           exportData: true,
           manageUsers: true,
+          verifyUsers: true,
         },
       },
       {
@@ -617,6 +623,7 @@ describe('8. Migration equivalence check', () => {
           viewInquiries: true,
           exportData: true,
           manageUsers: false,
+          verifyUsers: false,
         },
       },
       {
@@ -630,6 +637,7 @@ describe('8. Migration equivalence check', () => {
           viewInquiries: true,
           exportData: false,
           manageUsers: false,
+          verifyUsers: false,
         },
       },
       {
@@ -643,6 +651,7 @@ describe('8. Migration equivalence check', () => {
           viewInquiries: true,
           exportData: true,
           manageUsers: false,
+          verifyUsers: false,
         },
       },
     ];

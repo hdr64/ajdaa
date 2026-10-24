@@ -32,6 +32,8 @@ const FALLBACK_RIGHTS: UserRights = {
   toggleHint: 'بيانات الحساب غير متاحة',
   canDelete: false,
   deleteHint: 'بيانات الحساب غير متاحة',
+  canMarkVerified: false,
+  markVerifiedHint: null,
   isSelf: false,
 };
 
@@ -44,6 +46,7 @@ interface UsersTableProps {
   onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
   onResendVerification: (user: AdminUser) => void;
+  onMarkVerified: (user: AdminUser) => void;
   onBulkStatus: (users: AdminUser[], status: ToggleableAdminStatus) => void;
 }
 
@@ -56,6 +59,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onToggleStatus,
   onDelete,
   onResendVerification,
+  onMarkVerified,
   onBulkStatus,
 }) => {
   const roleIndex = useMemo(() => buildRoleIndex(users, roles), [users, roles]);
@@ -169,6 +173,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           onToggleStatus={onToggleStatus}
           onDelete={onDelete}
           onResendVerification={onResendVerification}
+          onMarkVerified={onMarkVerified}
           variant="icons"
         />
       )}

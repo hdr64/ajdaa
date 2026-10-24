@@ -82,6 +82,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     generatedPassword: string;
     status: AdminStatus;
     permissions: AdminPermissions;
+    sendPasswordInEmail: boolean;
   }>({
     name: '',
     email: '',
@@ -92,6 +93,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     generatedPassword: '',
     status: 'active',
     permissions: emptyPermissions(),
+    sendPasswordInEmail: false,
   });
 
   // Derived state
@@ -244,6 +246,10 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         department: departmentName,
         departmentId,
         permissions: form.permissions,
+        // Create mode only: email the typed password in a separated block. Never
+        // sent for invite mode or for a super-admin target (no mail goes to them).
+        sendPasswordInEmail:
+          mode === 'create' && !selectedRoleIsSuperAdmin ? form.sendPasswordInEmail : false,
         // Status is only meaningful for super admins; everyone else starts pending.
         ...(selectedRoleIsSuperAdmin ? { status: form.status } : {}),
       };
@@ -485,6 +491,26 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           generatedPassword={form.generatedPassword}
           hint={<>14 حرفاً على الأقل، مع حرف ورقم، تُستخدم عند أول دخول للحساب.</>}
         />
+      )}
+
+      {mode === 'create' && !selectedRoleIsSuperAdmin && (
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.sendPasswordInEmail}
+              onChange={(e) => setForm({ ...form, sendPasswordInEmail: e.target.checked })}
+              className="mt-0.5 w-3.5 h-3.5 rounded accent-accent shrink-0"
+            />
+            <span className="min-w-0 leading-relaxed">
+              <span className="block font-bold text-heading">إرسال كلمة المرور في البريد الإلكتروني</span>
+              <span className="block text-[10px] text-neutral-text/60">
+                يُرسل كلمة المرور التي حددتها داخل بريد التفعيل. البريد ليس قناة آمنة — على المستخدم
+                تغيير كلمة المرور بعد أول دخول.
+              </span>
+            </span>
+          </label>
+        </div>
       )}
 
       {/* حالة الحساب تُعرض لمدير عام فقط: هو الوحيد الذي يُنشأ نشطاً فوراً، وباقي الأدوار تبدأ بانتظار التفعيل. */}

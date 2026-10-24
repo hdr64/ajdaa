@@ -58,8 +58,16 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
   /** `null` means closed; `user: null` means the create form is open. */
   const [dialog, setDialog] = useState<{ user: AdminUser | null } | null>(null);
 
-  const { users, reference, rightsById, setStatus, setManyStatus, remove, resendVerification } =
-    useUsersDirectory(onShowToast);
+  const {
+    users,
+    reference,
+    rightsById,
+    setStatus,
+    setManyStatus,
+    remove,
+    resendVerification,
+    markVerified,
+  } = useUsersDirectory(onShowToast);
 
   /** Server catalogue first, built-in labels as the offline fallback. */
   const permissionLabels = useMemo(() => {
@@ -171,6 +179,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     onToggleStatus: toggleStatus,
     onDelete: deleteUser,
     onResendVerification: resendVerification,
+    onMarkVerified: markVerified,
   };
 
   const clearFilters = () => {

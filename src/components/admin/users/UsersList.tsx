@@ -30,6 +30,7 @@ export const UsersList: React.FC<UsersListProps> = ({
   onToggleStatus,
   onDelete,
   onResendVerification,
+  onMarkVerified,
 }) => (
   <div className="rounded-2xl bg-surface border border-muted-border/40 shadow-xs overflow-hidden divide-y divide-muted-border/20">
     {users.map((user) => {
@@ -83,6 +84,7 @@ export const UsersList: React.FC<UsersListProps> = ({
                 onToggleStatus={onToggleStatus}
                 onDelete={onDelete}
                 onResendVerification={onResendVerification}
+                onMarkVerified={onMarkVerified}
                 variant="icons"
               />
             )}

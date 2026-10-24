@@ -85,6 +85,7 @@ interface UserActionsProps {
   onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
   onResendVerification: (user: AdminUser) => void;
+  onMarkVerified: (user: AdminUser) => void;
   /** `labels` for cards, `icons` for the dense table and list rows. */
   variant: 'labels' | 'icons';
 }
@@ -108,6 +109,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
   onToggleStatus,
   onDelete,
   onResendVerification,
+  onMarkVerified,
   variant,
 }) => {
   const suspending = user.status === 'active';
@@ -174,6 +176,25 @@ export const UserActions: React.FC<UserActionsProps> = ({
     </button>
   );
 
+  /** Skips the email proof and marks a pending account as verified directly. */
+  const markVerifiedButton = (
+    <button
+      type="button"
+      onClick={() => onMarkVerified(user)}
+      disabled={!rights.canMarkVerified}
+      title={rights.markVerifiedHint ?? 'تأكيد الحساب يدويًا'}
+      aria-label={`تأكيد حساب ${user.name}`}
+      className={
+        labelled
+          ? `${LABEL_BUTTON} border-accent/30 text-accent hover:bg-accent/10`
+          : `${ICON_BUTTON} text-accent hover:bg-accent/10`
+      }
+    >
+      <CheckCircle2 className="w-3 h-3" />
+      {labelled && <span>تأكيد الحساب</span>}
+    </button>
+  );
+
   const deleteButton = (
     <button
       type="button"
@@ -196,6 +217,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
     return (
       <div className="flex items-center gap-2">
         {editButton}
+        {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
         {user.status === 'pending' && resendButton}
         {toggleButton}
         {deleteButton}
@@ -206,6 +228,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
   return (
     <div className="flex items-center justify-end gap-1.5">
       {editButton}
+      {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
       {user.status === 'pending' && resendButton}
       {toggleButton}
       {deleteButton}
