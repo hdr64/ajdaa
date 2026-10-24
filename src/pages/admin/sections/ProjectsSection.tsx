@@ -4,11 +4,12 @@ import type { Property, PublishStatus } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { ProjectCreateModal } from '../../../components/admin/ProjectCreateModal';
-import { PUBLISH_STATUS_LABELS_AR, publishStatusOf } from '../projectLabels';
+import { PUBLISH_STATUS_LABELS_AR, PUBLISH_STATUS_KEYS, publishStatusOf } from '../projectLabels';
 import { usePublishProject } from './usePublishProject';
 import { useDuplicateProject } from './useDuplicateProject';
 import { ViewSwitcher } from '../../../components/admin/common/ViewSwitcher';
@@ -17,23 +18,24 @@ import { usePersistentState } from '../../../hooks/usePersistentState';
 import { ProjectsTable } from '../../../components/admin/projects/ProjectsTable';
 import { ProjectsList } from '../../../components/admin/projects/ProjectsList';
 
-const TYPE_FILTERS: { key: string; label: string }[] = [
-  { key: 'all', label: 'الكل' },
-  { key: 'commercial', label: 'تجاري' },
-  { key: 'office', label: 'إداري ومكتبي' },
-  { key: 'logistics', label: 'لوجستي' },
-  { key: 'residential', label: 'سكني' },
-  { key: 'hotel', label: 'فنادق' },
+const TYPE_FILTERS: { key: string; labelKey: string }[] = [
+  { key: 'all', labelKey: 'projects.typeFilter.all' },
+  { key: 'commercial', labelKey: 'projects.typeFilter.commercial' },
+  { key: 'office', labelKey: 'projects.typeFilter.office' },
+  { key: 'logistics', labelKey: 'projects.typeFilter.logistics' },
+  { key: 'residential', labelKey: 'projects.typeFilter.residential' },
+  { key: 'hotel', labelKey: 'projects.typeFilter.hotel' },
 ];
 
 /** Image with a neutral placeholder instead of the browser's broken-image icon. */
 const ProjectImage: React.FC<{ src?: string; alt: string }> = ({ src, alt }) => {
   const [failed, setFailed] = useState(false);
+  const { t } = useAdminT();
   if (!src || failed) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-accent/10 text-accent/60">
         <Building2 className="w-10 h-10" />
-        <span className="text-[10px] font-bold">{src ? 'تعذر تحميل الصورة' : 'لا توجد صورة'}</span>
+        <span className="text-[10px] font-bold">{src ? t('projects.imageError') : t('projects.noImage')}</span>
       </div>
     );
   }
@@ -62,6 +64,7 @@ function unitCounts(project: Property) {
 
 export const ProjectsSection: React.FC = () => {
   const { projects, can, navigate, showToast, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
   const canManage = can('manageProjects');
 
   const [search, setSearch] = useState('');
@@ -100,17 +103,17 @@ export const ProjectsSection: React.FC = () => {
 
   const handleDelete = async (project: Property) => {
     const ok = await confirmDelete({
-      title: `حذف المشروع "${project.title}"؟`,
-      message: 'سيتم حذف جميع الأدوار والوحدات التابعة له نهائياً. طلبات الاهتمام المرتبطة تبقى دون ربط بالمشروع.',
-      confirmLabel: 'حذف المشروع',
+      title: t('projects.delete.confirmTitle', { title: project.title }),
+      message: t('projects.delete.confirmMessage'),
+      confirmLabel: t('projects.delete.confirmLabel'),
     });
     if (!ok) return;
     try {
       await AdminStorage.deleteProject(project.id);
       await projects.reload();
-      showToast('تم حذف المشروع');
+      showToast(t('projects.delete.success'));
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حذف المشروع'));
+      showToast(getErrorMessage(error, t('projects.delete.error')));
     }
   };
 
@@ -119,7 +122,7 @@ export const ProjectsSection: React.FC = () => {
     try {
       await AdminStorage.exportProjectsCsv();
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر تصدير الملف'));
+      showToast(getErrorMessage(error, t('projects.exportError')));
     } finally {
       setExporting(false);
     }
@@ -134,7 +137,7 @@ export const ProjectsSection: React.FC = () => {
           className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">مشروع جديد</span>
+          <span className="hidden sm:inline">{t('projects.new')}</span>
         </button>
       )}
       {can('exportData') && (
@@ -143,10 +146,10 @@ export const ProjectsSection: React.FC = () => {
           onClick={() => void handleExport()}
           disabled={exporting || projects.data.length === 0}
           className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-          title="تصدير كل المشاريع"
+          title={t('projects.exportAllTitle')}
         >
           {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          <span className="hidden sm:inline">تصدير CSV</span>
+          <span className="hidden sm:inline">{t('projects.exportCsv')}</span>
         </button>
       )}
     </AdminHeaderActions>
@@ -182,7 +185,7 @@ export const ProjectsSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label="جاري تحميل المشاريع..." />
+        <SectionLoading label={t('projects.loading')} />
       </>
     );
   }
@@ -193,8 +196,8 @@ export const ProjectsSection: React.FC = () => {
         {header}
         <EmptyState
           icon={Building2}
-          title="لا توجد مشاريع مسجلة بعد"
-          description="ابدأ بإضافة أول مشروع عقاري إلى المحفظة."
+          title={t('projects.emptyTitle')}
+          description={t('projects.emptyDescription')}
           action={
             canManage && (
               <button
@@ -202,7 +205,7 @@ export const ProjectsSection: React.FC = () => {
                 className="brand-btn-primary font-bold text-xs px-5 py-2.5 rounded-xl inline-flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                مشروع جديد
+                {t('projects.new')}
               </button>
             )
           }
@@ -220,24 +223,24 @@ export const ProjectsSection: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs">
           <FileClock className="w-4 h-4 text-amber-600 shrink-0" />
           <span className="font-bold text-heading">
-            {statusCounts.draft === 1 ? 'مشروع واحد في وضع المسودة' : `${statusCounts.draft} مشاريع في وضع المسودة`}
-            <span className="font-normal text-neutral-text/65"> — غير ظاهرة في الموقع حتى تُنشر.</span>
+            {statusCounts.draft === 1 ? t('projects.draftBanner.one') : t('projects.draftBanner.many', { count: statusCounts.draft })}
+            <span className="font-normal text-neutral-text/65"> — {t('projects.draftBanner.hint')}</span>
           </span>
           <button type="button" onClick={() => setStatusFilter('draft')} className="font-bold text-accent hover:underline cursor-pointer">
-            عرض المسودات
+            {t('projects.viewDrafts')}
           </button>
           <button
             type="button"
             onClick={() => setDraftBannerDismissed(true)}
             className="ms-auto p-1 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
-            aria-label="إخفاء التنبيه"
+            aria-label={t('projects.dismissBanner')}
           >
             <CloseIcon className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 overflow-x-auto" role="group" aria-label="حالة النشر">
+      <div className="flex items-center gap-1.5 overflow-x-auto" role="group" aria-label={t('projects.publishStatusFilter')}>
         {(['all', 'published', 'draft', 'hidden'] as const).map((key) => (
           <button
             key={key}
@@ -248,7 +251,7 @@ export const ProjectsSection: React.FC = () => {
               statusFilter === key ? 'brand-fill text-canvas shadow-xs' : 'bg-surface border border-muted-border/40 text-neutral-text/70 hover:text-heading'
             }`}
           >
-            {key === 'all' ? 'كل الحالات' : PUBLISH_STATUS_LABELS_AR[key]} <span className="opacity-70">({statusCounts[key]})</span>
+            {key === 'all' ? t('projects.allStatuses') : t(PUBLISH_STATUS_KEYS[key])} <span className="opacity-70">({statusCounts[key]})</span>
           </button>
         ))}
       </div>
@@ -258,7 +261,7 @@ export const ProjectsSection: React.FC = () => {
           <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-text/40" />
           <input
             type="search"
-            placeholder="ابحث باسم المشروع أو المدينة..."
+            placeholder={t('projects.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full ps-10 pe-4 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
@@ -280,7 +283,7 @@ export const ProjectsSection: React.FC = () => {
                     : 'bg-canvas border border-muted-border/40 text-neutral-text/70 hover:text-heading'
                 }`}
               >
-                {filter.label} <span className="opacity-70">({count})</span>
+                {t(filter.labelKey as 'projects.typeFilter.all' | 'projects.typeFilter.commercial' | 'projects.typeFilter.office' | 'projects.typeFilter.logistics' | 'projects.typeFilter.residential' | 'projects.typeFilter.hotel')} <span className="opacity-70">({count})</span>
               </button>
             );
           })}
@@ -290,8 +293,8 @@ export const ProjectsSection: React.FC = () => {
       {filtered.length === 0 ? (
         <EmptyState
           icon={SearchX}
-          title="لا توجد مشاريع مطابقة"
-          description="جرّب كلمة بحث أخرى أو اختر تصنيفاً مختلفاً."
+          title={t('projects.noMatchTitle')}
+          description={t('projects.noMatchDescription')}
           action={
             <button
               onClick={() => {
@@ -300,7 +303,7 @@ export const ProjectsSection: React.FC = () => {
               }}
               className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
             >
-              مسح عوامل التصفية
+              {t('projects.clearFilters')}
             </button>
           }
         />
@@ -346,7 +349,7 @@ export const ProjectsSection: React.FC = () => {
                     type="button"
                     onClick={() => navigate({ section: 'project', projectId: project.id })}
                     className="block relative aspect-[16/9] w-full overflow-hidden bg-neutral-900 cursor-pointer text-start"
-                    aria-label={`عرض تفاصيل ${project.title}`}
+                    aria-label={t('projects.viewDetailsAria', { title: project.title })}
                   >
                     <ProjectImage src={project.image} alt={project.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
@@ -372,7 +375,7 @@ export const ProjectsSection: React.FC = () => {
                       <span className="truncate">{project.city}</span>
                       {project.lat == null && (
                         <span className="ms-auto text-[9px] px-1.5 py-0.5 rounded bg-amber-500/80 text-neutral-950 font-black">
-                          بلا موقع على الخريطة
+                          {t('projects.noLocation')}
                         </span>
                       )}
                     </div>
@@ -394,24 +397,24 @@ export const ProjectsSection: React.FC = () => {
 
                     <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-canvas/70 border border-muted-border/30 text-[11px] mb-4 text-center">
                       <div>
-                        <span className="text-neutral-text/50 block text-[10px]">المساحة</span>
-                        <span className="font-bold text-heading">{project.area.toLocaleString('en-US')} م²</span>
+                        <span className="text-neutral-text/50 block text-[10px]">{t('projects.areaLabel')}</span>
+                        <span className="font-bold text-heading">{project.area.toLocaleString('en-US')} m²</span>
                       </div>
                       <div>
-                        <span className="text-neutral-text/50 block text-[10px]">الأدوار</span>
+                        <span className="text-neutral-text/50 block text-[10px]">{t('projects.floorsLabel')}</span>
                         <span className="font-bold text-heading">{project.floors?.length ?? 0}</span>
                       </div>
                       <div>
-                        <span className="text-neutral-text/50 block text-[10px]">الوحدات</span>
+                        <span className="text-neutral-text/50 block text-[10px]">{t('projects.unitsLabel')}</span>
                         <span className="font-bold text-heading">{total}</span>
                       </div>
                     </div>
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-[10px] font-bold">
-                        <span className="text-neutral-text/60">نسبة الإشغال</span>
+                        <span className="text-neutral-text/60">{t('projects.occupancyLabel')}</span>
                         <span className="text-emerald-500">
-                          {total > 0 ? `${occupancy}% (${total - available}/${total})` : 'لا توجد وحدات'}
+                          {total > 0 ? `${occupancy}% (${total - available}/${total})` : t('projects.noUnits')}
                         </span>
                       </div>
                       <div className="w-full bg-canvas h-1.5 rounded-full overflow-hidden border border-muted-border/30">
@@ -427,7 +430,7 @@ export const ProjectsSection: React.FC = () => {
                     className="flex-1 brand-btn-primary text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Layers className="w-3.5 h-3.5" />
-                    <span>إدارة الوحدات</span>
+                    <span>{t('projects.manageUnits')}</span>
                   </button>
                   {canManage && (
                     <>
@@ -435,8 +438,8 @@ export const ProjectsSection: React.FC = () => {
                         <button
                           onClick={() => void hide(project)}
                           disabled={busyId === project.id}
-                          title="إخفاء من الموقع"
-                          aria-label={`إخفاء ${project.title} من الموقع`}
+                          title={t('projects.hideTitle')}
+                          aria-label={t('projects.hideAria', { title: project.title })}
                           className="p-2.5 rounded-xl bg-canvas border border-muted-border/40 hover:border-accent text-neutral-text/70 hover:text-heading transition cursor-pointer disabled:opacity-50"
                         >
                           <EyeOff className="w-3.5 h-3.5" />
@@ -445,8 +448,8 @@ export const ProjectsSection: React.FC = () => {
                         <button
                           onClick={() => void publish(project)}
                           disabled={busyId === project.id}
-                          title="نشر في الموقع"
-                          aria-label={`نشر ${project.title} في الموقع`}
+                          title={t('projects.publishTitle')}
+                          aria-label={t('projects.publishAria', { title: project.title })}
                           className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 transition cursor-pointer disabled:opacity-50"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -454,8 +457,8 @@ export const ProjectsSection: React.FC = () => {
                       )}
                       <button
                         onClick={() => navigate({ section: 'projectEdit', projectId: project.id })}
-                        title="تعديل المشروع"
-                        aria-label={`تعديل المشروع ${project.title}`}
+                        title={t('projects.editTitle')}
+                        aria-label={t('projects.editAria', { title: project.title })}
                         className="p-2.5 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition cursor-pointer"
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -463,16 +466,16 @@ export const ProjectsSection: React.FC = () => {
                       <button
                         onClick={() => void duplicate(project)}
                         disabled={duplicateBusyId === project.id}
-                        title="نسخ المشروع"
-                        aria-label="نسخ المشروع"
+                        title={t('projects.duplicateTitle')}
+                        aria-label={t('projects.duplicateAria')}
                         className="p-2.5 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition cursor-pointer disabled:opacity-50"
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => void handleDelete(project)}
-                        title="حذف المشروع"
-                        aria-label={`حذف المشروع ${project.title}`}
+                        title={t('projects.deleteTitle')}
+                        aria-label={t('projects.deleteAria', { title: project.title })}
                         className="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

@@ -9,6 +9,7 @@ import type { Department } from '../../../types/admin';
 import { AdminStorage } from '../../../services/adminStorage';
 import { useAsyncData } from '../../../hooks/useAsyncData';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { DepartmentsTable } from '../../../components/admin/hr/DepartmentsTable';
@@ -20,6 +21,7 @@ const NEW_DEPARTMENT_BUTTON =
 
 export const DepartmentsSection: React.FC = () => {
   const { showToast, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
 
   const departments = useAsyncData<Department[]>(
     useCallback((signal) => AdminStorage.listDepartments(signal), []),
@@ -33,27 +35,27 @@ export const DepartmentsSection: React.FC = () => {
   const deleteDepartment = useCallback(
     async (department: Department) => {
       const ok = await confirmDelete({
-        title: `حذف القسم "${department.nameAr}"؟`,
-        message: 'لن يظهر هذا القسم في قائمة أقسام المستخدمين بعد الآن. لا يمكن التراجع عن ذلك.',
-        confirmLabel: 'حذف القسم',
+        title: t('departments.delete.confirmTitle', { name: department.nameAr }),
+        message: t('departments.delete.confirmMessage'),
+        confirmLabel: t('departments.delete.confirmLabel'),
       });
       if (!ok) return;
       try {
         await AdminStorage.deleteDepartment(department.id);
         await departments.reload();
-        showToast(`تم حذف القسم ${department.nameAr}`);
+        showToast(t('departments.delete.success', { name: department.nameAr }));
       } catch (error) {
-        showToast(hrErrorMessage(error, 'تعذر حذف القسم', DEPARTMENT_DELETE_ERROR));
+        showToast(hrErrorMessage(error, t('departments.delete.error'), DEPARTMENT_DELETE_ERROR));
       }
     },
-    [confirmDelete, departments, showToast]
+    [confirmDelete, departments, showToast, t]
   );
 
   const header = (
     <AdminHeaderActions>
       <button type="button" onClick={() => setDialog({ department: null })} className={NEW_DEPARTMENT_BUTTON}>
         <Plus className="w-4 h-4" />
-        <span className="hidden sm:inline">قسم جديد</span>
+        <span className="hidden sm:inline">{t('departments.new')}</span>
       </button>
     </AdminHeaderActions>
   );
@@ -79,7 +81,7 @@ export const DepartmentsSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label="جاري تحميل الأقسام..." />
+        <SectionLoading label={t('departments.loading')} />
       </>
     );
   }

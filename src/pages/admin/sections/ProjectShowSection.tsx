@@ -20,13 +20,14 @@ import type { Property, UnitStatus } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
 import { InquiryStatusSelect } from './inquiryUi';
 import { ProjectUnitsPanel } from './ProjectUnitsPanel';
 import { formatAdminDate } from '../adminFormat';
-import { completenessIssues, publicProjectUrl, PUBLISH_STATUS_LABELS_AR, publishStatusOf, UNIT_STATUS_LABELS_AR } from '../projectLabels';
+import { completenessIssues, publicProjectUrl, PUBLISH_STATUS_KEYS, publishStatusOf, UNIT_STATUS_LABELS_AR } from '../projectLabels';
 import { isHttpsUrl } from '../../../utils/urlValidation';
 import { usePublishProject } from './usePublishProject';
 import { useDuplicateProject } from './useDuplicateProject';
@@ -65,6 +66,7 @@ function Fact({ label, value, dir }: { label: string; value?: React.ReactNode; d
 
 const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
   const { can, navigate, showToast, projects, inquiries, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
   const canManage = can('manageProjects');
   const [activeImage, setActiveImage] = useState(project.image);
   const [tab, setTab] = useState<ProjectTab>('overview');
@@ -98,18 +100,18 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
 
   const handleDelete = async () => {
     const ok = await confirmDelete({
-      title: `حذف المشروع "${project.title}"؟`,
-      message: 'سيتم حذف جميع الأدوار والوحدات التابعة له نهائياً.',
-      confirmLabel: 'حذف المشروع',
+      title: t('projects.show.delete.confirmTitle', { title: project.title }),
+      message: t('projects.show.delete.confirmMessage'),
+      confirmLabel: t('projects.show.delete.confirmLabel'),
     });
     if (!ok) return;
     try {
       await AdminStorage.deleteProject(project.id);
-      showToast('تم حذف المشروع');
+      showToast(t('projects.show.delete.success'));
       navigate({ section: 'projects' });
       await projects.reload();
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حذف المشروع'));
+      showToast(getErrorMessage(error, t('projects.show.delete.error')));
     }
   };
 
@@ -122,8 +124,8 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             target="_blank"
             rel="noopener noreferrer"
             className="hidden sm:inline-flex p-2.5 rounded-xl border border-muted-border/40 hover:border-accent hover:text-accent text-neutral-text/70 bg-surface"
-            title="عرض في الموقع"
-            aria-label="عرض في الموقع"
+            title={t('projects.show.viewOnSite')}
+            aria-label={t('projects.show.viewOnSite')}
           >
             <ExternalLink className="w-4 h-4" />
           </a>
@@ -136,7 +138,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
               className="brand-btn-secondary font-bold px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs disabled:opacity-50"
             >
               <EyeOff className="w-4 h-4" />
-              <span className="hidden sm:inline">إخفاء من الموقع</span>
+              <span className="hidden sm:inline">{t('projects.show.hideFromSite')}</span>
             </button>
           ) : (
             <button
@@ -145,7 +147,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
               className="px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md disabled:opacity-50"
             >
               <Eye className="w-4 h-4" />
-              <span className="hidden sm:inline">نشر في الموقع</span>
+              <span className="hidden sm:inline">{t('projects.show.publishToSite')}</span>
             </button>
           ))}
         {canManage && (
@@ -155,17 +157,17 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
               className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs"
             >
               <Pencil className="w-4 h-4" />
-              <span className="hidden sm:inline">تعديل المشروع</span>
+              <span className="hidden sm:inline">{t('projects.show.editProject')}</span>
             </button>
             <button
               onClick={() => void duplicate(project)}
               disabled={duplicateBusyId === project.id}
-              title="نسخ المشروع"
-              aria-label="نسخ المشروع"
+              title={t('projects.show.duplicateProject')}
+              aria-label={t('projects.show.duplicateProject')}
               className="brand-btn-secondary font-bold px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs disabled:opacity-50"
             >
               <Copy className="w-4 h-4" />
-              <span className="hidden sm:inline">نسخ المشروع</span>
+              <span className="hidden sm:inline">{t('projects.show.duplicateProject')}</span>
             </button>
           </>
         )}
@@ -177,7 +179,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
           className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-text/60 hover:text-accent cursor-pointer"
         >
           <ArrowRight className="w-3.5 h-3.5 ltr:rotate-180" />
-          كل المشاريع
+          {t('projects.show.allProjects')}
         </button>
         <div className="flex items-center gap-2">
           <button
@@ -185,14 +187,14 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
           >
             <Layers className="w-3.5 h-3.5" />
-            إدارة الأدوار والوحدات
+            {t('projects.show.manageUnits')}
           </button>
           {canManage && (
             <button
               onClick={() => void handleDelete()}
               className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 cursor-pointer"
-              title="حذف المشروع"
-              aria-label="حذف المشروع"
+              title={t('projects.show.deleteProject')}
+              aria-label={t('projects.show.deleteProject')}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -200,12 +202,12 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 border-b border-muted-border/40 overflow-x-auto" role="tablist" aria-label="أقسام المشروع">
+      <div className="flex items-center gap-1 border-b border-muted-border/40 overflow-x-auto" role="tablist" aria-label={t('projects.show.sectionsAria')}>
         {(
           [
-            ['overview', 'نظرة عامة', null],
-            ['units', 'الوحدات', unitStats.total],
-            ...(can('viewInquiries') ? ([['inquiries', 'طلبات الاهتمام', projectInquiries.length]] as const) : []),
+            ['overview', t('projects.show.tab.overview'), null],
+            ['units', t('projects.show.tab.units'), unitStats.total],
+            ...(can('viewInquiries') ? ([['inquiries', t('projects.show.tab.inquiries'), projectInquiries.length]] as const) : []),
           ] as const
         ).map(([key, label, count]) => (
           <button
@@ -241,7 +243,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   {status !== 'published' && (
                     <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${status === 'draft' ? 'bg-amber-400 text-neutral-950' : 'bg-neutral-800 border border-white/20'}`}>
-                      {PUBLISH_STATUS_LABELS_AR[status]} · غير ظاهر في الموقع
+                      {t(PUBLISH_STATUS_KEYS[status])} · {t('projects.show.notVisible')}
                     </span>
                   )}
                   <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-neutral-950/80 border border-white/20">{project.typeAr}</span>
@@ -273,10 +275,10 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             )}
           </section>
 
-          <Panel title="الوصف">
+          <Panel title={t('projects.show.panel.description')}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <p className="text-xs text-neutral-text/80 leading-relaxed whitespace-pre-line">
-                {project.description || <span className="text-neutral-text/40">لا يوجد وصف بالعربية.</span>}
+                {project.description || <span className="text-neutral-text/40">{t('projects.show.noDescription')}</span>}
               </p>
               <p className="text-xs text-neutral-text/80 leading-relaxed whitespace-pre-line" dir="ltr">
                 {project.descriptionEn || <span className="text-neutral-text/40">No English description.</span>}
@@ -285,7 +287,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
           </Panel>
 
           {((project.features ?? []).length > 0 || (project.featuresEn ?? []).length > 0) && (
-            <Panel title="المزايا">
+            <Panel title={t('projects.show.panel.features')}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <ul className="space-y-1.5">
                   {(project.features ?? []).map((feature) => (
@@ -308,9 +310,9 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
           )}
 
           {project.videoUrl && (
-            <Panel title="الفيديو">
+            <Panel title={t('projects.show.panel.video')}>
               <div className="aspect-video w-full overflow-hidden rounded-2xl border border-muted-border/50 bg-neutral-950">
-                <iframe src={project.videoUrl} title="فيديو المشروع" allow="encrypted-media; picture-in-picture" allowFullScreen className="w-full h-full" loading="lazy" />
+                <iframe src={project.videoUrl} title={t('projects.show.videoTitle')} allow="encrypted-media; picture-in-picture" allowFullScreen className="w-full h-full" loading="lazy" />
               </div>
             </Panel>
           )}
@@ -323,7 +325,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             <section className="rounded-3xl bg-amber-500/5 border border-amber-500/25 p-5">
               <h3 className="text-xs font-black text-amber-600 flex items-center gap-2 mb-3">
                 <AlertTriangle className="w-4 h-4" />
-                بيانات ناقصة ({issues.length})
+                {t('projects.show.incomplete', { count: issues.length })}
               </h3>
               <ul className="space-y-1.5 text-[11px] text-heading list-disc ps-4">
                 {issues.map((issue) => (
@@ -334,23 +336,23 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
                 onClick={() => navigate({ section: 'projectEdit', projectId: project.id })}
                 className="mt-4 text-[11px] font-bold text-accent hover:underline cursor-pointer"
               >
-                استكمال البيانات
+                {t('projects.show.completeData')}
               </button>
             </section>
           )}
 
           <Panel
-            title="الوحدات"
+            title={t('projects.show.unitsTitle')}
             action={
               unitStats.total > 0 && (
                 <button onClick={() => setTab('units')} className="text-[11px] font-bold text-accent hover:underline cursor-pointer">
-                  عرض كل الوحدات
+                  {t('projects.show.viewAllUnits')}
                 </button>
               )
             }
           >
             {unitStats.total === 0 ? (
-              <EmptyState compact icon={Layers} title="لا توجد وحدات بعد" />
+              <EmptyState compact icon={Layers} title={t('projects.show.noUnits')} />
             ) : (
               <>
                 <div className="flex h-2.5 gap-[2px] rounded-full overflow-hidden bg-canvas mb-3">
@@ -378,7 +380,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
                     <div key={floor.id ?? floor.floorNumber} className="flex items-center justify-between text-[11px]">
                       <span className="text-heading font-bold truncate">{floor.floorNameAr}</span>
                       <span className="text-neutral-text/55 shrink-0">
-                        {floor.units.length} وحدة · {floor.units.filter((u) => u.status === 'available').length} متاح
+                        {t('projects.show.floorUnits', { count: floor.units.length, available: floor.units.filter((u) => u.status === 'available').length })}
                       </span>
                     </div>
                   ))}
@@ -387,14 +389,14 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             )}
           </Panel>
 
-          <Panel title="المعلومات">
-            <Fact label="المدينة" value={[project.city, project.cityEn].filter(Boolean).join(' · ')} />
-            <Fact label="المساحة" value={`${project.area.toLocaleString('en-US')} م²`} />
-            <Fact label="الحالة" value={project.status} />
-            <Fact label="عدد الأدوار" value={project.floors?.length ?? 0} />
-            <Fact label="الجولة الافتراضية" value={project.virtualTour3dAvailable ? 'متوفرة' : 'غير متوفرة'} />
+          <Panel title={t('projects.show.panel.info')}>
+            <Fact label={t('projects.show.fact.city')} value={[project.city, project.cityEn].filter(Boolean).join(' · ')} />
+            <Fact label={t('projects.show.fact.area')} value={`${project.area.toLocaleString('en-US')} m²`} />
+            <Fact label={t('projects.show.fact.status')} value={project.status} />
+            <Fact label={t('projects.show.fact.floors')} value={project.floors?.length ?? 0} />
+            <Fact label={t('projects.show.fact.virtualTour')} value={project.virtualTour3dAvailable ? t('projects.show.available') : t('projects.show.notAvailable')} />
             <Fact
-              label="المجسم ثلاثي الأبعاد"
+              label={t('projects.show.fact.model3d')}
               value={
                 project.model3dUrl && isHttpsUrl(project.model3dUrl) ? (
                   <a
@@ -405,33 +407,33 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
                     dir="ltr"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    فتح المجسم
+                    {t('projects.show.openModel')}
                   </a>
                 ) : undefined
               }
             />
             <Fact
-              label="الكتيّب"
+              label={t('projects.show.fact.brochure')}
               value={
                 project.brochureUrl ? (
                   <a href={project.brochureUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
                     <FileText className="w-3.5 h-3.5" />
-                    عرض PDF
+                    {t('projects.show.viewPdf')}
                   </a>
                 ) : undefined
               }
             />
-            <Fact label="حالة النشر" value={PUBLISH_STATUS_LABELS_AR[status]} />
-            {project.publishedAt && <Fact label="تاريخ النشر" value={formatAdminDate(project.publishedAt)} />}
-            <Fact label="رقم المشروع" value={project.id} dir="ltr" />
+            <Fact label={t('projects.show.fact.publishStatus')} value={t(PUBLISH_STATUS_KEYS[status])} />
+            {project.publishedAt && <Fact label={t('projects.show.fact.publishedDate')} value={formatAdminDate(project.publishedAt)} />}
+            <Fact label={t('projects.show.fact.projectNumber')} value={project.id} dir="ltr" />
           </Panel>
 
-          <Panel title="الموقع">
+          <Panel title={t('projects.show.panel.location')}>
             {project.lat != null && project.lng != null ? (
               <>
                 <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl border border-muted-border/50">
                   <iframe
-                    title="موقع المشروع"
+                    title={t('projects.show.mapTitle')}
                     src={`https://maps.google.com/maps?q=${project.lat},${project.lng}&z=15&output=embed`}
                     className="w-full h-full"
                     loading="lazy"
@@ -450,7 +452,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
                 </a>
               </>
             ) : (
-              <p className="text-[11px] text-neutral-text/50">لم تُحدد إحداثيات لهذا المشروع.</p>
+              <p className="text-[11px] text-neutral-text/50">{t('projects.show.noCoordinates')}</p>
             )}
           </Panel>
         </div>
@@ -461,17 +463,17 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
 
       {tab === 'inquiries' && can('viewInquiries') && (
             <Panel
-              title={`طلبات الاهتمام بهذا المشروع (${projectInquiries.length})`}
+              title={t('projects.show.inquiriesTitle', { count: projectInquiries.length })}
               action={
                 projectInquiries.length > 0 && (
                   <button onClick={() => navigate({ section: 'inquiries' })} className="text-[11px] font-bold text-accent hover:underline cursor-pointer">
-                    كل الطلبات
+                    {t('projects.show.allRequests')}
                   </button>
                 )
               }
             >
               {projectInquiries.length === 0 ? (
-                <EmptyState compact icon={Inbox} title="لا توجد طلبات لهذا المشروع بعد" />
+                <EmptyState compact icon={Inbox} title={t('projects.show.noInquiries')} />
               ) : (
                 <div className="divide-y divide-muted-border/15">
                   {projectInquiries.map((inq) => (
@@ -496,19 +498,20 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
 
 export const ProjectShowSection: React.FC = () => {
   const { projects, location, navigate } = useAdmin();
+  const { t } = useAdminT();
   const project = projects.data.find((p) => p.id === location.projectId);
 
   if (projects.error) return <SectionError message={projects.error} onRetry={() => void projects.reload()} />;
-  if (!project && projects.loading) return <SectionLoading label="جاري تحميل المشروع..." />;
+  if (!project && projects.loading) return <SectionLoading label={t('projects.show.loading')} />;
   if (!project) {
     return (
       <EmptyState
         icon={SearchX}
-        title="المشروع غير موجود"
-        description="ربما تم حذفه أو أن الرابط غير صحيح."
+        title={t('projects.show.notFoundTitle')}
+        description={t('projects.show.notFoundDescription')}
         action={
           <button onClick={() => navigate({ section: 'projects' })} className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-xl cursor-pointer">
-            العودة إلى المشاريع
+            {t('projects.show.backToProjects')}
           </button>
         }
       />

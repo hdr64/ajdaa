@@ -4,6 +4,7 @@ import type { Property } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { BuildingVisualizer } from '../../../components/admin/BuildingVisualizer';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
@@ -29,6 +30,7 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
+  const { t } = useAdminT();
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -53,7 +55,7 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
   return (
     <div className="rounded-3xl bg-surface border border-muted-border/40 p-3 sm:p-4 shadow-xs">
       <div className="flex items-center justify-between gap-3 mb-3 px-1">
-        <span className="text-xs font-black text-heading">المشاريع ({projects.length})</span>
+        <span className="text-xs font-black text-heading">{t('projects.units.strip.title', { count: projects.length })}</span>
         <div className="flex items-center gap-1.5">
           {projects.length > 6 && (
             <div className="relative">
@@ -62,8 +64,8 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="بحث..."
-                aria-label="بحث في المشاريع"
+                placeholder={t('projects.units.strip.search')}
+                aria-label={t('projects.units.strip.searchAria')}
                 className="w-32 sm:w-44 ps-8 pe-2 py-1.5 rounded-lg bg-canvas border border-muted-border/50 text-[11px] text-heading outline-none focus:border-accent"
               />
             </div>
@@ -72,7 +74,7 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
             type="button"
             onClick={() => scrollBy(-1)}
             className="hidden sm:inline-flex p-1.5 rounded-lg border border-muted-border/40 text-neutral-text/60 hover:text-accent cursor-pointer"
-            aria-label="السابق"
+            aria-label={t('projects.units.strip.prev')}
           >
             <ChevronRight className="w-4 h-4 ltr:rotate-180" />
           </button>
@@ -80,15 +82,15 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
             type="button"
             onClick={() => scrollBy(1)}
             className="hidden sm:inline-flex p-1.5 rounded-lg border border-muted-border/40 text-neutral-text/60 hover:text-accent cursor-pointer"
-            aria-label="التالي"
+            aria-label={t('projects.units.strip.next')}
           >
             <ChevronLeft className="w-4 h-4 ltr:rotate-180" />
           </button>
         </div>
       </div>
 
-      <div ref={scrollerRef} className="flex gap-2.5 overflow-x-auto snap-x pb-1" role="listbox" aria-label="اختيار المشروع">
-        {visible.length === 0 && <p className="text-[11px] text-neutral-text/50 px-2 py-3">لا توجد مشاريع مطابقة.</p>}
+      <div ref={scrollerRef} className="flex gap-2.5 overflow-x-auto snap-x pb-1" role="listbox" aria-label={t('projects.units.strip.selectProject')}>
+        {visible.length === 0 && <p className="text-[11px] text-neutral-text/50 px-2 py-3">{t('projects.units.strip.noMatch')}</p>}
         {visible.map((project) => {
           const selected = project.id === selectedId;
           const { total, available } = unitCounts(project);
@@ -117,7 +119,7 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
                 <div className={`text-xs font-black truncate ${selected ? 'text-accent' : 'text-heading'}`}>{project.title}</div>
                 <div className="text-[10px] text-neutral-text/55 truncate">{project.city}</div>
                 <div className="text-[10px] text-neutral-text/65 mt-0.5">
-                  {project.floors?.length ?? 0} أدوار · <span className="font-bold text-heading">{available}</span>/{total} متاح
+                  {t('projects.units.strip.floors', { count: project.floors?.length ?? 0 })} · <span className="font-bold text-heading">{available}</span>/{total} {t('projects.units.strip.available')}
                 </div>
               </div>
             </button>
@@ -130,6 +132,7 @@ const ProjectStrip: React.FC<{ projects: Property[]; selectedId?: number; onSele
 
 export const UnitsSection: React.FC = () => {
   const { projects, location, navigate, showToast, can } = useAdmin();
+  const { t } = useAdminT();
   const [exporting, setExporting] = useState(false);
 
   const selected = projects.data.find((p) => p.id === location.projectId) ?? null;
@@ -142,19 +145,19 @@ export const UnitsSection: React.FC = () => {
   }, [projects.loading, projects.data, selected, navigate]);
 
   if (projects.error) return <SectionError message={projects.error} onRetry={() => void projects.reload()} />;
-  if (projects.loading && projects.data.length === 0) return <SectionLoading label="جاري تحميل المشاريع..." />;
+  if (projects.loading && projects.data.length === 0) return <SectionLoading label={t('projects.units.loading')} />;
   if (projects.data.length === 0) {
     return (
       <EmptyState
         icon={Layers}
-        title="لا توجد مشاريع بعد"
-        description="أضف مشروعاً من صفحة المشاريع لإدارة أدواره ووحداته."
+        title={t('projects.units.emptyTitle')}
+        description={t('projects.units.emptyDescription')}
         action={
           <button
             onClick={() => navigate({ section: 'projects' })}
             className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
           >
-            الانتقال إلى المشاريع
+            {t('projects.units.goToProjects')}
           </button>
         }
       />
@@ -167,7 +170,7 @@ export const UnitsSection: React.FC = () => {
     try {
       await AdminStorage.exportUnitsCsv(selected.id);
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر تصدير الملف'));
+      showToast(getErrorMessage(error, t('projects.units.exportError')));
     } finally {
       setExporting(false);
     }
@@ -180,10 +183,10 @@ export const UnitsSection: React.FC = () => {
           <button
             onClick={() => navigate({ section: 'project', projectId: selected.id })}
             className="brand-btn-secondary font-bold px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs"
-            title="صفحة المشروع"
+            title={t('projects.units.projectPage')}
           >
             <ExternalLink className="w-4 h-4" />
-            <span className="hidden sm:inline">صفحة المشروع</span>
+            <span className="hidden sm:inline">{t('projects.units.projectPage')}</span>
           </button>
           {can('exportData') && (
             <button
@@ -191,10 +194,10 @@ export const UnitsSection: React.FC = () => {
               onClick={() => void handleExport()}
               disabled={exporting || unitCounts(selected).total === 0}
               className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              title="تصدير وحدات هذا المشروع"
+              title={t('projects.units.exportTitle')}
             >
               {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              <span className="hidden sm:inline">تصدير CSV</span>
+              <span className="hidden sm:inline">{t('projects.units.exportCsv')}</span>
             </button>
           )}
         </AdminHeaderActions>

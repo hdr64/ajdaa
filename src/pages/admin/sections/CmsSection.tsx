@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { NoAccess } from '../../../components/admin/common/SectionState';
 import { CmsNavPanel } from '../../../components/admin/cms/CmsNavPanel';
 import { CmsFooterPanel } from '../../../components/admin/cms/CmsFooterPanel';
@@ -40,6 +41,7 @@ interface BackupParsedData {
 
 export const CmsSection: React.FC = () => {
   const { can, isSuperAdmin, showToast } = useAdmin();
+  const { t } = useAdminT();
   const [activeTab, setActiveTab] = useState<CmsTab>('home');
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -101,9 +103,9 @@ export const CmsSection: React.FC = () => {
       a.download = `ajda-cms-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast('تم تصدير النسخة الاحتياطية للمحتوى بنجاح');
+      showToast(t('cms.section.exportSuccess'));
     } catch (caught) {
-      showToast(getErrorMessage(caught, 'فشل تصدير النسخة الاحتياطية'));
+      showToast(getErrorMessage(caught, t('cms.section.exportError')));
     } finally {
       setExporting(false);
     }
@@ -124,7 +126,7 @@ export const CmsSection: React.FC = () => {
         const clientsCount = Array.isArray(parsed.clients) ? parsed.clients.length : 0;
 
         if (sections.length === 0 && clientsCount === 0) {
-          showToast('الملف المرفوع لا يحتوي على بيانات CMS صالحة للاستيراد');
+          showToast(t('cms.section.invalidFile'));
           return;
         }
 
@@ -136,7 +138,7 @@ export const CmsSection: React.FC = () => {
           detectedClientsCount: clientsCount,
         });
       } catch {
-        showToast('تعذر قراءة الملف: تأكد من أنه ملف JSON صالح');
+        showToast(t('cms.section.readError'));
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
@@ -149,29 +151,29 @@ export const CmsSection: React.FC = () => {
     setImporting(true);
     try {
       await api.post('/cms/import', pendingBackup.data);
-      showToast('تم استيراد النسخة الاحتياطية وتحديث الموقع بنجاح');
+      showToast(t('cms.section.importSuccess'));
       setPendingBackup(null);
       // Remount current active panel to display fresh imported state
       setCmsRefreshKey((k) => k + 1);
     } catch (caught) {
-      showToast(getErrorMessage(caught, 'فشل استيراد النسخة الاحتياطية'));
+      showToast(getErrorMessage(caught, t('cms.section.importError')));
     } finally {
       setImporting(false);
     }
   };
 
   const tabs = [
-    { id: 'home' as CmsTab, label: 'الصفحة الرئيسية', icon: Home, visible: canManageCms },
-    { id: 'works' as CmsTab, label: 'صفحة المشاريع', icon: Building, visible: canManageCms },
+    { id: 'home' as CmsTab, labelKey: 'cms.section.tabHome', icon: Home, visible: canManageCms },
+    { id: 'works' as CmsTab, labelKey: 'cms.section.tabWorks', icon: Building, visible: canManageCms },
     {
       id: 'clients' as CmsTab,
-      label: 'الشركاء والعملاء',
+      labelKey: 'cms.section.tabClients',
       icon: Users,
       visible: canManageClients || canManageCms,
     },
-    { id: 'contact' as CmsTab, label: 'صفحة التواصل', icon: Mail, visible: canManageCms },
-    { id: 'nav' as CmsTab, label: 'شريط التنقل (Navbar)', icon: Compass, visible: canManageCms },
-    { id: 'footer' as CmsTab, label: 'الهوية والتذييل (Footer)', icon: Footprints, visible: canManageCms },
+    { id: 'contact' as CmsTab, labelKey: 'cms.section.tabContact', icon: Mail, visible: canManageCms },
+    { id: 'nav' as CmsTab, labelKey: 'cms.section.tabNav', icon: Compass, visible: canManageCms },
+    { id: 'footer' as CmsTab, labelKey: 'cms.section.tabFooter', icon: Footprints, visible: canManageCms },
   ].filter((t) => t.visible);
 
   const getActiveTabRoute = () => {
@@ -208,13 +210,13 @@ export const CmsSection: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-heading">نظام إدارة المحتوى (Site CMS)</h2>
+              <h2 className="text-lg font-black text-heading">{t('cms.section.title')}</h2>
               <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary">
-                ثنائي اللغة (AR / EN)
+                {t('cms.section.bilingual')}
               </span>
             </div>
             <p className="text-xs text-neutral-text/70 mt-0.5">
-              تحكم كامل في كافة نصوص الموقع، الأقسام، الشركاء، القائمة العلوية والتذييل مع معاينة حية فورية
+              {t('cms.section.subtitle')}
             </p>
           </div>
         </div>
@@ -230,10 +232,10 @@ export const CmsSection: React.FC = () => {
                 ? 'brand-fill text-canvas shadow-xs'
                 : 'bg-canvas border border-muted-border/40 hover:border-primary/50 text-neutral-text hover:text-heading'
             }`}
-            title="تبديل وضع المعاينة المتزامنة جنباً إلى جنب"
+            title={t('cms.section.toggleSplitTitle')}
           >
             <Columns2 className={`w-4 h-4 ${splitPreview ? 'text-emerald-300' : 'text-primary'}`} />
-            <span>{splitPreview ? 'معاينة جنباً إلى جنب: مفعّلة' : 'معاينة جنباً إلى جنب'}</span>
+            <span>{splitPreview ? t('cms.section.splitOn') : t('cms.section.splitOff')}</span>
           </button>
 
           {/* Fullscreen Preview Modal Button */}
@@ -241,10 +243,10 @@ export const CmsSection: React.FC = () => {
             type="button"
             onClick={() => setPreviewOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer"
-            title="فتح المعاينة في نافذة كاملة الشاشة"
+            title={t('cms.section.fullscreenTitle')}
           >
             <Eye className="w-3.5 h-3.5 text-primary" />
-            <span className="hidden sm:inline">معاينة مكبّرة</span>
+            <span className="hidden sm:inline">{t('cms.section.fullscreenLabel')}</span>
           </button>
 
           {isSuperAdmin && (
@@ -255,10 +257,10 @@ export const CmsSection: React.FC = () => {
                 onClick={handleExportBackup}
                 disabled={exporting}
                 className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
-                title="تصدير نسخة احتياطية لكافة بيانات الـ CMS بصيغة JSON"
+                title={t('cms.section.exportTitle')}
               >
                 <Download className="w-3.5 h-3.5 text-primary" />
-                <span className="hidden md:inline">{exporting ? 'جاري التصدير...' : 'تصدير نسخة'}</span>
+                <span className="hidden md:inline">{exporting ? t('cms.section.exporting') : t('cms.section.exportLabel')}</span>
               </button>
 
               {/* Import Backup Button */}
@@ -267,10 +269,10 @@ export const CmsSection: React.FC = () => {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importing}
                 className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
-                title="استيراد نسخة احتياطية من ملف JSON"
+                title={t('cms.section.importTitle')}
               >
                 <Upload className="w-3.5 h-3.5 text-indigo-500" />
-                <span className="hidden md:inline">استيراد نسخة</span>
+                <span className="hidden md:inline">{t('cms.section.importLabel')}</span>
               </button>
             </>
           )}
@@ -302,7 +304,7 @@ export const CmsSection: React.FC = () => {
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  {tab.label}
+                  {t(tab.labelKey as 'cms.section.tabHome' | 'cms.section.tabWorks' | 'cms.section.tabClients' | 'cms.section.tabContact' | 'cms.section.tabNav' | 'cms.section.tabFooter')}
                 </button>
               );
             })}
@@ -356,10 +358,10 @@ export const CmsSection: React.FC = () => {
                 </div>
                 <div>
                   <h3 id="import-dialog-title" className="text-sm font-black text-heading">
-                    استيراد نسخة احتياطية للـ CMS
+                    {t('cms.section.importDialogTitle')}
                   </h3>
                   <p className="text-xs text-neutral-text/70 mt-0.5">
-                    مراجعة محتويات الملف قبل تطبيق التغييرات
+                    {t('cms.section.importDialogSubtitle')}
                   </p>
                 </div>
               </div>
@@ -375,26 +377,26 @@ export const CmsSection: React.FC = () => {
             {/* File info card */}
             <div className="p-4 rounded-2xl bg-canvas border border-muted-border/30 space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">اسم الملف:</span>
+                <span className="text-neutral-text font-medium">{t('cms.section.fileNameLabel')}</span>
                 <span className="font-mono font-bold text-heading truncate max-w-[240px]">
                   {pendingBackup.fileName}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">الحجم:</span>
+                <span className="text-neutral-text font-medium">{t('cms.section.fileSizeLabel')}</span>
                 <span className="font-mono text-heading">{pendingBackup.fileSizeKb} KB</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">الأقسام المتوفرة:</span>
+                <span className="text-neutral-text font-medium">{t('cms.section.sectionsLabel')}</span>
                 <span className="font-bold text-primary">
-                  {pendingBackup.detectedSections.length} أقسام (
+                  {pendingBackup.detectedSections.length} {t('cms.section.sectionsCount')} (
                   {pendingBackup.detectedSections.join(', ')})
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">قائمة الشركاء والعملاء:</span>
+                <span className="text-neutral-text font-medium">{t('cms.section.clientsLabel')}</span>
                 <span className="font-bold text-emerald-500">
-                  {pendingBackup.detectedClientsCount} شريك
+                  {pendingBackup.detectedClientsCount} {t('cms.section.clientsCount')}
                 </span>
               </div>
             </div>
@@ -403,7 +405,7 @@ export const CmsSection: React.FC = () => {
             <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs leading-relaxed">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <p>
-                <strong>تنبيه:</strong> سيتم تحديث محتوى الموقع فوراً بالبيانات المستوردة، وسيتم حفظ نسخة تاريخية تلقائية لتمكين التراجع عنها في أي وقت من سجل الإصدارات.
+                <strong>{t('cms.section.warningTitle')}</strong> {t('cms.section.warningBody')}
               </p>
             </div>
 
@@ -415,7 +417,7 @@ export const CmsSection: React.FC = () => {
                 disabled={importing}
                 className="px-4 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-muted-border/70 text-neutral-text hover:text-heading transition cursor-pointer"
               >
-                إلغاء
+                {t('cms.section.cancel')}
               </button>
               <button
                 type="button"
@@ -424,7 +426,7 @@ export const CmsSection: React.FC = () => {
                 className="flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-xl brand-fill text-canvas hover:opacity-95 transition cursor-pointer disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                {importing ? 'جاري الاستيراد...' : 'تأكيد واستيراد الآن'}
+                {importing ? t('cms.section.importing') : t('cms.section.confirmImport')}
               </button>
             </div>
           </div>

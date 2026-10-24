@@ -3,6 +3,7 @@ import type { Property } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 /**
  * Duplicate a project, shared by the projects list and the project page.
@@ -12,13 +13,14 @@ import { useAdmin } from '../adminContextDef';
  */
 export function useDuplicateProject() {
   const { projects, confirm, showToast, navigate } = useAdmin();
+  const { t } = useAdminT();
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const duplicate = async (project: Property) => {
     const ok = await confirm({
-      title: `نسخ "${project.title}"؟`,
-      message: 'سيُنشأ مشروع جديد كمسودة غير منشورة يحتوي على نفس البيانات والأدوار والوحدات (بحالة متاحة). لا تُنسخ طلبات الاهتمام.',
-      confirmLabel: 'نسخ المشروع',
+      title: t('projects.duplicate.confirmTitle', { title: project.title }),
+      message: t('projects.duplicate.confirmMessage'),
+      confirmLabel: t('projects.duplicate.confirmLabel'),
     });
     if (!ok) return;
 
@@ -26,11 +28,11 @@ export function useDuplicateProject() {
     try {
       const created = await AdminStorage.duplicateProject(project.id);
       projects.setData((list) => [...list, created]);
-      showToast('تم إنشاء نسخة من المشروع كمسودة');
-      // Straight to the editor so the "(نسخة)" title can be renamed right away.
+      showToast(t('projects.duplicate.success'));
+      // Straight to the editor so the "(copy)" title can be renamed right away.
       navigate({ section: 'projectEdit', projectId: created.id });
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر نسخ المشروع'));
+      showToast(getErrorMessage(error, t('projects.duplicate.error')));
     } finally {
       setBusyId(null);
     }

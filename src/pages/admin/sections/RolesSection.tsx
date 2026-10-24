@@ -10,6 +10,7 @@ import { AdminStorage } from '../../../services/adminStorage';
 import { useAsyncData } from '../../../hooks/useAsyncData';
 import { usePersistentState } from '../../../hooks/usePersistentState';
 import { useAdmin } from '../adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { ViewSwitcher } from '../../../components/admin/common/ViewSwitcher';
 import { isViewMode, type ViewMode } from '../../../components/admin/common/viewModes';
@@ -33,6 +34,7 @@ const NEW_ROLE_BUTTON =
 
 export const RolesSection: React.FC = () => {
   const { isSuperAdmin, showToast, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
   const [view, setView] = usePersistentState<ViewMode>(VIEW_STORAGE_KEY, 'grid', isViewMode);
 
   const roles = useAsyncData<Role[]>(useCallback((signal) => AdminStorage.listRoles(signal), []), [], []);
@@ -50,20 +52,20 @@ export const RolesSection: React.FC = () => {
   const deleteRole = useCallback(
     async (role: Role) => {
       const ok = await confirmDelete({
-        title: `حذف الدور "${role.nameAr}"؟`,
-        message: 'لن يظهر هذا الدور في قائمة أدوار المستخدمين بعد الآن. لا يمكن التراجع عن ذلك.',
-        confirmLabel: 'حذف الدور',
+        title: t('roles.section.deleteConfirmTitle', { name: role.nameAr }),
+        message: t('roles.section.deleteConfirmMessage'),
+        confirmLabel: t('roles.section.deleteConfirmLabel'),
       });
       if (!ok) return;
       try {
         await AdminStorage.deleteRole(role.id);
         await roles.reload();
-        showToast(`تم حذف الدور ${role.nameAr}`);
+        showToast(t('roles.section.deleteSuccess', { name: role.nameAr }));
       } catch (error) {
-        showToast(hrErrorMessage(error, 'تعذر حذف الدور', ROLE_DELETE_ERROR));
+        showToast(hrErrorMessage(error, t('roles.section.deleteError'), ROLE_DELETE_ERROR));
       }
     },
-    [confirmDelete, roles, showToast]
+    [confirmDelete, roles, showToast, t]
   );
 
   const header = (
@@ -71,7 +73,7 @@ export const RolesSection: React.FC = () => {
       <ViewSwitcher value={view} onChange={setView} modes={VIEW_MODES} />
       <button type="button" onClick={() => setDialog({ role: null })} className={NEW_ROLE_BUTTON}>
         <Plus className="w-4 h-4" />
-        <span className="hidden sm:inline">دور جديد</span>
+        <span className="hidden sm:inline">{t('roles.section.newRole')}</span>
       </button>
     </AdminHeaderActions>
   );
@@ -102,7 +104,7 @@ export const RolesSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label="جاري تحميل الأدوار..." />
+        <SectionLoading label={t('roles.section.loading')} />
       </>
     );
   }
@@ -114,12 +116,12 @@ export const RolesSection: React.FC = () => {
       {roles.data.length === 0 ? (
         <EmptyState
           icon={KeyRound}
-          title="لا توجد أدوار"
-          description="أنشئ دوراً وحدّد صلاحياته، ثم أسنده إلى المستخدمين من قسم المستخدمين."
+          title={t('roles.section.emptyTitle')}
+          description={t('roles.section.emptyDescription')}
           action={
             <button type="button" onClick={() => setDialog({ role: null })} className={`${NEW_ROLE_BUTTON} px-5`}>
               <Plus className="w-4 h-4" />
-              إنشاء أول دور
+              {t('roles.section.createFirst')}
             </button>
           }
         />
