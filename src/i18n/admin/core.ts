@@ -62,8 +62,8 @@ const PLACEHOLDER = /\{(\w+)\}/g;
 /** Fills `{name}` placeholders; an unknown one is left in place rather than blanked. */
 function interpolate(template: string, params?: TranslationParams): string {
   if (!params) return template;
-  return template.replace(PLACEHOLDER, (name) =>
-    params[name] === undefined ? `{${name}}` : String(params[name])
+  return template.replace(PLACEHOLDER, (match, name: string) =>
+    params[name] === undefined ? match : String(params[name])
   );
 }
 
