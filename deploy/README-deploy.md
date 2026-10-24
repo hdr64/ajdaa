@@ -265,6 +265,48 @@ sudo -u postgres psql -d ajda_test -c "SELECT count(*) FROM \"CustomerInquiry\" 
 
 Both must be `0`.
 
+### 3.4.2 Create a developer user
+
+The `user:create-dev` script provisions a real `AdminUser` with the `super_admin`
+role and every permission. It is a provisioning tool, not a login bypass: the
+account signs in through the normal login flow (password, and the email code if
+enabled). It prompts for the password on the TTY and never accepts it as a
+command-line argument or environment variable.
+
+Run from the instance directory. The script reads `DATABASE_URL` from
+`server/.env` (Prisma loads it automatically) and prints only the database name
+— never the full URL, host, user or password — before asking for confirmation.
+
+**Test instance** (the database name ends with `_test`, so `--yes` is allowed):
+
+```bash
+cd /srv/ajda/test
+npm run user:create-dev -- --email dev@example.com --name "Dev Name"
+```
+
+With a generated password (printed once, never logged or written to a file):
+
+```bash
+cd /srv/ajda/test
+npm run user:create-dev -- --email dev@example.com --name "Dev Name" --generate
+```
+
+To reset the password of an existing account (a login lockout lives in the API's memory; restart `ajda-api` to clear it, or wait for it to expire):
+
+```bash
+cd /srv/ajda/test
+npm run user:create-dev -- --email dev@example.com --reset-password
+```
+
+**Production** (database name does not end with `_test`): `--yes` is not
+allowed. The owner runs this by hand, never from CI, and must type the database
+name to confirm:
+
+```bash
+cd /srv/ajda/app
+npm run user:create-dev -- --email dev@example.com --name "Dev Name"
+```
+
 ### 3.5 Uploads (one-time copy, never a symlink)
 
 The test instance gets its **own copy** of the media. It never shares a path
