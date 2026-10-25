@@ -81,6 +81,8 @@ Wave 1 and Wave 2 are merged into `feat/backend-admin`. Each task is run by Open
 | 4 | w3-auth-b (authenticator 2FA + recovery codes) | ✅ merged into `feat/backend-admin` (1f2ace9) | Committed `05e8cd0`; browser-verified 2026-10-25. |
 | 4b | w5-client-fixes (C-1, H-10, M-3, M-4, M-25, M-26, M-28, M-29) | ✅ committed (f40d538) | M-3, M-4, M-25, M-26, M-28 verified by code only. |
 | 4c | w5-server-hardening (H-7, H-8, H-9, M-2, M-8, M-9, M-10, M-14, M-20) | ✅ committed (644951c, fca787c) | Tests and H-7 included. |
+| 4d | w5-inquiry-detail (open `/admin/inquiries/:id`, owner request) | ⏳ `task-w5-inquiry-detail-prompt.md` | Main repo; run before ready-b if you want it first. |
+| 4e | w5-ready-a (dependency security upgrades), w5-ready-b (encryption key, error boundary, migration cleanup) | ⏳ `task-w5-ready-a-prompt.md`, then `task-w5-ready-b-prompt.md` | Production-readiness check findings, 2026-10-25. |
 | 5 | w3-auth-c (passkeys) | ⬜ deferred by the owner 2026-10-25 | Needs a new lane and the `WEBAUTHN_RP_ID` decision. |
 | 6 | Merge `lane/auth` into `feat/backend-admin` | ✅ done 2026-10-25 (1f2ace9) | Owner must run the three new migrations by hand on production after a backup: `20261022000000_foundation_past_projects_applications`, `20261022100000_email_verification`, `20261024000000_totp`. |
 

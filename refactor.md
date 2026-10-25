@@ -39,3 +39,9 @@ Owner request (2026-10-22): UI review of the admin (details, dialogs, toasts, fe
 
 ## Code-quality review (owner, 2026-10-23)
 - Reusable full review prompt (security, bugs, clean code, UI, perf, tests, ops, docs, i18n): `docs/prompts/code-quality-review-prompt.md`. Output `code-quality-review.md` (previous reports archived in `docs/reviews/`). Run any time and after every major update.
+
+## Inquiry detail page (owner, 2026-10-25)
+- In admin Inquiries the owner cannot open an item. Add `/admin/inquiries/:id` showing one inquiry (list rows open it; notification email and desktop notification link to it). Prompt: `docs/prompts/task-w5-inquiry-detail-prompt.md`.
+
+## Production readiness (Claude check, 2026-10-25)
+- Prompts `docs/prompts/task-w5-ready-a-prompt.md` (dependency security upgrades: `@fastify/jwt`/`fast-jwt`, `@fastify/static`, patches) and `task-w5-ready-b-prompt.md` (dedicated `SETTINGS_ENCRYPTION_KEY` required in production, proxy-trust warning, React error boundary, migration for the mojibake defaults and indexes). Owner checklist items found: set `TRUST_PROXY=1` and `HOST=127.0.0.1` in production `.env`; set `SETTINGS_ENCRYPTION_KEY` before anyone enrols TOTP.
