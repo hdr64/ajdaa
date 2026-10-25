@@ -10,13 +10,9 @@ import type { Column } from '../common/dataTableTypes';
 import { getRoleRights, roleUserCount, type PermissionKey, type RoleRights } from './rolesModel';
 import { RoleKeyText, RolePermissionChips, RoleTypeBadge, RoleUserCount } from './rolesUi';
 import { ActionButton, ICON_BUTTON_ACCENT, ICON_BUTTON_DANGER } from './ActionButton';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 export const ROLES_TABLE_STORAGE_KEY = 'ajda.admin.roles';
-
-const TYPE_OPTIONS = [
-  { value: 'system', label: 'أدوار نظامية' },
-  { value: 'custom', label: 'أدوار مخصصة' },
-] as const;
 
 const typeValue = (role: Role): string => (role.isSystem ? 'system' : 'custom');
 
@@ -29,41 +25,55 @@ interface RolesTableProps {
 }
 
 export const RolesTable: React.FC<RolesTableProps> = ({ roles, labels, isSuperAdmin, onEdit, onDelete }) => {
+  const { t, isEn } = useAdminT();
+
+  const typeOptions = useMemo(
+    () => [
+      { value: 'system', label: t('roles.optSystemRoles') },
+      { value: 'custom', label: t('roles.optCustomRoles') },
+    ],
+    [t]
+  );
+
   const columns = useMemo<Column<Role>[]>(
     () => [
       {
         id: 'name',
-        header: 'الدور',
+        header: t('roles.colName'),
         width: '220px',
-        sortValue: (role) => role.nameAr,
+        sortValue: (role) => (isEn && role.nameEn ? role.nameEn : role.nameAr),
         filter: { type: 'text', value: (role) => `${role.nameAr} ${role.nameEn}` },
-        cell: (role) => (
-          <div className="min-w-0">
-            <span className="font-bold text-heading block truncate">{role.nameAr}</span>
-            <span dir="ltr" className="text-[10px] text-neutral-text/60 block truncate">
-              {role.nameEn}
-            </span>
-          </div>
-        ),
+        cell: (role) => {
+          const primaryName = isEn && role.nameEn ? role.nameEn : role.nameAr;
+          const secondaryName = isEn ? role.nameAr : role.nameEn;
+          return (
+            <div className="min-w-0">
+              <span className="font-bold text-heading block truncate">{primaryName}</span>
+              <span dir={isEn ? 'rtl' : 'ltr'} className="text-[10px] text-neutral-text/60 block truncate">
+                {secondaryName}
+              </span>
+            </div>
+          );
+        },
       },
       {
         id: 'key',
-        header: 'المفتاح',
+        header: t('roles.colKey'),
         width: '150px',
         sortValue: (role) => role.key,
         cell: (role) => <RoleKeyText roleKey={role.key} />,
       },
       {
         id: 'type',
-        header: 'النوع',
+        header: t('roles.colType'),
         width: '120px',
         sortValue: typeValue,
-        filter: { type: 'select', options: TYPE_OPTIONS, value: typeValue },
+        filter: { type: 'select', options: typeOptions, value: typeValue },
         cell: (role) => <RoleTypeBadge isSystem={role.isSystem} />,
       },
       {
         id: 'users',
-        header: 'المستخدمون',
+        header: t('roles.colUsers'),
         width: '120px',
         align: 'end',
         sortValue: (role) => roleUserCount(role),
@@ -71,7 +81,7 @@ export const RolesTable: React.FC<RolesTableProps> = ({ roles, labels, isSuperAd
       },
       {
         id: 'permissions',
-        header: 'الصلاحيات',
+        header: t('roles.colPermissions'),
         width: '280px',
         sortValue: (role) => role.permissions.length,
         cell: (role) => (
@@ -81,7 +91,7 @@ export const RolesTable: React.FC<RolesTableProps> = ({ roles, labels, isSuperAd
         ),
       },
     ],
-    [labels]
+    [labels, t, isEn, typeOptions]
   );
 
   return (
@@ -107,21 +117,24 @@ interface RoleRowActionsProps {
 }
 
 const RoleRowActions: React.FC<RoleRowActionsProps> = ({ role, isSuperAdmin, onEdit, onDelete }) => {
+  const { t, isEn } = useAdminT();
   const rights: RoleRights = getRoleRights(role, isSuperAdmin);
+  const primaryName = isEn && role.nameEn ? role.nameEn : role.nameAr;
+
   return (
     <div className="flex items-center justify-end gap-1.5">
       <ActionButton
-        label={`تعديل دور ${role.nameAr}`}
+        label={t('roles.editRoleName', { name: primaryName })}
         lockedReason={rights.editHint}
-        hint="تعديل الدور"
+        hint={t('roles.editRole')}
         onClick={() => onEdit(role)}
         icon={<Pencil className="w-3 h-3" />}
         className={ICON_BUTTON_ACCENT}
       />
       <ActionButton
-        label={`حذف دور ${role.nameAr}`}
+        label={t('roles.deleteRoleName', { name: primaryName })}
         lockedReason={rights.deleteHint}
-        hint="حذف الدور"
+        hint={t('roles.deleteRole')}
         onClick={() => onDelete(role)}
         icon={<Trash2 className="w-3 h-3" />}
         className={ICON_BUTTON_DANGER}

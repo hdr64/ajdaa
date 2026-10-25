@@ -5,6 +5,7 @@
 import React, { useState, useCallback } from 'react';
 import { Eye, EyeOff, Copy, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { MIN_PASSWORD_LENGTH, generateSecurePassword } from './usersModel';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 interface PasswordPolicyCheck {
   label: string;
@@ -29,13 +30,15 @@ export const PasswordField: React.FC<{
   onGenerate,
   generatedPassword,
 }) => {
+  const { t, language } = useAdminT();
+  const isEn = language === 'en';
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const checks: PasswordPolicyCheck[] = [
-    { label: `${MIN_PASSWORD_LENGTH} أحرف على الأقل`, passed: value.length >= MIN_PASSWORD_LENGTH },
-    { label: 'حرف واحد على الأقل', passed: /\p{L}/u.test(value) },
-    { label: 'رقم واحد على الأقل', passed: /\d/.test(value) },
+    { label: t('users.policyLength', { count: MIN_PASSWORD_LENGTH }), passed: value.length >= MIN_PASSWORD_LENGTH },
+    { label: t('users.policyLetter'), passed: /\p{L}/u.test(value) },
+    { label: t('users.policyDigit'), passed: /\d/.test(value) },
   ];
 
   const allPassed = checks.every((c) => c.passed);
@@ -71,7 +74,7 @@ export const PasswordField: React.FC<{
         <button
           type="button"
           onClick={() => setShowPassword((visible) => !visible)}
-          aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+          aria-label={showPassword ? (isEn ? 'Hide password' : 'إخفاء كلمة المرور') : (isEn ? 'Show password' : 'إظهار كلمة المرور')}
           className="absolute end-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
         >
           {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -85,25 +88,25 @@ export const PasswordField: React.FC<{
           className="px-3 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          توليد كلمة مرور قوية
+          {t('users.generatePassword')}
         </button>
 
         {generatedPassword && (
           <button
             type="button"
             onClick={handleCopy}
-            aria-label={copied ? 'تم النسخ' : 'نسخ كلمة المرور'}
+            aria-label={copied ? t('users.copied') : t('users.copyPassword')}
             className="px-3 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer"
           >
             {copied ? (
               <>
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="text-emerald-500">تم النسخ</span>
+                <span className="text-emerald-500">{t('users.copied')}</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                نسخ
+                {isEn ? 'Copy' : 'نسخ'}
               </>
             )}
           </button>
@@ -118,7 +121,9 @@ export const PasswordField: React.FC<{
 
       {showPolicyChecklist && (
         <div className="space-y-1.5 pt-1">
-          <p className="text-[10px] font-bold text-neutral-text/70">سياسة كلمة المرور:</p>
+          <p className="text-[10px] font-bold text-neutral-text/70">
+            {isEn ? 'Password policy:' : 'سياسة كلمة المرور:'}
+          </p>
           {checks.map((check) => (
             <div key={check.label} className="flex items-center gap-1.5 text-[10px]">
               {check.passed ? (
@@ -134,7 +139,7 @@ export const PasswordField: React.FC<{
           {allPassed && value.length > 0 && (
             <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              كلمة المرور تفي بالسياسة
+              {isEn ? 'Password satisfies policy' : 'كلمة المرور تفي بالسياسة'}
             </p>
           )}
         </div>

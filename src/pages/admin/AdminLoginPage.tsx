@@ -10,21 +10,33 @@ import { EnrollTotpStep } from '../../components/admin/auth/EnrollTotpStep';
 import { VerifyEmailCodeStep } from '../../components/admin/auth/VerifyEmailCodeStep';
 import { ForgotPasswordStep } from '../../components/admin/auth/ForgotPasswordStep';
 import { ResetPasswordStep } from '../../components/admin/auth/ResetPasswordStep';
+import { SuggestPasskeyStep } from '../../components/admin/auth/SuggestPasskeyStep';
 import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { authService, type LoginResult } from '../../services/authService';
+import { useAdminT } from '../../i18n/admin/useAdminT';
+import type { AdminUser } from '../../types/admin';
 
 interface AdminLoginPageProps {
   onLoginSuccess: () => void;
   onNavigateHome: () => void;
 }
 
-type AuthStep = 'credentials' | 'otp' | 'totp' | 'enrollTotp' | 'verifyCode' | 'forgot' | 'reset';
+type AuthStep =
+  | 'credentials'
+  | 'otp'
+  | 'totp'
+  | 'enrollTotp'
+  | 'verifyCode'
+  | 'forgot'
+  | 'reset'
+  | 'suggestPasskey';
 
 export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   onLoginSuccess,
   onNavigateHome,
 }) => {
   const { language, isRTL } = useLanguage();
+  const { t } = useAdminT();
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
@@ -36,9 +48,28 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const [challengeId, setChallengeId] = useState('');
   const [enrollToken, setEnrollToken] = useState('');
   const [emailHint, setEmailHint] = useState('');
+  const [sessionUser, setSessionUser] = useState<AdminUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  /**
+   * Checks if user has no passkeys on a supported device and offers the suggestion.
+   * Returns true if suggestion was triggered.
+   */
+  const checkPasskeySuggestion = (user: AdminUser): boolean => {
+    const hasPasskeys = (user.passkeyCount ?? 0) > 0;
+    const supports = typeof window !== 'undefined' && browserSupportsWebAuthn();
+    const dismissed =
+      typeof window !== 'undefined' &&
+      localStorage.getItem(`ajda_passkey_prompt_dismissed_${user.id}`);
+    if (!hasPasskeys && supports && !dismissed) {
+      setSessionUser(user);
+      setStep('suggestPasskey');
+      return true;
+    }
+    return false;
+  };
 
   /**
    * Routes a login response to its next screen and reports whether a session
@@ -48,6 +79,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const advanceLogin = (result: LoginResult): boolean => {
     switch (result.kind) {
       case 'session':
+        if (checkPasskeySuggestion(result.user)) return false;
         return true;
       case 'otp':
         setChallengeId(result.challengeId);
@@ -144,7 +176,8 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     setLoading(true);
 
     try {
-      await AdminStorage.verifyLoginOtp(challengeId, code);
+      const session = await AdminStorage.verifyLoginOtp(challengeId, code);
+      if (checkPasskeySuggestion(session.user)) return;
       onLoginSuccess();
     } catch (caught) {
       if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
@@ -197,7 +230,8 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     setLoading(true);
 
     try {
-      await AdminStorage.verifyLoginTotp(challengeId, code);
+      const session = await AdminStorage.verifyLoginTotp(challengeId, code);
+      if (checkPasskeySuggestion(session.user)) return;
       onLoginSuccess();
     } catch (caught) {
       if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
@@ -228,7 +262,8 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     setError(null);
     setLoading(true);
     try {
-      await AdminStorage.enrollTotpVerify(enrollToken, code);
+      const session = await AdminStorage.enrollTotpVerify(enrollToken, code);
+      if (checkPasskeySuggestion(session.user)) return;
       onLoginSuccess();
     } catch (caught) {
       setError(
@@ -368,10 +403,10 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
             <ShieldCheck className="w-7 h-7 text-inherit" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-heading">
-            {isAr ? 'بوابة إدارة أجدا العقارية' : 'Ajda Real Estate Admin'}
+            {t('auth.portalTitle')}
           </h1>
           <p className="text-xs text-neutral-text/60 mt-1.5">
-            {isAr ? 'نظام إدارة المشاريع، الوحدات، وطلبات الاهتمام' : 'Real Estate Portfolio & Customer Inquiries Management'}
+            {t('auth.portalSubtitle')}
           </p>
         </div>
 
@@ -398,6 +433,14 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
               supportsPasskeys={supportsPasskeys}
               passkeyLoading={passkeyLoading}
               onPasskeyLogin={handlePasskeyLogin}
+            />
+          )}
+
+          {step === 'suggestPasskey' && sessionUser && (
+            <SuggestPasskeyStep
+              user={sessionUser}
+              password={password}
+              onContinue={onLoginSuccess}
             />
           )}
 
@@ -481,4 +524,5 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     </div>
   );
 };
+
 

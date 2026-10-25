@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { LoaderCircle, X } from 'lucide-react';
 import type { Department } from '../../../types/admin';
 import { AdminStorage } from '../../../services/adminStorage';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { DEPARTMENT_SAVE_ERROR, hrErrorMessage } from './rolesModel';
 
 const INPUT =
@@ -29,6 +30,7 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { t, isEn } = useAdminT();
   const isCreate = department === null;
   const [nameAr, setNameAr] = useState(department?.nameAr ?? '');
   const [nameEn, setNameEn] = useState(department?.nameEn ?? '');
@@ -43,10 +45,15 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const displayName = isEn && department?.nameEn ? department.nameEn : department?.nameAr;
+  const title = isCreate
+    ? t('departments.dialogCreateTitle')
+    : t('departments.dialogEditTitle', { name: displayName ?? '' });
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (nameAr.trim() === '') {
-      setError('الاسم بالعربية مطلوب');
+      setError(t('departments.nameArRequired'));
       return;
     }
     setError(null);
@@ -57,15 +64,17 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
     try {
       if (department) {
         await AdminStorage.updateDepartment(department.id, payload);
-        showToast(`تم تحديث القسم ${payload.nameAr}`);
+        const name = isEn && payload.nameEn ? payload.nameEn : payload.nameAr;
+        showToast(t('departments.toastUpdated', { name }));
       } else {
         await AdminStorage.createDepartment(payload);
-        showToast(`تم إنشاء القسم ${payload.nameAr}`);
+        const name = isEn && payload.nameEn ? payload.nameEn : payload.nameAr;
+        showToast(t('departments.toastCreated', { name }));
       }
       await onSaved();
       onClose();
     } catch (caught) {
-      showToast(hrErrorMessage(caught, 'تعذر حفظ بيانات القسم', DEPARTMENT_SAVE_ERROR));
+      showToast(hrErrorMessage(caught, t('departments.toastSaveError'), DEPARTMENT_SAVE_ERROR));
     } finally {
       setSaving(false);
     }
@@ -82,15 +91,15 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
         onSubmit={submit}
         role="dialog"
         aria-modal="true"
-        aria-label={isCreate ? 'إنشاء قسم جديد' : `تعديل القسم ${department?.nameAr}`}
+        aria-label={title}
         className="w-full max-w-md bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 space-y-4"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-heading">{isCreate ? 'قسم جديد' : `تعديل القسم: ${department?.nameAr}`}</h3>
+          <h3 className="text-sm font-black text-heading">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            aria-label="إغلاق"
+            aria-label={t('users.close')}
             className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -99,7 +108,7 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
 
         <label className="block">
           <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-            الاسم بالعربية<span className="text-red-500"> *</span>
+            {t('departments.nameArLabel')}<span className="text-red-500"> *</span>
           </span>
           <input
             type="text"
@@ -108,7 +117,7 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
             value={nameAr}
             aria-invalid={Boolean(error)}
             onChange={(event) => setNameAr(event.target.value)}
-            placeholder="مثال: إدارة المبيعات"
+            placeholder={t('departments.nameArPlaceholder')}
             className={inputTone(Boolean(error))}
           />
           {error ? (
@@ -117,26 +126,28 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
             </p>
           ) : (
             <p className="mt-1 text-[10px] text-neutral-text/55 leading-relaxed">
-              الاسم المعتمد في النظام، ويظهر في قائمة أقسام المستخدمين.
+              {t('departments.nameArHint')}
             </p>
           )}
         </label>
 
         <label className="block">
-          <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">الاسم بالإنجليزية</span>
+          <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+            {t('departments.nameEnLabel')}
+          </span>
           <input
             type="text"
             dir="ltr"
             value={nameEn}
             onChange={(event) => setNameEn(event.target.value)}
-            placeholder="Sales Department"
+            placeholder={t('departments.nameEnPlaceholder')}
             className={`${inputTone(false)} text-start`}
           />
         </label>
 
         {!isCreate && (department?.userCount ?? 0) > 0 && (
           <p className="text-[10px] text-neutral-text/55 leading-relaxed">
-            تغيير الاسم يُحدّث اسم القسم لدى أعضائه تلقائياً.
+            {t('departments.updateNote')}
           </p>
         )}
 
@@ -146,7 +157,7 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
             onClick={onClose}
             className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
           >
-            إلغاء
+            {t('departments.cancelBtn')}
           </button>
           <button
             type="submit"
@@ -154,7 +165,7 @@ export const DepartmentFormDialog: React.FC<DepartmentFormDialogProps> = ({
             className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
-            {isCreate ? 'إنشاء القسم' : 'حفظ التعديلات'}
+            {isCreate ? t('departments.createBtn') : t('departments.saveBtn')}
           </button>
         </div>
       </form>

@@ -28,15 +28,15 @@ import {
   DEFAULT_ROLE_KEY,
   MIN_PASSWORD_LENGTH,
   NO_DEPARTMENT,
-  NO_DEPARTMENT_LABEL,
   PERMISSION_KEYS,
   ROLE_AR_LABELS,
-  STATUS_LABELS,
-  STATUS_OPTIONS,
+  ROLE_EN_LABELS,
   SUPER_ADMIN_ROLE_KEY,
+  getStatusOptions,
   passwordPolicyError,
   permissionsFromRole,
   toAdminRole,
+  userStatusLabel,
 } from './usersModel';
 import type { UserRights } from './usersModel';
 import { UserCreateWizard } from './UserCreateWizard';
@@ -44,6 +44,7 @@ import { RoleCards } from './RoleCards';
 import { PermissionGrid } from './PermissionGrid';
 import { PasswordField } from './PasswordField';
 import { generateSecurePassword } from './usersModel';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -84,6 +85,8 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { t } = useAdminT();
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -102,22 +105,22 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={user ? `تعديل حساب ${user.name}` : 'إضافة مستخدم جديد'}
+        aria-label={user ? t('users.dialogEditTitle', { name: user.name }) : t('users.dialogCreateTitle')}
         className="relative w-full max-w-xl my-4 bg-surface rounded-3xl border border-muted-border/40 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-muted-border/30">
           <div className="min-w-0">
             <h3 className="text-sm font-black text-heading">
-              {user ? `تعديل حساب: ${user.name}` : 'إضافة مستخدم جديد'}
+              {user ? t('users.dialogEditTitle', { name: user.name }) : t('users.dialogCreateTitle')}
             </h3>
             <p className="text-[10px] text-neutral-text/60 mt-0.5 truncate">
-              {user ? user.email : 'حدّد الدور والقسم أولاً، ثم خصّص الصلاحيات'}
+              {user ? user.email : t('users.dialogCreateSubtitle')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="إغلاق"
+            aria-label={t('users.close')}
             className="w-7 h-7 rounded-full border border-muted-border/40 flex items-center justify-center text-heading hover:text-accent cursor-pointer shrink-0"
           >
             <X className="w-3.5 h-3.5" />
@@ -127,12 +130,12 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
         {referenceLoading ? (
           <div className="px-6 py-14 flex flex-col items-center gap-3 text-neutral-text/60">
             <LoaderCircle className="w-6 h-6 animate-spin text-accent" />
-            <p className="text-xs font-bold">جاري تحميل الأدوار والأقسام...</p>
+            <p className="text-xs font-bold">{t('users.refLoading')}</p>
           </div>
         ) : referenceError ? (
           <div className="px-6 py-12 flex flex-col items-center gap-3 text-center">
             <AlertCircle className="w-7 h-7 text-red-400" />
-            <p className="text-xs font-bold text-heading">تعذر تحميل بيانات الأدوار والأقسام</p>
+            <p className="text-xs font-bold text-heading">{t('users.refError')}</p>
             <p className="text-[11px] text-neutral-text/60 max-w-sm">{referenceError}</p>
             <button
               type="button"
@@ -140,7 +143,7 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
               className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              إعادة المحاولة
+              {t('users.retry')}
             </button>
           </div>
         ) : user ? (
@@ -189,12 +192,6 @@ interface UserEditTabsProps {
 
 type EditTab = 'account' | 'role' | 'security';
 
-const TAB_CONFIG: { id: EditTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'account', label: 'الحساب', icon: <User className="w-3.5 h-3.5" /> },
-  { id: 'role', label: 'الدور والصلاحيات', icon: <Shield className="w-3.5 h-3.5" /> },
-  { id: 'security', label: 'الأمان', icon: <Lock className="w-3.5 h-3.5" /> },
-];
-
 const UserEditTabs: React.FC<UserEditTabsProps> = ({
   user,
   rights,
@@ -206,33 +203,50 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { t, isEn } = useAdminT();
   const accessLocked = rights?.accessLocked ?? false;
   const lockReason = rights?.lockReason ?? null;
+
+  const tabConfig: { id: EditTab; label: string; icon: React.ReactNode }[] = useMemo(
+    () => [
+      { id: 'account', label: t('users.step1'), icon: <User className="w-3.5 h-3.5" /> },
+      { id: 'role', label: t('users.step2'), icon: <Shield className="w-3.5 h-3.5" /> },
+      { id: 'security', label: t('users.tabSecurity'), icon: <Lock className="w-3.5 h-3.5" /> },
+    ],
+    [t]
+  );
 
   const { roleOptions, initialRoleId, defaultRole } = useMemo(() => {
     const idByKey = new Map(roles.map((role) => [role.key, role.id]));
     const options: { value: string; label: string; role: Role | null }[] = roles.map((role) => ({
       value: role.id,
-      label: role.nameAr,
+      label:
+        (isEn && role.nameEn ? role.nameEn : role.nameAr) ||
+        (isEn && ROLE_EN_LABELS[role.key as AdminRole] ? ROLE_EN_LABELS[role.key as AdminRole] : role.nameAr),
       role,
     }));
     const known = new Set(options.map((option) => option.value));
     const currentRoleId = user.roleId ?? idByKey.get(user.role) ?? user.role;
     if (!known.has(currentRoleId)) {
-      options.unshift({ value: currentRoleId, label: user.roleAr, role: null });
+      const fallbackLabel = (isEn && user.role ? (ROLE_EN_LABELS[user.role] || user.role) : user.roleAr) || user.role;
+      options.unshift({ value: currentRoleId, label: fallbackLabel, role: null });
     }
     return {
       roleOptions: options,
       initialRoleId: currentRoleId,
       defaultRole: roles.find((role) => role.key === DEFAULT_ROLE_KEY) ?? roles.find((role) => role.key !== SUPER_ADMIN_ROLE_KEY) ?? roles[0] ?? null,
     };
-  }, [roles, user]);
+  }, [roles, user, isEn]);
 
   const { departmentOptions, initialDepartmentId } = useMemo(() => {
     const idByName = new Map(departments.map((department) => [department.nameAr.trim(), department.id]));
+    const noDeptLabel = t('users.noDepartment');
     const options: { value: string; label: string }[] = [
-      ...departments.map((department) => ({ value: department.id, label: department.nameAr })),
-      { value: NO_DEPARTMENT, label: NO_DEPARTMENT_LABEL },
+      ...departments.map((department) => ({
+        value: department.id,
+        label: isEn && department.nameEn ? department.nameEn : department.nameAr,
+      })),
+      { value: NO_DEPARTMENT, label: noDeptLabel },
     ];
     const known = new Set(options.map((option) => option.value));
     const current = user.departmentId ?? idByName.get((user.departmentName ?? user.department ?? '').trim()) ?? NO_DEPARTMENT;
@@ -240,7 +254,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
       options.splice(options.length - 1, 0, { value: current, label: user.departmentName || user.department });
     }
     return { departmentOptions: options, initialDepartmentId: current };
-  }, [departments, user]);
+  }, [departments, user, isEn, t]);
 
   const [activeTab, setActiveTab] = useState<EditTab>('account');
   const [form, setForm] = useState<{
@@ -315,10 +329,10 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
 
   const validate = (): Partial<Record<'name' | 'email' | 'password', string>> => {
     const found: Partial<Record<'name' | 'email' | 'password', string>> = {};
-    if (form.name.trim() === '') found.name = 'الاسم الكامل مطلوب';
-    if (!EMAIL_PATTERN.test(form.email.trim())) found.email = 'أدخل بريداً إلكترونياً صحيحاً';
+    if (form.name.trim() === '') found.name = t('users.valNameRequired');
+    if (!EMAIL_PATTERN.test(form.email.trim())) found.email = t('users.valEmailInvalid');
     if (form.replacePassword) {
-      const policyError = passwordPolicyError(form.password);
+      const policyError = passwordPolicyError(form.password, !isEn);
       if (policyError) found.password = policyError;
     }
     return found;
@@ -329,7 +343,6 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
     const found = validate();
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      // Switch to tab with error
       if (found.name || found.email) setActiveTab('account');
       else if (found.password) setActiveTab('security');
       return;
@@ -373,14 +386,13 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
       if (form.replacePassword && form.password) changes.password = form.password;
 
       await AdminStorage.updateUser(user.id, changes);
-      showToast(`تم تحديث حساب ${form.name.trim()}`);
+      showToast(t('users.toastUpdated', { name: form.name.trim() }));
       await onSaved();
       onClose();
     } catch (error) {
-      const message = getErrorMessage(error, 'تعذر حفظ بيانات المستخدم');
+      const message = getErrorMessage(error, t('users.toastSaveError'));
       showToast(message);
 
-      // Map server errors to tabs
       const errorStr = error instanceof Error ? error.message : String(error);
       let targetTab: EditTab = 'account';
       if (errorStr.includes('email') || errorStr.includes('بريد') || errorStr.includes('already exists') || errorStr.includes('موجود')) {
@@ -401,13 +413,13 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
   // Unsaved changes guard
   const handleClose = useCallback(() => {
     if (hasChanges) {
-      if (window.confirm('لديك تغييرات غير محفوظة. هل تريد إغلاق النافذة دون حفظ؟')) {
+      if (window.confirm(t('users.confirmUnsaved'))) {
         onClose();
       }
     } else {
       onClose();
     }
-  }, [hasChanges, onClose]);
+  }, [hasChanges, onClose, t]);
 
   // Keyboard: Escape to close (with guard)
   useEffect(() => {
@@ -424,7 +436,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
     <form onSubmit={submit} className="flex flex-col max-h-[88vh]">
       {/* Tab bar */}
       <div className="flex border-b border-muted-border/30 px-6" role="tablist">
-        {TAB_CONFIG.map((tab) => (
+        {tabConfig.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -453,8 +465,8 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
       <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-muted-border/30 bg-surface rounded-b-3xl">
         <p className="text-[10px] text-neutral-text/55 hidden sm:block">
           {accessLocked
-            ? 'لن تتغير الصلاحيات أو الدور أو الحالة على هذا الحساب.'
-            : 'تُحفظ التغييرات فوراً ويسجّل النظام من قام بها.'}
+            ? t('users.lockedFooterNotice')
+            : t('users.unlockedFooterNotice')}
         </p>
         <div className="flex items-center gap-2 ms-auto">
           <button
@@ -463,7 +475,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
             disabled={saving}
             className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
           >
-            إلغاء
+            {t('users.cancel')}
           </button>
           <button
             type="submit"
@@ -471,7 +483,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
             className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
-            حفظ التعديلات
+            {t('users.save')}
           </button>
         </div>
       </div>
@@ -491,7 +503,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="edit-name" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-              الاسم الكامل <span className="text-red-500">*</span>
+              {t('users.fieldName')} <span className="text-red-500">*</span>
             </label>
             <input
               id="edit-name"
@@ -500,17 +512,17 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               onBlur={() => setTouchedFields((prev) => ({ ...prev, name: true }))}
               aria-invalid={Boolean(touchedFields.name && !form.name.trim())}
-              placeholder="مثال: خالد المنصور"
+              placeholder={t('users.fieldNamePlaceholder')}
               className={inputTone(touchedFields.name && !form.name.trim())}
             />
             {touchedFields.name && !form.name.trim() && (
-              <p role="alert" className="mt-1 text-[10px] font-bold text-red-500">الاسم الكامل مطلوب</p>
+              <p role="alert" className="mt-1 text-[10px] font-bold text-red-500">{t('users.valNameRequired')}</p>
             )}
           </div>
 
           <div>
             <label htmlFor="edit-email" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-              البريد الإلكتروني <span className="text-red-500">*</span>
+              {t('users.fieldEmail')} <span className="text-red-500">*</span>
             </label>
             <input
               id="edit-email"
@@ -520,18 +532,18 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               onBlur={() => setTouchedFields((prev) => ({ ...prev, email: true }))}
               aria-invalid={Boolean(touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()))}
-              placeholder="name@ajdaa.sa"
+              placeholder={t('users.fieldEmailPlaceholder')}
               className={`${inputTone(touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()))} text-start`}
             />
             {touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) && (
-              <p role="alert" className="mt-1 text-[10px] font-bold text-red-500">أدخل بريداً إلكترونياً صحيحاً</p>
+              <p role="alert" className="mt-1 text-[10px] font-bold text-red-500">{t('users.valEmailInvalid')}</p>
             )}
           </div>
         </div>
 
         <div>
           <label htmlFor="edit-phone" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-            رقم الهاتف
+            {t('users.fieldPhone')}
           </label>
           <input
             id="edit-phone"
@@ -539,7 +551,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
             dir="ltr"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            placeholder="+966 5X XXX XXXX"
+            placeholder={t('users.fieldPhonePlaceholder')}
             className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent text-start"
           />
         </div>
@@ -567,7 +579,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
 
         <div>
           <label htmlFor="edit-department" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-            القسم / الإدارة
+            {t('users.fieldDepartment')}
           </label>
           <select
             id="edit-department"
@@ -612,10 +624,11 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
   }
 
   function renderSecurityTab() {
+    const statusOptions = getStatusOptions();
     const policyChecks = [
-      { label: `${MIN_PASSWORD_LENGTH} أحرف على الأقل`, passed: form.password.length >= MIN_PASSWORD_LENGTH },
-      { label: 'حرف واحد على الأقل', passed: /\p{L}/u.test(form.password) },
-      { label: 'رقم واحد على الأقل', passed: /\d/.test(form.password) },
+      { label: t('users.policyLength', { count: MIN_PASSWORD_LENGTH }), passed: form.password.length >= MIN_PASSWORD_LENGTH },
+      { label: t('users.policyLetter'), passed: /\p{L}/u.test(form.password) },
+      { label: t('users.policyDigit'), passed: /\d/.test(form.password) },
     ];
     const allPolicyPassed = policyChecks.every((c) => c.passed);
 
@@ -629,18 +642,18 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
         )}
 
         <div>
-          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">حالة الحساب</label>
+          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('users.fieldStatus')}</label>
           {user.status === 'pending' ? (
             <>
               {/* A pending account cannot be activated from here: it leaves
                   `pending` only by confirming the emailed link. */}
               <output className={`${inputTone(false)} flex items-center justify-between cursor-default`}>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                  {STATUS_LABELS.pending}
+                  {userStatusLabel('pending')}
                 </span>
               </output>
               <p className="mt-1.5 text-[10px] text-amber-500 leading-relaxed">
-                يُفعَّل الحساب تلقائياً بعد أن يؤكد المستخدم بريده الإلكتروني من الرابط المُرسل إليه.
+                {t('users.pendingActivationNote')}
               </p>
             </>
           ) : (
@@ -651,7 +664,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
                 disabled={accessLocked}
                 className={`${inputTone(false)} cursor-pointer disabled:cursor-not-allowed`}
               >
-                {STATUS_OPTIONS.map((option) => (
+                {statusOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -675,7 +688,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
               onChange={(e) => setForm({ ...form, replacePassword: e.target.checked })}
               className="w-3.5 h-3.5 rounded accent-accent"
             />
-            تغيير كلمة المرور
+            {t('users.changePasswordCheckbox')}
           </label>
         </div>
 
@@ -687,14 +700,14 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
             showPolicyChecklist={true}
             onGenerate={handleGeneratePassword}
             generatedPassword={form.generatedPassword}
-            hint={<>كلمة مرور جديدة بـ 14 حرفاً على الأقل، مع حرف ورقم.</>}
+            hint={<>{t('users.newPasswordHint')}</>}
           />
         )}
 
         <div className="p-4 rounded-xl bg-canvas/60 border border-muted-border/30 space-y-3">
           <h4 className="text-xs font-black text-heading flex items-center gap-1.5">
             <Key className="w-3.5 h-3.5" />
-            سياسة كلمة المرور
+            {t('users.passwordPolicyTitle')}
           </h4>
           <div className="space-y-1.5">
             {policyChecks.map((check) => (
@@ -712,7 +725,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
             {form.replacePassword && form.password.length > 0 && allPolicyPassed && (
               <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                كلمة المرور تفي بالسياسة
+                {t('users.passwordPolicyMet')}
               </p>
             )}
           </div>

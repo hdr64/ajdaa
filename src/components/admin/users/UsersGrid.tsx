@@ -118,4 +118,6 @@ export const UsersGrid: React.FC<UsersGridProps> = ({
       );
     })}
   </div>
-);
+  );
+};
+

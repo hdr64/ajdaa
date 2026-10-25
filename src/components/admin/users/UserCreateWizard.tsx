@@ -15,7 +15,6 @@ import {
   toAdminRole,
   ROLE_AR_LABELS,
   NO_DEPARTMENT,
-  NO_DEPARTMENT_LABEL,
   PERMISSION_KEYS,
   emptyPermissions,
   permissionsFromRole,
@@ -27,6 +26,7 @@ import { RoleCards } from './RoleCards';
 import { PermissionSummary } from './PermissionSummary';
 import { PermissionGrid } from './PermissionGrid';
 import { PasswordField } from './PasswordField';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 interface UserCreateWizardProps {
   roles: Role[];
@@ -38,20 +38,6 @@ interface UserCreateWizardProps {
   onSaved: () => Promise<void>;
 }
 
-/** Step 1 choice: invite the user to pick their own password, or set one now. */
-const MODE_OPTIONS: Array<{ value: 'invite' | 'create'; title: string; hint: string }> = [
-  {
-    value: 'invite',
-    title: 'دعوة مستخدم',
-    hint: 'يختار المستخدم كلمة مروره عبر رابط يُرسل إلى بريده',
-  },
-  {
-    value: 'create',
-    title: 'إنشاء مستخدم بكلمة مرور',
-    hint: 'تحدد كلمة مرور الآن، ويؤكد المستخدم بريده لاحقاً',
-  },
-];
-
 export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   roles,
   departments,
@@ -61,6 +47,22 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { t, language } = useAdminT();
+  const isEn = language === 'en';
+
+  const modeOptions: Array<{ value: 'invite' | 'create'; title: string; hint: string }> = [
+    {
+      value: 'invite',
+      title: t('users.modeInviteTitle'),
+      hint: t('users.modeInviteHint'),
+    },
+    {
+      value: 'create',
+      title: t('users.modeCreateTitle'),
+      hint: t('users.modeCreateHint'),
+    },
+  ];
+
   const [step, setStep] = useState<WizardStep>(1);
   const [completedSteps, setCompletedSteps] = useState<Set<WizardStep>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -102,8 +104,8 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   // Only super-admin accounts can be created active immediately; every other role starts pending.
   const selectedRoleIsSuperAdmin = selectedRole?.key === 'super_admin';
   const accountStatusLabel = selectedRoleIsSuperAdmin
-    ? (form.status === 'active' ? 'نشط' : 'معطل')
-    : 'بانتظار التفعيل';
+    ? (form.status === 'active' ? t('users.statusActive') : t('users.statusSuspended'))
+    : t('users.statusPending');
 
   // Focus first input on step change
   useEffect(() => {
@@ -123,12 +125,12 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     const errors: Record<string, string> = {};
 
     if (stepToValidate === 1) {
-      if (form.name.trim() === '') errors.name = 'الاسم الكامل مطلوب';
-      if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = 'أدخل بريداً إلكترونياً صحيحاً';
+      if (form.name.trim() === '') errors.name = isEn ? 'Full name is required' : 'الاسم الكامل مطلوب';
+      if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = isEn ? 'Enter a valid email address' : 'أدخل بريداً إلكترونياً صحيحاً';
     }
 
     if (stepToValidate === 2) {
-      if (!form.roleId) errors.roleId = 'يجب اختيار دور';
+      if (!form.roleId) errors.roleId = isEn ? 'A role must be selected' : 'يجب اختيار دور';
     }
 
     if (stepToValidate === 3) {
@@ -140,7 +142,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     }
 
     return errors;
-  }, [form, mode]);
+  }, [form, mode, isEn]);
 
   // Check if step is valid
   const isStepValid = useCallback((stepToCheck: WizardStep): boolean => {
@@ -323,9 +325,11 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   const renderStep1 = () => (
     <div className="space-y-5" role="tabpanel" aria-labelledby="step1-label">
       <div>
-        <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">طريقة الإضافة</span>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-label="طريقة الإضافة">
-          {MODE_OPTIONS.map((option) => {
+        <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">
+          {isEn ? 'Creation Method' : 'طريقة الإضافة'}
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-label={isEn ? 'Creation Method' : 'طريقة الإضافة'}>
+          {modeOptions.map((option) => {
             const isActive = mode === option.value;
             return (
               <button
@@ -350,7 +354,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="name" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-            الاسم الكامل <span className="text-red-500">*</span>
+            {t('users.fieldName')} <span className="text-red-500">*</span>
           </label>
           <input
             ref={firstInputRef}
@@ -362,21 +366,21 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             onBlur={() => setTouchedFields((prev) => ({ ...prev, name: true }))}
             aria-invalid={Boolean(touchedFields.name && !form.name.trim())}
             aria-describedby={touchedFields.name && !form.name.trim() ? 'name-error' : undefined}
-            placeholder="مثال: خالد المنصور"
+            placeholder={t('users.fieldNamePlaceholder')}
             className={`w-full px-3 py-2.5 rounded-xl bg-canvas border text-xs text-heading outline-none transition ${
               touchedFields.name && !form.name.trim() ? 'border-red-500/60' : 'border-muted-border/50 focus:border-accent'
             }`}
           />
           {touchedFields.name && !form.name.trim() && (
             <p id="name-error" role="alert" className="mt-1 text-[10px] font-bold text-red-500">
-              الاسم الكامل مطلوب
+              {isEn ? 'Full name is required' : 'الاسم الكامل مطلوب'}
             </p>
           )}
         </div>
 
         <div>
           <label htmlFor="email" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-            البريد الإلكتروني <span className="text-red-500">*</span>
+            {t('users.fieldEmail')} <span className="text-red-500">*</span>
           </label>
           <input
             id="email"
@@ -387,14 +391,14 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             onBlur={() => setTouchedFields((prev) => ({ ...prev, email: true }))}
             aria-invalid={Boolean(touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()))}
             aria-describedby={touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) ? 'email-error' : undefined}
-            placeholder="name@ajdaa.sa"
+            placeholder={t('users.fieldEmailPlaceholder')}
             className={`w-full px-3 py-2.5 rounded-xl bg-canvas border text-xs text-heading outline-none transition text-start ${
               touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) ? 'border-red-500/60' : 'border-muted-border/50 focus:border-accent'
             }`}
           />
           {touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) && (
             <p id="email-error" role="alert" className="mt-1 text-[10px] font-bold text-red-500">
-              أدخل بريداً إلكترونياً صحيحاً
+              {isEn ? 'Enter a valid email address' : 'أدخل بريداً إلكترونياً صحيحاً'}
             </p>
           )}
         </div>
@@ -402,7 +406,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
 
       <div>
         <label htmlFor="phone" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-          رقم الهاتف (اختياري)
+          {t('users.fieldPhone')}
         </label>
         <input
           id="phone"
@@ -410,7 +414,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           dir="ltr"
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          placeholder="+966 5X XXX XXXX"
+          placeholder={t('users.fieldPhonePlaceholder')}
           className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent text-start"
         />
       </div>
@@ -436,7 +440,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
 
       <div>
         <label htmlFor="department" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-          القسم / الإدارة
+          {t('users.fieldDepartment')}
         </label>
         <select
           id="department"
@@ -446,12 +450,14 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         >
           {departments.map((dept) => (
             <option key={dept.id} value={dept.id}>
-              {dept.nameAr}
+              {isEn && dept.nameEn ? dept.nameEn : dept.nameAr}
             </option>
           ))}
-          <option value={NO_DEPARTMENT}>{NO_DEPARTMENT_LABEL}</option>
+          <option value={NO_DEPARTMENT}>{t('users.noDepartment')}</option>
         </select>
-        <p className="mt-1 text-[10px] text-neutral-text/55">«بدون قسم» للأعضاء غير المرتبطين بإدارة.</p>
+        <p className="mt-1 text-[10px] text-neutral-text/55">
+          {isEn ? '"No department" for members not associated with a specific department.' : '«بدون قسم» للأعضاء غير المرتبطين بإدارة.'}
+        </p>
       </div>
 
       <PermissionSummary role={selectedRole} permissions={permissions} />
@@ -480,7 +486,9 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     <div className="space-y-5" role="tabpanel" aria-labelledby="step3-label">
       {mode === 'invite' ? (
         <p className="text-[11px] text-neutral-text/60">
-          سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره
+          {isEn
+            ? 'The user will receive an email invitation link to set their password.'
+            : 'سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره'}
         </p>
       ) : (
         <PasswordField
@@ -490,7 +498,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           showPolicyChecklist={true}
           onGenerate={handleGeneratePassword}
           generatedPassword={form.generatedPassword}
-          hint={<>14 حرفاً على الأقل، مع حرف ورقم، تُستخدم عند أول دخول للحساب.</>}
+          hint={<>{isEn ? 'At least 14 characters, with a letter and digit, used upon first sign in.' : '14 حرفاً على الأقل، مع حرف ورقم، تُستخدم عند أول دخول للحساب.'}</>}
         />
       )}
 
@@ -504,10 +512,11 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
               className="mt-0.5 w-3.5 h-3.5 rounded accent-accent shrink-0"
             />
             <span className="min-w-0 leading-relaxed">
-              <span className="block font-bold text-heading">إرسال كلمة المرور في البريد الإلكتروني</span>
+              <span className="block font-bold text-heading">{t('users.sendPasswordEmail')}</span>
               <span className="block text-[10px] text-neutral-text/60">
-                يُرسل كلمة المرور التي حددتها داخل بريد التفعيل. البريد ليس قناة آمنة — على المستخدم
-                تغيير كلمة المرور بعد أول دخول.
+                {isEn
+                  ? 'Sends the password in the activation email. Email is not fully secure — user should change password after first sign in.'
+                  : 'يُرسل كلمة المرور التي حددتها داخل بريد التفعيل. البريد ليس قناة آمنة — على المستخدم تغيير كلمة المرور بعد أول دخول.'}
               </span>
             </span>
           </label>
@@ -517,16 +526,18 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       {/* حالة الحساب تُعرض لمدير عام فقط: هو الوحيد الذي يُنشأ نشطاً فوراً، وباقي الأدوار تبدأ بانتظار التفعيل. */}
       {selectedRoleIsSuperAdmin && (
         <div>
-          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">حالة الحساب</label>
+          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('users.fieldStatus')}</label>
           <select
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value as AdminStatus })}
             className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent cursor-pointer"
           >
-            <option value="active">نشط</option>
-            <option value="suspended">معطل</option>
+            <option value="active">{t('users.statusActive')}</option>
+            <option value="suspended">{t('users.statusSuspended')}</option>
           </select>
-          <p className="mt-1 text-[10px] text-neutral-text/55">تُنشأ الحسابات الجديدة بحالة نشطة افتراضياً.</p>
+          <p className="mt-1 text-[10px] text-neutral-text/55">
+            {isEn ? 'New accounts are created active by default.' : 'تُنشأ الحسابات الجديدة بحالة نشطة افتراضياً.'}
+          </p>
         </div>
       )}
 
@@ -534,37 +545,44 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       <div className="p-4 rounded-xl bg-canvas/60 border border-muted-border/30 space-y-3">
         <h4 className="text-xs font-black text-heading flex items-center gap-1.5">
           <User className="w-3.5 h-3.5" />
-          مراجعة الحساب
+          {isEn ? 'Account Review' : 'مراجعة الحساب'}
         </h4>
         <div className="space-y-2 text-[11px]">
           <div className="flex justify-between">
-            <span className="text-neutral-text/60">الاسم الكامل</span>
+            <span className="text-neutral-text/60">{t('users.fieldName')}</span>
             <span className="font-bold text-heading">{form.name || '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-neutral-text/60">البريد الإلكتروني</span>
+            <span className="text-neutral-text/60">{t('users.fieldEmail')}</span>
             <span className="font-bold text-heading text-start" dir="ltr">{form.email || '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-neutral-text/60">الهاتف</span>
+            <span className="text-neutral-text/60">{t('users.fieldPhone')}</span>
             <span className="font-bold text-heading text-start" dir="ltr">{form.phone || '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-neutral-text/60">الدور</span>
-            <span className="font-bold text-heading">{selectedRole?.nameAr || '—'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-text/60">القسم</span>
-            <span className="font-bold text-heading">{selectedDepartment?.nameAr || NO_DEPARTMENT_LABEL}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-text/60">عدد الصلاحيات</span>
+            <span className="text-neutral-text/60">{t('users.fieldRole')}</span>
             <span className="font-bold text-heading">
-              {PERMISSION_KEYS.filter((k) => form.permissions[k]).length} من {PERMISSION_KEYS.length}
+              {(isEn && selectedRole?.nameEn ? selectedRole.nameEn : selectedRole?.nameAr) || '—'}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-neutral-text/60">الحالة</span>
+            <span className="text-neutral-text/60">{t('users.fieldDepartment')}</span>
+            <span className="font-bold text-heading">
+              {(isEn && selectedDepartment?.nameEn ? selectedDepartment.nameEn : selectedDepartment?.nameAr) || t('users.noDepartment')}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-text/60">{t('users.colPermissions')}</span>
+            <span className="font-bold text-heading">
+              {t('users.permissionsCountOf', {
+                count: PERMISSION_KEYS.filter((k) => form.permissions[k]).length,
+                total: PERMISSION_KEYS.length,
+              })}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-text/60">{t('users.colStatus')}</span>
             <span className="font-bold text-heading">{accountStatusLabel}</span>
           </div>
         </div>
@@ -573,8 +591,8 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       {!selectedRoleIsSuperAdmin && (
         <p className="text-[10px] text-neutral-text/55">
           {mode === 'invite'
-            ? 'سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره.'
-            : 'سيُفعَّل الحساب بعد أن يؤكد المستخدم بريده.'}
+            ? (isEn ? 'The user will receive an email invitation to choose their password.' : 'سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره.')
+            : (isEn ? 'The account will be activated after the user confirms their email.' : 'سيُفعَّل الحساب بعد أن يؤكد المستخدم بريده.')}
         </p>
       )}
 
@@ -606,7 +624,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
 
       <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-muted-border/30 bg-surface rounded-b-3xl">
         <p className="text-[10px] text-neutral-text/55 hidden sm:block">
-          سيتم إنشاء الحساب نشطاً بكلمة المرور المحددة.
+          {t('users.dialogCreateSubtitle')}
         </p>
         <div className="flex items-center gap-2 ms-auto">
           {step > 1 && (
@@ -616,7 +634,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
               disabled={saving}
               className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
             >
-              رجوع
+              {t('users.back')}
             </button>
           )}
           <button
@@ -626,7 +644,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
-            {step === 3 ? 'إنشاء الحساب' : 'التالي'}
+            {step === 3 ? (isEn ? 'Create Account' : 'إنشاء الحساب') : t('users.next')}
             {step < 3 && <ChevronLeft className="w-3.5 h-3.5" />}
           </button>
         </div>

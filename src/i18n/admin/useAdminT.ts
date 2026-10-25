@@ -13,6 +13,7 @@ export interface AdminTranslation {
   t: (key: AdminKey, params?: TranslationParams) => string;
   language: 'ar' | 'en';
   isAr: boolean;
+  isEn: boolean;
   dir: Direction;
   /** Locale `adminFormat.ts` should format with. */
   locale: string;
@@ -22,5 +23,5 @@ export interface AdminTranslation {
 export function useAdminT(): AdminTranslation {
   const { language, dir } = useLanguage();
   const t = useCallback<TranslateFn>((key, params) => translateAdmin(language, key, params), [language]);
-  return { t, language, isAr: language === 'ar', dir, locale: adminLocale(language) };
+  return { t, language, isAr: language === 'ar', isEn: language === 'en', dir, locale: adminLocale(language) };
 }

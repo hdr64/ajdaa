@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { RefreshCw, AlertCircle, Shield } from 'lucide-react';
 import type { PermissionDef, AdminPermissions, Role } from '../../../types/admin';
 import { PERMISSION_KEYS, groupPermissions } from './usersModel';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 interface PermissionGridProps {
   permissions: AdminPermissions;
@@ -18,16 +19,6 @@ interface PermissionGridProps {
   onRestoreRolePermissions: () => void;
 }
 
-const GROUP_LABELS: Record<string, string> = {
-  projects: 'المشاريع',
-  units: 'الوحدات والأدوار',
-  inquiries: 'طلبات الاهتمام',
-  reports: 'التقارير',
-  users: 'المستخدمون',
-  settings: 'الإعدادات',
-  cms: 'محتوى الموقع (CMS)',
-};
-
 export const PermissionGrid: React.FC<PermissionGridProps> = ({
   permissions,
   onChange,
@@ -38,6 +29,8 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
   showModifiedTag,
   onRestoreRolePermissions,
 }) => {
+  const { t, language } = useAdminT();
+  const isEn = language === 'en';
   const [isExpanded, setIsExpanded] = useState(false);
   const groups = groupPermissions(allPermissions);
   const allChecked = PERMISSION_KEYS.every((key) => permissions[key]);
@@ -60,16 +53,16 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
       <div className="pt-1 border-t border-muted-border/30 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h4 className="text-xs font-black text-heading">تخصيص الصلاحيات</h4>
+            <h4 className="text-xs font-black text-heading">{t('users.customPermissions')}</h4>
             <p className="text-[10px] text-neutral-text/60 mt-0.5">
-              حساب المدير العام يملك كل الصلاحيات فعلياً.
+              {isEn ? 'Super admin accounts effectively have all permissions.' : 'حساب المدير العام يملك كل الصلاحيات فعلياً.'}
             </p>
           </div>
         </div>
         <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
           <div className="flex items-center gap-2 text-[11px] text-amber-600">
             <Shield className="w-4 h-4 shrink-0" />
-            <span className="font-bold">كل الصلاحيات ممنوحة بحكم دور المدير العام.</span>
+            <span className="font-bold">{t('users.superAdminAllPerms')}</span>
           </div>
         </div>
         {accessLocked && lockReason && (
@@ -86,34 +79,36 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
     <div className="pt-1 border-t border-muted-border/30 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h4 className="text-xs font-black text-heading">تخصيص الصلاحيات</h4>
+          <h4 className="text-xs font-black text-heading">{t('users.customPermissions')}</h4>
           <p className="text-[10px] text-neutral-text/60 mt-0.5">
-            اختيار الدور يعبّئ صلاحياته، ويمكنك تخصيصها بعد ذلك.
+            {t('users.customPermissionsDesc')}
           </p>
         </div>
         {!accessLocked && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {showModifiedTag && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 border border-amber-500/30">
-                معدّل عن الدور
+                {t('users.modifiedFromRole')}
               </span>
             )}
             <button
               type="button"
               onClick={onRestoreRolePermissions}
               disabled={!role}
-              title={role ? 'استعادة صلاحيات الدور' : 'اختر دوراً أولاً'}
+              title={role ? t('users.restoreRolePermissions') : (isEn ? 'Select a role first' : 'اختر دوراً أولاً')}
               className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              مطابقة الدور
+              {isEn ? 'Match role' : 'مطابقة الدور'}
             </button>
             <button
               type="button"
               onClick={toggleAll}
               className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold cursor-pointer"
             >
-              {allChecked ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
+              {allChecked
+                ? (isEn ? 'Deselect All' : 'إلغاء تحديد الكل')
+                : (isEn ? 'Select All' : 'تحديد الكل')}
             </button>
           </div>
         )}
@@ -121,7 +116,9 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
 
       {groups.length === 0 ? (
         <p className="text-[11px] text-neutral-text/55 text-center py-4">
-          تعذر تحميل قائمة الصلاحيات، سيتم اعتماد صلاحيات الدور.
+          {isEn
+            ? 'Could not load permissions list; role defaults will be used.'
+            : 'تعذر تحميل قائمة الصلاحيات، سيتم اعتماد صلاحيات الدور.'}
         </p>
       ) : (
         <div className={`
@@ -135,7 +132,7 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
               className="p-3 rounded-xl bg-canvas/60 border border-muted-border/30 disabled:opacity-70"
             >
               <legend className="px-1 text-[11px] font-black text-heading">
-                {GROUP_LABELS[group.key] ?? group.key}
+                {group.label}
               </legend>
               <div className="space-y-2">
                 {group.items.map((permission) => (
@@ -150,10 +147,14 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
                       className="mt-0.5 w-3.5 h-3.5 rounded accent-accent shrink-0 disabled:cursor-not-allowed"
                     />
                     <span className="min-w-0">
-                      <span className="block font-bold text-heading">{permission.labelAr}</span>
-                      <span className="block text-[10px] text-neutral-text/60 leading-relaxed">
-                        {permission.description}
+                      <span className="block font-bold text-heading">
+                        {isEn && permission.labelEn ? permission.labelEn : permission.labelAr}
                       </span>
+                      {permission.description && (
+                        <span className="block text-[10px] text-neutral-text/60 leading-relaxed">
+                          {permission.description}
+                        </span>
+                      )}
                     </span>
                   </label>
                 ))}
@@ -170,7 +171,9 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
           className="w-full px-3 py-2 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
         >
           <AlertCircle className="w-3.5 h-3.5" />
-          {isExpanded ? 'طي تخصيص الصلاحيات (متقدم)' : 'تخصيص الصلاحيات (متقدم)'}
+          {isExpanded
+            ? (isEn ? 'Collapse custom permissions (Advanced)' : 'طي تخصيص الصلاحيات (متقدم)')
+            : (isEn ? 'Customize permissions (Advanced)' : 'تخصيص الصلاحيات (متقدم)')}
         </button>
       )}
 

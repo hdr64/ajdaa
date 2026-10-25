@@ -4,7 +4,8 @@ import { AdminStorage } from '../../../services/adminStorage';
 import { propertyService } from '../../../services/propertyService';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
-import { UNIT_STATUS_LABELS_AR } from '../../../pages/admin/projectLabels';
+import { UNIT_STATUS_KEYS, UNIT_STATUS_LABELS_AR } from '../../../pages/admin/projectLabels';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { DialogShell, Label } from './dialogParts';
 
 const STATUSES: UnitStatus[] = ['available', 'reserved', 'rented', 'sold'];
@@ -15,6 +16,29 @@ const UNIT_TYPE_AR: Record<PropertyUnit['type'], string> = {
   apartment: 'شقة سكنية',
   warehouse: 'مستودع تخزين',
   outdoor: 'جلسات خارجية / تراس',
+};
+
+const UNIT_TYPE_EN: Record<PropertyUnit['type'], string> = {
+  showroom: 'Commercial Showroom',
+  office: 'Office',
+  apartment: 'Apartment',
+  warehouse: 'Warehouse',
+  outdoor: 'Outdoor / Terrace',
+};
+
+const UNIT_TYPE_KEYS: Record<
+  PropertyUnit['type'],
+  | 'floorplan.typeShowroom'
+  | 'floorplan.typeOffice'
+  | 'floorplan.typeApartment'
+  | 'floorplan.typeWarehouse'
+  | 'floorplan.typeOutdoor'
+> = {
+  showroom: 'floorplan.typeShowroom',
+  office: 'floorplan.typeOffice',
+  apartment: 'floorplan.typeApartment',
+  warehouse: 'floorplan.typeWarehouse',
+  outdoor: 'floorplan.typeOutdoor',
 };
 
 const INPUT_CLASS =
@@ -44,6 +68,7 @@ function defaultUnitType(project: Property): PropertyUnit['type'] {
  */
 export function useFloorPlanEditor(project: Property, onProjectUpdate: () => void | Promise<void>) {
   const { showToast, confirmDelete } = useAdmin();
+  const { t, isEn } = useAdminT();
   const [saving, setSaving] = useState(false);
 
   const [unitDialog, setUnitDialog] = useState<{ floor: PropertyFloor; unit: PropertyUnit | null } | null>(null);
@@ -52,7 +77,7 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
     sectionAr: '',
     type: 'showroom',
     area: 150,
-    priceLabel: 'متاح للإيجار',
+    priceLabel: t('floorplan.defaultPriceLabel'),
     status: 'available',
     featuresStr: '',
   });
@@ -68,7 +93,7 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
       showToast(success);
       return true;
     } catch (error) {
-      showToast(getErrorMessage(error, 'تعذر حفظ التعديلات على الخادم'));
+      showToast(getErrorMessage(error, t('floorplan.toastSaveFailed')));
       return false;
     } finally {
       setSaving(false);
@@ -83,7 +108,7 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
       sectionAr: '',
       type: defaultUnitType(project),
       area: 150,
-      priceLabel: 'متاح للإيجار',
+      priceLabel: t('floorplan.defaultPriceLabel'),
       status: 'available',
       featuresStr: '',
     });
@@ -98,7 +123,7 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
       area: unit.area,
       priceLabel: unit.priceLabel || '',
       status: unit.status,
-      featuresStr: unit.features?.join('، ') || '',
+      featuresStr: unit.features?.join(isEn ? ', ' : '، ') || '',
     });
     setUnitDialog({ floor, unit });
   };
@@ -119,6 +144,7 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
       sectionAr: unitForm.sectionAr.trim() || undefined,
       type: unitForm.type,
       typeAr: UNIT_TYPE_AR[unitForm.type],
+      typeEn: UNIT_TYPE_EN[unitForm.type],
       area: Number(unitForm.area),
       priceLabel: unitForm.priceLabel.trim() || undefined,
       status: unitForm.status,
@@ -130,23 +156,23 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
         unit
           ? AdminStorage.updateUnitInProject(project.id, floor, { ...unit, ...base })
           : AdminStorage.addUnitToProject(project.id, floor, { ...base, id: `u-${crypto.randomUUID()}` }),
-      unit ? 'تم تحديث بيانات الوحدة' : 'تمت إضافة الوحدة'
+      unit ? t('floorplan.toastUnitUpdated') : t('floorplan.toastUnitSaved')
     );
     if (ok) setUnitDialog(null);
   };
 
   const deleteUnit = async (unit: PropertyUnit) => {
     const ok = await confirmDelete({
-      title: `حذف الوحدة "${unit.unitNumber}"؟`,
-      message: 'لا يمكن التراجع عن هذا الإجراء.',
-      confirmLabel: 'حذف الوحدة',
+      title: t('floorplan.deleteUnitConfirmTitle', { number: unit.unitNumber }),
+      message: t('floorplan.deleteUnitConfirmMsg'),
+      confirmLabel: t('floorplan.deleteUnitConfirmBtn'),
     });
-    if (ok) await run(() => AdminStorage.deleteUnitFromProject(project.id, unit.id), 'تم حذف الوحدة');
+    if (ok) await run(() => AdminStorage.deleteUnitFromProject(project.id, unit.id), t('floorplan.toastUnitDeleted'));
   };
 
   const setUnitStatus = (unit: PropertyUnit, status: UnitStatus) => {
     if (status === unit.status) return;
-    void run(() => AdminStorage.updateUnitStatus(unit.id, status), `الوحدة ${unit.unitNumber}: ${UNIT_STATUS_LABELS_AR[status]}`);
+    void run(() => AdminStorage.updateUnitStatus(unit.id, status), `${unit.unitNumber}: ${t(UNIT_STATUS_KEYS[status])}`);
   };
 
   /* ---------------------------------- Floors ---------------------------------- */
@@ -181,20 +207,21 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
               floorNameEn: floorForm.nameEn.trim() || null,
               descriptionAr: floorForm.descriptionAr.trim() || null,
             }),
-      editing ? 'تم تحديث بيانات الدور' : 'تمت إضافة الدور'
+      editing ? t('floorplan.toastFloorUpdated') : t('floorplan.toastFloorSaved')
     );
     if (ok) setFloorDialog(null);
   };
 
   /** Resolves to true when the floor was deleted. */
   const deleteFloor = async (floor: PropertyFloor): Promise<boolean> => {
+    const name = isEn && floor.floorNameEn ? floor.floorNameEn : floor.floorNameAr;
     const ok = await confirmDelete({
-      title: `حذف "${floor.floorNameAr}"؟`,
-      message: `سيتم حذف الدور و${floor.units.length} وحدة تابعة له نهائياً.`,
-      confirmLabel: 'حذف الدور',
+      title: t('floorplan.deleteFloorConfirmTitle', { name }),
+      message: t('floorplan.deleteFloorConfirmMsg', { count: floor.units.length }),
+      confirmLabel: t('floorplan.deleteFloorConfirmBtn'),
     });
     if (!ok) return false;
-    return run(() => AdminStorage.deleteFloorFromProject(project.id, floor.floorNumber), 'تم حذف الدور');
+    return run(() => AdminStorage.deleteFloorFromProject(project.id, floor.floorNumber), t('floorplan.toastFloorDeleted'));
   };
 
   /* ---------------------------------- Dialogs --------------------------------- */
@@ -203,32 +230,38 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
     <>
       {unitDialog && (
         <DialogShell
-          title={unitDialog.unit ? `تعديل (${unitDialog.unit.unitNumber})` : `وحدة جديدة في ${unitDialog.floor.floorNameAr}`}
+          title={
+            unitDialog.unit
+              ? t('floorplan.dialogEditUnitTitle', { number: unitDialog.unit.unitNumber })
+              : t('floorplan.dialogAddUnitTitle', {
+                  floor: isEn && unitDialog.floor.floorNameEn ? unitDialog.floor.floorNameEn : unitDialog.floor.floorNameAr,
+                })
+          }
           onClose={() => setUnitDialog(null)}
         >
           <form onSubmit={saveUnit} className="space-y-3.5">
-            <Label text="رقم / اسم الوحدة *">
+            <Label text={t('floorplan.unitNumberLabel')}>
               <input
                 type="text"
                 required
                 autoFocus
                 value={unitForm.unitNumber}
                 onChange={(e) => setUnitForm({ ...unitForm, unitNumber: e.target.value })}
-                placeholder="مثال: معرض 101 أو مكتب 204"
+                placeholder={t('floorplan.unitNumberPlaceholder')}
                 className={INPUT_CLASS}
               />
             </Label>
             <div className="grid grid-cols-2 gap-3">
-              <Label text="الجهة / القسم">
+              <Label text={t('floorplan.unitSectionLabel')}>
                 <input
                   type="text"
                   value={unitForm.sectionAr}
                   onChange={(e) => setUnitForm({ ...unitForm, sectionAr: e.target.value })}
-                  placeholder="مثال: الجهة الشمالية"
+                  placeholder={t('floorplan.unitSectionPlaceholder')}
                   className={INPUT_CLASS}
                 />
               </Label>
-              <Label text="المساحة (م²) *">
+              <Label text={t('floorplan.unitAreaLabel')}>
                 <input
                   type="number"
                   required
@@ -241,20 +274,20 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
               </Label>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Label text="نوع الوحدة">
+              <Label text={t('floorplan.unitTypeLabel')}>
                 <select
                   value={unitForm.type}
                   onChange={(e) => setUnitForm({ ...unitForm, type: e.target.value as PropertyUnit['type'] })}
                   className={`${INPUT_CLASS} cursor-pointer`}
                 >
-                  {(Object.keys(UNIT_TYPE_AR) as PropertyUnit['type'][]).map((t) => (
-                    <option key={t} value={t}>
-                      {UNIT_TYPE_AR[t]}
+                  {(Object.keys(UNIT_TYPE_KEYS) as PropertyUnit['type'][]).map((typeKey) => (
+                    <option key={typeKey} value={typeKey}>
+                      {t(UNIT_TYPE_KEYS[typeKey])}
                     </option>
                   ))}
                 </select>
               </Label>
-              <Label text="حالة الوحدة">
+              <Label text={t('floorplan.unitStatusLabel')}>
                 <select
                   value={unitForm.status}
                   onChange={(e) => setUnitForm({ ...unitForm, status: e.target.value as UnitStatus })}
@@ -262,36 +295,44 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
-                      {UNIT_STATUS_LABELS_AR[s]}
+                      {t(UNIT_STATUS_KEYS[s])}
                     </option>
                   ))}
                 </select>
               </Label>
             </div>
-            <Label text="السعر / وصف العرض">
+            <Label text={t('floorplan.unitPriceLabel')}>
               <input
                 type="text"
                 value={unitForm.priceLabel}
                 onChange={(e) => setUnitForm({ ...unitForm, priceLabel: e.target.value })}
-                placeholder="مثال: متاح للإيجار"
+                placeholder={t('floorplan.unitPricePlaceholder')}
                 className={INPUT_CLASS}
               />
             </Label>
-            <Label text="المميزات (مفصولة بفواصل)">
+            <Label text={t('floorplan.unitFeaturesLabel')}>
               <input
                 type="text"
                 value={unitForm.featuresStr}
                 onChange={(e) => setUnitForm({ ...unitForm, featuresStr: e.target.value })}
-                placeholder="واجهة زجاجية، تكييف، إطلالة رئيسية"
+                placeholder={t('floorplan.unitFeaturesPlaceholder')}
                 className={INPUT_CLASS}
               />
             </Label>
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-muted-border/30">
-              <button type="button" onClick={() => setUnitDialog(null)} className="brand-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer">
-                إلغاء
+              <button
+                type="button"
+                onClick={() => setUnitDialog(null)}
+                className="brand-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                {t('floorplan.cancelBtn')}
               </button>
-              <button type="submit" disabled={saving} className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50">
-                {unitDialog.unit ? 'حفظ التعديلات' : 'إضافة الوحدة'}
+              <button
+                type="submit"
+                disabled={saving}
+                className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {unitDialog.unit ? t('floorplan.saveChanges') : t('floorplan.addUnitBtn')}
               </button>
             </div>
           </form>
@@ -299,43 +340,55 @@ export function useFloorPlanEditor(project: Property, onProjectUpdate: () => voi
       )}
 
       {floorDialog && (
-        <DialogShell title={floorDialog.floor ? 'تعديل بيانات الدور' : 'إضافة دور جديد'} onClose={() => setFloorDialog(null)}>
+        <DialogShell
+          title={floorDialog.floor ? t('floorplan.dialogEditFloorTitle') : t('floorplan.dialogAddFloorTitle')}
+          onClose={() => setFloorDialog(null)}
+        >
           <form onSubmit={saveFloor} className="space-y-3.5">
-            <Label text="اسم الدور بالعربية *">
+            <Label text={t('floorplan.floorNameArLabel')}>
               <input
                 type="text"
                 required
                 autoFocus
                 value={floorForm.nameAr}
                 onChange={(e) => setFloorForm({ ...floorForm, nameAr: e.target.value })}
-                placeholder="مثال: الدور الأول - مكاتب إدارية"
+                placeholder={t('floorplan.floorNameArPlaceholder')}
                 className={INPUT_CLASS}
               />
             </Label>
-            <Label text="اسم الدور بالإنجليزية">
+            <Label text={t('floorplan.floorNameEnLabel')}>
               <input
                 type="text"
                 dir="ltr"
                 value={floorForm.nameEn}
                 onChange={(e) => setFloorForm({ ...floorForm, nameEn: e.target.value })}
-                placeholder="First floor - Offices"
+                placeholder={t('floorplan.floorNameEnPlaceholder')}
                 className={INPUT_CLASS}
               />
             </Label>
-            <Label text="وصف قصير">
+            <Label text={t('floorplan.floorDescLabel')}>
               <input
                 type="text"
                 value={floorForm.descriptionAr}
                 onChange={(e) => setFloorForm({ ...floorForm, descriptionAr: e.target.value })}
+                placeholder={t('floorplan.floorDescPlaceholder')}
                 className={INPUT_CLASS}
               />
             </Label>
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setFloorDialog(null)} className="brand-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer">
-                إلغاء
+              <button
+                type="button"
+                onClick={() => setFloorDialog(null)}
+                className="brand-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                {t('floorplan.cancelBtn')}
               </button>
-              <button type="submit" disabled={saving} className="brand-btn-primary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50">
-                {floorDialog.floor ? 'حفظ' : 'إضافة الدور'}
+              <button
+                type="submit"
+                disabled={saving}
+                className="brand-btn-primary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {floorDialog.floor ? t('floorplan.saveFloorBtn') : t('floorplan.addFloorBtn')}
               </button>
             </div>
           </form>

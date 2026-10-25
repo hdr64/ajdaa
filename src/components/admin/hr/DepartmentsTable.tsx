@@ -10,15 +10,11 @@ import { DataTable } from '../common/DataTable';
 import type { Column } from '../common/dataTableTypes';
 import { EmptyState } from '../common/EmptyState';
 import { ActionButton, ICON_BUTTON_ACCENT, ICON_BUTTON_DANGER } from './ActionButton';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 export const DEPARTMENTS_TABLE_STORAGE_KEY = 'ajda.admin.departments';
 
 const userCountOf = (department: Department): number => department.userCount ?? 0;
-
-const inUseHint = (department: Department): string | null => {
-  const count = userCountOf(department);
-  return count > 0 ? `لا يمكن حذف قسم مرتبط بـ ${count} مستخدم — انقلهم إلى قسم آخر أولاً` : null;
-};
 
 interface DepartmentsTableProps {
   departments: Department[];
@@ -33,11 +29,18 @@ export const DepartmentsTable: React.FC<DepartmentsTableProps> = ({
   onDelete,
   onCreate,
 }) => {
+  const { t, isEn } = useAdminT();
+
+  const inUseHint = (department: Department): string | null => {
+    const count = userCountOf(department);
+    return count > 0 ? t('departments.inUseHint', { count }) : null;
+  };
+
   const columns = useMemo<Column<Department>[]>(
     () => [
       {
         id: 'nameAr',
-        header: 'الاسم بالعربية',
+        header: t('departments.colNameAr'),
         width: '240px',
         sortValue: (department) => department.nameAr,
         filter: { type: 'text', value: (department) => department.nameAr },
@@ -45,7 +48,7 @@ export const DepartmentsTable: React.FC<DepartmentsTableProps> = ({
       },
       {
         id: 'nameEn',
-        header: 'الاسم بالإنجليزية',
+        header: t('departments.colNameEn'),
         width: '200px',
         sortValue: (department) => department.nameEn ?? '',
         cell: (department) =>
@@ -59,7 +62,7 @@ export const DepartmentsTable: React.FC<DepartmentsTableProps> = ({
       },
       {
         id: 'users',
-        header: 'المستخدمون',
+        header: t('departments.colUsers'),
         width: '130px',
         align: 'end',
         sortValue: (department) => userCountOf(department),
@@ -78,7 +81,7 @@ export const DepartmentsTable: React.FC<DepartmentsTableProps> = ({
         },
       },
     ],
-    []
+    [t]
   );
 
   return (
@@ -96,15 +99,15 @@ export const DepartmentsTable: React.FC<DepartmentsTableProps> = ({
           <EmptyState
             icon={Building}
             compact
-            title="لا توجد أقسام"
-            description="أضف أقسام العمل لتوزيع أعضاء الفريق عليها."
+            title={t('departments.emptyTitle')}
+            description={t('departments.emptyDescription')}
             action={
               <button
                 type="button"
                 onClick={onCreate}
                 className="brand-btn-primary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
               >
-                إنشاء أول قسم
+                {t('departments.createFirst')}
               </button>
             }
           />
@@ -112,20 +115,21 @@ export const DepartmentsTable: React.FC<DepartmentsTableProps> = ({
       }
       rowActions={(department) => {
         const hint = inUseHint(department);
+        const name = isEn && department.nameEn ? department.nameEn : department.nameAr;
         return (
           <div className="flex items-center justify-end gap-1.5">
             <ActionButton
-              label={`تعديل قسم ${department.nameAr}`}
+              label={t('departments.editDepartmentName', { name })}
               lockedReason={null}
-              hint="تعديل اسم القسم"
+              hint={t('departments.editDepartment')}
               onClick={() => onEdit(department)}
               icon={<Pencil className="w-3 h-3" />}
               className={ICON_BUTTON_ACCENT}
             />
             <ActionButton
-              label={`حذف قسم ${department.nameAr}`}
+              label={t('departments.deleteDepartmentName', { name })}
               lockedReason={hint}
-              hint="حذف القسم"
+              hint={t('departments.deleteDepartment')}
               onClick={() => onDelete(department)}
               icon={<Trash2 className="w-3 h-3" />}
               className={ICON_BUTTON_DANGER}

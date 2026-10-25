@@ -7,6 +7,7 @@ import React from 'react';
 import { ShieldCheck, Sparkles, Users } from 'lucide-react';
 import type { Role } from '../../../types/admin';
 import { roleUserCount, type PermissionKey } from './rolesModel';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 const CHIP =
   'text-[9px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1 border whitespace-nowrap';
@@ -18,29 +19,33 @@ export const RoleKeyText: React.FC<{ roleKey: string }> = ({ roleKey }) => (
 );
 
 /** A built-in role can be renamed but never re-scoped, which the badge states up front. */
-export const RoleTypeBadge: React.FC<{ isSystem: boolean }> = ({ isSystem }) =>
-  isSystem ? (
+export const RoleTypeBadge: React.FC<{ isSystem: boolean }> = ({ isSystem }) => {
+  const { t } = useAdminT();
+  return isSystem ? (
     <span
-      title="دور نظامي مدمج في النظام"
+      title={t('roles.systemTitle')}
       className={`${CHIP} bg-slate-500/10 text-slate-500 border-slate-500/25`}
     >
       <ShieldCheck className="w-2.5 h-2.5" />
-      نظامي
+      {t('roles.typeSystem')}
     </span>
   ) : (
-    <span title="دور أنشأه فريق الإدارة" className={`${CHIP} bg-accent/10 text-accent border-accent/20`}>
+    <span title={t('roles.customTitle')} className={`${CHIP} bg-accent/10 text-accent border-accent/20`}>
       <Sparkles className="w-2.5 h-2.5" />
-      مخصص
+      {t('roles.typeCustom')}
     </span>
   );
+};
 
 export const RoleUserCount: React.FC<{ role: Role }> = ({ role }) => {
+  const { t, isEn } = useAdminT();
   const count = roleUserCount(role);
+  const userUnit = isEn && count > 1 ? t('roles.userCountPlural') : t('roles.userCountLabel');
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-text/60">
       <Users className="w-3 h-3" />
       <span className="tabular-nums text-heading">{count}</span>
-      <span>مستخدم</span>
+      <span>{userUnit}</span>
     </span>
   );
 };
@@ -53,8 +58,9 @@ interface RolePermissionChipsProps {
 }
 
 export const RolePermissionChips: React.FC<RolePermissionChipsProps> = ({ role, labels, compact = false }) => {
+  const { t } = useAdminT();
   if (role.permissions.length === 0) {
-    return <span className="text-[10px] text-neutral-text/50">لا توجد صلاحيات — دور عرض فقط</span>;
+    return <span className="text-[10px] text-neutral-text/50">{t('roles.noPermissionsRole')}</span>;
   }
   return (
     <>

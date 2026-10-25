@@ -184,6 +184,19 @@ export const users = defineStrings(
     roleProjectManager: 'مدير التطوير والمشاريع',
     roleSalesAgent: 'مسؤول تأجير ومبيعات',
     roleViewer: 'محلل استثماري ومتابع',
+
+    // Validation & Edit Dialog
+    valNameRequired: 'الاسم الكامل مطلوب',
+    valEmailInvalid: 'أدخل بريداً إلكترونياً صحيحاً',
+    confirmUnsaved: 'لديك تغييرات غير محفوظة. هل تريد إغلاق النافذة دون حفظ؟',
+    lockedFooterNotice: 'لن تتغير الصلاحيات أو الدور أو الحالة على هذا الحساب.',
+    unlockedFooterNotice: 'تُحفظ التغييرات فوراً ويسجّل النظام من قام بها.',
+    changePasswordCheckbox: 'تغيير كلمة المرور',
+    newPasswordHint: 'كلمة مرور جديدة بـ 14 حرفاً على الأقل، مع حرف ورقم.',
+    passwordPolicyTitle: 'سياسة كلمة المرور',
+    passwordPolicyMet: 'كلمة المرور تفي بالسياسة',
+    pendingActivationNote: 'يُفعَّل الحساب تلقائياً بعد أن يؤكد المستخدم بريده الإلكتروني من الرابط المُرسل إليه.',
+    toastUpdated: 'تم تحديث حساب {name}',
   },
   {
     // Overview & Directory
@@ -366,6 +379,20 @@ export const users = defineStrings(
     roleProjectManager: 'Project & Development Manager',
     roleSalesAgent: 'Sales & Leasing Agent',
     roleViewer: 'Investment Analyst / Viewer',
+
+    // Validation & Edit Dialog
+    valNameRequired: 'Full name is required',
+    valEmailInvalid: 'Enter a valid email address',
+    confirmUnsaved: 'You have unsaved changes. Do you want to close without saving?',
+    lockedFooterNotice: 'Permissions, role, and status will not change for this account.',
+    unlockedFooterNotice: 'Changes take effect immediately and are audited.',
+    changePasswordCheckbox: 'Change password',
+    newPasswordHint: 'New password with at least 14 characters, including a letter and a digit.',
+    passwordPolicyTitle: 'Password Policy',
+    passwordPolicyMet: 'Password meets policy',
+    pendingActivationNote: 'Account is automatically activated once the user confirms their email from the sent link.',
+    toastUpdated: 'Account {name} updated successfully',
   }
 );
+
 

@@ -39,6 +39,8 @@ import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
 import { AdminProfilePage } from '../../components/admin/profile/AdminProfilePage';
 import { AdminFeedbackPet } from '../../components/admin/feedback/AdminFeedbackPet';
+import { PasskeySuggestionModal } from '../../components/admin/auth/PasskeySuggestionModal';
+import { browserSupportsWebAuthn } from '@simplewebauthn/browser';
 
 interface AdminDashboardPageProps {
   /** Path after `/admin/`, e.g. "projects" or "projects/206/units". */
@@ -93,11 +95,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   /* ------------------------------ Identity ------------------------------ */
 
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+  const [showPasskeySuggestion, setShowPasskeySuggestion] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     AdminStorage.getCurrentUser()
       .then((user) => {
-        if (!cancelled) setCurrentUser(user);
+        if (!cancelled) {
+          setCurrentUser(user);
+          const hasPasskeys = (user.passkeyCount ?? 0) > 0;
+          const supports = typeof window !== 'undefined' && browserSupportsWebAuthn();
+          const dismissed =
+            typeof window !== 'undefined' &&
+            localStorage.getItem(`ajda_passkey_prompt_dismissed_${user.id}`);
+          const remindLater =
+            typeof window !== 'undefined' &&
+            sessionStorage.getItem(`ajda_passkey_prompt_remind_later_${user.id}`);
+          if (!hasPasskeys && supports && !dismissed && !remindLater) {
+            setShowPasskeySuggestion(true);
+          }
+        }
       })
       .catch(() => {
         // api.ts clears the token and App redirects to the login portal on 401.
@@ -380,6 +397,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         </div>
 
         {pendingConfirm && <ConfirmDialog options={pendingConfirm.options} onResolve={resolveConfirm} />}
+
+        {currentUser && (
+          <PasskeySuggestionModal
+            user={currentUser}
+            isOpen={showPasskeySuggestion}
+            onClose={() => setShowPasskeySuggestion(false)}
+            onSuccess={() => {
+              void refreshUser();
+              showToast(t('auth.passkeyCreatedSuccess'), 'success');
+              setShowPasskeySuggestion(false);
+            }}
+          />
+        )}
       </HeaderActionsSlotContext.Provider>
     </AdminContext.Provider>
   );

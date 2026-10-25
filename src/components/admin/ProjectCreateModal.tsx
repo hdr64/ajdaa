@@ -16,14 +16,6 @@ interface ProjectCreateModalProps {
   onShowToast: (message: string) => void;
 }
 
-const TYPE_AR: Record<PropertyType, string> = {
-  commercial: 'مجمع ومراكز تجارية',
-  residential: 'مجمع سكني فاخر',
-  office: 'مبنى إداري للأعمال',
-  logistics: 'مستودعات ومخازن لوجستية',
-  hotel: 'فنادق وأجنحة فندقية',
-};
-
 const MAX_FLOORS = 10;
 const MAX_UNITS_PER_FLOOR = 12;
 
@@ -44,20 +36,20 @@ const EMPTY_FORM = {
 const clamp = (value: number, min: number, max: number) =>
   Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : min;
 
-function floorNameAr(index: number): string {
-  if (index === 0) return 'الدور الأرضي';
-  if (index === 1) return 'الدور الأول';
-  if (index === 2) return 'الدور الثاني';
-  return `الدور ${index + 1}`;
+function floorNames(index: number): { ar: string; en: string } {
+  if (index === 0) return { ar: 'الدور الأرضي', en: 'Ground Floor' };
+  if (index === 1) return { ar: 'الدور الأول', en: 'First Floor' };
+  if (index === 2) return { ar: 'الدور الثاني', en: 'Second Floor' };
+  return { ar: `الدور ${index + 1}`, en: `Floor ${index + 1}` };
 }
 
 /** Builds the starting floors and units for a new project. */
-function generateFloors(form: typeof EMPTY_FORM) {
+function generateFloors(form: typeof EMPTY_FORM, isEn: boolean) {
   const floorsCount = clamp(form.floorsCount, 1, MAX_FLOORS);
   const unitsPerFloor = clamp(form.unitsPerFloor, 0, MAX_UNITS_PER_FLOOR);
 
   return Array.from({ length: floorsCount }).map((_, fIdx) => {
-    const name = floorNameAr(fIdx);
+    const names = floorNames(fIdx);
     const units: PropertyUnit[] = Array.from({ length: unitsPerFloor }).map((__, uIdx) => {
       const unitType: PropertyUnit['type'] =
         form.type === 'residential'
@@ -81,14 +73,27 @@ function generateFloors(form: typeof EMPTY_FORM) {
           ? 'مستودع تخزين'
           : 'مكتب إداري';
 
+      const unitTypeEn =
+        unitType === 'apartment'
+          ? 'Luxury Apartment'
+          : unitType === 'showroom'
+          ? form.type === 'hotel'
+            ? 'Hotel Suite'
+            : 'Commercial Showroom'
+          : unitType === 'warehouse'
+          ? 'Storage Warehouse'
+          : 'Executive Office';
+
       return {
         // Unit ids are globally unique on the server; titles are not.
         id: `u-${crypto.randomUUID()}`,
-        unitNumber: `وحدة ${(fIdx + 1) * 100 + (uIdx + 1)}`,
+        unitNumber: isEn ? `Unit ${(fIdx + 1) * 100 + (uIdx + 1)}` : `وحدة ${(fIdx + 1) * 100 + (uIdx + 1)}`,
         floorNumber: fIdx,
-        floorNameAr: name,
+        floorNameAr: names.ar,
+        floorNameEn: names.en,
         type: unitType,
         typeAr: unitTypeAr,
+        typeEn: unitTypeEn,
         area: Math.round(form.area / (floorsCount * Math.max(1, unitsPerFloor))),
         status: 'available' as UnitStatus,
         statusAr: 'متاح',
@@ -98,8 +103,8 @@ function generateFloors(form: typeof EMPTY_FORM) {
 
     return {
       floorNumber: fIdx,
-      floorNameAr: name,
-      floorNameEn: `Floor ${fIdx}`,
+      floorNameAr: names.ar,
+      floorNameEn: names.en,
       totalArea: Math.round(form.area / floorsCount),
       units,
     };
@@ -108,15 +113,18 @@ function generateFloors(form: typeof EMPTY_FORM) {
 
 export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose, onCreated, onShowToast }) => {
   const { confirm } = useAdmin();
-  const { t } = useAdminT();
-  const [form, setForm] = useState(EMPTY_FORM);
+  const { t, isEn } = useAdminT();
+  const [form, setForm] = useState({
+    ...EMPTY_FORM,
+    city: isEn ? 'Riyadh' : 'الرياض',
+  });
   const [creating, setCreating] = useState(false);
   const [uploadingField, setUploadingField] = useState<'image' | 'brochure' | null>(null);
   const [model3dError, setModel3dError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<'image' | 'brochure'>('image');
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
+  const isDirty = JSON.stringify(form) !== JSON.stringify({ ...EMPTY_FORM, city: isEn ? 'Riyadh' : 'الرياض' });
   const busy = creating || uploadingField !== null;
 
   const requestClose = async () => {
@@ -138,95 +146,109 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
   requestCloseRef.current = requestClose;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') void requestCloseRef.current();
+      if (event.key === 'Escape') requestCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const handleFileSelected = async (file: File | undefined) => {
+  const openFilePicker = (target: 'image' | 'brochure') => {
+    uploadTargetRef.current = target;
+    if (fileInputRef.current) {
+      fileInputRef.current.accept =
+        target === 'image'
+          ? 'image/jpeg,image/png,image/webp,image/avif,image/gif'
+          : 'application/pdf';
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileSelected = async (file?: File) => {
     if (!file) return;
     const target = uploadTargetRef.current;
+
     if (!isAcceptedMedia(file)) {
-      onShowToast('صيغة الملف غير مدعومة (JPG, PNG, WebP, PDF)');
+      onShowToast(t('projects.modal.toastFormatUnsupported'));
       return;
     }
     if (target === 'image' && file.type === 'application/pdf') {
-      onShowToast('صورة المشروع يجب أن تكون صورة وليست ملف PDF');
+      onShowToast(t('projects.modal.toastImageNotPdf'));
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      onShowToast('حجم الملف يتجاوز 50 ميجابايت');
+      onShowToast(t('projects.modal.toastFileSizeExceeded'));
       return;
     }
 
     setUploadingField(target);
     try {
-      const uploaded = await uploadMedia(file);
-      setForm((current) =>
-        target === 'image' ? { ...current, imageUrl: uploaded.url } : { ...current, brochureUrl: uploaded.url }
-      );
-      onShowToast('تم رفع الملف بنجاح');
+      const folder = target === 'image' ? 'projects' : 'brochures';
+      const uploaded = await uploadMedia(file, folder);
+      setForm((current) => ({
+        ...current,
+        [target === 'image' ? 'imageUrl' : 'brochureUrl']: uploaded.url,
+      }));
+      onShowToast(t('projects.modal.toastUploadSuccess'));
     } catch (error) {
-      onShowToast(getErrorMessage(error, 'تعذر رفع الملف'));
+      onShowToast(getErrorMessage(error, t('projects.modal.toastUploadFailed')));
     } finally {
       setUploadingField(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  };
-
-  const openFilePicker = (target: 'image' | 'brochure') => {
-    uploadTargetRef.current = target;
-    fileInputRef.current?.click();
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.title.trim()) return;
+    if (busy) return;
+
+    const trimmedTitle = form.title.trim();
+    if (!trimmedTitle) return;
+
     if (!form.imageUrl) {
-      onShowToast('يرجى رفع صورة للمشروع');
+      onShowToast(t('projects.modal.toastImageRequired'));
       return;
     }
-    const model3dUrl = form.model3dUrl.trim();
-    if (model3dUrl && !isHttpsUrl(model3dUrl)) {
-      setModel3dError('أدخل رابطاً يبدأ بـ https:// بدون مسافات (حتى 500 حرف)');
+
+    const trimmed3d = form.model3dUrl.trim();
+    if (trimmed3d && !isHttpsUrl(trimmed3d)) {
+      setModel3dError(t('projects.modal.model3dError'));
       return;
     }
 
     setCreating(true);
-    const floors = generateFloors(form);
-    const draft: Property = {
-      // The server assigns the id; 0 keeps the draft shape valid until then.
-      id: 0,
-      title: form.title.trim(),
-      type: form.type,
-      typeAr: TYPE_AR[form.type],
-      priceType: form.priceType,
-      city: form.city.trim() || 'الرياض',
-      area: Math.max(0, form.area),
-      status: 'متاح',
-      image: form.imageUrl,
-      gallery: [form.imageUrl],
-      brochureUrl: form.brochureUrl || undefined,
-      description: form.description.trim() || undefined,
-      model3dUrl: model3dUrl || undefined,
-      floors,
-    };
-
     try {
-      const created = await AdminStorage.createProject(draft, floors);
-      onShowToast('تم إنشاء المشروع الجديد بنجاح!');
+      const floors = generateFloors(form, isEn);
+      const payload: Partial<Property> = {
+        titleAr: trimmedTitle,
+        titleEn: trimmedTitle,
+        type: form.type,
+        city: form.city.trim() || (isEn ? 'Riyadh' : 'الرياض'),
+        area: form.area,
+        status: 'متاح',
+        priceType: form.priceType,
+        descriptionAr: form.description.trim(),
+        descriptionEn: form.description.trim(),
+        imageUrl: form.imageUrl,
+        brochureUrl: form.brochureUrl.trim() || undefined,
+        model3dUrl: trimmed3d || undefined,
+        publishStatus: 'draft',
+        floors,
+      };
+
+      const created = await AdminStorage.createProject(payload);
+      onShowToast(t('projects.modal.toastCreatedSuccess'));
       await onCreated(created);
+      onClose();
     } catch (error) {
-      onShowToast(getErrorMessage(error, 'تعذر إنشاء المشروع'));
+      onShowToast(getErrorMessage(error, t('projects.modal.toastCreateFailed')));
     } finally {
       setCreating(false);
     }
   };
 
   const inputClass =
-    'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
-  const labelClass = 'block text-[11px] font-bold text-neutral-text/70 mb-1';
+    'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent transition font-medium';
+  const labelClass = 'block text-[11px] font-bold text-neutral-text/70 mb-1.5';
 
   return (
     <div
@@ -244,17 +266,17 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h3 id="create-project-title" className="text-base font-black text-heading">
-              إضافة مشروع عقاري جديد
+              {t('projects.modal.addProjectTitle')}
             </h3>
             <p className="text-[11px] text-neutral-text/60 mt-1">
-              يُنشأ المشروع كمسودة غير ظاهرة في الموقع. أكمل التفاصيل (الموقع، الفيديو، النصوص الإنجليزية) ثم انشره من صفحة المشروع.
+              {t('projects.modal.addProjectSubtitle')}
             </p>
           </div>
           <button
             type="button"
             onClick={requestClose}
             className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading hover:bg-surface-hover cursor-pointer shrink-0"
-            aria-label="إغلاق"
+            aria-label={t('users.close')}
           >
             <CloseIcon className="w-4 h-4" />
           </button>
@@ -262,50 +284,50 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className={labelClass}>اسم المشروع *</label>
+            <label className={labelClass}>{t('projects.modal.projectName')}</label>
             <input
               type="text"
               required
               autoFocus
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="مثال: مجمع أبراج السحاب السكني"
+              placeholder={t('projects.modal.projectNamePlaceholder')}
               className={inputClass}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>نوع المشروع</label>
+              <label className={labelClass}>{t('projects.modal.projectType')}</label>
               <select
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value as PropertyType })}
                 className={`${inputClass} cursor-pointer`}
               >
-                <option value="commercial">مجمع تجاري (محلات ومعارض)</option>
-                <option value="residential">مجمع سكني (أدوار وشقق)</option>
-                <option value="office">مبنى ومكاتب إدارية</option>
-                <option value="logistics">مستودعات لوجستية</option>
-                <option value="hotel">فنادق وأجنحة</option>
+                <option value="commercial">{t('common.projectType.commercial')}</option>
+                <option value="residential">{t('common.projectType.residential')}</option>
+                <option value="office">{t('common.projectType.office')}</option>
+                <option value="logistics">{t('common.projectType.logistics')}</option>
+                <option value="hotel">{t('common.projectType.hotel')}</option>
               </select>
             </div>
             <div>
-              <label className={labelClass}>طبيعة العقد</label>
+              <label className={labelClass}>{t('projects.modal.contractType')}</label>
               <select
                 value={form.priceType}
                 onChange={(e) => setForm({ ...form, priceType: e.target.value as PriceType })}
                 className={`${inputClass} cursor-pointer`}
               >
-                <option value="إيجار">للإيجار</option>
-                <option value="بيع">للبيع والتملك</option>
-                <option value="استثمار">فرصة استثمارية</option>
+                <option value="إيجار">{t('projects.modal.contractRent')}</option>
+                <option value="بيع">{t('projects.modal.contractSale')}</option>
+                <option value="استثمار">{t('projects.modal.contractInvest')}</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>المدينة</label>
+              <label className={labelClass}>{t('projects.modal.city')}</label>
               <input
                 type="text"
                 value={form.city}
@@ -314,7 +336,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
               />
             </div>
             <div>
-              <label className={labelClass}>المساحة (م²)</label>
+              <label className={labelClass}>{t('projects.modal.area')}</label>
               <input
                 type="number"
                 min={0}
@@ -327,7 +349,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>عدد الأدوار (1–{MAX_FLOORS})</label>
+              <label className={labelClass}>{t('projects.modal.floorsCount', { max: MAX_FLOORS })}</label>
               <input
                 type="number"
                 min={1}
@@ -339,7 +361,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
               />
             </div>
             <div>
-              <label className={labelClass}>وحدات بكل دور (0–{MAX_UNITS_PER_FLOOR})</label>
+              <label className={labelClass}>{t('projects.modal.unitsPerFloor', { max: MAX_UNITS_PER_FLOOR })}</label>
               <input
                 type="number"
                 min={0}
@@ -355,27 +377,27 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
           </div>
 
           <div>
-            <label className={labelClass}>وصف المشروع</label>
+            <label className={labelClass}>{t('projects.modal.description')}</label>
             <textarea
               rows={2}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="وصف مختصر لمميزات المشروع والموقع..."
+              placeholder={t('projects.modal.descriptionPlaceholder')}
               className={`${inputClass} resize-none`}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>صورة المشروع *</label>
+              <label className={labelClass}>{t('projects.modal.projectImage')}</label>
               {form.imageUrl ? (
                 <div className="relative rounded-xl overflow-hidden border border-muted-border/50">
-                  <img src={form.imageUrl} alt="صورة المشروع" className="w-full h-28 object-cover" />
+                  <img src={form.imageUrl} alt={t('projects.modal.imageAria')} className="w-full h-28 object-cover" />
                   <button
                     type="button"
                     onClick={() => setForm((current) => ({ ...current, imageUrl: '' }))}
                     className="absolute top-1.5 start-1.5 p-1 rounded-lg bg-black/60 text-white hover:bg-black/80 transition cursor-pointer"
-                    title="إزالة الصورة"
+                    title={t('projects.modal.removeImage')}
                   >
                     <CloseIcon className="w-3 h-3" />
                   </button>
@@ -394,14 +416,14 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
                 >
                   {uploadingField === 'image' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ImageUp className="w-5 h-5" />}
                   <span className="text-[10px] font-bold">
-                    {uploadingField === 'image' ? 'جارٍ الرفع...' : 'اسحب صورة أو انقر للرفع'}
+                    {uploadingField === 'image' ? t('projects.modal.uploading') : t('projects.modal.uploadImageText')}
                   </span>
                 </button>
               )}
             </div>
 
             <div>
-              <label className={labelClass}>ملف الكتيّب (PDF)</label>
+              <label className={labelClass}>{t('projects.modal.brochure')}</label>
               {form.brochureUrl ? (
                 <div className="h-28 rounded-xl border border-muted-border/50 bg-canvas flex items-center gap-2 p-3">
                   <FileText className="w-5 h-5 text-accent shrink-0" />
@@ -411,13 +433,13 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
                     rel="noreferrer"
                     className="text-[10px] font-bold text-heading hover:text-accent truncate min-w-0"
                   >
-                    عرض الكتيّب
+                    {t('projects.modal.viewBrochure')}
                   </a>
                   <button
                     type="button"
                     onClick={() => setForm((current) => ({ ...current, brochureUrl: '' }))}
                     className="ms-auto p-1 rounded-lg text-neutral-text/60 hover:text-red-500 transition cursor-pointer shrink-0"
-                    title="إزالة الملف"
+                    title={t('projects.modal.removeFile')}
                   >
                     <CloseIcon className="w-3.5 h-3.5" />
                   </button>
@@ -436,7 +458,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
                 >
                   {uploadingField === 'brochure' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
                   <span className="text-[10px] font-bold">
-                    {uploadingField === 'brochure' ? 'جارٍ الرفع...' : 'اسحب ملف PDF أو انقر للرفع'}
+                    {uploadingField === 'brochure' ? t('projects.modal.uploading') : t('projects.modal.uploadBrochureText')}
                   </span>
                 </button>
               )}
@@ -444,7 +466,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
           </div>
 
           <div>
-            <label className={labelClass}>رابط المجسم ثلاثي الأبعاد</label>
+            <label className={labelClass}>{t('projects.modal.model3d')}</label>
             <input
               type="url"
               dir="ltr"
@@ -459,7 +481,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
             />
             {model3dError && <p className="mt-1 text-[10px] font-bold text-red-500">{model3dError}</p>}
             <p className="mt-1 text-[10px] text-neutral-text/50">
-              اختياري، ويجب أن يبدأ بـ https://. بقية التفاصيل (الموقع، الفيديو، النصوص الإنجليزية) تُستكمل من صفحة المشروع.
+              {t('projects.modal.model3dHint')}
             </p>
           </div>
 
@@ -478,7 +500,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
               disabled={busy}
               className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
             >
-              إلغاء
+              {t('projects.modal.cancel')}
             </button>
             <button
               type="submit"
@@ -486,7 +508,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
               className="brand-btn-primary px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {creating && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-              {creating ? 'جارٍ الإنشاء...' : 'تأكيد وإنشاء المشروع'}
+              {creating ? t('projects.modal.creatingBtn') : t('projects.modal.createBtn')}
             </button>
           </div>
         </form>

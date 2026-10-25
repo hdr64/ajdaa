@@ -11,18 +11,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, LoaderCircle, Lock, RefreshCw, X } from 'lucide-react';
 import type { PermissionDef, Role } from '../../../types/admin';
 import { AdminStorage, type RoleInput } from '../../../services/adminStorage';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import {
-  MANAGE_USERS_HINT,
   MANAGE_USERS_KEY,
-  VERIFY_USERS_HINT,
   VERIFY_USERS_KEY,
-  ROLE_KEY_HINT,
-  ROLE_SAVE_ERROR,
+  getRoleKeyHint,
+  getManageUsersHint,
+  getVerifyUsersHint,
   getRoleRights,
   hrErrorMessage,
   normalizeRoleKey,
   roleUserCount,
   validateRoleKey,
+  ROLE_SAVE_ERROR,
   type PermissionKey,
 } from './rolesModel';
 import { groupPermissions, type PermissionGroup } from '../users/usersModel';
@@ -56,6 +57,8 @@ export const RoleFormDialog: React.FC<RoleFormDialogProps> = ({
   onClose,
   onSaved,
 }) => {
+  const { t, isEn } = useAdminT();
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -64,7 +67,9 @@ export const RoleFormDialog: React.FC<RoleFormDialogProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const title = role ? `تعديل الدور: ${role.nameAr}` : 'إنشاء دور جديد';
+  const title = role
+    ? t('roles.dialogEditTitle', { name: isEn && role.nameEn ? role.nameEn : role.nameAr })
+    : t('roles.dialogCreateTitle');
 
   return (
     <div
@@ -83,13 +88,13 @@ export const RoleFormDialog: React.FC<RoleFormDialogProps> = ({
           <div className="min-w-0">
             <h3 className="text-sm font-black text-heading truncate">{title}</h3>
             <p className="text-[10px] text-neutral-text/60 mt-0.5">
-              {role ? 'الاسم والوصف والصلاحيات' : 'مفتاح فريد لا يُغيَّر بعد الإنشاء'}
+              {role ? t('roles.dialogEditSubtitle') : t('roles.dialogCreateSubtitle')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="إغلاق"
+            aria-label={t('users.close')}
             className="w-7 h-7 rounded-full border border-muted-border/40 flex items-center justify-center text-heading hover:text-accent cursor-pointer shrink-0"
           >
             <X className="w-3.5 h-3.5" />
@@ -99,12 +104,12 @@ export const RoleFormDialog: React.FC<RoleFormDialogProps> = ({
         {permissionsLoading ? (
           <div className="px-6 py-14 flex flex-col items-center gap-3 text-neutral-text/60">
             <LoaderCircle className="w-6 h-6 animate-spin text-accent" />
-            <p className="text-xs font-bold">جاري تحميل قائمة الصلاحيات...</p>
+            <p className="text-xs font-bold">{t('roles.loadingPermissionsList')}</p>
           </div>
         ) : permissionsError ? (
           <div className="px-6 py-12 flex flex-col items-center gap-3 text-center">
             <AlertCircle className="w-7 h-7 text-red-400" />
-            <p className="text-xs font-bold text-heading">تعذر تحميل قائمة الصلاحيات</p>
+            <p className="text-xs font-bold text-heading">{t('roles.errorLoadingPermissionsList')}</p>
             <p className="text-[11px] text-neutral-text/60 max-w-sm">{permissionsError}</p>
             <button
               type="button"
@@ -112,7 +117,7 @@ export const RoleFormDialog: React.FC<RoleFormDialogProps> = ({
               className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              إعادة المحاولة
+              {t('roles.retryLoading')}
             </button>
           </div>
         ) : (
@@ -188,6 +193,7 @@ function orderByCatalogue(selected: PermissionKey[], catalogue: PermissionDef[])
 }
 
 const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, showToast, onClose, onSaved }) => {
+  const { t, isEn } = useAdminT();
   const isCreate = role === null;
   const rights = useMemo(() => (role ? getRoleRights(role, isSuperAdmin) : null), [role, isSuperAdmin]);
   const groups = useMemo(() => groupPermissions(permissions), [permissions]);
@@ -217,9 +223,9 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
     permissionsLocked
       ? lockReason
       : key === MANAGE_USERS_KEY && !isSuperAdmin
-        ? MANAGE_USERS_HINT
+        ? getManageUsersHint()
         : key === VERIFY_USERS_KEY && !isSuperAdmin
-          ? VERIFY_USERS_HINT
+          ? getVerifyUsersHint()
           : null;
 
   const togglePermission = (key: PermissionKey, checked: boolean) => {
@@ -253,8 +259,8 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
       const keyError = validateRoleKey(form.key);
       if (keyError) found.key = keyError;
     }
-    if (form.nameAr.trim() === '') found.nameAr = 'الاسم بالعربية مطلوب';
-    if (form.nameEn.trim() === '') found.nameEn = 'الاسم بالإنجليزية مطلوب';
+    if (form.nameAr.trim() === '') found.nameAr = t('roles.nameArRequired');
+    if (form.nameEn.trim() === '') found.nameEn = t('roles.nameEnRequired');
     return found;
   };
 
@@ -279,7 +285,7 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
         // A system role keeps its permissions, so they are not sent at all.
         if (rights?.permissionsEditable) changes.permissions = selected;
         await AdminStorage.updateRole(role.id, changes);
-        showToast(`تم تحديث الدور ${form.nameAr.trim()}`);
+        showToast(t('roles.toastUpdated', { name: isEn && form.nameEn.trim() ? form.nameEn.trim() : form.nameAr.trim() }));
       } else {
         const input: RoleInput = {
           key: normalizeRoleKey(form.key),
@@ -289,12 +295,12 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
           permissions: selected,
         };
         await AdminStorage.createRole(input);
-        showToast(`تم إنشاء الدور ${input.nameAr}`);
+        showToast(t('roles.toastCreated', { name: isEn && input.nameEn ? input.nameEn : input.nameAr }));
       }
       await onSaved();
       onClose();
     } catch (error) {
-      showToast(hrErrorMessage(error, 'تعذر حفظ بيانات الدور', ROLE_SAVE_ERROR));
+      showToast(hrErrorMessage(error, t('roles.toastSaveError'), ROLE_SAVE_ERROR));
     } finally {
       setSaving(false);
     }
@@ -305,19 +311,19 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
         {role ? (
           <div className="p-3 rounded-xl bg-canvas/60 border border-muted-border/30 flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-bold text-neutral-text/60">مفتاح الدور (ثابت):</span>
+            <span className="text-[11px] font-bold text-neutral-text/60">{t('roles.keyFixedLabel')}</span>
             <span dir="ltr" className="font-mono text-[11px] text-heading">
               {role.key}
             </span>
-            <span className="text-[10px] text-neutral-text/50">لا يمكن تعديل المفتاح بعد الإنشاء.</span>
+            <span className="text-[10px] text-neutral-text/50">{t('roles.keyFixedNote')}</span>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <RoleField
-              label="مفتاح الدور"
+              label={t('roles.keyFieldLabel')}
               required
               error={errors.key}
-              hint={errors.key ? undefined : `${ROLE_KEY_HINT} — لا يمكن تغييره بعد الإنشاء`}
+              hint={errors.key ? undefined : `${getRoleKeyHint()} — ${t('roles.keyFieldHint')}`}
             >
               <input
                 type="text"
@@ -334,36 +340,36 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <RoleField label="الاسم بالعربية" required error={errors.nameAr}>
+          <RoleField label={t('roles.fieldNameAr')} required error={errors.nameAr}>
             <input
               type="text"
               autoFocus={!isCreate}
               value={form.nameAr}
               aria-invalid={Boolean(errors.nameAr)}
               onChange={(event) => setForm({ ...form, nameAr: event.target.value })}
-              placeholder="مثال: مسؤول تأجير"
+              placeholder={t('roles.fieldNameArPlaceholder')}
               className={inputTone(Boolean(errors.nameAr))}
             />
           </RoleField>
-          <RoleField label="الاسم بالإنجليزية" required error={errors.nameEn}>
+          <RoleField label={t('roles.fieldNameEn')} required error={errors.nameEn}>
             <input
               type="text"
               dir="ltr"
               value={form.nameEn}
               aria-invalid={Boolean(errors.nameEn)}
               onChange={(event) => setForm({ ...form, nameEn: event.target.value })}
-              placeholder="Sales Agent"
+              placeholder={t('roles.fieldNameEnPlaceholder')}
               className={`${inputTone(Boolean(errors.nameEn))} text-start`}
             />
           </RoleField>
         </div>
 
-        <RoleField label="الوصف" hint="يوضّح متى يُمنح هذا الدور، ويظهر لأعضاء الفريق.">
+        <RoleField label={t('roles.fieldDescription')} hint={t('roles.fieldDescriptionHint')}>
           <textarea
             rows={2}
             value={form.description}
             onChange={(event) => setForm({ ...form, description: event.target.value })}
-            placeholder="مثال: يتابع محفظة المشاريع وطلبات العملاء دون تعديل البيانات."
+            placeholder={t('roles.fieldDescriptionPlaceholder')}
             className={`${inputTone(false)} resize-none`}
           />
         </RoleField>
@@ -371,9 +377,9 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
         <div className="pt-1 border-t border-muted-border/30 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <h4 className="text-xs font-black text-heading">صلاحيات الدور</h4>
+              <h4 className="text-xs font-black text-heading">{t('roles.permissionsSectionTitle')}</h4>
               <p className="text-[10px] text-neutral-text/60 mt-0.5">
-                ({form.selected.length} من {permissions.length} صلاحية محددة)
+                {t('roles.rolePermissionsCount', { count: form.selected.length, total: permissions.length })}
               </p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -388,19 +394,19 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
                   }))
                 }
                 disabled={permissionsLocked}
-                title={lockReason ?? (isSuperAdmin ? 'تحديد كل الصلاحيات' : 'تحديد كل الصلاحيات المتاحة لك')}
+                title={lockReason ?? t('roles.selectAll')}
                 className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold cursor-pointer disabled:opacity-50"
               >
-                تحديد الكل
+                {t('roles.selectAll')}
               </button>
               <button
                 type="button"
                 onClick={() => setForm((current) => ({ ...current, selected: [] }))}
                 disabled={permissionsLocked}
-                title={lockReason ?? 'إلغاء تحديد الكل'}
+                title={lockReason ?? t('roles.deselectAll')}
                 className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold cursor-pointer disabled:opacity-50"
               >
-                إلغاء التحديد
+                {t('roles.deselectAll')}
               </button>
             </div>
           </div>
@@ -429,7 +435,7 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
 
         {!isCreate && rights?.permissionsEditable && userCount > 0 && (
           <label
-            title="عند الإيقاف تبقى صلاحيات المستخدمين الحاليين كما هي حتى تُحدّثها من قسم المستخدمين."
+            title={t('roles.applyToAllUsersHint')}
             className="flex items-start gap-2 p-3 rounded-xl bg-canvas/60 border border-muted-border/30 cursor-pointer"
           >
             <input
@@ -440,10 +446,10 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
             />
             <span className="min-w-0">
               <span className="block text-[11px] font-bold text-heading">
-                تطبيق الصلاحيات على كل المستخدمين بهذا الدور ({userCount})
+                {t('roles.applyToAllUsersTitle', { count: userCount })}
               </span>
               <span className="block text-[10px] text-neutral-text/60 leading-relaxed">
-                عند الإيقاف تبقى صلاحيات المستخدمين الحاليين كما هي حتى تُحدّثها من قسم المستخدمين.
+                {t('roles.applyToAllUsersHint')}
               </span>
             </span>
           </label>
@@ -453,10 +459,10 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
       <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-muted-border/30">
         <p className="text-[10px] text-neutral-text/55 hidden sm:block">
           {isCreate
-            ? 'يُنشأ الدور بلا أعضاء؛ أسنده إلى المستخدمين من قسم المستخدمين.'
+            ? t('roles.createFooterNotice')
             : role?.isSystem
-              ? 'يُحدَّث الاسم والوصف فقط؛ صلاحيات الدور النظامي ثابتة.'
-              : 'تُحفظ التغييرات فوراً ويسجّل النظام من قام بها.'}
+              ? t('roles.systemFooterNotice')
+              : t('roles.customFooterNotice')}
         </p>
         <div className="flex items-center gap-2 ms-auto">
           <button
@@ -464,7 +470,7 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
             onClick={onClose}
             className="brand-btn-secondary px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
           >
-            إلغاء
+            {t('roles.cancelBtn')}
           </button>
           <button
             type="submit"
@@ -472,7 +478,7 @@ const RoleForm: React.FC<RoleFormProps> = ({ role, permissions, isSuperAdmin, sh
             className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
-            {isCreate ? 'إنشاء الدور' : 'حفظ التعديلات'}
+            {isCreate ? t('roles.createRole') : t('roles.saveChanges')}
           </button>
         </div>
       </div>
@@ -501,6 +507,7 @@ const PermissionGroupFieldset: React.FC<PermissionGroupFieldsetProps> = ({
   onToggle,
   onToggleGroup,
 }) => {
+  const { t, isEn } = useAdminT();
   const groupCheckboxRef = useRef<HTMLInputElement>(null);
   const editableKeys = group.items.map((item) => item.key).filter((key) => !isLocked(key));
   const selectedCount = editableKeys.filter((key) => selected.includes(key)).length;
@@ -517,7 +524,7 @@ const PermissionGroupFieldset: React.FC<PermissionGroupFieldsetProps> = ({
         <span>{group.label}</span>
         {editableKeys.length > 0 && (
           <label
-            title={allSelected ? 'إلغاء تحديد مجموعة الصلاحيات' : 'تحديد مجموعة الصلاحيات'}
+            title={allSelected ? t('roles.deselectGroupAria') : t('roles.selectGroupAria')}
             className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-text/60 hover:text-accent cursor-pointer"
           >
             <input
@@ -527,7 +534,7 @@ const PermissionGroupFieldset: React.FC<PermissionGroupFieldsetProps> = ({
               onChange={(event) => onToggleGroup(event.target.checked)}
               className="w-3.5 h-3.5 rounded accent-accent cursor-pointer"
             />
-            تحديد الكل
+            {t('roles.selectAll')}
           </label>
         )}
       </legend>
@@ -550,7 +557,7 @@ const PermissionGroupFieldset: React.FC<PermissionGroupFieldsetProps> = ({
               />
               <span className="min-w-0">
                 <span className="block font-bold text-heading">
-                  {permission.labelAr}
+                  {isEn && permission.labelEn ? permission.labelEn : permission.labelAr}
                   {hint && <Lock className="w-2.5 h-2.5 inline-block ms-1 align-text-bottom text-amber-500" />}
                 </span>
                 <span className="block text-[10px] text-neutral-text/60 leading-relaxed">

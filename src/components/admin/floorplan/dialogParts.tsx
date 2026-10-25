@@ -1,8 +1,10 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { documentLanguage } from '../../../i18n/admin/core';
 
 /** Modal frame shared by the floor and unit forms. */
 export function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const isEn = documentLanguage() === 'en';
   return (
     <div
       className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
@@ -17,7 +19,7 @@ export function DialogShell({ title, onClose, children }: { title: string; onClo
             type="button"
             onClick={onClose}
             className="w-7 h-7 rounded-full bg-surface border border-muted-border/40 flex items-center justify-center text-heading hover:text-accent cursor-pointer"
-            aria-label="إغلاق"
+            aria-label={isEn ? 'Close' : 'إغلاق'}
           >
             <X className="w-3.5 h-3.5" />
           </button>
