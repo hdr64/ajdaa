@@ -19,10 +19,12 @@ export const InquiryDetailSection: React.FC = () => {
   const id = location.inquiryId ?? '';
   const [editingNotes, setEditingNotes] = useState(false);
 
+  const fallback = inquiries.data.find((inq) => inq.id === id) ?? null;
+
   const resource = useAsyncData<CustomerInquiry | null>(
     useCallback((signal) => AdminStorage.getInquiry(id, signal), [id]),
     [id],
-    null
+    fallback
   );
 
   // Keep the detail view in sync with the shared inquiries collection (status/notes edits).
@@ -35,32 +37,16 @@ export const InquiryDetailSection: React.FC = () => {
   if (!can('viewInquiries')) return <NoAccess />;
   if (!id) return <NoAccess />;
 
-  if (resource.loading && !resource.data) {
+  const inquiry = resource.data ?? fallback;
+
+  if (resource.loading && !inquiry) {
     return <SectionLoading label={t('inquiries.loading')} />;
   }
-  if (resource.error) {
-    if (resource.error.toLowerCase().includes('not found')) {
-      return (
-        <div className="space-y-4">
-          <button
-            type="button"
-            onClick={() => navigate({ section: 'inquiries' })}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-text/70 hover:text-heading cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
-            {t('inquiries.detail.back')}
-          </button>
-          <EmptyState
-            icon={SearchX}
-            title={t('inquiries.detail.notFound.title')}
-            description={t('inquiries.detail.notFound.description')}
-          />
-        </div>
-      );
+
+  if (!inquiry) {
+    if (resource.error && !resource.error.toLowerCase().includes('not found')) {
+      return <SectionError message={resource.error} onRetry={() => void resource.reload()} />;
     }
-    return <SectionError message={resource.error} onRetry={() => void resource.reload()} />;
-  }
-  if (!resource.data) {
     return (
       <div className="space-y-4">
         <button
@@ -79,8 +65,6 @@ export const InquiryDetailSection: React.FC = () => {
       </div>
     );
   }
-
-  const inquiry = resource.data;
 
   const handleDelete = async () => {
     const ok = await confirmDelete({

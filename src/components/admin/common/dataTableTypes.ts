@@ -173,4 +173,8 @@ export interface DataTableProps<T> {
   toolbarStart?: ReactNode;
   /** Used until the viewer picks a sort of their own; the choice is remembered after that. */
   initialSort?: SortState;
+  /** Renders an expandable details section below the row. */
+  renderExpandedRow?: (row: T) => ReactNode;
+  /** If true, clicking anywhere on the row toggles expansion. */
+  expandOnRowClick?: boolean;
 }

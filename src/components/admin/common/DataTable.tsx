@@ -43,7 +43,7 @@
  * />
  * ```
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -111,10 +111,11 @@ export function DataTable<T>({
   selectable = false,
   bulkActions,
   rowActions,
-  onRowClick,
   emptyState,
   toolbarStart,
   initialSort,
+  renderExpandedRow,
+  expandOnRowClick = false,
 }: DataTableProps<T>) {
   const { t } = useAdminT();
   const [query, setQuery] = useState('');
@@ -124,6 +125,14 @@ export function DataTable<T>({
   const [page, setPage] = useState(1);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const expandedIdSet = useMemo(() => new Set(expandedIds), [expandedIds]);
+
+  const toggleRowExpanded = useCallback((id: string) => {
+    setExpandedIds((previous) =>
+      previous.includes(id) ? previous.filter((current) => current !== id) : [...previous, id]
+    );
+  }, []);
 
   const [sort, setSort] = usePersistentState<SortState | null>(`${storageKey}.sort`, initialSort ?? null, isSortState);
   const [density, setDensity] = usePersistentState<Density>(`${storageKey}.density`, 'comfortable', isDensity);
@@ -319,7 +328,11 @@ export function DataTable<T>({
 
   const comfortable = density === 'comfortable';
   const cellPadding = comfortable ? 'px-3.5 py-3.5' : 'px-2.5 py-2';
-  const columnCount = visibleColumns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0);
+  const columnCount =
+    visibleColumns.length +
+    (selectable ? 1 : 0) +
+    (renderExpandedRow ? 1 : 0) +
+    (rowActions ? 1 : 0);
   const noRowsAtAll = rows.length === 0;
 
   return (
@@ -538,6 +551,12 @@ export function DataTable<T>({
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-canvas text-[11px] text-neutral-text/50">
+              {renderExpandedRow && (
+                <th scope="col" className="sticky start-0 top-0 z-20 bg-canvas w-8 px-2 py-2.5 text-center">
+                  <span className="sr-only">توسيع / Expand</span>
+                </th>
+              )}
+
               {selectable && (
                 <th scope="col" className="sticky start-0 top-0 z-20 bg-canvas w-10 px-3 py-2.5">
                   <input
@@ -623,72 +642,110 @@ export function DataTable<T>({
               pageRows.map((row, index) => {
                 const id = getRowId(row);
                 const selected = selectedIdSet.has(id);
+                const isExpanded = expandedIdSet.has(id);
                 // Striped on the absolute index so the banding does not restart per page.
                 const stripe = (pageStart + index) % 2 === 1 ? 'bg-canvas' : 'bg-surface';
+                const isClickable = (expandOnRowClick && !!renderExpandedRow) || !!onRowClick;
+
+                const handleRowClick = () => {
+                  if (expandOnRowClick && renderExpandedRow) {
+                    toggleRowExpanded(id);
+                  } else if (onRowClick) {
+                    onRowClick(row);
+                  }
+                };
+
                 return (
-                  <tr
-                    key={id}
-                    // `bg-inherit` on the sticky cells keeps their opaque background in
-                    // step with the stripe and the hover state of the row.
-                    className={`${stripe} hover:bg-surface-hover transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
-                    tabIndex={onRowClick ? 0 : undefined}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    onKeyDown={
-                      onRowClick
-                        ? (event) => {
-                            // Keys pressed on a control inside the row belong to that control.
-                            if (event.target !== event.currentTarget) return;
-                            if (event.key !== 'Enter' && event.key !== ' ') return;
-                            event.preventDefault();
-                            onRowClick(row);
-                          }
-                        : undefined
-                    }
-                  >
-                    {selectable && (
-                      <td className="sticky start-0 z-10 bg-inherit px-3 py-3.5">
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleRow(id)}
-                          onClick={(event) => event.stopPropagation()}
-                          aria-label={t('common.table.selectRow')}
-                          className="w-3.5 h-3.5 rounded accent-accent"
-                        />
-                      </td>
-                    )}
-
-                    {visibleColumns.map((column) => {
-                      const align = column.align ?? 'start';
-                      // Text columns get a single line plus a tooltip instead of pushing the table wide.
-                      const sortValue = column.sortValue?.(row);
-                      const title = typeof sortValue === 'string' ? sortValue : undefined;
-                      return (
+                  <Fragment key={id}>
+                    <tr
+                      className={`${stripe} hover:bg-surface-hover transition-colors ${isClickable ? 'cursor-pointer' : ''}`}
+                      tabIndex={isClickable ? 0 : undefined}
+                      onClick={isClickable ? handleRowClick : undefined}
+                      onKeyDown={
+                        isClickable
+                          ? (event) => {
+                              // Keys pressed on a control inside the row belong to that control.
+                              if (event.target !== event.currentTarget) return;
+                              if (event.key !== 'Enter' && event.key !== ' ') return;
+                              event.preventDefault();
+                              handleRowClick();
+                            }
+                          : undefined
+                      }
+                    >
+                      {renderExpandedRow && (
                         <td
-                          key={column.id}
-                          style={column.width ? { width: column.width } : undefined}
-                          className={`${cellPadding} ${ALIGN_CLASS[align]} ${align === 'start' ? '' : 'tabular-nums'}`}
+                          className="sticky start-0 z-10 bg-inherit px-2 py-3.5 text-center w-8"
+                          onClick={(event) => event.stopPropagation()}
                         >
-                          {title === undefined ? (
-                            column.cell(row)
-                          ) : (
-                            <div className={TRUNCATE_CELL} title={title}>
-                              {column.cell(row)}
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleRowExpanded(id)}
+                            aria-label={isExpanded ? 'طي الصف' : 'توسيع الصف'}
+                            className="p-1 rounded-lg text-neutral-text/50 hover:text-heading hover:bg-surface-hover transition cursor-pointer"
+                          >
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                isExpanded ? 'rotate-180 text-accent' : ''
+                              }`}
+                            />
+                          </button>
                         </td>
-                      );
-                    })}
+                      )}
 
-                    {rowActions && (
-                      <td
-                        className="sticky end-0 z-10 bg-inherit border-s border-muted-border/20 px-3 py-3.5"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <div className="flex justify-end">{rowActions(row)}</div>
-                      </td>
+                      {selectable && (
+                        <td className="sticky start-0 z-10 bg-inherit px-3 py-3.5">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleRow(id)}
+                            onClick={(event) => event.stopPropagation()}
+                            aria-label={t('common.table.selectRow')}
+                            className="w-3.5 h-3.5 rounded accent-accent"
+                          />
+                        </td>
+                      )}
+
+                      {visibleColumns.map((column) => {
+                        const align = column.align ?? 'start';
+                        // Text columns get a single line plus a tooltip instead of pushing the table wide.
+                        const sortValue = column.sortValue?.(row);
+                        const title = typeof sortValue === 'string' ? sortValue : undefined;
+                        return (
+                          <td
+                            key={column.id}
+                            style={column.width ? { width: column.width } : undefined}
+                            className={`${cellPadding} ${ALIGN_CLASS[align]} ${align === 'start' ? '' : 'tabular-nums'}`}
+                          >
+                            {title === undefined ? (
+                              column.cell(row)
+                            ) : (
+                              <div className={TRUNCATE_CELL} title={title}>
+                                {column.cell(row)}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+
+                      {rowActions && (
+                        <td
+                          className="sticky end-0 z-10 bg-inherit border-s border-muted-border/20 px-3 py-3.5"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <div className="flex justify-end">{rowActions(row)}</div>
+                        </td>
+                      )}
+                    </tr>
+
+                    {isExpanded && renderExpandedRow && (
+                      <tr key={`${id}-expanded`} className={`${stripe} border-t border-dashed border-muted-border/30`}>
+                        <td colSpan={Math.max(1, columnCount)} className="p-3 sm:p-4 bg-canvas/30">
+                          {renderExpandedRow(row)}
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </Fragment>
                 );
               })
             )}

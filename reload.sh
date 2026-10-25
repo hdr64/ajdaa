@@ -226,6 +226,9 @@ if [ "$ok" -ne 1 ]; then
 fi
 curl -fsS "http://127.0.0.1:$PORT/api/health"; echo
 
+step "Reload Caddy"
+sudo systemctl reload caddy
+
 # --- 6. things that are NOT automated ---------------------------------------
 step "Reminders"
 if ! diff -q "deploy/$CADDY_FILE" "/etc/caddy/$CADDY_FILE" >/dev/null 2>&1; then
