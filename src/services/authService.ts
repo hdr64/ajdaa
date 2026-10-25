@@ -1,5 +1,5 @@
 import { api, clearAuthToken, getAuthToken, setAuthToken } from './api';
-import type { AdminUser, AdminUserInput, AdminRole } from '../types/admin';
+import type { AdminUser, AdminUserInput, AdminRole, AdminStatus } from '../types/admin';
 
 export interface AuthSession {
   token: string;
@@ -21,12 +21,32 @@ export interface LoginOtpResult {
   emailHint: string;
 }
 
-export type LoginResult = LoginSessionResult | LoginOtpResult;
+/** Credentials were correct but the authenticator-app code (or a recovery code) is needed. */
+export interface LoginTotpResult {
+  kind: 'totp';
+  challengeId: string;
+  emailHint: string;
+}
 
-/** Wire shape of `POST /api/auth/login`, which answers one of two bodies. */
+/**
+ * The account must set up an authenticator app before it may sign in. The token
+ * is scope-limited: it only reaches `/api/auth/login/enroll-totp/*` and is never
+ * stored as a session.
+ */
+export interface LoginTotpEnrollResult {
+  kind: 'totpEnroll';
+  enrollToken: string;
+  emailHint: string;
+}
+
+export type LoginResult = LoginSessionResult | LoginOtpResult | LoginTotpResult | LoginTotpEnrollResult;
+
+/** Wire shape of `POST /api/auth/login`, which answers one of four bodies. */
 type LoginResponseDto =
   | { token: string; user: UserDto }
-  | { otpRequired: true; challengeId: string; emailHint: string };
+  | { otpRequired: true; challengeId: string; emailHint: string }
+  | { totpRequired: true; challengeId: string; emailHint: string }
+  | { totpEnrollmentRequired: true; enrollToken: string; emailHint: string };
 
 interface UserDto {
   id: string;
@@ -43,6 +63,8 @@ interface UserDto {
   status: string;
   lastLogin: string | null;
   loginOtpEnabled?: boolean;
+  totpEnabled?: boolean;
+  recoveryCodesLeft?: number;
 }
 
 const ROLES = ['super_admin', 'project_manager', 'sales_agent', 'viewer'] as const;
@@ -59,6 +81,7 @@ export const DEFAULT_PERMISSIONS = {
   viewInquiries: false,
   exportData: false,
   manageUsers: false,
+  verifyUsers: false,
   manageNotifications: false,
   manageCms: false,
   manageClients: false,
@@ -80,6 +103,7 @@ function normalizePermissions(raw: Record<string, boolean> | null | undefined) {
     viewInquiries: source.viewInquiries ?? false,
     exportData: source.exportData ?? false,
     manageUsers: source.manageUsers ?? false,
+    verifyUsers: source.verifyUsers ?? false,
     manageNotifications: source.manageNotifications ?? false,
     manageCms: source.manageCms ?? false,
     manageClients: source.manageClients ?? source.manageCms ?? false,
@@ -108,8 +132,10 @@ export function toAdminUser(dto: UserDto): AdminUser {
     departmentName: dto.departmentName ?? dto.department ?? null,
     permissions: normalizePermissions(dto.permissions),
     lastLogin: dto.lastLogin ?? undefined,
-    status: dto.status === 'suspended' ? 'suspended' : 'active',
+    status: dto.status === 'suspended' ? 'suspended' : dto.status === 'pending' ? 'pending' : 'active',
     loginOtpEnabled: dto.loginOtpEnabled,
+    totpEnabled: dto.totpEnabled ?? false,
+    recoveryCodesLeft: dto.recoveryCodesLeft ?? 0,
   };
 }
 
@@ -127,6 +153,14 @@ export const authService = {
 
     if ('otpRequired' in result && result.otpRequired) {
       return { kind: 'otp', challengeId: result.challengeId, emailHint: result.emailHint };
+    }
+
+    if ('totpRequired' in result && result.totpRequired) {
+      return { kind: 'totp', challengeId: result.challengeId, emailHint: result.emailHint };
+    }
+
+    if ('totpEnrollmentRequired' in result && result.totpEnrollmentRequired) {
+      return { kind: 'totpEnroll', enrollToken: result.enrollToken, emailHint: result.emailHint };
     }
 
     const { token, user } = result as { token: string; user: UserDto };
@@ -176,6 +210,70 @@ export const authService = {
     return api.patch<{ loginOtpEnabled: boolean }>('/api/auth/me/login-otp', { enabled, password });
   },
 
+  /** Exchanges an authenticator-app code (or a recovery code) for a session. */
+  async verifyLoginTotp(challengeId: string, code: string): Promise<AuthSession & { recoveryCodesLeft?: number }> {
+    const result = await api.post<{ token: string; user: UserDto; recoveryCodesLeft?: number }>(
+      '/api/auth/login/verify-totp',
+      { challengeId, code: code.trim() }
+    );
+    setAuthToken(result.token);
+    return { token: result.token, user: toAdminUser(result.user), recoveryCodesLeft: result.recoveryCodesLeft };
+  },
+
+  /** Step 1 of mandatory enrollment: returns the QR payload for the scope-limited token. */
+  enrollTotpSetup(enrollToken: string): Promise<{ otpauthUri: string; secret: string }> {
+    return api.post<{ otpauthUri: string; secret: string }>(
+      '/api/auth/login/enroll-totp/setup',
+      undefined,
+      { authToken: enrollToken }
+    );
+  },
+
+  /** Step 2 of mandatory enrollment: proves the code, enables TOTP and starts a session. */
+  async enrollTotpVerify(
+    enrollToken: string,
+    code: string
+  ): Promise<AuthSession & { recoveryCodes: string[] }> {
+    const result = await api.post<{ token: string; user: UserDto; recoveryCodes: string[] }>(
+      '/api/auth/login/enroll-totp/verify',
+      { code: code.trim() },
+      { authToken: enrollToken }
+    );
+    setAuthToken(result.token);
+    return { token: result.token, user: toAdminUser(result.user), recoveryCodes: result.recoveryCodes };
+  },
+
+  /** Starts self-service enrollment: returns the secret and `otpauth://` URI once. */
+  totpSetup(currentPassword: string): Promise<{ otpauthUri: string; secret: string }> {
+    return api.post<{ otpauthUri: string; secret: string }>('/api/auth/me/totp/setup', { currentPassword });
+  },
+
+  /** Confirms the pending secret and returns the one-time recovery codes. */
+  totpEnable(code: string): Promise<{ recoveryCodes: string[] }> {
+    return api.post<{ recoveryCodes: string[] }>('/api/auth/me/totp/enable', { code: code.trim() });
+  },
+
+  /** Switches TOTP off; requires the current password and a live TOTP/recovery code. */
+  totpDisable(currentPassword: string, code: string): Promise<{ disabled: boolean }> {
+    return api.post<{ disabled: boolean }>('/api/auth/me/totp/disable', {
+      currentPassword,
+      code: code.trim(),
+    });
+  },
+
+  /** Replaces the recovery codes with a fresh set. */
+  regenerateRecoveryCodes(currentPassword: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    return api.post<{ recoveryCodes: string[] }>('/api/auth/me/totp/recovery-codes', {
+      currentPassword,
+      code: code.trim(),
+    });
+  },
+
+  /** Clears another admin's TOTP so a lost phone cannot lock them out (needs `manageUsers`). */
+  resetUserTotp(userId: string): Promise<{ reset: boolean }> {
+    return api.post<{ reset: boolean }>(`/api/auth/users/${encodeURIComponent(userId)}/reset-totp`, {});
+  },
+
   /** Validates the stored token against the server. */
   async me(): Promise<AdminUser> {
     const result = await api.get<{ user: UserDto }>('/api/auth/me');
@@ -196,9 +294,11 @@ export const authService = {
     return users.map(toAdminUser);
   },
 
-  async createUser(input: AdminUserInput): Promise<AdminUser> {
-    const created = await api.post<UserDto>('/api/auth/users', input);
-    return toAdminUser(created);
+  async createUser(input: AdminUserInput): Promise<{ user: AdminUser; mailSent: boolean }> {
+    const created = await api.post<UserDto & { mailSent?: boolean }>('/api/auth/users', input);
+    // `mailSent: false` means no confirmation/invite mail left the server, so the
+    // UI should offer a resend instead of pretending the user was emailed.
+    return { user: toAdminUser(created), mailSent: created.mailSent ?? true };
   },
 
   async updateUser(id: string, input: Partial<AdminUserInput>): Promise<AdminUser> {
@@ -210,7 +310,7 @@ export const authService = {
     await api.delete(`/api/auth/users/${encodeURIComponent(id)}`);
   },
 
-  async setUserStatus(id: string, status: 'active' | 'suspended'): Promise<AdminUser> {
+  async setUserStatus(id: string, status: AdminStatus): Promise<AdminUser> {
     const updated = await api.put<UserDto>(`/api/auth/users/${encodeURIComponent(id)}`, { status });
     return toAdminUser(updated);
   },
@@ -221,13 +321,67 @@ export const authService = {
   },
 
   /** The server revokes older tokens on a password change and returns a fresh one for this session. */
-  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+    confirmation?: { challengeId: string; code: string }
+  ): Promise<{ message: string }> {
     const result = await api.post<{ message: string; token?: string }>('/api/auth/me/password', {
       currentPassword,
       newPassword,
+      challengeId: confirmation?.challengeId,
+      code: confirmation?.code,
     });
     if (result.token) setAuthToken(result.token);
     return { message: result.message };
+  },
+
+  /** Step 1 of a self-service password change: emails a confirmation code. */
+  requestPasswordChange(currentPassword: string, newPassword: string): Promise<{ challengeId: string; emailHint: string }> {
+    return api.post<{ challengeId: string; emailHint: string }>('/api/auth/me/password/request', {
+      currentPassword,
+      newPassword,
+    });
+  },
+
+  /** Confirms a create-mode account's email with the emailed one-time token. */
+  verifyEmail(token: string): Promise<{ verified: boolean }> {
+    return api.post<{ verified: boolean }>('/api/auth/verify-email', { token });
+  },
+
+  /** Accepts an invite: verifies the address and sets the first password. */
+  acceptInvite(token: string, password: string): Promise<{ activated: boolean }> {
+    return api.post<{ activated: boolean }>('/api/auth/accept-invite', { token, password });
+  },
+
+  /** Re-sends a pending account's invite/verification link (needs `manageUsers`). */
+  resendVerification(id: string): Promise<{ sent: boolean }> {
+    return api.post<{ sent: boolean }>(`/api/auth/users/${encodeURIComponent(id)}/resend-verification`, {});
+  },
+
+  /** Verifies a pending create-mode account with its emailed 6-digit code. */
+  verifyEmailCode(email: string, password: string, code: string): Promise<{ verified: boolean }> {
+    return api.post<{ verified: boolean }>('/api/auth/verify-email-code', {
+      email: email.trim(),
+      password,
+      code: code.trim(),
+    });
+  },
+
+  /** Re-sends a fresh email verification code (and link) for a pending account. */
+  resendVerificationCode(email: string, password: string): Promise<{ sent: boolean }> {
+    return api.post<{ sent: boolean }>('/api/auth/verify-email-code/resend', {
+      email: email.trim(),
+      password,
+    });
+  },
+
+  /** Marks a pending account as verified without the emailed link or code (needs `verifyUsers`). */
+  markVerified(userId: string): Promise<{ verified: boolean; needsPassword: boolean }> {
+    return api.post<{ verified: boolean; needsPassword: boolean }>(
+      `/api/auth/users/${encodeURIComponent(userId)}/mark-verified`,
+      {}
+    );
   },
 };
 
@@ -238,6 +392,7 @@ export const resendLoginOtp = authService.resendLoginOtp.bind(authService);
 export const forgotPassword = authService.forgotPassword.bind(authService);
 export const resetPassword = authService.resetPassword.bind(authService);
 export const setLoginOtp = authService.setLoginOtp.bind(authService);
+export const verifyLoginTotp = authService.verifyLoginTotp.bind(authService);
 
 
 /** Reversible on/off actions an admin may choose "don't ask again" for (the server rejects any other). */

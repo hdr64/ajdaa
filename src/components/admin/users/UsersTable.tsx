@@ -5,7 +5,7 @@
  */
 import React, { useMemo } from 'react';
 import { LogIn, LogOut } from 'lucide-react';
-import type { AdminStatus, AdminUser, Department, Role } from '../../../types/admin';
+import type { AdminUser, Department, Role } from '../../../types/admin';
 import { DataTable } from '../common/DataTable';
 import type { BulkAction, Column } from '../common/dataTableTypes';
 import {
@@ -17,8 +17,8 @@ import {
   userRoleLabel,
   userSearchText,
 } from './usersModel';
-import type { UserRights } from './usersModel';
-import { PermissionCount, RolePill, StatusChip, UserActions } from './usersUi';
+import type { UserRights, ToggleableAdminStatus } from './usersModel';
+import { PermissionCount, RolePill, StatusChip, TotpChip, UserActions } from './usersUi';
 
 export const USERS_TABLE_STORAGE_KEY = 'ajda.admin.users';
 
@@ -32,6 +32,10 @@ const FALLBACK_RIGHTS: UserRights = {
   toggleHint: 'بيانات الحساب غير متاحة',
   canDelete: false,
   deleteHint: 'بيانات الحساب غير متاحة',
+  canMarkVerified: false,
+  markVerifiedHint: null,
+  canResetTotp: false,
+  resetTotpHint: 'بيانات الحساب غير متاحة',
   isSelf: false,
 };
 
@@ -43,7 +47,10 @@ interface UsersTableProps {
   onEdit: (user: AdminUser) => void;
   onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
-  onBulkStatus: (users: AdminUser[], status: AdminStatus) => void;
+  onResendVerification: (user: AdminUser) => void;
+  onMarkVerified: (user: AdminUser) => void;
+  onResetTotp: (user: AdminUser) => void;
+  onBulkStatus: (users: AdminUser[], status: ToggleableAdminStatus) => void;
 }
 
 export const UsersTable: React.FC<UsersTableProps> = ({
@@ -54,6 +61,9 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onEdit,
   onToggleStatus,
   onDelete,
+  onResendVerification,
+  onMarkVerified,
+  onResetTotp,
   onBulkStatus,
 }) => {
   const roleIndex = useMemo(() => buildRoleIndex(users, roles), [users, roles]);
@@ -107,10 +117,15 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       {
         id: 'status',
         header: 'الحالة',
-        width: '110px',
+        width: '170px',
         sortValue: (user) => user.status,
         filter: { type: 'select', options: STATUS_OPTIONS, value: (user) => user.status },
-        cell: (user) => <StatusChip status={user.status} />,
+        cell: (user) => (
+          <span className="inline-flex items-center gap-1">
+            <StatusChip status={user.status} />
+            {user.totpEnabled && <TotpChip />}
+          </span>
+        ),
       },
       {
         id: 'permissions',
@@ -166,6 +181,9 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           onEdit={onEdit}
           onToggleStatus={onToggleStatus}
           onDelete={onDelete}
+          onResendVerification={onResendVerification}
+          onMarkVerified={onMarkVerified}
+          onResetTotp={onResetTotp}
           variant="icons"
         />
       )}

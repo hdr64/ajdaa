@@ -22,7 +22,7 @@ import { config } from '../config/env.js';
  *   on the routes are the outer layer.
  */
 
-export const OTP_PURPOSES = ['login', 'password_reset'] as const;
+export const OTP_PURPOSES = ['login', 'password_reset', 'password_change', 'email_verification', 'login_totp'] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 
 const CODE_MIN = 0;
@@ -102,6 +102,22 @@ export async function findChallengeOwner(
   const challenge = await prisma.otpChallenge.findUnique({ where: { id: challengeId } });
   if (!challenge || challenge.purpose !== purpose || isDead(challenge)) return null;
   return { adminUserId: challenge.adminUserId };
+}
+
+/**
+ * The admin's newest live challenge of a purpose, or null. Used by the
+ * verify-email-code flow, which knows the account but not a challengeId.
+ */
+export async function findLiveChallenge(
+  adminUserId: string,
+  purpose: OtpPurpose
+): Promise<{ id: string } | null> {
+  const challenge = await prisma.otpChallenge.findFirst({
+    where: { adminUserId, purpose },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!challenge || isDead(challenge)) return null;
+  return { id: challenge.id };
 }
 
 function isDead(challenge: { consumedAt: Date | null; expiresAt: Date; attempts: number }): boolean {

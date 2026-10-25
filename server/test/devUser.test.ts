@@ -137,9 +137,11 @@ describe('buildDevUserData', () => {
     expect(data.department).toBe('الإدارة التنفيذية');
   });
 
-  it('sets status active and stamps passwordChangedAt', () => {
+  it('sets status active and stamps passwordChangedAt and emailVerifiedAt', () => {
     expect(data.status).toBe('active');
     expect(data.passwordChangedAt).toBeInstanceOf(Date);
+    // An active account without it would look unverified to the verify-users tooling.
+    expect(data.emailVerifiedAt).toBeInstanceOf(Date);
   });
 
   it('sets every permission key to true in the JSON payload', () => {

@@ -2,7 +2,7 @@ import type { PropertyType } from './property';
 
 export type AdminRole = 'super_admin' | 'project_manager' | 'sales_agent' | 'viewer';
 
-export type AdminStatus = 'active' | 'suspended';
+export type AdminStatus = 'active' | 'pending' | 'suspended';
 
 export interface AdminPermissions {
   manageProjects: boolean;
@@ -21,6 +21,7 @@ export interface AdminPermissions {
   manageApplications: boolean;
   exportData: boolean;
   manageUsers: boolean;
+  verifyUsers: boolean;
   manageNotifications: boolean;
 }
 
@@ -85,6 +86,10 @@ export interface AdminUser {
   lastLogin?: string;
   status: AdminStatus;
   loginOtpEnabled?: boolean;
+  /** Authenticator-app (TOTP) 2FA is switched on for this account. */
+  totpEnabled?: boolean;
+  /** Unused recovery codes remaining; shown on the profile 2FA card. */
+  recoveryCodesLeft?: number;
 }
 
 /** Payload accepted by the user create/update endpoints. */
@@ -93,6 +98,8 @@ export interface AdminUserInput {
   email: string;
   phone?: string | null;
   password?: string;
+  /** 'create' keeps the admin-set-password flow; 'invite' emails a self-service link. */
+  mode?: 'create' | 'invite';
   role: AdminRole;
   roleAr: string;
   roleId?: string | null;
@@ -100,6 +107,8 @@ export interface AdminUserInput {
   departmentId?: string | null;
   permissions: Partial<AdminPermissions>;
   status?: AdminStatus;
+  /** Create mode only: email the admin-typed password in a separated block. */
+  sendPasswordInEmail?: boolean;
 }
 
 export interface CategoryItem {

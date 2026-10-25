@@ -54,6 +54,7 @@ export const PERMISSION_KEYS: readonly (keyof AdminPermissions)[] = [
   'manageApplications',
   'exportData',
   'manageUsers',
+  'verifyUsers',
   'manageNotifications',
   'manageCms',
   'manageClients',
@@ -74,6 +75,7 @@ export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
   manageApplications: 'إدارة طلبات التوظيف',
   exportData: 'تصدير التقارير',
   manageUsers: 'إدارة المستخدمين',
+  verifyUsers: 'تأكيد حسابات المستخدمين',
   manageNotifications: 'إدارة الإشعارات',
   manageCms: 'إدارة محتوى الموقع',
   manageClients: 'إدارة الشركاء والعملاء',
@@ -94,8 +96,17 @@ const PERMISSION_GROUP_LABELS: Record<string, string> = {
 
 export const STATUS_LABELS: Record<AdminStatus, string> = {
   active: 'نشط',
+  pending: 'بانتظار التفعيل',
   suspended: 'معطل',
 };
+
+/**
+ * The statuses an admin may set through the toggle / bulk actions. `pending` is
+ * deliberately excluded: it is server-managed (an account leaves it only by
+ * opening the emailed verify link, or, for the initial activation, is created
+ * active when it is a super admin), so no UI toggle may write it directly.
+ */
+export type ToggleableAdminStatus = 'active' | 'suspended';
 
 /**
  * Mirrors the server's password policy
@@ -186,6 +197,7 @@ export const emptyPermissions = (): AdminPermissions => ({
   manageApplications: false,
   exportData: false,
   manageUsers: false,
+  verifyUsers: false,
   manageNotifications: false,
   manageCms: false,
   manageClients: false,
@@ -318,12 +330,22 @@ export interface UserRights {
   toggleHint: string | null;
   canDelete: boolean;
   deleteHint: string | null;
+  /** Mark a pending account as verified without the emailed link or code. */
+  canMarkVerified: boolean;
+  markVerifiedHint: string | null;
+  /** Clear another account's authenticator-app 2FA (lost phone). */
+  canResetTotp: boolean;
+  resetTotpHint: string | null;
   isSelf: boolean;
 }
 
 export interface RightsContext {
   currentUserId: string | null;
   isSuperAdmin: boolean;
+  /** The signed-in user holds `verifyUsers` (super admins always do). */
+  canVerifyUsers: boolean;
+  /** The signed-in user holds `manageUsers` (super admins always do). */
+  canManageUsers: boolean;
   /** Guards the last usable super admin, who cannot be demoted, suspended or deleted. */
   activeSuperAdminCount: number;
 }
@@ -355,6 +377,29 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
   const lockReason = accessLockReason(user, isSelf, context.isSuperAdmin, isLastActiveSuperAdmin);
   const accessLocked = lockReason !== null;
 
+  const canMarkVerified =
+    context.canVerifyUsers && user.status === 'pending' && !isSuperAdminTarget && !isSelf;
+  let markVerifiedHint: string | null = null;
+  if (!canMarkVerified) {
+    if (!context.canVerifyUsers) markVerifiedHint = 'تتطلب صلاحية «تأكيد حسابات المستخدمين»';
+    else if (isSuperAdminTarget)
+      markVerifiedHint = 'لا يمكن تأكيد حساب مدير عام من غير مدير عام';
+    else if (user.status !== 'pending')
+      markVerifiedHint = 'لا يمكن تأكيد حساب غير منتظر التفعيل';
+    else markVerifiedHint = 'لا يمكن تأكيد حسابك بنفسك';
+  }
+
+  // Resetting someone else's second factor is a `manageUsers` action, and only a
+  // super admin may touch a super admin's account.
+  const canResetTotp =
+    context.canManageUsers && Boolean(user.totpEnabled) && (!isSuperAdminTarget || context.isSuperAdmin);
+  let resetTotpHint: string | null = null;
+  if (!canResetTotp) {
+    if (!context.canManageUsers) resetTotpHint = 'تتطلب صلاحية «إدارة المستخدمين»';
+    else if (!user.totpEnabled) resetTotpHint = 'التحقق بتطبيق المصادقة غير مفعّل لهذا الحساب';
+    else resetTotpHint = 'إعادة تعيين حسابات المدير العام متاحة لمدير عام فقط';
+  }
+
   const canDelete = !isSelf && (!isSuperAdminTarget || context.isSuperAdmin) && !isLastActiveSuperAdmin;
   const deleteHint = canDelete
     ? null
@@ -373,6 +418,10 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     toggleHint: lockReason,
     canDelete,
     deleteHint,
+    canMarkVerified,
+    markVerifiedHint,
+    canResetTotp,
+    resetTotpHint,
     isSelf,
   };
 }
@@ -385,4 +434,10 @@ export interface UserViewProps {
   onEdit: (user: AdminUser) => void;
   onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
+  /** Only reachable for pending accounts, so the row action is hidden otherwise. */
+  onResendVerification: (user: AdminUser) => void;
+  /** Mark a pending account as verified without the emailed link or code. */
+  onMarkVerified: (user: AdminUser) => void;
+  /** Clear an account's authenticator-app 2FA after a lost or replaced phone. */
+  onResetTotp: (user: AdminUser) => void;
 }

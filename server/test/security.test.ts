@@ -232,10 +232,13 @@ describe('Security & Account Protection', () => {
     });
 
     it('POST /api/auth/me/password validates current password, enforces policy, and invalidates old tokens', async () => {
+      // Super admin keeps the one-step change (no emailed code); the two-step
+      // code flow for every other role is covered in email-verification.test.ts.
       const user = await createThrowawayUser({
         name: 'Password Target',
         email: 'pw.change.test@ajdaa.test',
         password: 'CurrentPassword123',
+        role: 'super_admin',
       });
       cleanupUsers.push(user.id);
 

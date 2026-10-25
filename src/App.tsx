@@ -25,6 +25,9 @@ const InterestRegistrationView = lazy(() => import('./components/booking/Interes
 const ContactPage = lazy(() => import('./components/contact/ContactPage').then((m) => ({ default: m.ContactPage })));
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage })));
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+// Public, session-less account onboarding pages (deep-linked from email).
+const VerifyEmailPage = lazy(() => import('./pages/admin/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })));
+const AcceptInvitePage = lazy(() => import('./pages/admin/AcceptInvitePage').then((m) => ({ default: m.AcceptInvitePage })));
 
 /** Branded loading skeleton for lazy sub-routes */
 function RouteLoadingFallback() {
@@ -70,7 +73,7 @@ function ToastView({ message, kind }: AdminToast) {
 export type PageKey = NavPageKey;
 
 interface RouteState {
-  page: PageKey;
+  page: PageKey | 'admin_verify_email' | 'admin_accept_invite';
   projectId?: number;
   /** Admin sub-route after `/admin/`, e.g. "projects/206/units". */
   adminPath?: string;
@@ -83,6 +86,10 @@ const parsePath = (pathname: string): RouteState => {
   const clean = pathname.replace(/\/$/, '').toLowerCase();
 
   if (clean.includes('/admin/login')) return { page: 'admin_login' };
+  // Public onboarding links opened from email — no session required, so they are
+  // matched before the authenticated `/admin` branch.
+  if (clean.endsWith('/admin/verify-email')) return { page: 'admin_verify_email' };
+  if (clean.endsWith('/admin/accept-invite')) return { page: 'admin_accept_invite' };
   const adminMatch = pathname.replace(/\/$/, '').match(ADMIN_PATH_RE);
   if (adminMatch) {
     return AdminStorage.isAuthenticated() ? { page: 'admin', adminPath: adminMatch[1] ?? '' } : { page: 'admin_login' };
@@ -129,6 +136,10 @@ const getPathForRoute = (route: RouteState): string => {
       return `${basePath}/projects/${route.projectId || 206}`;
     case 'admin_login':
       return `${basePath}/admin/login`;
+    case 'admin_verify_email':
+      return `${basePath}/admin/verify-email`;
+    case 'admin_accept_invite':
+      return `${basePath}/admin/accept-invite`;
     case 'admin':
       return `${basePath}/admin${route.adminPath ? `/${route.adminPath}` : ''}`;
     case 'booking':
@@ -328,6 +339,17 @@ export function App() {
           />
         </Suspense>
         {toast && <ToastView message={toast.message} kind={toast.kind} />}
+      </ThemeProvider>
+    );
+  }
+
+  // Public, session-less onboarding pages (opened from email).
+  if (currentPage === 'admin_verify_email' || currentPage === 'admin_accept_invite') {
+    return (
+      <ThemeProvider>
+        <Suspense fallback={<AdminLoadingFallback />}>
+          {currentPage === 'admin_verify_email' ? <VerifyEmailPage /> : <AcceptInvitePage />}
+        </Suspense>
       </ThemeProvider>
     );
   }

@@ -22,6 +22,7 @@ const ADMIN_USERS = [
       viewInquiries: true,
       exportData: true,
       manageUsers: true,
+      verifyUsers: true,
     },
   },
     {
@@ -36,6 +37,7 @@ const ADMIN_USERS = [
       viewInquiries: true,
       exportData: true,
       manageUsers: true,
+      verifyUsers: true,
     },
   },
 ];
@@ -53,6 +55,7 @@ const FIXTURE_ADMIN_USERS = [
       viewInquiries: true,
       exportData: true,
       manageUsers: true,
+      verifyUsers: true,
     },
   },
   {
@@ -67,6 +70,7 @@ const FIXTURE_ADMIN_USERS = [
       viewInquiries: true,
       exportData: true,
       manageUsers: false,
+      verifyUsers: false,
     },
   },
   {
@@ -81,6 +85,7 @@ const FIXTURE_ADMIN_USERS = [
       viewInquiries: true,
       exportData: false,
       manageUsers: false,
+      verifyUsers: false,
     },
   },
   {
@@ -95,6 +100,7 @@ const FIXTURE_ADMIN_USERS = [
       viewInquiries: true,
       exportData: true,
       manageUsers: false,
+      verifyUsers: false,
     },
   },
 ];
@@ -190,6 +196,7 @@ const SEED_ROLES = [
       'managePastProjects',
       'exportData',
       'manageUsers',
+      'verifyUsers',
     ]),
     isSystem: true,
     sortOrder: 1,
@@ -327,6 +334,9 @@ async function seedAdminUsers(adminPassword: string): Promise<void> {
         departmentId,
         permissions: JSON.stringify(user.permissions),
         status: 'active',
+        // Seeded accounts predate the email-verification flow: treat them as
+        // already verified so they are not locked out by the new rule.
+        emailVerifiedAt: new Date(),
       },
     });
   }

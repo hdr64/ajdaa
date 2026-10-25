@@ -123,8 +123,12 @@ export const siteSettingsApi = {
 export interface SecuritySettings {
   /** Every admin must enter an emailed code at login. */
   loginOtpRequired: boolean;
+  /** Every admin must set up an authenticator app before signing in. */
+  totpRequiredForAll: boolean;
   /** `.env` already forces it, so the switch cannot turn it off. */
   loginOtpForcedByEnv: boolean;
+  /** Reserved for a future `.env` override of the TOTP switch; always `false` today. */
+  totpForcedByEnv: boolean;
 }
 
 export const securitySettingsApi = {
@@ -132,7 +136,8 @@ export const securitySettingsApi = {
     return api.get<SecuritySettings>('/api/settings/security', { signal });
   },
 
-  update(loginOtpRequired: boolean): Promise<SecuritySettings> {
-    return api.put<SecuritySettings>('/api/settings/security', { loginOtpRequired });
+  /** Sends only the switches being changed; the server leaves the others alone. */
+  update(input: { loginOtpRequired?: boolean; totpRequiredForAll?: boolean }): Promise<SecuritySettings> {
+    return api.put<SecuritySettings>('/api/settings/security', input);
   },
 };

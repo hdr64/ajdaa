@@ -86,9 +86,12 @@ export const roleRoutes: FastifyPluginAsync = async (fastify) => {
       const body = createRoleSchema.parse(request.body ?? {});
       const dedupedPermissions: PermissionKey[] = [...new Set(body.permissions)];
 
-      // Only super_admin can create roles with manageUsers
-      if (dedupedPermissions.includes('manageUsers') && request.admin?.role !== 'super_admin') {
-        return reply.status(403).send({ error: 'Only a super admin can create a role with manageUsers permission' });
+      // Only super_admin can create roles with manageUsers or verifyUsers (both escalate)
+      if (
+        (dedupedPermissions.includes('manageUsers') || dedupedPermissions.includes('verifyUsers')) &&
+        request.admin?.role !== 'super_admin'
+      ) {
+        return reply.status(403).send({ error: 'Only a super admin can create a role with manageUsers or verifyUsers permission' });
       }
 
       const existing = await prisma.role.findUnique({ where: { key: body.key } });
@@ -135,10 +138,14 @@ export const roleRoutes: FastifyPluginAsync = async (fastify) => {
       const targetPerms: PermissionKey[] =
         body.permissions !== undefined ? [...new Set(body.permissions)] : currentPerms;
 
-      // Only super_admin may edit roles that have or will have manageUsers
-      const involvesManageUsers = currentPerms.includes('manageUsers') || targetPerms.includes('manageUsers');
+      // Only super_admin may edit roles that have or will have manageUsers or verifyUsers (both escalate)
+      const involvesManageUsers =
+        currentPerms.includes('manageUsers') ||
+        targetPerms.includes('manageUsers') ||
+        currentPerms.includes('verifyUsers') ||
+        targetPerms.includes('verifyUsers');
       if (involvesManageUsers && request.admin?.role !== 'super_admin') {
-        return reply.status(403).send({ error: 'Only a super admin can modify a role with manageUsers permission' });
+        return reply.status(403).send({ error: 'Only a super admin can modify a role with manageUsers or verifyUsers permission' });
       }
 
       // Key is immutable. For isSystem roles only nameAr/nameEn/description may change.
@@ -203,8 +210,8 @@ export const roleRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const rolePerms = parseRolePermissions(role.permissions);
-      if (rolePerms.includes('manageUsers') && request.admin?.role !== 'super_admin') {
-        return reply.status(403).send({ error: 'Only a super admin can delete a role with manageUsers permission' });
+      if ((rolePerms.includes('manageUsers') || rolePerms.includes('verifyUsers')) && request.admin?.role !== 'super_admin') {
+        return reply.status(403).send({ error: 'Only a super admin can delete a role with manageUsers or verifyUsers permission' });
       }
 
       const userCount = await prisma.adminUser.count({ where: { roleId: id } });

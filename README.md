@@ -312,12 +312,20 @@ Copy `server/.env.example` to `server/.env`. All variables are validated at star
 | `POST` | `/api/auth/login` | Public | Login → `{ token, user }` or 2FA OTP challenge |
 | `POST` | `/api/auth/login/verify-otp` | Public | Verify 2FA emailed OTP code → `{ token, user }` |
 | `POST` | `/api/auth/login/resend-otp` | Public | Resend 2FA login code (subject to rate limit cooldown) |
+| `POST` | `/api/auth/login/verify-totp` | Public | Verify authenticator-app or recovery code → `{ token, user }` |
+| `POST` | `/api/auth/login/enroll-totp/setup` | Enrollment token | Return the pending TOTP secret and `otpauth://` URI |
+| `POST` | `/api/auth/login/enroll-totp/verify` | Enrollment token | Confirm the code, activate TOTP → session + recovery codes |
 | `POST` | `/api/auth/password/forgot` | Public | Initiate password reset email |
 | `POST` | `/api/auth/password/reset` | Public | Complete password reset with verification code |
 | `GET` | `/api/auth/me` | JWT | Get current authenticated user profile and permissions |
 | `PATCH`| `/api/auth/me` | JWT | Update current user profile (name, email, phone) |
 | `POST` | `/api/auth/me/password` | JWT | Change password (verifies current password) |
 | `PATCH`| `/api/auth/me/login-otp` | JWT | Enable/disable personal login 2FA OTP |
+| `POST` | `/api/auth/me/totp/setup` | JWT | Return pending authenticator-app secret + `otpauth://` URI |
+| `POST` | `/api/auth/me/totp/enable` | JWT | Confirm a code, activate TOTP → one-time recovery codes |
+| `POST` | `/api/auth/me/totp/disable` | JWT | Disable TOTP (current password + TOTP/recovery code) |
+| `POST` | `/api/auth/me/totp/recovery-codes` | JWT | Issue a fresh set of recovery codes |
+| `POST` | `/api/auth/users/:id/reset-totp` | JWT | Clear another admin's TOTP (`manageUsers`) |
 | `GET` | `/api/auth/users` | JWT | List admin users (`manageUsers`) |
 | `POST` | `/api/auth/users` | JWT | Create new admin user (`manageUsers`) |
 | `PUT` | `/api/auth/users/:id` | JWT | Update admin user (`manageUsers`) |

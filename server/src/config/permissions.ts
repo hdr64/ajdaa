@@ -123,6 +123,13 @@ export const PERMISSION_CATALOGUE: readonly PermissionDef[] = [
     description: 'إدارة المستخدمين وتوزيع الصلاحيات',
   },
   {
+    key: 'verifyUsers',
+    group: 'users',
+    labelAr: 'تأكيد حسابات المستخدمين',
+    labelEn: 'Verify User Accounts',
+    description: 'تأكيد بريد مستخدم pending من دون الرابط أو الرمز المرسل بالبريد',
+  },
+  {
     key: 'manageNotifications',
     group: 'settings',
     labelAr: 'إدارة الإشعارات',
@@ -148,6 +155,7 @@ export const PERMISSION_KEYS = [
   'manageApplications',
   'exportData',
   'manageUsers',
+  'verifyUsers',
   'manageNotifications',
 ] as const;
 

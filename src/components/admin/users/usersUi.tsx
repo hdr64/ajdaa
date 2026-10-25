@@ -4,7 +4,7 @@
  * status colours, same action guards).
  */
 import React from 'react';
-import { CheckCircle2, Lock, LogIn, LogOut, Pencil, Trash2 } from 'lucide-react';
+import { CheckCircle2, Lock, LogIn, LogOut, MailCheck, Pencil, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import type { AdminPermissions, AdminStatus, AdminUser } from '../../../types/admin';
 import {
   PERMISSION_KEYS,
@@ -24,11 +24,20 @@ const CHIP_BASE =
 
 const CHIP_TONE: Record<AdminStatus, string> = {
   active: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30',
+  pending: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
   suspended: 'bg-red-500/15 text-red-400 border-red-500/30',
 };
 
 export const StatusChip: React.FC<{ status: AdminStatus; className?: string }> = ({ status, className = '' }) => (
   <span className={`${CHIP_BASE} ${CHIP_TONE[status]} ${className}`}>{STATUS_LABELS[status]}</span>
+);
+
+/** Shown next to the status chip when the account has authenticator-app 2FA on. */
+export const TotpChip: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <span className={`${CHIP_BASE} bg-accent/10 text-accent border-accent/20 ${className}`}>
+    <ShieldCheck className="w-3 h-3" />
+    تطبيق المصادقة
+  </span>
 );
 
 export const RolePill: React.FC<{ label: string }> = ({ label }) => (
@@ -83,6 +92,9 @@ interface UserActionsProps {
   onEdit: (user: AdminUser) => void;
   onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
+  onResendVerification: (user: AdminUser) => void;
+  onMarkVerified: (user: AdminUser) => void;
+  onResetTotp: (user: AdminUser) => void;
   /** `labels` for cards, `icons` for the dense table and list rows. */
   variant: 'labels' | 'icons';
 }
@@ -95,7 +107,9 @@ const LABEL_BUTTON =
 
 /**
  * Edit / activate-suspend / delete with the server's guards baked in: a blocked
- * action stays visible but disabled, and its title says why.
+ * action stays visible but disabled, and its title says why. Pending accounts
+ * also get a resend-verification action — they cannot be activated from here,
+ * because the server only accepts activation through the emailed link.
  */
 export const UserActions: React.FC<UserActionsProps> = ({
   user,
@@ -103,6 +117,9 @@ export const UserActions: React.FC<UserActionsProps> = ({
   onEdit,
   onToggleStatus,
   onDelete,
+  onResendVerification,
+  onMarkVerified,
+  onResetTotp,
   variant,
 }) => {
   const suspending = user.status === 'active';
@@ -151,6 +168,62 @@ export const UserActions: React.FC<UserActionsProps> = ({
     </button>
   );
 
+  /** A pending account can only be activated through the emailed link it never used. */
+  const resendButton = (
+    <button
+      type="button"
+      onClick={() => onResendVerification(user)}
+      title="إعادة إرسال رابط التفعيل"
+      aria-label="إعادة إرسال رابط التفعيل"
+      className={
+        labelled
+          ? `${LABEL_BUTTON} border-muted-border/40 hover:border-accent text-neutral-text/70 hover:text-accent bg-surface/50`
+          : `${ICON_BUTTON} text-neutral-text/60 hover:text-accent hover:bg-accent/10`
+      }
+    >
+      <MailCheck className="w-3 h-3" />
+      {labelled && <span>إعادة إرسال الرابط</span>}
+    </button>
+  );
+
+  /** Skips the email proof and marks a pending account as verified directly. */
+  const markVerifiedButton = (
+    <button
+      type="button"
+      onClick={() => onMarkVerified(user)}
+      disabled={!rights.canMarkVerified}
+      title={rights.markVerifiedHint ?? 'تأكيد الحساب يدويًا'}
+      aria-label={`تأكيد حساب ${user.name}`}
+      className={
+        labelled
+          ? `${LABEL_BUTTON} border-accent/30 text-accent hover:bg-accent/10`
+          : `${ICON_BUTTON} text-accent hover:bg-accent/10`
+      }
+    >
+      <CheckCircle2 className="w-3 h-3" />
+      {labelled && <span>تأكيد الحساب</span>}
+    </button>
+  );
+
+  /** Clears the account's authenticator-app 2FA, for a lost or replaced phone. */
+  const resetTotpButton = (
+    <button
+      type="button"
+      onClick={() => onResetTotp(user)}
+      disabled={!rights.canResetTotp}
+      title={rights.resetTotpHint ?? 'إعادة تعيين التحقق بتطبيق المصادقة'}
+      aria-label={`إعادة تعيين التحقق بتطبيق المصادقة لحساب ${user.name}`}
+      className={
+        labelled
+          ? `${LABEL_BUTTON} border-amber-500/30 text-amber-600 hover:bg-amber-500/10`
+          : `${ICON_BUTTON} text-amber-500/80 hover:text-amber-500 hover:bg-amber-500/10`
+      }
+    >
+      <ShieldOff className="w-3 h-3" />
+      {labelled && <span>إعادة تعيين 2FA</span>}
+    </button>
+  );
+
   const deleteButton = (
     <button
       type="button"
@@ -173,6 +246,9 @@ export const UserActions: React.FC<UserActionsProps> = ({
     return (
       <div className="flex items-center gap-2">
         {editButton}
+        {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
+        {user.status === 'pending' && resendButton}
+        {user.totpEnabled && resetTotpButton}
         {toggleButton}
         {deleteButton}
       </div>
@@ -182,6 +258,9 @@ export const UserActions: React.FC<UserActionsProps> = ({
   return (
     <div className="flex items-center justify-end gap-1.5">
       {editButton}
+      {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
+      {user.status === 'pending' && resendButton}
+      {user.totpEnabled && resetTotpButton}
       {toggleButton}
       {deleteButton}
     </div>

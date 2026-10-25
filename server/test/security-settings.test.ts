@@ -35,7 +35,13 @@ describe('Security settings (/api/settings/security)', () => {
 
     const view = await authInject(superToken, { method: 'GET', url: '/api/settings/security' });
     expect(view.statusCode).toBe(200);
-    expect(view.json()).toEqual({ loginOtpRequired: false, loginOtpForcedByEnv: config.loginOtpRequired });
+    expect(view.json()).toEqual({
+      loginOtpRequired: false,
+      // The second switch shares this endpoint and the same storage.
+      totpRequiredForAll: false,
+      loginOtpForcedByEnv: config.loginOtpRequired,
+      totpForcedByEnv: false,
+    });
   });
 
   it('requiring the code for everyone turns a plain login into a code step, and back', async () => {

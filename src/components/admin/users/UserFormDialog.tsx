@@ -31,6 +31,7 @@ import {
   NO_DEPARTMENT_LABEL,
   PERMISSION_KEYS,
   ROLE_AR_LABELS,
+  STATUS_LABELS,
   STATUS_OPTIONS,
   SUPER_ADMIN_ROLE_KEY,
   passwordPolicyError,
@@ -629,23 +630,40 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
 
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">حالة الحساب</label>
-          <select
-            value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value as AdminStatus })}
-            disabled={accessLocked}
-            className={`${inputTone(false)} cursor-pointer disabled:cursor-not-allowed`}
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {accessLocked && lockReason && (
-            <p className="mt-1.5 flex items-start gap-1 text-[10px] text-amber-500 leading-relaxed">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>{lockReason}</span>
-            </p>
+          {user.status === 'pending' ? (
+            <>
+              {/* A pending account cannot be activated from here: it leaves
+                  `pending` only by confirming the emailed link. */}
+              <output className={`${inputTone(false)} flex items-center justify-between cursor-default`}>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
+                  {STATUS_LABELS.pending}
+                </span>
+              </output>
+              <p className="mt-1.5 text-[10px] text-amber-500 leading-relaxed">
+                يُفعَّل الحساب تلقائياً بعد أن يؤكد المستخدم بريده الإلكتروني من الرابط المُرسل إليه.
+              </p>
+            </>
+          ) : (
+            <>
+              <select
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value as AdminStatus })}
+                disabled={accessLocked}
+                className={`${inputTone(false)} cursor-pointer disabled:cursor-not-allowed`}
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {accessLocked && lockReason && (
+                <p className="mt-1.5 flex items-start gap-1 text-[10px] text-amber-500 leading-relaxed">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{lockReason}</span>
+                </p>
+              )}
+            </>
           )}
         </div>
 

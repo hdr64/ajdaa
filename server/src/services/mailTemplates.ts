@@ -1,3 +1,5 @@
+import { ttlMinutes } from './otpService.js';
+
 /**
  * Arabic-first, RTL email bodies.
  *
@@ -13,7 +15,7 @@
  * can name the template in a log line without copying any user-supplied text.
  */
 
-export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'job-application' | 'password-changed' | 'test' | 'developer-note';
+export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'job-application' | 'password-changed' | 'test' | 'developer-note' | 'invite' | 'verify-email' | 'password-change-code' | 'totp-enabled' | 'totp-disabled' | 'totp-reset';
 
 export interface MailContent {
   kind: MailKind;
@@ -116,6 +118,24 @@ function codeBlock(code: string): string {
 const OTP_FOOTNOTE =
   'إذا لم تطلب هذا الرمز فيرجى تجاهل هذه الرسالة. لا تشارك الرمز مع أي شخص، ولن يطلبه منك أي موظف عبر الهاتف أو البريد.';
 
+/**
+ * A call-to-action button plus the raw URL underneath it: some mail clients do
+ * not render button anchors, and a link whose target the user cannot read is
+ * indistinguishable from a phishing one. The URL is escaped because it carries a
+ * token an attacker would love to rewrite.
+ */
+function linkBlock(label: string, url: string): string {
+  const safeUrl = escapeHtml(url);
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px;">
+    <tr>
+      <td align="center">
+        <a href="${safeUrl}" style="display:inline-block;background:${COLORS.accent};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 26px;border-radius:6px;">${escapeHtml(label)}</a>
+      </td>
+    </tr>
+  </table>
+  <p style="margin:6px 0 0;color:${COLORS.muted};font-size:12px;line-height:1.7;word-break:break-all;" dir="ltr">${safeUrl}</p>`;
+}
+
 export function loginOtpEmail(options: {
   brandName: string;
   name?: string | null;
@@ -171,6 +191,153 @@ export function passwordResetEmail(options: {
       '',
       greeting,
       `رمز إعادة التعيين: ${code}`,
+      `الرمز صالح لمدة ${expiresInMinutes} دقائق.`,
+      '',
+      OTP_FOOTNOTE,
+    ].join('\n'),
+  };
+}
+
+/**
+ * The invite an admin sends when adding a user without a password. The link is
+ * the only thing the recipient needs: opening it both verifies the address and
+ * lets them choose their first password. No password is ever in this mail.
+ */
+export function inviteEmail(options: {
+  brandName: string;
+  name?: string | null;
+  inviteUrl: string;
+  expiresInDays: number;
+}): MailContent {
+  const { brandName, name, inviteUrl, expiresInDays } = options;
+  const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+
+  return {
+    kind: 'invite',
+    subject: `${brandName} — دعوة للانضمام إلى لوحة التحكم`,
+    html: shell({
+      brandName,
+      heading: 'دعوة للانضمام إلى لوحة التحكم',
+      intro: `${greeting} تمت دعوتك للانضمام إلى لوحة تحكم ${brandName}. اضغط الزر التالي لتأكيد بريدك الإلكتروني واختيار كلمة المرور الخاصة بحسابك.`,
+      bodyHtml: linkBlock('تأكيد البريد واختيار كلمة المرور', inviteUrl),
+      footnote: `صالح لمدة ${expiresInDays} أيام. إذا لم تكن تتوقع هذه الدعوة فيرجى تجاهل الرسالة؛ ولن يُنشأ أي حساب دون فتح الرابط.`,
+    }),
+    text: [
+      `${brandName} — دعوة للانضمام إلى لوحة التحكم`,
+      '',
+      greeting,
+      'لتأكيد بريدك الإلكتروني واختيار كلمة المرور، افتح الرابط التالي:',
+      inviteUrl,
+      `الرابط صالح لمدة ${expiresInDays} أيام.`,
+    ].join('\n'),
+  };
+}
+
+/**
+ * The confirmation link for an account an admin created with a password. Opening
+ * it proves the address and activates the account.
+ *
+ * When `code` is given (create mode only) the mail also carries a 6-digit code
+ * the user can enter on the admin login page instead of clicking the link. The
+ * code and the link invalidate each other: using either one consumes the other.
+ *
+ * When `password` is given (create mode only, `sendPasswordInEmail`) the typed
+ * password appears in a clearly separated block. The password never travels
+ * through the queue: this template is rendered and `sendMail` is called
+ * directly in the request handler so the secret never reaches Redis.
+ */
+export function emailVerificationEmail(options: {
+  brandName: string;
+  name?: string | null;
+  verifyUrl: string;
+  expiresInHours: number;
+  /** 6-digit one-time code, shown large and monospaced (create mode only). */
+  code?: string | null;
+  /** Code lifetime in whole minutes, for the email wording. */
+  codeExpiresInMinutes?: number;
+  /** The admin-typed password, shown in a separated block (create mode only). */
+  password?: string | null;
+}): MailContent {
+  const { brandName, name, verifyUrl, expiresInHours, code, codeExpiresInMinutes, password } = options;
+  const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+
+  let bodyHtml = linkBlock('تأكيد البريد الإلكتروني', verifyUrl);
+  if (code) {
+    bodyHtml =
+      codeBlock(code) +
+      `<p style="margin:6px 0 0;color:${COLORS.muted};font-size:13px;line-height:1.7;">يمكنك أيضًا إدخال هذا الرمز على صفحة تسجيل الدخول للمدير بعد تسجيل الدخول، أو فتح الرابط أعلاه.</p>` +
+      bodyHtml;
+  }
+  if (password) {
+    bodyHtml =
+      bodyHtml +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 4px;">
+        <tr>
+          <td align="center" style="background:${COLORS.goldSoft};border:1px solid ${COLORS.gold};border-radius:8px;padding:16px 8px;">
+            <span style="font-size:20px;font-weight:700;letter-spacing:4px;color:${COLORS.ink};direction:ltr;display:inline-block;">${escapeHtml(password)}</span>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:6px 0 0;color:${COLORS.muted};font-size:13px;line-height:1.7;">كلمة المرور المؤقتة — يُنصح بتغييرها بعد أول دخول.</p>`;
+  }
+
+  const textLines = [
+    `${brandName} — تأكيد البريد الإلكتروني`,
+    '',
+    greeting,
+    'لتأكيد بريدك الإلكتروني وتفعيل الحساب، افتح الرابط التالي:',
+    verifyUrl,
+    `الرابط صالح لمدة ${expiresInHours} ساعة.`,
+  ];
+  if (code) {
+    textLines.splice(4, 0, `رمز التأكيد: ${code}`, `الرمز صالح لمدة ${codeExpiresInMinutes ?? ttlMinutes()} دقيقة.`);
+  }
+  if (password) {
+    textLines.push('', 'كلمة المرور المؤقتة:', password, 'يُنصح بتغييرها بعد أول دخول.');
+  }
+
+  return {
+    kind: 'verify-email',
+    subject: `${brandName} — تأكيد البريد الإلكتروني`,
+    html: shell({
+      brandName,
+      heading: 'تأكيد البريد الإلكتروني',
+      intro: `${greeting} تم إنشاء حساب لك في لوحة تحكم ${brandName}.`,
+      bodyHtml,
+      footnote: `صالح لمدة ${expiresInHours} ساعة. لا يمكنك تسجيل الدخول قبل تأكيد البريد.`,
+    }),
+    text: textLines.join('\n'),
+  };
+}
+
+/**
+ * The confirmation code for a self-service password change. The code is the only
+ * secret in the mail and it is single-use; the new password is never included.
+ */
+export function passwordChangeCodeEmail(options: {
+  brandName: string;
+  name?: string | null;
+  code: string;
+  expiresInMinutes: number;
+}): MailContent {
+  const { brandName, name, code, expiresInMinutes } = options;
+  const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+
+  return {
+    kind: 'password-change-code',
+    subject: `${brandName} — رمز تأكيد تغيير كلمة المرور`,
+    html: shell({
+      brandName,
+      heading: 'رمز تأكيد تغيير كلمة المرور',
+      intro: `${greeting} لتأكيد تغيير كلمة مرور حسابك، استخدم الرمز التالي.`,
+      bodyHtml: codeBlock(code),
+      footnote: `صالح لمدة ${expiresInMinutes} دقائق. ${OTP_FOOTNOTE}`,
+    }),
+    text: [
+      `${brandName} — رمز تأكيد تغيير كلمة المرور`,
+      '',
+      greeting,
+      `رمز التأكيد: ${code}`,
       `الرمز صالح لمدة ${expiresInMinutes} دقائق.`,
       '',
       OTP_FOOTNOTE,
@@ -340,6 +507,69 @@ export function passwordChangedEmail(options: {
       '',
       'إذا لم تقم بتغيير كلمة المرور هذه، غيّرها الآن عبر "نسيت كلمة المرور" وتواصل مع مدير النظام فوراً.',
       'لأسباب أمنية، تم إنهاء الجلسات المفتوحة على الأجهزة الأخرى.',
+    ].join('\n'),
+  };
+}
+
+/**
+ * Security notice for a change to authenticator-app (TOTP) 2FA. One template
+ * for the three events so the wording and the "was this you?" warning stay
+ * identical wherever the change came from.
+ */
+export function totpNoticeEmail(options: {
+  brandName: string;
+  name?: string | null;
+  event: 'enabled' | 'disabled' | 'reset';
+  /** Who made the change, e.g. the resetting admin's address. */
+  actorEmail?: string | null;
+}): MailContent {
+  const { brandName, name, event, actorEmail } = options;
+  const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+
+  const COPY = {
+    enabled: {
+      kind: 'totp-enabled' as MailKind,
+      subject: `تم تفعيل التحقق بتطبيق المصادقة`,
+      heading: 'تم تفعيل التحقق بتطبيق المصادقة',
+      lead: 'تم تفعيل التحقق بخطوتين عبر تطبيق المصادقة على حسابك. ستحتاج إلى الرمز المكوّن من ٦ أرقام عند كل تسجيل دخول.',
+    },
+    disabled: {
+      kind: 'totp-disabled' as MailKind,
+      subject: `تم تعطيل التحقق بتطبيق المصادقة`,
+      heading: 'تم تعطيل التحقق بتطبيق المصادقة',
+      lead: 'تم تعطيل التحقق بخطوتين عبر تطبيق المصادقة على حسابك، وأصبح تسجيل الدخول بكلمة المرور فقط.',
+    },
+    reset: {
+      kind: 'totp-reset' as MailKind,
+      subject: `تم إعادة تعيين التحقق بتطبيق المصادقة`,
+      heading: 'تم إعادة تعيين التحقق بتطبيق المصادقة',
+      lead: actorEmail?.trim()
+        ? `تم إعادة تعيين إعدادات التحقق بتطبيق المصادقة لحسابك بواسطة ${actorEmail.trim()}. ستحتاج إلى إعداد التطبيق من جديد.`
+        : 'تم إعادة تعيين إعدادات التحقق بتطبيق المصادقة لحسابك. ستحتاج إلى إعداد التطبيق من جديد.',
+    },
+  } as const;
+
+  const copy = COPY[event];
+
+  return {
+    kind: copy.kind,
+    subject: `${brandName} — ${copy.subject}`,
+    html: shell({
+      brandName,
+      heading: copy.heading,
+      intro: `${greeting} ${copy.lead}`,
+      bodyHtml: `<p style="margin:0 0 12px;padding:12px 14px;background:${COLORS.goldSoft};border-right:3px solid ${COLORS.gold};border-radius:6px;color:${COLORS.ink};font-size:14px;line-height:1.9;">
+                   <strong>إذا لم تقم بهذا التغيير، تواصل مع مدير النظام فوراً وأعد تعيين كلمة المرور.</strong>
+                 </p>`,
+      footnote: 'هذه رسالة إشعار أمنية فقط ولا تتطلب أي إجراء إن كان التغيير من طرفك.',
+    }),
+    text: [
+      `${brandName} — ${copy.subject}`,
+      '',
+      greeting,
+      copy.lead,
+      '',
+      'إذا لم تقم بهذا التغيير، تواصل مع مدير النظام فوراً وأعد تعيين كلمة المرور.',
     ].join('\n'),
   };
 }

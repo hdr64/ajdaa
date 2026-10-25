@@ -8,11 +8,11 @@
  */
 import { useCallback, useMemo } from 'react';
 import { AdminStorage, type AdminUser } from '../../../services/adminStorage';
-import type { AdminStatus, Department, PermissionDef, Role } from '../../../types/admin';
-import { getErrorMessage } from '../../../services/api';
+import type { Department, PermissionDef, Role } from '../../../types/admin';
+import { ApiError, getErrorMessage } from '../../../services/api';
 import { useAsyncData, type AsyncResource } from '../../../hooks/useAsyncData';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
-import { getUserRights, type RightsContext, type UserRights } from './usersModel';
+import { getUserRights, type RightsContext, type ToggleableAdminStatus, type UserRights } from './usersModel';
 
 export interface DirectoryReference {
   roles: Role[];
@@ -26,9 +26,12 @@ export interface UsersDirectory {
   users: AsyncResource<AdminUser[]>;
   reference: AsyncResource<DirectoryReference>;
   rightsById: Map<string, UserRights>;
-  setStatus: (user: AdminUser, status: AdminStatus) => Promise<void>;
-  setManyStatus: (users: AdminUser[], status: AdminStatus) => Promise<void>;
+  setStatus: (user: AdminUser, status: ToggleableAdminStatus) => Promise<void>;
+  setManyStatus: (users: AdminUser[], status: ToggleableAdminStatus) => Promise<void>;
   remove: (user: AdminUser) => Promise<void>;
+  resendVerification: (user: AdminUser) => Promise<void>;
+  markVerified: (user: AdminUser) => Promise<void>;
+  resetTotp: (user: AdminUser) => Promise<void>;
 }
 
 interface StatusCopy {
@@ -39,7 +42,7 @@ interface StatusCopy {
   danger: boolean;
 }
 
-const STATUS_COPY: Record<AdminStatus, StatusCopy> = {
+const STATUS_COPY: Record<ToggleableAdminStatus, StatusCopy> = {
   active: {
     label: 'تنشيط',
     message: 'سيتمكن من الدخول إلى لوحة التحكم فوراً بجميع صلاحياته.',
@@ -61,7 +64,7 @@ const DELETE_CONFIRM = {
 };
 
 export function useUsersDirectory(showToast: (message: string) => void): UsersDirectory {
-  const { currentUser, isSuperAdmin, confirm, confirmDelete } = useAdmin();
+  const { currentUser, isSuperAdmin, can, confirm, confirmDelete } = useAdmin();
 
   const users = useAsyncData<AdminUser[]>(useCallback((signal) => AdminStorage.getUsers(signal), []), [], []);
   const reloadUsers = users.reload;
@@ -85,8 +88,14 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   );
 
   const rightsContext = useMemo<RightsContext>(
-    () => ({ currentUserId: currentUser?.id ?? null, isSuperAdmin, activeSuperAdminCount }),
-    [currentUser?.id, isSuperAdmin, activeSuperAdminCount]
+    () => ({
+      currentUserId: currentUser?.id ?? null,
+      isSuperAdmin,
+      canVerifyUsers: isSuperAdmin || can('verifyUsers'),
+      canManageUsers: isSuperAdmin || can('manageUsers'),
+      activeSuperAdminCount,
+    }),
+    [currentUser?.id, isSuperAdmin, can, activeSuperAdminCount]
   );
 
   const rightsById = useMemo(
@@ -95,7 +104,7 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   );
 
   const setStatus = useCallback(
-    async (user: AdminUser, status: AdminStatus) => {
+    async (user: AdminUser, status: ToggleableAdminStatus) => {
       const copy = STATUS_COPY[status];
       const ok = await confirm({
         title: `${copy.label} حساب "${user.name}"؟`,
@@ -122,7 +131,7 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
    * how many were left out so the result never reads as a full success.
    */
   const setManyStatus = useCallback(
-    async (selected: AdminUser[], status: AdminStatus) => {
+    async (selected: AdminUser[], status: ToggleableAdminStatus) => {
       if (selected.length === 0) return;
       const copy = STATUS_COPY[status];
       const targets = selected.filter((user) => {
@@ -185,5 +194,88 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
     [confirmDelete, reloadUsers, showToast]
   );
 
-  return { users, reference, rightsById, setStatus, setManyStatus, remove };
+  /**
+   * Sends a fresh activation link for an account the server still holds as
+   * pending. No confirm dialog: the action is cheap, repeatable and harmless,
+   * and only a throttled request (429) has something worth stating verbatim.
+   */
+  const resendVerification = useCallback(
+    async (user: AdminUser) => {
+      try {
+        await AdminStorage.resendVerification(user.id);
+        await reloadUsers();
+        showToast(`تم إعادة إرسال رابط التفعيل إلى ${user.name}`);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 429) showToast(error.message);
+        else showToast(getErrorMessage(error, 'تعذر إعادة إرسال رابط التفعيل'));
+      }
+    },
+    [reloadUsers, showToast]
+  );
+
+  /**
+   * Marks a pending account as verified without the emailed link or code.
+   * Needs `verifyUsers` (server-enforced); the confirm dialog explains the
+   * email check is being skipped. A verified invite account still needs a
+   * password via "Forgot password".
+   */
+  const markVerified = useCallback(
+    async (user: AdminUser) => {
+      const ok = await confirm({
+        title: 'تأكيد الحساب يدويًا؟',
+        message: `سيتم تأكيد بريد "${user.name}" وتنشيط الحساب دون الحاجة إلى الرابط أو الرمز المرسل بالبريد. إذا كان الحساب دعوة، سيُطلب من مستخدمه اختيار كلمة مرور عبر "نسيت كلمة المرور" عند أول دخول.`,
+        confirmLabel: 'تأكيد الحساب',
+        danger: false,
+      });
+      if (!ok) return;
+      try {
+        const result = await AdminStorage.markVerified(user.id);
+        await reloadUsers();
+        if (result.needsPassword) {
+          showToast(`تم تأكيد الحساب. على ${user.name} اختيار كلمة مرور عبر "نسيت كلمة المرور" عند أول دخول.`);
+        } else {
+          showToast(`تم تأكيد حساب ${user.name} وتنشيطه`);
+        }
+      } catch (error) {
+        showToast(getErrorMessage(error, 'تعذر تأكيد الحساب'));
+      }
+    },
+    [confirm, reloadUsers, showToast]
+  );
+
+  /**
+   * Clears an account's authenticator-app 2FA after a lost or replaced phone.
+   * The server guards who may do this; the UI pre-filters with rights.
+   */
+  const resetTotp = useCallback(
+    async (user: AdminUser) => {
+      const ok = await confirm({
+        title: 'إعادة تعيين التحقق بتطبيق المصادقة؟',
+        message: `سيتم فصل تطبيق المصادقة عن حساب "${user.name}" وحذف رموز الاسترداد. سيتمكن من الدخول بكلمة المرور فقط حتى يعيد ربط تطبيق المصادقة.`,
+        confirmLabel: 'إعادة التعيين',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await AdminStorage.resetUserTotp(user.id);
+        await reloadUsers();
+        showToast(`تم إعادة تعيين التحقق بتطبيق المصادقة لحساب ${user.name}`);
+      } catch (error) {
+        showToast(getErrorMessage(error, 'تعذر إعادة تعيين التحقق بتطبيق المصادقة'));
+      }
+    },
+    [confirm, reloadUsers, showToast]
+  );
+
+  return {
+    users,
+    reference,
+    rightsById,
+    setStatus,
+    setManyStatus,
+    remove,
+    resendVerification,
+    markVerified,
+    resetTotp,
+  };
 }

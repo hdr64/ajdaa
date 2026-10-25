@@ -12,6 +12,7 @@ import {
   PermissionCount,
   RolePill,
   StatusChip,
+  TotpChip,
   UserActions,
   UserAvatar,
 } from './usersUi';
@@ -29,6 +30,9 @@ export const UsersList: React.FC<UsersListProps> = ({
   onEdit,
   onToggleStatus,
   onDelete,
+  onResendVerification,
+  onMarkVerified,
+  onResetTotp,
 }) => (
   <div className="rounded-2xl bg-surface border border-muted-border/40 shadow-xs overflow-hidden divide-y divide-muted-border/20">
     {users.map((user) => {
@@ -74,6 +78,7 @@ export const UsersList: React.FC<UsersListProps> = ({
 
           <div className="flex items-center gap-2 xl:shrink-0">
             <StatusChip status={user.status} />
+            {user.totpEnabled && <TotpChip />}
             {rights && (
               <UserActions
                 user={user}
@@ -81,6 +86,9 @@ export const UsersList: React.FC<UsersListProps> = ({
                 onEdit={onEdit}
                 onToggleStatus={onToggleStatus}
                 onDelete={onDelete}
+                onResendVerification={onResendVerification}
+                onMarkVerified={onMarkVerified}
+                onResetTotp={onResetTotp}
                 variant="icons"
               />
             )}

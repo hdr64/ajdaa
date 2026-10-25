@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   KeyRound,
+  RotateCw,
   X,
 } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
@@ -18,6 +19,7 @@ import { getErrorMessage } from '../../../services/api';
 import { useLanguage } from '../../../hooks/useLanguage';
 import { passwordPolicyError } from '../users/usersModel';
 import { ConfirmChoicesCard } from './ConfirmChoicesCard';
+import { AuthenticatorTotpCard } from './AuthenticatorTotpCard';
 
 export const AdminProfilePage: React.FC = () => {
   const { currentUser, setCurrentUser, refreshUser, showToast } = useAdmin();
@@ -75,11 +77,50 @@ export const AdminProfilePage: React.FC = () => {
   };
 
   /* ---------------------- Card 2: Change Password ---------------------- */
+  /*
+   * Super admins change their password in one step. Every other role must pass
+   * a second step: the server emails a 6-digit code tied to a `challengeId`,
+   * and the password is only replaced once that code is confirmed.
+   */
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const [passwordStep, setPasswordStep] = useState<'password' | 'code'>('password');
+  const [challengeId, setChallengeId] = useState('');
+  const [emailHint, setEmailHint] = useState('');
+  const [code, setCode] = useState('');
+  const [codeSaving, setCodeSaving] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(60);
+  const [resending, setResending] = useState(false);
+
+  // Waiting on the emailed code: the password fields stay editable, but the
+  // pending challenge must not be re-issued by a repeated submit.
+  const awaitingCode = !isSuperAdmin && passwordStep === 'code';
+
+  // Only the second step needs a ticking timer; it is never mounted for super admins.
+  useEffect(() => {
+    if (!isSuperAdmin && passwordStep === 'code' && cooldown > 0) {
+      const timer = setInterval(() => {
+        setCooldown((prev) => Math.max(0, prev - 1));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [isSuperAdmin, passwordStep, cooldown]);
+
+  const resetCodeStep = () => {
+    setPasswordStep('password');
+    setChallengeId('');
+    setEmailHint('');
+    setCode('');
+    setCodeError(null);
+    setCooldown(60);
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,15 +144,97 @@ export const AdminProfilePage: React.FC = () => {
 
     setPasswordSaving(true);
     try {
-      await AdminStorage.changePassword(currentPassword, newPassword);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      showToast(isAr ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully');
+      if (isSuperAdmin) {
+        await AdminStorage.changePassword(currentPassword, newPassword);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        showToast(isAr ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully');
+      } else {
+        // A resubmission while already waiting for a code is meaningless.
+        if (passwordStep === 'password') {
+          const challenge = await AdminStorage.requestPasswordChange(currentPassword, newPassword);
+          setChallengeId(challenge.challengeId);
+          setEmailHint(challenge.emailHint);
+          setCode('');
+          setCodeError(null);
+          setCooldown(60);
+          setPasswordStep('code');
+        }
+      }
     } catch (caught) {
       setPasswordError(getErrorMessage(caught, isAr ? 'تعذر تغيير كلمة المرور' : 'Could not change password'));
     } finally {
       setPasswordSaving(false);
+    }
+  };
+
+  const handleConfirmCodeChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCodeError(null);
+
+    if (!challengeId) {
+      setPasswordStep('password');
+      return;
+    }
+
+    if (code.length < 6) {
+      setCodeError(isAr ? 'يرجى إدخال رمز التحقق المكون من 6 أرقام' : 'Please enter the 6-digit verification code');
+      return;
+    }
+
+    setCodeSaving(true);
+    try {
+      await AdminStorage.changePassword(currentPassword, newPassword, { challengeId, code });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      resetCodeStep();
+      showToast(isAr ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully');
+    } catch (caught) {
+      setCodeError(
+        getErrorMessage(
+          caught,
+          isAr ? 'رمز التحقق غير صحيح أو منتهي الصلاحية' : 'Invalid or expired verification code'
+        )
+      );
+    } finally {
+      setCodeSaving(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (cooldown > 0 || resending || passwordSaving) return;
+    setResending(true);
+    try {
+      // Reissuing the code also rotates the challenge the old code was bound to.
+      const challenge = await AdminStorage.requestPasswordChange(currentPassword, newPassword);
+      setChallengeId(challenge.challengeId);
+      setEmailHint(challenge.emailHint);
+      setCodeError(null);
+      setCooldown(60);
+    } catch (caught) {
+      setCodeError(
+        getErrorMessage(caught, isAr ? 'تعذر إعادة إرسال الرمز، يرجى الانتظار قليلاً' : 'Could not resend code, please wait')
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleBackToPasswordStep = () => {
+    // Leaves the password values untouched: they are still needed to re-issue the code.
+    setCodeError(null);
+    setPasswordStep('password');
+  };
+
+  /**
+   * Editing any password field invalidates the pending challenge: the code was
+   * issued for the previous pair, so the second step has to start over.
+   */
+  const invalidatePendingChallenge = () => {
+    if (!isSuperAdmin && passwordStep === 'code') {
+      resetCodeStep();
     }
   };
 
@@ -297,7 +420,7 @@ export const AdminProfilePage: React.FC = () => {
                 required
                 dir="ltr"
                 value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
+                onChange={(e) => { invalidatePendingChallenge(); setCurrentPassword(e.target.value); }}
                 placeholder="••••••••"
                 className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
               />
@@ -316,7 +439,7 @@ export const AdminProfilePage: React.FC = () => {
                   required
                   dir="ltr"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={(e) => { invalidatePendingChallenge(); setNewPassword(e.target.value); }}
                   placeholder="••••••••"
                   className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
                 />
@@ -334,7 +457,7 @@ export const AdminProfilePage: React.FC = () => {
                   required
                   dir="ltr"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => { invalidatePendingChallenge(); setConfirmPassword(e.target.value); }}
                   placeholder="••••••••"
                   className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
                 />
@@ -345,14 +468,100 @@ export const AdminProfilePage: React.FC = () => {
           <div className="flex justify-end pt-2">
             <button
               type="submit"
-              disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
+              disabled={passwordSaving || awaitingCode || !currentPassword || !newPassword || !confirmPassword}
               className="brand-btn-primary font-black px-5 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-sm text-xs disabled:opacity-50"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>{passwordSaving ? (isAr ? 'جاري التحديث...' : 'Updating...') : isAr ? 'تحديث كلمة المرور' : 'Update Password'}</span>
+              <span>
+                {passwordSaving
+                  ? isAr
+                    ? 'جاري الإرسال...'
+                    : 'Sending...'
+                  : awaitingCode
+                    ? isAr
+                      ? 'بانتظار رمز التحقق...'
+                      : 'Awaiting code...'
+                    : isSuperAdmin
+                      ? isAr
+                        ? 'تحديث كلمة المرور'
+                        : 'Update Password'
+                      : isAr
+                        ? 'إرسال رمز التحقق'
+                        : 'Send Verification Code'}
+              </span>
             </button>
           </div>
         </form>
+
+        {/* Second step: confirm the emailed code (super admins never reach it) */}
+        {awaitingCode && (
+          <div className="mt-5 pt-5 border-t border-muted-border/30 space-y-4">
+            <p className="text-xs text-neutral-text/70 leading-relaxed">
+              {isAr ? `أدخل الرمز المرسل إلى ` : `Enter the code sent to `}
+              <span className="font-mono font-bold text-heading inline-block" dir="ltr">{emailHint}</span>
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5 text-center">
+                {isAr ? 'رمز التحقق (6 أرقام)' : 'Verification Code (6 digits)'}
+              </label>
+              <input
+                type="text"
+                required
+                autoFocus
+                dir="ltr"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                className="w-full py-3.5 px-4 rounded-xl bg-canvas border border-muted-border/50 text-xl font-mono text-center tracking-[0.5em] text-heading outline-none focus:border-accent"
+              />
+            </div>
+
+            {codeError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{codeError}</span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleConfirmCodeChange}
+              disabled={codeSaving || code.length < 6}
+              className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{codeSaving ? (isAr ? 'جاري التأكيد...' : 'Confirming...') : isAr ? 'تأكيد وتغيير كلمة المرور' : 'Confirm & Change Password'}</span>
+            </button>
+
+            <div className="flex items-center justify-between gap-2 pt-1 text-xs">
+              <button
+                type="button"
+                onClick={handleBackToPasswordStep}
+                className="text-neutral-text/60 hover:text-heading font-bold cursor-pointer transition-colors"
+              >
+                {isAr ? 'رجوع' : 'Back'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={cooldown > 0 || resending || passwordSaving}
+                className="text-accent hover:underline disabled:text-neutral-text/40 disabled:no-underline font-bold cursor-pointer disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
+                {cooldown > 0 ? (
+                  <span>{isAr ? `إعادة الإرسال بعد ${cooldown} ثانية` : `Resend code in ${cooldown}s`}</span>
+                ) : (
+                  <span>{isAr ? 'إعادة إرسال الرمز' : 'Resend Code'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* -------------------- Card 3: Two-Step Login OTP ------------------- */}
@@ -424,6 +633,9 @@ export const AdminProfilePage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* --------------- Card 4: Two-Step Authenticator App --------------- */}
+      <AuthenticatorTotpCard isAr={isAr} />
 
       <ConfirmChoicesCard isAr={isAr} />
 

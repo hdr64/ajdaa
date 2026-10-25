@@ -21,7 +21,12 @@ export const ROLE_KEY_HINT = 'حرف إنجليزي صغير أول، ثم حر�
 /** The one permission that escalates: only a super admin may put it in a role. */
 export const MANAGE_USERS_KEY: PermissionKey = 'manageUsers';
 
+/** Lets an admin mark a pending account verified without the emailed link or code. */
+export const VERIFY_USERS_KEY: PermissionKey = 'verifyUsers';
+
 export const MANAGE_USERS_HINT = 'منح صلاحية «إدارة المستخدمين» متاح لمدير عام النظام فقط';
+
+export const VERIFY_USERS_HINT = 'منح صلاحية «تأكيد حسابات المستخدمين» متاح لمدير عام النظام فقط';
 
 export const SYSTEM_ROLE_HINT = 'دور نظامي: الاسم والوصف فقط قابلان للتعديل';
 

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { prisma } from '../src/services/prisma.js';
+import { clearSentMail } from '../src/services/mailService.js';
 
 export const SEED_PASSWORD = 'password';
 
@@ -145,6 +146,17 @@ export async function createThrowawayUser(overrides: Partial<NewUser> = {}): Pro
   }
 
   const created = response.json() as Omit<TestSession, 'token'>;
+  // The public create flow now starts accounts `pending` (they must confirm the
+  // emailed link). The helper's accounts exist only to log in and exercise other
+  // flows, so it marks them verified/active out of band — the verification flow
+  // itself is covered in `email-verification.test.ts`.
+  await prisma.adminUser.update({
+    where: { id: created.id },
+    data: { status: 'active', emailVerifiedAt: new Date() },
+  });
+  // Drop the confirmation mail that dispatch just queued: helper callers assert
+  // on the mail a *later* action sends, so this one must not leak into it.
+  clearSentMail();
   return { ...created, token: '' };
 }
 

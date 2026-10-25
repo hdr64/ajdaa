@@ -147,12 +147,62 @@ export const AdminStorage = {
     return authService.setLoginOtp(enabled, password);
   },
 
+  /* --------------------- Authenticator app (TOTP) ------------------------ */
+
+  verifyLoginTotp(challengeId: string, code: string): Promise<AuthSession & { recoveryCodesLeft?: number }> {
+    return authService.verifyLoginTotp(challengeId, code);
+  },
+
+  enrollTotpSetup(enrollToken: string): Promise<{ otpauthUri: string; secret: string }> {
+    return authService.enrollTotpSetup(enrollToken);
+  },
+
+  enrollTotpVerify(enrollToken: string, code: string): Promise<AuthSession & { recoveryCodes: string[] }> {
+    return authService.enrollTotpVerify(enrollToken, code);
+  },
+
+  totpSetup(currentPassword: string): Promise<{ otpauthUri: string; secret: string }> {
+    return authService.totpSetup(currentPassword);
+  },
+
+  totpEnable(code: string): Promise<{ recoveryCodes: string[] }> {
+    return authService.totpEnable(code);
+  },
+
+  totpDisable(currentPassword: string, code: string): Promise<{ disabled: boolean }> {
+    return authService.totpDisable(currentPassword, code);
+  },
+
+  regenerateRecoveryCodes(currentPassword: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    return authService.regenerateRecoveryCodes(currentPassword, code);
+  },
+
+  resetUserTotp(userId: string): Promise<{ reset: boolean }> {
+    return authService.resetUserTotp(userId);
+  },
+
   updateProfile(input: { name?: string; email?: string; phone?: string | null }): Promise<AdminUser> {
     return authService.updateProfile(input);
   },
 
-  changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
-    return authService.changePassword(currentPassword, newPassword);
+  changePassword(
+    currentPassword: string,
+    newPassword: string,
+    confirmation?: { challengeId: string; code: string }
+  ): Promise<{ message: string }> {
+    return authService.changePassword(currentPassword, newPassword, confirmation);
+  },
+
+  requestPasswordChange(currentPassword: string, newPassword: string): Promise<{ challengeId: string; emailHint: string }> {
+    return authService.requestPasswordChange(currentPassword, newPassword);
+  },
+
+  verifyEmail(token: string): Promise<{ verified: boolean }> {
+    return authService.verifyEmail(token);
+  },
+
+  acceptInvite(token: string, password: string): Promise<{ activated: boolean }> {
+    return authService.acceptInvite(token, password);
   },
 
   async getCurrentUser(): Promise<AdminUser> {
@@ -366,8 +416,24 @@ export const AdminStorage = {
     return authService.listUsers(signal);
   },
 
-  createUser(input: AdminUserInput): Promise<AdminUser> {
+  createUser(input: AdminUserInput): Promise<{ user: AdminUser; mailSent: boolean }> {
     return authService.createUser(input);
+  },
+
+  resendVerification(userId: string): Promise<{ sent: boolean }> {
+    return authService.resendVerification(userId);
+  },
+
+  verifyEmailCode(email: string, password: string, code: string): Promise<{ verified: boolean }> {
+    return authService.verifyEmailCode(email, password, code);
+  },
+
+  resendVerificationCode(email: string, password: string): Promise<{ sent: boolean }> {
+    return authService.resendVerificationCode(email, password);
+  },
+
+  markVerified(userId: string): Promise<{ verified: boolean; needsPassword: boolean }> {
+    return authService.markVerified(userId);
   },
 
   updateUser(id: string, input: Partial<AdminUserInput>): Promise<AdminUser> {
