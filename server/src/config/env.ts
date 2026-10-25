@@ -220,7 +220,7 @@ const envSchema = z.object({
  * "not configured" from "configured with a random-looking string".
  */
 export function productionConfigErrors(
-  env: { nodeEnv: string; jwtSecret: string },
+  env: { nodeEnv: string; jwtSecret: string; databaseUrl?: string },
   rawEnv: Record<string, string | undefined>
 ): Record<string, string> {
   const errors: Record<string, string> = {};
@@ -240,6 +240,15 @@ export function productionConfigErrors(
       'DEVELOPER_NOTES_SECRET is required in production. Generate one with `openssl rand -base64 32`.';
   } else if (developerSecret.length < MIN_SECRET_LENGTH) {
     errors.DEVELOPER_NOTES_SECRET = `DEVELOPER_NOTES_SECRET must be at least ${MIN_SECRET_LENGTH} characters.`;
+  }
+
+  const databaseUrl = (env.databaseUrl ?? rawEnv.DATABASE_URL)?.trim();
+  if (!databaseUrl) {
+    errors.DATABASE_URL =
+      'DATABASE_URL is required in production and must start with postgres:// or postgresql://.';
+  } else if (!databaseUrl.startsWith('postgres://') && !databaseUrl.startsWith('postgresql://')) {
+    errors.DATABASE_URL =
+      'DATABASE_URL must start with postgres:// or postgresql:// in production.';
   }
 
   if (env.jwtSecret.length < MIN_JWT_SECRET_LENGTH) {
@@ -263,7 +272,7 @@ if (!parsed.success) {
 const env = parsed.data;
 
 const productionErrors = productionConfigErrors(
-  { nodeEnv: env.NODE_ENV, jwtSecret: env.JWT_SECRET },
+  { nodeEnv: env.NODE_ENV, jwtSecret: env.JWT_SECRET, databaseUrl: env.DATABASE_URL },
   process.env
 );
 

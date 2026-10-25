@@ -1855,6 +1855,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           // accept-invite), which is what `mark-verified` uses to decide if the
           // user must set a password via "Forgot password".
           ...(body.mode === 'create' ? { passwordChangedAt: new Date() } : {}),
+          phone: body.phone || null,
         },
       });
 
@@ -2112,6 +2113,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           departmentId: resolvedDepartmentId !== undefined ? resolvedDepartmentId : undefined,
           permissions: resolvedPermissions ? JSON.stringify(resolvedPermissions) : undefined,
           status: body.status,
+          phone: body.phone === undefined ? undefined : body.phone || null,
         },
       });
 

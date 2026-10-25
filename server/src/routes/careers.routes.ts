@@ -5,6 +5,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { config } from '../config/env.js';
+import { caseInsensitiveContains } from '../utils/caseInsensitive.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import {
@@ -303,9 +304,7 @@ export const careersRoutes: FastifyPluginAsync = async (fastify) => {
       if (q && q.trim()) {
         // Postgres needs `mode: 'insensitive'`; SQLite (dev/tests) rejects it and
         // its LIKE is already case-insensitive for ASCII.
-        const match = config.databaseUrl.startsWith('file:')
-          ? { contains: q.trim() }
-          : { contains: q.trim(), mode: 'insensitive' as const };
+        const match = caseInsensitiveContains(config.databaseUrl, q.trim());
         where.OR = [{ name: match }, { email: match }, { phone: match }, { jobTitle: match }];
       }
 

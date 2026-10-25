@@ -1,6 +1,7 @@
 import { config } from '../config/env.js';
 import { prisma } from './prisma.js';
 import { decryptSecret, encryptSecret } from './secretBox.js';
+import { loggerService } from './loggerService.js';
 
 /**
  * SMTP settings, editable from the admin.
@@ -44,6 +45,7 @@ const SETTING_KEY = 'mail';
 let cached: EffectiveMailSettings | undefined;
 let version = 0;
 let undecryptableLogged = false;
+let corruptLogged = false;
 
 function fromEnv(): EffectiveMailSettings {
   const { host, port, username, password, encryption, fromAddress, fromName } = config.mail;
@@ -70,7 +72,20 @@ function fromStored(stored: StoredMailSettings): EffectiveMailSettings {
 export async function getEffectiveMailSettings(): Promise<EffectiveMailSettings> {
   if (cached) return cached;
   const row = await prisma.appSetting.findUnique({ where: { key: SETTING_KEY } });
-  cached = row ? fromStored(JSON.parse(row.value) as StoredMailSettings) : fromEnv();
+  if (!row) {
+    cached = fromEnv();
+    return cached;
+  }
+  let stored: StoredMailSettings | null = null;
+  try {
+    stored = JSON.parse(row.value) as StoredMailSettings;
+  } catch {
+    if (!corruptLogged) {
+      corruptLogged = true;
+      loggerService.warn('Stored mail settings row is corrupt; falling back to env defaults', {}, 'mail');
+    }
+  }
+  cached = stored ? fromStored(stored) : fromEnv();
   return cached;
 }
 

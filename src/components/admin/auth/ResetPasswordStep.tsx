@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, KeyRound, AlertCircle, Info, type LucideIcon } from 'lucide-react';
 import { PasswordInput } from './PasswordInput';
+import { passwordPolicyError } from '../users/usersModel';
 
 interface ResetPasswordStepProps {
   email: string;
@@ -38,8 +39,9 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
       return;
     }
 
-    if (newPassword.length < 8) {
-      setClientError(isAr ? 'كلمة المرور يجب أن لا تقل عن 8 أحرف' : 'Password must be at least 8 characters');
+    const policyErr = passwordPolicyError(newPassword, isAr);
+    if (policyErr) {
+      setClientError(policyErr);
       return;
     }
 
@@ -109,7 +111,7 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
 
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-            {isAr ? 'كلمة المرور الجديدة (8 أحرف على الأقل)' : 'New Password (min 8 chars)'}
+            {isAr ? 'كلمة المرور الجديدة (10 أحرف على الأقل)' : 'New Password (min 10 chars)'}
           </label>
           <PasswordInput
             value={newPassword}

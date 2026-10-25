@@ -240,6 +240,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         // 'invite' sends no password: the emailed link lets the user choose one.
         mode,
         password: mode === 'invite' ? undefined : form.password,
+        phone: form.phone.trim() || null,
         role: roleKey,
         roleAr,
         roleId: selectedRoleId,

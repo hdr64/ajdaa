@@ -96,6 +96,7 @@ export interface AdminUser {
 export interface AdminUserInput {
   name: string;
   email: string;
+  phone?: string | null;
   password?: string;
   /** 'create' keeps the admin-set-password flow; 'invite' emails a self-service link. */
   mode?: 'create' | 'invite';

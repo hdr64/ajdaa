@@ -294,11 +294,20 @@ export const CmsClientsPanel: React.FC = () => {
   // Move client order
   const handleMove = async (index: number, direction: 'up' | 'down') => {
     const target = direction === 'up' ? index - 1 : index + 1;
-    if (target < 0 || target >= clients.length) return;
+    if (target < 0 || target >= filteredClients.length) return;
+
+    const currentItem = filteredClients[index];
+    const targetItem = filteredClients[target];
+    if (!currentItem || !targetItem) return;
+
+    const currentIndex = clients.findIndex((c) => c.id === currentItem.id);
+    const targetIndex = clients.findIndex((c) => c.id === targetItem.id);
+    if (currentIndex === -1 || targetIndex === -1) return;
+
     const copy = [...clients];
-    const temp = copy[index];
-    copy[index] = copy[target];
-    copy[target] = temp;
+    const temp = copy[currentIndex];
+    copy[currentIndex] = copy[targetIndex];
+    copy[targetIndex] = temp;
     setClients(copy);
 
     const ids = copy.map((c) => c.id).filter(Boolean) as string[];

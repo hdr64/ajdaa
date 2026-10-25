@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Phone, Mail, MapPin, Clock, Send, CheckCircle2, Zap, ShieldCheck, Headphones, MessageCircleMore } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 import { AdminStorage } from '../../services/adminStorage';
@@ -66,7 +66,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
   const [submitting, setSubmitting] = useState(false);
 
   // Spam protection state
-  const [startedAt, setStartedAt] = useState<number>(() => Date.now());
+  // Starts when a field is first focused, not at mount: a visitor who pastes and submits right away is not a bot.
+  const startedAt = useRef<number | null>(null);
   const [website, setWebsite] = useState('');
 
   const { settings } = useSiteSettings();
@@ -174,15 +175,6 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
     e.preventDefault();
     if (!validate()) return;
 
-    // Spam protection check (honeypot or submission faster than 2 seconds)
-    const isHoneypot = Boolean(website && website.trim().length > 0);
-    const isTooFast = Date.now() - startedAt < 2000;
-    if (isHoneypot || isTooFast) {
-      setSent(true);
-      onSuccessToast?.(isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully');
-      return;
-    }
-
     setSubmitting(true);
     try {
       await AdminStorage.addInquiry({
@@ -192,7 +184,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
         interestType: interestFor(form.subjectIndex),
         message: `[${selectedSubject}] ${form.message.trim()}`,
         website,
-        elapsedMs: Date.now() - startedAt,
+        elapsedMs: Date.now() - (startedAt.current ?? Date.now()),
       });
       setSent(true);
       onSuccessToast?.(isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully');
@@ -215,7 +207,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
     setErrors({});
     setSent(false);
     setWebsite('');
-    setStartedAt(Date.now());
+    startedAt.current = null;
   };
 
   return (
@@ -357,7 +349,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} noValidate className="relative grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <form
+                onSubmit={handleSubmit}
+                onFocus={() => {
+                  if (startedAt.current === null) startedAt.current = Date.now();
+                }}
+                noValidate
+                className="relative grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {/* Honeypot field for bot spam prevention */}
                 <div
                   className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import type { Property, PropertyUnit } from '../../types/property';
 import { AdminStorage } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
@@ -53,7 +53,8 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
   const [submitting, setSubmitting] = useState(false);
 
   // Spam protection state
-  const [startedAt] = useState<number>(() => Date.now());
+  // Starts when a field is first focused, not at mount: a visitor who pastes and submits right away is not a bot.
+  const startedAt = useRef<number | null>(null);
   const [website, setWebsite] = useState('');
 
   const filtered = filter === 'all' ? allProjects : allProjects.filter((p) => p.type === filter);
@@ -62,17 +63,6 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
     e.preventDefault();
     if (!formData.name.trim()) {
       onSuccessToast(isAr ? 'يرجى إدخال اسمك' : 'Please enter your name');
-      return;
-    }
-
-    // Spam protection check (honeypot or submission faster than 2 seconds)
-    const isHoneypot = Boolean(website && website.trim().length > 0);
-    const isTooFast = Date.now() - startedAt < 2000;
-    if (isHoneypot || isTooFast) {
-      setStep(3);
-      onSuccessToast(
-        isAr ? 'تم تسجيل اهتمامك بنجاح! سيتواصل معك فريقنا قريباً.' : 'Your interest has been submitted successfully!'
-      );
       return;
     }
 
@@ -89,7 +79,7 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
         interestType: formData.interestType,
         message: formData.message.trim() || undefined,
         website,
-        elapsedMs: Date.now() - startedAt,
+        elapsedMs: Date.now() - (startedAt.current ?? Date.now()),
       });
 
       setStep(3);
@@ -329,7 +319,13 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            onFocus={() => {
+              if (startedAt.current === null) startedAt.current = Date.now();
+            }}
+            className="space-y-4"
+          >
             {/* Honeypot field for bot spam prevention */}
             <div
               className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"

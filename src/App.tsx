@@ -262,12 +262,21 @@ export function App() {
     }, TRANSITION_EXIT_MS);
   };
 
-  const navigateTo = (page: PageKey, pushHistory = true, options?: { projectId?: number }) => {
-    const nextRoute: RouteState = { page, projectId: options?.projectId };
+  const navigateTo = (page: PageKey, pushHistory = true, options?: { projectId?: number; property?: Property }) => {
+    const targetProjectId = options?.projectId ?? options?.property?.id;
+    const nextRoute: RouteState = { page, projectId: targetProjectId };
 
-    if (page === currentPage && options?.projectId === route.projectId) {
+    if (page === currentPage && targetProjectId === route.projectId) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
+    }
+
+    if (options?.property) {
+      setSelectedProperty(options.property);
+    } else if (targetProjectId) {
+      void AdminStorage.getProjectById(targetProjectId).then((p) => {
+        if (p) setSelectedProperty(p);
+      }).catch(() => {});
     }
 
     const currentScrollY = window.scrollY;
@@ -282,6 +291,19 @@ export function App() {
       window.scrollTo({ top: 0, behavior: 'auto' });
     });
   };
+
+  // Sync selectedProperty with route.projectId if navigating directly or via browser history
+  useEffect(() => {
+    if (route.projectId && (!selectedProperty || selectedProperty.id !== route.projectId)) {
+      let cancelled = false;
+      AdminStorage.getProjectById(route.projectId).then((p) => {
+        if (!cancelled && p) setSelectedProperty(p);
+      }).catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [route.projectId, selectedProperty]);
 
   // Admin sections change without the page transition; the dashboard is one screen.
   const navigateAdmin = (adminPath: string, options?: { replace?: boolean }) => {
@@ -299,11 +321,11 @@ export function App() {
 
   const handleSelectProperty = (prop: Property) => {
     setSelectedProperty(prop);
-    navigateTo('booking');
+    navigateTo('booking', true, { projectId: prop.id, property: prop });
   };
 
   const handleQuickView = (prop: Property) => {
-    navigateTo('project', true, { projectId: prop.id });
+    navigateTo('project', true, { projectId: prop.id, property: prop });
   };
 
   // Dedicated Admin views (clean full-screen portals)

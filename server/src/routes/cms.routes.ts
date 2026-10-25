@@ -85,6 +85,10 @@ export const cmsRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return result;
       } catch (caught) {
+        const code = (caught as { code?: string })?.code;
+        if (code === 'P2002') {
+          return reply.status(409).send({ error: 'A concurrent edit conflict occurred; please retry.' });
+        }
         const message = caught instanceof Error ? caught.message : String(caught);
         return reply.status(400).send({ error: message });
       }

@@ -173,6 +173,11 @@ Updates section JSON payload, increments version, archives snapshot, and invalid
 }
 ```
 
+**Response (409 Conflict):** returned when two concurrent saves collide on the version unique constraint.
+```json
+{ "error": "A concurrent edit conflict occurred; please retry." }
+```
+
 ---
 
 ### GET `/api/cms/content/:key/versions`

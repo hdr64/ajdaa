@@ -32,10 +32,9 @@ afterAll(async () => {
   await closeApp();
 });
 
-function httpEntries(): Array<{ message: string; context?: Record<string, unknown> }> {
-  return loggerService
-    .getLogs({ source: 'buffer', limit: 1000 })
-    .entries.filter((entry) => entry.source === 'http');
+async function httpEntries(): Promise<Array<{ message: string; context?: Record<string, unknown> }>> {
+  const result = await loggerService.getLogs({ source: 'buffer', limit: 1000 });
+  return result.entries.filter((entry) => entry.source === 'http');
 }
 
 describe('the request log of the application', () => {
@@ -46,7 +45,7 @@ describe('the request log of the application', () => {
     });
     expect(response.statusCode).toBe(404);
 
-    const entries = httpEntries();
+    const entries = await httpEntries();
     const logged = entries.find((entry) => entry.message.includes('/api/request-log-probe'));
 
     expect(logged).toBeDefined();
@@ -60,7 +59,7 @@ describe('the request log of the application', () => {
       url: `/api/request-log-probe?token=${MARKER}&password=hunter2&otp=123456&key=abc`,
     });
 
-    const serialised = JSON.stringify(httpEntries());
+    const serialised = JSON.stringify(await httpEntries());
 
     expect(serialised).not.toContain(MARKER);
     expect(serialised).not.toContain('hunter2');

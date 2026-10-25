@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { config } from '../config/env.js';
+import { caseInsensitiveContains } from '../utils/caseInsensitive.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { buildCsv, sendCsv } from '../services/csv.js';
@@ -98,7 +99,7 @@ export const newsletterRoutes: FastifyPluginAsync = async (fastify) => {
 
       const where: Record<string, unknown> = {};
       if (query.q) {
-        where.email = { contains: query.q.toLowerCase() };
+        where.email = caseInsensitiveContains(config.databaseUrl, query.q.toLowerCase());
       }
 
       const subscribers = await prisma.newsletterSubscriber.findMany({

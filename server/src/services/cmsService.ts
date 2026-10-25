@@ -82,8 +82,8 @@ export async function seedCmsDefaultsIfNeeded() {
           tagsAr: JSON.stringify(client.tagsAr),
           tagsEn: JSON.stringify(client.tagsEn),
           websiteUrl: client.websiteUrl || null,
-          order: client.order,
-          visible: client.visible,
+          order: client.order ?? 0,
+          visible: client.visible ?? true,
         },
       });
     }
@@ -226,10 +226,10 @@ export async function updateSectionContent(
 
   const stringified = JSON.stringify(validated);
 
-  const existing = await prisma.cmsSection.findUnique({ where: { key } });
-  const newVersion = (existing?.version ?? 0) + 1;
-
   const updated = await prisma.$transaction(async (tx) => {
+    const existing = await tx.cmsSection.findUnique({ where: { key } });
+    const newVersion = (existing?.version ?? 0) + 1;
+
     const sec = await tx.cmsSection.upsert({
       where: { key },
       create: {
@@ -369,22 +369,28 @@ export async function createCmsClient(rawInput: unknown, io?: { emit: (event: st
 export async function updateCmsClient(id: string, rawInput: unknown, io?: { emit: (event: string, data: unknown) => void }) {
   const validated = cmsClientItemSchema.parse(rawInput);
 
+  const data: Record<string, unknown> = {
+    nameAr: validated.nameAr,
+    nameEn: validated.nameEn,
+    sectorAr: validated.sectorAr,
+    sectorEn: validated.sectorEn,
+    descAr: validated.descAr,
+    descEn: validated.descEn,
+    logo: validated.logo,
+    tagsAr: JSON.stringify(validated.tagsAr),
+    tagsEn: JSON.stringify(validated.tagsEn),
+    websiteUrl: validated.websiteUrl || null,
+  };
+  if (validated.order !== undefined && validated.order !== null) {
+    data.order = validated.order;
+  }
+  if (validated.visible !== undefined && validated.visible !== null) {
+    data.visible = validated.visible;
+  }
+
   const client = await prisma.cmsClient.update({
     where: { id },
-    data: {
-      nameAr: validated.nameAr,
-      nameEn: validated.nameEn,
-      sectorAr: validated.sectorAr,
-      sectorEn: validated.sectorEn,
-      descAr: validated.descAr,
-      descEn: validated.descEn,
-      logo: validated.logo,
-      tagsAr: JSON.stringify(validated.tagsAr),
-      tagsEn: JSON.stringify(validated.tagsEn),
-      websiteUrl: validated.websiteUrl || null,
-      order: validated.order,
-      visible: validated.visible,
-    },
+    data,
   });
 
   if (io) io.emit('cms:clients:updated', { action: 'update', id: client.id });

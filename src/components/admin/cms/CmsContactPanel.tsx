@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { api, getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsContactPageContent } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
 
@@ -47,8 +48,10 @@ interface SubjectPair {
 
 export const CmsContactPanel: React.FC = () => {
   const { showToast, confirm, can } = useAdmin();
+  const { t } = useAdminT();
   const [data, setData] = useState<CmsContactPageContent>(DEFAULT_CONTACT);
   const [subjectPairs, setSubjectPairs] = useState<SubjectPair[]>([]);
+  const [subjectError, setSubjectError] = useState<string | null>(null);
   const [version, setVersion] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,6 +109,7 @@ export const CmsContactPanel: React.FC = () => {
   };
 
   const handleUpdateSubject = (index: number, patch: Partial<SubjectPair>) => {
+    setSubjectError(null);
     setSubjectPairs((prev) => {
       const copy = [...prev];
       copy[index] = { ...copy[index], ...patch };
@@ -141,10 +145,30 @@ export const CmsContactPanel: React.FC = () => {
       return;
     }
 
+    const trimmedPairs = subjectPairs.map((p) => ({
+      ...p,
+      ar: p.ar.trim(),
+      en: p.en.trim(),
+    }));
+
+    // Drop a pair only when both sides are empty
+    const survivingPairs = trimmedPairs.filter((p) => p.ar.length > 0 || p.en.length > 0);
+
+    // If exactly one side of a pair is empty, block save with a field error
+    const hasIncompletePair = survivingPairs.some((p) => !p.ar || !p.en);
+    if (hasIncompletePair) {
+      const msg = t('cms.contact.subjectPairIncomplete');
+      setSubjectError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    setSubjectError(null);
+
     const payload: CmsContactPageContent = {
       ...data,
-      subjectsAr: subjectPairs.map((p) => p.ar.trim()).filter(Boolean),
-      subjectsEn: subjectPairs.map((p) => p.en.trim()).filter(Boolean),
+      subjectsAr: survivingPairs.map((p) => p.ar),
+      subjectsEn: survivingPairs.map((p) => p.en),
     };
 
     setSaving(true);
@@ -365,21 +389,38 @@ export const CmsContactPanel: React.FC = () => {
               </div>
 
               <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  value={pair.ar}
-                  onChange={(e) => handleUpdateSubject(index, { ar: e.target.value })}
-                  placeholder="نص الموضوع بالعربية"
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-surface border border-muted-border/40 focus:border-primary focus:outline-hidden"
-                />
-                <input
-                  type="text"
-                  dir="ltr"
-                  value={pair.en}
-                  onChange={(e) => handleUpdateSubject(index, { en: e.target.value })}
-                  placeholder="Subject in English"
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-surface border border-muted-border/40 focus:border-primary focus:outline-hidden"
-                />
+                <div>
+                  <input
+                    type="text"
+                    value={pair.ar}
+                    onChange={(e) => handleUpdateSubject(index, { ar: e.target.value })}
+                    placeholder="نص الموضوع بالعربية"
+                    className={`w-full px-2.5 py-1.5 text-xs rounded-lg bg-surface border focus:border-primary focus:outline-hidden ${
+                      subjectError && !pair.ar.trim() && pair.en.trim()
+                        ? 'border-red-500/60'
+                        : 'border-muted-border/40'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={pair.en}
+                    onChange={(e) => handleUpdateSubject(index, { en: e.target.value })}
+                    placeholder="Subject in English"
+                    className={`w-full px-2.5 py-1.5 text-xs rounded-lg bg-surface border focus:border-primary focus:outline-hidden ${
+                      subjectError && pair.ar.trim() && !pair.en.trim()
+                        ? 'border-red-500/60'
+                        : 'border-muted-border/40'
+                    }`}
+                  />
+                </div>
+                {subjectError && (!pair.ar.trim() !== !pair.en.trim()) && (
+                  <p role="alert" className="text-[11px] text-red-500 font-medium col-span-1 sm:col-span-2">
+                    {subjectError}
+                  </p>
+                )}
               </div>
 
               <button

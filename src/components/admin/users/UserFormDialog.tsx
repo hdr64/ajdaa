@@ -290,6 +290,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
   const selectedRole = selectedRoleOption?.role ?? null;
 
   const pickRole = (roleId: string) => {
+    if (roleId === form.roleId) return;
     const role = roleOptions.find((option) => option.value === roleId)?.role ?? null;
     setForm((current) => ({
       ...current,
@@ -356,6 +357,7 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
       const changes: Partial<AdminUserInput> = {
         name: form.name.trim(),
         email: form.email.trim(),
+        phone: form.phone.trim() || null,
         department: departmentName,
         departmentId,
       };
