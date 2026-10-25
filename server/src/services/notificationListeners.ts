@@ -131,6 +131,11 @@ export async function listListeners(): Promise<ListenerView[]> {
   return rows.map(toView);
 }
 
+export async function getListener(id: string): Promise<ListenerView | null> {
+  const row = await prisma.notificationListener.findUnique({ where: { id } });
+  return row ? toView(row) : null;
+}
+
 export async function createListener(input: ListenerInput, adminId: string): Promise<ListenerView> {
   const key = CONFIGURED_KEYS[input.event];
   const row = await prisma.$transaction(async (tx) => {
