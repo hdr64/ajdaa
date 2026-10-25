@@ -71,6 +71,14 @@ const siteSettingsSchema = z.object({
     messageAr: z.string().trim().min(1).max(500),
     messageEn: z.string().trim().min(1).max(500),
   }),
+  // Optional so a client that predates the switches cannot reset them.
+  careers: z
+    .object({
+      showFooterLink: z.boolean(),
+      showFloatingButton: z.boolean(),
+    })
+    .partial()
+    .optional(),
 });
 
 // Both switches are optional so a client that predates `totpRequiredForAll`
@@ -98,7 +106,11 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put(
     '/site',
     { ...guards(), preValidation: [validateBody(siteSettingsSchema)] },
-    async (request) => saveSiteSettings(siteSettingsSchema.parse(request.body), request.admin!.id)
+    async (request) => {
+      const body = siteSettingsSchema.parse(request.body);
+      const current = await getSiteSettings();
+      return saveSiteSettings({ ...body, careers: { ...current.careers, ...body.careers } }, request.admin!.id);
+    }
   );
 
   fastify.get('/security', guards(), async () => toSecurityView(await getSecuritySettings()));

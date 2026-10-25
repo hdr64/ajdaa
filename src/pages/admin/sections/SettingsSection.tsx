@@ -8,6 +8,7 @@ import { SiteSettingsPanel } from '../../../components/admin/settings/SiteSettin
 import { NotificationListenersPanel } from '../../../components/admin/settings/NotificationListenersPanel';
 import { MailSettingsSection } from './MailSettingsSection';
 import { AnnouncementPanel } from '../../../components/admin/settings/AnnouncementPanel';
+import { CareersVisibilityPanel } from '../../../components/admin/settings/CareersVisibilityPanel';
 import { SecurityPanel } from '../../../components/admin/settings/SecurityPanel';
 
 type SettingsTab = 'site' | 'announcement' | 'notifications' | 'security' | 'mail';
@@ -67,7 +68,12 @@ export const SettingsSection: React.FC = () => {
       </div>
 
       <div role="tabpanel">
-        {active.id === 'site' && <SiteSettingsPanel />}
+        {active.id === 'site' && (
+          <div className="space-y-5">
+            <SiteSettingsPanel />
+            <CareersVisibilityPanel />
+          </div>
+        )}
         {active.id === 'announcement' && <AnnouncementPanel />}
         {active.id === 'notifications' && <NotificationListenersPanel />}
         {active.id === 'security' && <SecurityPanel />}

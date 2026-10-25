@@ -5,7 +5,7 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { newsletterService } from '../../services/newsletterService';
 import { getErrorMessage } from '../../services/api';
 import { useTheme } from '../../hooks/useTheme';
-import { whatsappUrl } from '../../hooks/useSiteSettings';
+import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { SOCIAL_ICONS } from './socialIcons';
@@ -26,6 +26,7 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
   const { t, isRTL, language } = useLanguage();
+  const { settings: siteSettings } = useSiteSettings();
   const { theme } = useTheme();
   const { content } = useCmsContent();
   const { text, list } = useCmsText();
@@ -156,13 +157,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                   </button>
                 );
               })}
-              <button
-                onClick={() => onNavigate('careers')}
-                className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
-              >
-                <ChevronRight className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
-                {language === 'ar' ? 'قدّم على وظيفة' : 'Apply for a job'}
-              </button>
+              {siteSettings.careers.showFooterLink && (
+                <button
+                  onClick={() => onNavigate('careers')}
+                  className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+                >
+                  <ChevronRight className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
+                  {language === 'ar' ? 'الوظائف' : 'Jobs'}
+                </button>
+              )}
             </div>
           </div>
 

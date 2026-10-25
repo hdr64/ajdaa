@@ -69,6 +69,12 @@ export interface Maintenance {
   messageEn: string;
 }
 
+/** Which public links lead to the Jobs page. */
+export interface CareersVisibility {
+  showFooterLink: boolean;
+  showFloatingButton: boolean;
+}
+
 /** Public contact details and social links (`/api/settings/site`). An empty social link hides that icon. */
 export interface SiteSettings {
   /** Shown as written, e.g. "+966 58 048 4528". */
@@ -83,6 +89,7 @@ export interface SiteSettings {
   socials: Record<SocialKey, string>;
   announcement: Announcement;
   maintenance: Maintenance;
+  careers: CareersVisibility;
 }
 
 /** Mirrors the server's defaults; shown until (or if never) the API answers. */
@@ -108,6 +115,7 @@ export const SITE_DEFAULTS: SiteSettings = {
     messageAr: 'الموقع قيد الصيانة حالياً، وسنعود قريباً.',
     messageEn: 'The site is under maintenance. We will be back shortly.',
   },
+  careers: { showFooterLink: true, showFloatingButton: true },
 };
 
 export const siteSettingsApi = {

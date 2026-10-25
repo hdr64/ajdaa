@@ -34,6 +34,12 @@ export interface Maintenance {
   messageEn: string;
 }
 
+/** Whether the public site links to the careers page from the footer and from a floating button. */
+export interface CareersVisibility {
+  showFooterLink: boolean;
+  showFloatingButton: boolean;
+}
+
 export interface SiteSettings {
   /** Shown as written, e.g. "+966 58 048 4528". */
   phone: string;
@@ -47,6 +53,7 @@ export interface SiteSettings {
   socials: Record<SocialKey, string>;
   announcement: Announcement;
   maintenance: Maintenance;
+  careers: CareersVisibility;
 }
 
 /** The values that were hard-coded in the site before this setting existed. */
@@ -72,6 +79,7 @@ export const SITE_DEFAULTS: SiteSettings = {
     messageAr: 'الموقع قيد الصيانة حالياً، وسنعود قريباً.',
     messageEn: 'The site is under maintenance. We will be back shortly.',
   },
+  careers: { showFooterLink: true, showFloatingButton: true },
 };
 
 const SETTING_KEY = 'site';
@@ -87,6 +95,7 @@ export function withDefaults(stored: Partial<SiteSettings>): SiteSettings {
     socials: { ...SITE_DEFAULTS.socials, ...(stored.socials ?? {}) },
     announcement: { ...SITE_DEFAULTS.announcement, ...(stored.announcement ?? {}) },
     maintenance: { ...SITE_DEFAULTS.maintenance, ...(stored.maintenance ?? {}) },
+    careers: { ...SITE_DEFAULTS.careers, ...(stored.careers ?? {}) },
   };
 }
 

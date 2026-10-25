@@ -4,6 +4,7 @@ import { TOAST_DURATION_MS, type AdminToast, type ToastKind } from './pages/admi
 import type { Property } from './types/property';
 import { Navbar, type NavPageKey } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
+import { CareersFloatingButton } from './components/common/CareersFloatingButton';
 import { BackgroundDecor } from './components/common/BackgroundDecor';
 import { ThemeProvider } from './context/ThemeProvider';
 import { HomePage } from './pages/HomePage';
@@ -480,6 +481,10 @@ export function App() {
         </main>
 
         <Footer onNavigate={navigateTo} onToast={showToast} />
+
+        {settings.careers.showFloatingButton && currentPage !== 'careers' && (
+          <CareersFloatingButton onClick={() => navigateTo('careers')} />
+        )}
 
         {transition !== 'idle' && (
           <div className="page-transition-overlay" aria-hidden="true">

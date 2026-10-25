@@ -210,7 +210,8 @@ describe('Site settings (/api/settings/site)', () => {
     expect(saved.statusCode).toBe(200);
 
     const reread = await inject({ method: 'GET', url: '/api/settings/site' });
-    expect(reread.json()).toEqual(siteSettings);
+    // `careers` was not sent, so the stored default (both switches on) comes back.
+    expect(reread.json()).toEqual({ ...siteSettings, careers: { showFooterLink: true, showFloatingButton: true } });
   });
 
   it('rejects links that are not https and a malformed WhatsApp number', async () => {
