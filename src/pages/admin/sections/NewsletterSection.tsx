@@ -15,7 +15,7 @@ import { COPY, LOCALE_AR, LOCALE_EN, LOCALE_UNKNOWN } from '../../../i18n/admin/
 import { usePersistentState } from '../../../hooks/usePersistentState';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
-import { NoAccess, SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
+import { NoAccess, SectionError, SectionErrorBanner, SectionLoading } from '../../../components/admin/common/SectionState';
 import { DataTable } from '../../../components/admin/common/DataTable';
 import { ViewSwitcher } from '../../../components/admin/common/ViewSwitcher';
 import type { Column, SortState } from '../../../components/admin/common/dataTableTypes';
@@ -258,7 +258,7 @@ export const NewsletterSection: React.FC = () => {
     </AdminHeaderActions>
   );
 
-  if (error) {
+  if (error && data.length === 0) {
     return (
       <>
         {header}
@@ -286,6 +286,7 @@ export const NewsletterSection: React.FC = () => {
   return (
     <div className="space-y-5">
       {header}
+      {error && <SectionErrorBanner message={error} onRetry={reload} />}
 
       <div className="p-4 rounded-2xl bg-surface border border-muted-border/40 flex items-center gap-3">
         <div className="relative flex-1 sm:max-w-md">

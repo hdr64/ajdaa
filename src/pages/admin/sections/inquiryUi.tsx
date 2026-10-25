@@ -1,6 +1,6 @@
 // Registers every admin string area first: module-scope translateAdmin calls below need them.
 import '../../../i18n/admin';
-import React from 'react';
+import React, { useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import type { CustomerInquiry } from '../../../types/property';
 import type { InquiryStatus } from '../../../services/inquiryService';
@@ -35,15 +35,18 @@ export const InquiryStatusSelect: React.FC<{ inquiry: CustomerInquiry }> = ({ in
       rememberKey: 'inquiry.status',
     });
     if (!ok) return;
-    const previous = inquiries.data;
-    inquiries.setData((current) =>
-      current.map((item) => (item.id === inquiry.id ? { ...item, status, statusAr: STATUS_AR[status] } : item))
-    );
+    const previousStatus = inquiry.status as InquiryStatus;
+    const applyStatus = (next: InquiryStatus) =>
+      inquiries.setData((current) =>
+        current.map((item) => (item.id === inquiry.id ? { ...item, status: next, statusAr: STATUS_AR[next] } : item))
+      );
+    applyStatus(status);
     try {
       await AdminStorage.updateInquiryStatus(inquiry.id, status);
       showToast(t('inquiries.status.changed'));
     } catch (error) {
-      inquiries.setData(previous);
+      // Revert only this row: realtime updates may have changed others meanwhile.
+      applyStatus(previousStatus);
       showToast(getErrorMessage(error, t('inquiries.status.changeError')));
     }
   };
@@ -60,6 +63,54 @@ export const InquiryStatusSelect: React.FC<{ inquiry: CustomerInquiry }> = ({ in
       <option value="contacted">{t('inquiries.status.contacted')}</option>
       <option value="closed">{t('inquiries.status.closed')}</option>
     </select>
+  );
+};
+
+/** Inline notes editor; saves on demand, not on every keystroke. */
+export const NotesEditor: React.FC<{ inquiry: CustomerInquiry; onDone: () => void }> = ({ inquiry, onDone }) => {
+  const { inquiries, showToast } = useAdmin();
+  const { t } = useAdminT();
+  const [value, setValue] = useState(inquiry.notes ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const notes = value.trim() || null;
+      await AdminStorage.updateInquiry(inquiry.id, { notes });
+      inquiries.setData((current) => current.map((item) => (item.id === inquiry.id ? { ...item, notes } : item)));
+      showToast(t('inquiries.notes.saved'));
+      onDone();
+    } catch (error) {
+      showToast(getErrorMessage(error, t('inquiries.notes.saveError')));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        rows={3}
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={t('inquiries.notes.placeholder')}
+        className="w-full px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent resize-y"
+      />
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={onDone} className="brand-btn-secondary px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer">
+          {t('inquiries.notes.cancel')}
+        </button>
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          className="brand-btn-primary px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-50"
+        >
+          {saving ? t('inquiries.notes.saving') : t('inquiries.notes.save')}
+        </button>
+      </div>
+    </div>
   );
 };
 

@@ -185,6 +185,7 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
       // so this request returns without waiting on Gmail), and inline otherwise.
       // The lead is already persisted, so a mail failure can never lose it.
       await dispatch(sendInquiryNotificationJob, {
+        id: created.id,
         name: created.name,
         phone: created.phone,
         email: created.email,
@@ -197,6 +198,16 @@ export const inquiryRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(201).send(created);
     }
   );
+
+  // Get a single inquiry (Admin)
+  fastify.get('/:id', { onRequest: [authenticate, requirePermission('viewInquiries')] }, async (request, reply) => {
+    const { id } = inquiryStatusParamsSchema.parse(request.params);
+    const inquiry = await prisma.customerInquiry.findUnique({ where: { id } });
+    if (!inquiry) {
+      return reply.status(404).send({ error: 'Inquiry not found' });
+    }
+    return inquiry;
+  });
 
   // Get all inquiries (Admin)
   fastify.get('/', { onRequest: [authenticate, requirePermission('viewInquiries')] }, async (request) => {

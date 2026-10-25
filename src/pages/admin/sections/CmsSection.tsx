@@ -42,7 +42,7 @@ interface BackupParsedData {
 export const CmsSection: React.FC = () => {
   const { can, isSuperAdmin, showToast } = useAdmin();
   const { t } = useAdminT();
-  const [activeTab, setActiveTab] = useState<CmsTab>('home');
+  const [requestedTab, setActiveTab] = useState<CmsTab>('home');
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -175,6 +175,9 @@ export const CmsSection: React.FC = () => {
     { id: 'nav' as CmsTab, labelKey: 'cms.section.tabNav', icon: Compass, visible: canManageCms },
     { id: 'footer' as CmsTab, labelKey: 'cms.section.tabFooter', icon: Footprints, visible: canManageCms },
   ].filter((t) => t.visible);
+
+  // The requested tab may be one this user cannot see (e.g. only manageClients): fall back to the first allowed one.
+  const activeTab: CmsTab | undefined = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0]?.id;
 
   const getActiveTabRoute = () => {
     switch (activeTab) {

@@ -11,6 +11,7 @@
  *   projects/:id            project details   (alias: projects/:id/show)
  *   projects/:id/edit       project editor
  *   projects/:id/units      floors & units    (bare `units` picks the first project)
+ *   inquiries/:id           single inquiry detail
  */
 
 export type AdminSection =
@@ -20,6 +21,7 @@ export type AdminSection =
   | 'projectEdit'
   | 'units'
   | 'inquiries'
+  | 'inquiry'
   | 'applications'
   | 'categories'
   | 'pastProjects'
@@ -35,6 +37,8 @@ export interface AdminLocation {
   section: AdminSection;
   /** For `project`, `projectEdit` and `units`. */
   projectId?: number;
+  /** For `inquiry`. */
+  inquiryId?: string;
 }
 
 const SIMPLE_SECTIONS: AdminSection[] = [
@@ -65,6 +69,13 @@ export function parseAdminPath(adminPath: string | undefined): AdminLocation {
   const segments = (adminPath ?? '').split('/').filter(Boolean);
   const [first, second, third] = segments;
 
+  if (first?.toLowerCase() === 'inquiries' && second) {
+    if (/^[A-Za-z0-9-]+$/.test(second) && segments.length <= 2) {
+      return { section: 'inquiry', inquiryId: second };
+    }
+    return { section: 'inquiries' };
+  }
+
   if (first?.toLowerCase() === 'projects' && second) {
     const projectId = Number(second);
     const section = PROJECT_SUBROUTES[(third ?? '').toLowerCase()];
@@ -83,18 +94,22 @@ export function parseAdminPath(adminPath: string | undefined): AdminLocation {
 }
 
 export function buildAdminPath(location: AdminLocation): string {
-  const { section, projectId } = location;
+  const { section, projectId, inquiryId } = location;
   if (projectId) {
     if (section === 'project') return `projects/${projectId}`;
     if (section === 'projectEdit') return `projects/${projectId}/edit`;
     if (section === 'units') return `projects/${projectId}/units`;
   }
-  // Project pages without an id fall back to the list.
+  if (section === 'inquiry' && inquiryId) return `inquiries/${inquiryId}`;
+  // Project/inquiry pages without an id fall back to the list.
   if (section === 'project' || section === 'projectEdit') return 'projects';
+  if (section === 'inquiry') return 'inquiries';
   return section;
 }
 
 /** Which sidebar item is highlighted for a section. */
 export function navSectionOf(section: AdminSection): AdminSection {
-  return section === 'project' || section === 'projectEdit' ? 'projects' : section;
+  if (section === 'project' || section === 'projectEdit') return 'projects';
+  if (section === 'inquiry') return 'inquiries';
+  return section;
 }

@@ -28,7 +28,7 @@ import { InquiryStatusSelect } from './inquiryUi';
 import { ProjectUnitsPanel } from './ProjectUnitsPanel';
 import { formatAdminDate } from '../adminFormat';
 import { completenessIssues, publicProjectUrl, PUBLISH_STATUS_KEYS, publishStatusOf, UNIT_STATUS_LABELS_AR } from '../projectLabels';
-import { isHttpsUrl } from '../../../utils/urlValidation';
+import { isDownloadableMediaUrl, isHttpsUrl } from '../../../utils/urlValidation';
 import { usePublishProject } from './usePublishProject';
 import { useDuplicateProject } from './useDuplicateProject';
 
@@ -309,7 +309,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             </Panel>
           )}
 
-          {project.videoUrl && (
+          {project.videoUrl && isHttpsUrl(project.videoUrl) && (
             <Panel title={t('projects.show.panel.video')}>
               <div className="aspect-video w-full overflow-hidden rounded-2xl border border-muted-border/50 bg-neutral-950">
                 <iframe src={project.videoUrl} title={t('projects.show.videoTitle')} allow="encrypted-media; picture-in-picture" allowFullScreen className="w-full h-full" loading="lazy" />
@@ -415,7 +415,7 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             <Fact
               label={t('projects.show.fact.brochure')}
               value={
-                project.brochureUrl ? (
+                project.brochureUrl && isDownloadableMediaUrl(project.brochureUrl) ? (
                   <a href={project.brochureUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
                     <FileText className="w-3.5 h-3.5" />
                     {t('projects.show.viewPdf')}

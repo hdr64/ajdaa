@@ -5,6 +5,8 @@ import { AdminStorage } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
 import { uploadMedia, isAcceptedMedia, MAX_UPLOAD_BYTES } from '../../services/mediaService';
 import { isHttpsUrl } from '../../utils/urlValidation';
+import { useAdmin } from '../../pages/admin/adminContextDef';
+import { useAdminT } from '../../i18n/admin/useAdminT';
 
 type PriceType = 'إيجار' | 'بيع' | 'استثمار';
 
@@ -52,7 +54,7 @@ function floorNameAr(index: number): string {
 /** Builds the starting floors and units for a new project. */
 function generateFloors(form: typeof EMPTY_FORM) {
   const floorsCount = clamp(form.floorsCount, 1, MAX_FLOORS);
-  const unitsPerFloor = clamp(form.unitsPerFloor, 1, MAX_UNITS_PER_FLOOR);
+  const unitsPerFloor = clamp(form.unitsPerFloor, 0, MAX_UNITS_PER_FLOOR);
 
   return Array.from({ length: floorsCount }).map((_, fIdx) => {
     const name = floorNameAr(fIdx);
@@ -87,10 +89,10 @@ function generateFloors(form: typeof EMPTY_FORM) {
         floorNameAr: name,
         type: unitType,
         typeAr: unitTypeAr,
-        area: Math.round(form.area / (floorsCount * unitsPerFloor)),
+        area: Math.round(form.area / (floorsCount * Math.max(1, unitsPerFloor))),
         status: 'available' as UnitStatus,
         statusAr: 'متاح',
-        features: ['تشطيب راقي', 'تكييف مركزي', 'مواقف خاصة'],
+        features: [],
       };
     });
 
@@ -105,6 +107,8 @@ function generateFloors(form: typeof EMPTY_FORM) {
 }
 
 export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose, onCreated, onShowToast }) => {
+  const { confirm } = useAdmin();
+  const { t } = useAdminT();
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [uploadingField, setUploadingField] = useState<'image' | 'brochure' | null>(null);
@@ -115,9 +119,17 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
   const isDirty = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
   const busy = creating || uploadingField !== null;
 
-  const requestClose = () => {
+  const requestClose = async () => {
     if (busy) return;
-    if (isDirty && !window.confirm('لديك بيانات غير محفوظة. هل تريد إغلاق النافذة دون إنشاء المشروع؟')) return;
+    if (isDirty) {
+      const discard = await confirm({
+        title: t('projectEdit.dirty.confirmTitle'),
+        message: t('projectEdit.dirty.confirmMessage'),
+        confirmLabel: t('projectEdit.dirty.confirmLabel'),
+        danger: true,
+      });
+      if (!discard) return;
+    }
     onClose();
   };
 
@@ -126,7 +138,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
   requestCloseRef.current = requestClose;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') requestCloseRef.current();
+      if (event.key === 'Escape') void requestCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -137,6 +149,10 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
     const target = uploadTargetRef.current;
     if (!isAcceptedMedia(file)) {
       onShowToast('صيغة الملف غير مدعومة (JPG, PNG, WebP, PDF)');
+      return;
+    }
+    if (target === 'image' && file.type === 'application/pdf') {
+      onShowToast('صورة المشروع يجب أن تكون صورة وليست ملف PDF');
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
@@ -323,15 +339,15 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
               />
             </div>
             <div>
-              <label className={labelClass}>وحدات بكل دور (1–{MAX_UNITS_PER_FLOOR})</label>
+              <label className={labelClass}>وحدات بكل دور (0–{MAX_UNITS_PER_FLOOR})</label>
               <input
                 type="number"
-                min={1}
+                min={0}
                 max={MAX_UNITS_PER_FLOOR}
                 value={form.unitsPerFloor}
                 onChange={(e) => setForm({ ...form, unitsPerFloor: Number(e.target.value) })}
                 onBlur={() =>
-                  setForm((f) => ({ ...f, unitsPerFloor: clamp(f.unitsPerFloor, 1, MAX_UNITS_PER_FLOOR) }))
+                  setForm((f) => ({ ...f, unitsPerFloor: clamp(f.unitsPerFloor, 0, MAX_UNITS_PER_FLOOR) }))
                 }
                 className={inputClass}
               />

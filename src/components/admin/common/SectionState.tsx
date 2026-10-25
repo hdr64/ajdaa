@@ -31,6 +31,20 @@ export const SectionError: React.FC<{ message: string; onRetry: () => void }> = 
   );
 };
 
+/** Compact error shown above data that is still on screen, so a failed refresh never hides the table or its toolbar. */
+export const SectionErrorBanner: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => {
+  const { t } = useAdminT();
+  return (
+    <div role="alert" className="flex items-center gap-3 p-3 rounded-xl bg-red-500/5 border border-red-500/30 text-xs">
+      <AlertCircle className="w-4 h-4 text-red-400 shrink-0" aria-hidden="true" />
+      <p className="flex-1 text-neutral-text/80">{message}</p>
+      <button type="button" onClick={onRetry} className="font-bold text-accent hover:underline cursor-pointer">
+        {t('common.action.retry')}
+      </button>
+    </div>
+  );
+};
+
 export const NoAccess: React.FC = () => {
   const { t } = useAdminT();
   return (

@@ -155,6 +155,8 @@ model Project {
   inquiries              CustomerInquiry[]
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
+  @@index([publishStatus])
+  @@index([city])
 }
 
 model PropertyFloor {
@@ -212,6 +214,7 @@ model CustomerInquiry {
   status         String        @default("new") // new | contacted | closed
   statusAr       String        @default("جديد")
   updatedAt      DateTime      @updatedAt
+  @@index([createdAt])
 }
 
 model CategoryItem {

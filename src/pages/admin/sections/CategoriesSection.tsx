@@ -504,8 +504,10 @@ export const CategoriesSection: React.FC = () => {
   const [tagDrafts, setTagDrafts] = useState<Record<string, string>>({});
 
   const saveTags = async (category: CategoryItem, tags: string[]) => {
-    const previous = categories.data;
-    categories.setData((current) => current.map((c) => (c.id === category.id ? { ...c, tags } : c)));
+    const previousTags = category.tags;
+    const setTags = (next: string[]) =>
+      categories.setData((current) => current.map((c) => (c.id === category.id ? { ...c, tags: next } : c)));
+    setTags(tags);
     try {
       await AdminStorage.updateCategory(category.id, {
         nameAr: category.nameAr,
@@ -515,7 +517,8 @@ export const CategoriesSection: React.FC = () => {
       });
       return true;
     } catch (error) {
-      categories.setData(previous);
+      // Revert only this category's tags.
+      setTags(previousTags);
       showToast(getErrorMessage(error, t('categories.toast.tagsError')));
       return false;
     }

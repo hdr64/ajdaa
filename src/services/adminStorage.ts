@@ -338,6 +338,10 @@ export const AdminStorage = {
     return inquiryService.list(filters ?? {}, signal);
   },
 
+  getInquiry(id: string, signal?: AbortSignal): Promise<CustomerInquiry> {
+    return inquiryService.get(id, signal);
+  },
+
   addInquiry(input: InquiryInput) {
     return inquiryService.submit(input);
   },

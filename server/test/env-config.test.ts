@@ -18,6 +18,7 @@ const PROBE = path.join(SERVER_ROOT, 'test', 'fixtures', 'env-probe.ts');
 const VALID_JWT_SECRET = 'a1b2c3d4e5f6'.repeat(6);
 const VALID_LOGS_SECRET = 'logs-secret-value-'.repeat(2);
 const VALID_DEVELOPER_SECRET = 'developer-secret-value-'.repeat(2);
+const VALID_SETTINGS_KEY = 'settings-key-value-'.repeat(2);
 
 interface ProbeResult {
   status: number;
@@ -51,6 +52,7 @@ const BASE_ENV = {
   JWT_SECRET: VALID_JWT_SECRET,
   LOGS_SECRET_KEY: VALID_LOGS_SECRET,
   DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
+  SETTINGS_ENCRYPTION_KEY: VALID_SETTINGS_KEY,
 };
 
 describe('the production rules of the environment', () => {
@@ -61,6 +63,7 @@ describe('the production rules of the environment', () => {
         {
           LOGS_SECRET_KEY: VALID_LOGS_SECRET,
           DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
+          SETTINGS_ENCRYPTION_KEY: VALID_SETTINGS_KEY,
           DATABASE_URL: 'postgresql://ajda:secret@localhost:5432/ajda',
         }
       )
@@ -153,6 +156,48 @@ describe('the production rules of the environment', () => {
 
       expect(errors.JWT_SECRET, placeholder).toBeDefined();
     }
+  });
+
+  it('requires SETTINGS_ENCRYPTION_KEY in production', () => {
+    const errors = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
+      { LOGS_SECRET_KEY: VALID_LOGS_SECRET, DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET }
+    );
+    expect(errors.SETTINGS_ENCRYPTION_KEY).toBeDefined();
+    expect(errors.SETTINGS_ENCRYPTION_KEY).toContain('required in production');
+  });
+
+  it('rejects SETTINGS_ENCRYPTION_KEY that is too short', () => {
+    const errors = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
+      { LOGS_SECRET_KEY: VALID_LOGS_SECRET, DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET, SETTINGS_ENCRYPTION_KEY: 'short' }
+    );
+    expect(errors.SETTINGS_ENCRYPTION_KEY).toMatch(/24/);
+  });
+
+  it('rejects SETTINGS_ENCRYPTION_KEY that is a placeholder', () => {
+    const errors = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
+      { LOGS_SECRET_KEY: VALID_LOGS_SECRET, DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET, SETTINGS_ENCRYPTION_KEY: 'changeme' }
+    );
+    expect(errors.SETTINGS_ENCRYPTION_KEY).toBeDefined();
+  });
+
+  it('rejects SETTINGS_ENCRYPTION_KEY that equals JWT_SECRET', () => {
+    const errors = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
+      { LOGS_SECRET_KEY: VALID_LOGS_SECRET, DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET, SETTINGS_ENCRYPTION_KEY: VALID_JWT_SECRET }
+    );
+    expect(errors.SETTINGS_ENCRYPTION_KEY).toBeDefined();
+    expect(errors.SETTINGS_ENCRYPTION_KEY).toContain('different from JWT_SECRET');
+  });
+
+  it('accepts valid SETTINGS_ENCRYPTION_KEY in production', () => {
+    const errors = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
+      { LOGS_SECRET_KEY: VALID_LOGS_SECRET, DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET, SETTINGS_ENCRYPTION_KEY: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6' }
+    );
+    expect(errors.SETTINGS_ENCRYPTION_KEY).toBeUndefined();
   });
 
   it('applies to production only', () => {
@@ -265,6 +310,20 @@ describe('the network settings', () => {
     });
 
     expect(config.trustProxy).toBe(2);
+  });
+
+  it('accepts TRUST_PROXY=false in production (the server only logs a warning)', () => {
+    const config = probeConfig({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://ajda:secret@localhost:5432/ajda',
+      JWT_SECRET: VALID_JWT_SECRET,
+      LOGS_SECRET_KEY: VALID_LOGS_SECRET,
+      DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
+      SETTINGS_ENCRYPTION_KEY: VALID_SETTINGS_KEY,
+      TRUST_PROXY: 'false',
+    });
+
+    expect(config.trustProxy).toBe(false);
   });
 
   it('accepts "true"', () => {

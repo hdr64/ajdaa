@@ -123,29 +123,34 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
 
   const changeStatus = async (unit: PropertyUnit, status: UnitStatus) => {
     if (status === unit.status) return;
-    const previous = projects.data;
+    const previousStatus = unit.status;
+    const setUnitStatus = (next: UnitStatus) =>
+      projects.setData((list) =>
+        list.map((p) =>
+          p.id !== project.id
+            ? p
+            : {
+                ...p,
+                floors: (p.floors ?? []).map((f) => ({
+                  ...f,
+                  units: f.units.map((u) =>
+                    u.id === unit.id
+                      ? { ...u, status: next, statusAr: UNIT_STATUS_LABELS_AR[next], statusEn: STATUS_EN[next] }
+                      : u
+                  ),
+                })),
+              }
+        )
+      );
     // Optimistic; the server's realtime broadcast confirms it for every other tab.
-    projects.setData((list) =>
-      list.map((p) =>
-        p.id !== project.id
-          ? p
-          : {
-              ...p,
-              floors: (p.floors ?? []).map((f) => ({
-                ...f,
-                units: f.units.map((u) =>
-                  u.id === unit.id ? { ...u, status, statusAr: UNIT_STATUS_LABELS_AR[status], statusEn: STATUS_EN[status] } : u
-                ),
-              })),
-            }
-      )
-    );
+    setUnitStatus(status);
     setSavingUnit(unit.id);
     try {
       await AdminStorage.updateUnitStatus(unit.id, status);
       showToast(t('projects.unitsPanel.statusChanged', { number: unit.unitNumber, status: t(UNIT_STATUS_KEYS[status]) }));
     } catch (error) {
-      projects.setData(previous);
+      // Revert only this unit: other changes may have landed meanwhile.
+      setUnitStatus(previousStatus);
       showToast(getErrorMessage(error, t('projects.unitsPanel.statusError')));
     } finally {
       setSavingUnit(null);

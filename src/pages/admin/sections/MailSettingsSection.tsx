@@ -383,7 +383,7 @@ export const MailSettingsSection: React.FC = () => {
               placeholder={view?.passwordSet && !passwordEntered && !removePassword ? t.passwordUnchanged : t.passwordPlaceholder}
               className="w-full px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
               dir="ltr"
-              autoComplete="current-password"
+              autoComplete="new-password"
             />
             {view?.passwordSet && (
               <label className="flex items-center gap-2 cursor-pointer">

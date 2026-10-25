@@ -98,6 +98,11 @@ export const inquiryService = {
     return toInquiry(created);
   },
 
+  async get(id: string, signal?: AbortSignal): Promise<CustomerInquiry> {
+    const inquiry = await api.get<InquiryDto>(`/api/inquiries/${encodeURIComponent(id)}`, { signal });
+    return toInquiry(inquiry);
+  },
+
   async list(filters: InquiryFilters = {}, signal?: AbortSignal): Promise<CustomerInquiry[]> {
     const inquiries = await api.get<InquiryDto[]>('/api/inquiries', { query: filters, signal });
     return inquiries.map(toInquiry);

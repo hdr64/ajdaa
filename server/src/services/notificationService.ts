@@ -17,8 +17,9 @@ import { getCareersNotificationEmails } from './careersSettings.js';
 const INQUIRIES_PATH = '/admin/inquiries';
 const APPLICATIONS_PATH = '/admin/applications';
 
-export function inquiryDashboardUrl(): string {
-  return `${config.appUrl}${INQUIRIES_PATH}`;
+export function inquiryDashboardUrl(inquiryId?: string | null): string {
+  const path = inquiryId ? `${INQUIRIES_PATH}/${encodeURIComponent(inquiryId)}` : INQUIRIES_PATH;
+  return `${config.appUrl}${path}`;
 }
 
 export function applicationDashboardUrl(): string {
@@ -26,6 +27,7 @@ export function applicationDashboardUrl(): string {
 }
 
 interface InquiryMailInput {
+  id?: string | null;
   name: string | null;
   phone: string | null;
   email: string | null;
@@ -54,7 +56,7 @@ export async function notifyNewInquiry(inquiry: InquiryMailInput): Promise<numbe
   const content = newInquiryEmail({
     brandName: await mailBrandName(),
     inquiry,
-    dashboardUrl: inquiryDashboardUrl(),
+    dashboardUrl: inquiryDashboardUrl(inquiry.id),
   });
 
   await Promise.all(recipients.map((to) => sendMail({ to, ...content })));

@@ -25,6 +25,7 @@ import { OverviewSection } from './sections/OverviewSection';
 import { ProjectsSection } from './sections/ProjectsSection';
 import { UnitsSection } from './sections/UnitsSection';
 import { InquiriesSection } from './sections/InquiriesSection';
+import { InquiryDetailSection } from './sections/InquiryDetailSection';
 import { ApplicationsSection } from './sections/ApplicationsSection';
 import { CategoriesSection } from './sections/CategoriesSection';
 import { PastProjectsSection } from './sections/PastProjectsSection';
@@ -56,6 +57,7 @@ const SECTION_META: Record<AdminSection, { permission?: AdminPermission }> = {
   projectEdit: { permission: 'manageProjects' },
   units: {},
   inquiries: { permission: 'viewInquiries' },
+  inquiry: { permission: 'viewInquiries' },
   applications: { permission: 'viewApplications' },
   categories: {},
   pastProjects: { permission: 'managePastProjects' },
@@ -170,7 +172,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         if (!canViewInquiries) return;
         void reloadInquiries();
         showToast(newInquiryMessage(payload), 'info');
-        showDesktopNotification(payload, () => navigate({ section: 'inquiries' }));
+        showDesktopNotification(payload, () => {
+          const data = payload && typeof payload === 'object' ? (payload as { id?: unknown }) : {};
+          const id = typeof data.id === 'string' ? data.id : '';
+          navigate(id ? { section: 'inquiry', inquiryId: id } : { section: 'inquiries' });
+        });
       },
       [canViewInquiries, reloadInquiries, showToast, navigate]
     ),
@@ -216,7 +222,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const confirm = useCallback(
     (options: ConfirmOptions) => {
-      if (options.rememberKey && skipConfirm.includes(options.rememberKey)) return Promise.resolve(true);
+      if (options.rememberKey && !options.danger && skipConfirm.includes(options.rememberKey)) return Promise.resolve(true);
       return new Promise<boolean>((resolve) => setPendingConfirm({ options, resolve }));
     },
     [skipConfirm]
@@ -257,11 +263,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     location.section === 'project' || location.section === 'projectEdit'
       ? projects.data.find((p) => p.id === location.projectId)
       : undefined;
+  const currentInquiry =
+    location.section === 'inquiry' && location.inquiryId
+      ? inquiries.data.find((i) => i.id === location.inquiryId)
+      : undefined;
   const pageTitle = currentProject
     ? location.section === 'projectEdit'
       ? t('dashboard.project.editTitle', { title: currentProject.title })
       : currentProject.title
-    : t(`dashboard.section.${location.section}.title` as any);
+    : currentInquiry
+      ? currentInquiry.name
+      : t(`dashboard.section.${location.section}.title` as any);
   const allowed =
     location.section === 'cms'
       ? can('manageCms') || can('manageClients')
@@ -320,6 +332,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <UnitsSection />;
       case 'inquiries':
         return <InquiriesSection />;
+      case 'inquiry':
+        return <InquiryDetailSection />;
       case 'applications':
         return <ApplicationsSection />;      case 'categories':
         return <CategoriesSection />;

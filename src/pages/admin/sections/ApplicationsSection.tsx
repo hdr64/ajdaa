@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Inbox, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { careersService, type JobApplicationDetail, type JobApplicationListItem } from '../../../services/careersService';
 import { getErrorMessage } from '../../../services/api';
@@ -31,6 +31,17 @@ export const ApplicationsSection: React.FC = () => {
   const limit = 20;
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const requestSeq = useRef(0);
+
+  // One request per pause in typing, always from page 1.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,23 +61,27 @@ export const ApplicationsSection: React.FC = () => {
   const [settingsSaving, setSettingsSaving] = useState(false);
 
   const load = useCallback(async () => {
+    // A slower, older response must never overwrite a newer one.
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     try {
       const res = await careersService.listApplications({
         status: statusFilter === 'all' ? undefined : statusFilter,
-        q: search.trim() || undefined,
+        q: debouncedSearch || undefined,
         page,
         limit,
       });
+      if (seq !== requestSeq.current) return;
       setItems(res.items);
       setTotal(res.total);
     } catch (e) {
+      if (seq !== requestSeq.current) return;
       setError(getErrorMessage(e, t('applications.loadError')));
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
-  }, [statusFilter, search, page, t]);
+  }, [statusFilter, debouncedSearch, page, t]);
 
   useEffect(() => {
     void load();
@@ -95,7 +110,8 @@ export const ApplicationsSection: React.FC = () => {
         adminNote: adminNote.trim() || null,
       });
       setSelected(updated);
-      setItems((prev) => prev.map((i) => (i.id === updated.id ? { ...i, status: updated.status, statusAr: updated.statusAr } : i)));
+      // Reload so an active status filter drops rows that no longer match, and counts stay server-side.
+      void load();
       showToast(t('applications.saved'));
     } catch (e) {
       showToast(getErrorMessage(e, t('applications.saveError')));

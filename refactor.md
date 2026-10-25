@@ -48,3 +48,5 @@ Owner request (2026-10-22): UI review of the admin (details, dialogs, toasts, fe
 
 ## Careers visibility (owner, 2026-10-25)
 - Floating "Jobs" button on the public site (label renamed from "Apply for a job" to "Jobs" / "الوظائف", owner 2026-10-25); admin can show/hide the footer item and the floating button independently (site settings `careers.showFooterLink`, `careers.showFloatingButton`). Prompt: `docs/prompts/task-w5-careers-toggle-prompt.md`.
+
+Owner request (2026-10-25): production-grade improvements to the admin dashboard. Audit done: `docs/admin-audit.md` (P0 security/data safety, P1 reliability, P2 usefulness, P3 design/a11y, split into w6 tasks). Browser pass still to do.

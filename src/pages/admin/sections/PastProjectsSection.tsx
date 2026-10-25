@@ -7,7 +7,7 @@ import { useAdmin } from '../adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
-import { SectionError, SectionLoading } from '../../../components/admin/common/SectionState';
+import { SectionError, SectionErrorBanner, SectionLoading } from '../../../components/admin/common/SectionState';
 import { PastProjectFormDialog } from '../../../components/admin/pastProjects/PastProjectFormDialog';
 import type { PastProject } from '../../../services/adminStorage';
 
@@ -62,7 +62,7 @@ export const PastProjectsSection: React.FC = () => {
     </AdminHeaderActions>
   );
 
-  if (projects.error) {
+  if (projects.error && projects.data.length === 0) {
     return (
       <>
         {header}
@@ -82,6 +82,7 @@ export const PastProjectsSection: React.FC = () => {
   return (
     <div className="space-y-5">
       {header}
+      {projects.error && <SectionErrorBanner message={projects.error} onRetry={() => void projects.reload()} />}
       {projects.data.length === 0 ? (
         <EmptyState icon={ImageIcon} title={t('pastProjects.emptyTitle')} description={t('pastProjects.emptyDescription')} />
       ) : (

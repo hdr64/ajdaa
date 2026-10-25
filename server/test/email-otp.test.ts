@@ -484,7 +484,8 @@ describe('New inquiry notifications', () => {
       },
     });
     expect(created.statusCode).toBe(201);
-    cleanupInquiries.push((created.json() as { id: string }).id);
+    const createdId = (created.json() as { id: string }).id;
+    cleanupInquiries.push(createdId);
 
     await waitFor(
       () => getSentMail().length >= 4,
@@ -501,7 +502,7 @@ describe('New inquiry notifications', () => {
     const notification = getSentMail().find((mail) => mail.to === SEED_ADMINS.superAdmin)!;
     expect(notification.text).toContain('Customer <b>Name</b>');
     expect(notification.text).toContain('+966500000000');
-    expect(notification.text).toContain('https://ajda.weghetk.com/admin/inquiries');
+    expect(notification.text).toContain(`https://ajda.weghetk.com/admin/inquiries/${createdId}`);
     // Public form input must never reach the inbox as markup.
     expect(notification.html).toContain('&lt;b&gt;Name&lt;/b&gt;');
     expect(notification.html).not.toContain('<b>Name</b>');

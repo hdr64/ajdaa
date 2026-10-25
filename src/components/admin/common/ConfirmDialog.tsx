@@ -84,7 +84,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ options, onResolve
           </div>
         </div>
 
-        {options.rememberKey && (
+        {options.rememberKey && !options.danger && (
           <label className="mt-5 flex items-center gap-2 text-xs text-neutral-text/70 cursor-pointer select-none">
             <input
               type="checkbox"

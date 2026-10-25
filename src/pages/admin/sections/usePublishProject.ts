@@ -48,7 +48,6 @@ export function usePublishProject() {
       message: t('projects.publish.hideMessage'),
       confirmLabel: t('projects.publish.hideLabel'),
       danger: true,
-      rememberKey: 'project.publish',
     });
     if (ok) await apply(project, 'hidden', t('projects.publish.hiddenSuccess'));
   };

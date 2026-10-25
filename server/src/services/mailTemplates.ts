@@ -353,6 +353,7 @@ function detailRow(label: string, value: string | null | undefined): string {
 }
 
 export interface InquiryMailData {
+  id?: string | null;
   name: string | null;
   phone: string | null;
   email: string | null;

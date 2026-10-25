@@ -74,3 +74,4 @@ server-21-10-26.backup
 !server/prisma/migrations/**/migration.sql
 !deploy/sanitize-test-db.sql
 deploy/mkuser.sh
+2026-10-25-215702-local-command-caveatthe-command-below-was-run-d.txt

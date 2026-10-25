@@ -15,6 +15,7 @@ import { MaintenanceScreen } from './components/common/MaintenanceScreen';
 import { useSiteSettings } from './hooks/useSiteSettings';
 import { useLanguage } from './hooks/useLanguage';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Lazy-loaded routes for code splitting
 const WorksPage = lazy(() => import('./components/works/WorksPage').then((m) => ({ default: m.WorksPage })));
@@ -371,6 +372,7 @@ export function App() {
 
     return (
       <ThemeProvider>
+        <ErrorBoundary language={language}>
         <Suspense fallback={<AdminLoadingFallback />}>
           <AdminDashboardPage
             adminPath={route.adminPath}
@@ -384,6 +386,7 @@ export function App() {
           />
         </Suspense>
         {toast && <ToastView message={toast.message} kind={toast.kind} />}
+        </ErrorBoundary>
       </ThemeProvider>
     );
   }
@@ -401,7 +404,8 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-canvas flex flex-col justify-between overflow-clip transition-colors duration-300 relative">
+      <ErrorBoundary language={language}>
+        <div className="min-h-screen bg-canvas flex flex-col justify-between overflow-clip transition-colors duration-300 relative">
         <BackgroundDecor />
 
         {/* Fixed Top Stack: Admin Maintenance Warning & Announcement Bar */}
@@ -494,6 +498,7 @@ export function App() {
 
         {toast && <ToastView message={toast.message} kind={toast.kind} />}
       </div>
-    </ThemeProvider>
+    </ErrorBoundary>
+  </ThemeProvider>
   );
 }

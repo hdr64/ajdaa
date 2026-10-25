@@ -153,6 +153,10 @@ const envSchema = z.object({
   MAIL_FROM_NAME: z.string().trim().default(''),
   // Key for secrets saved from the admin (the SMTP password). Unset: derived from
   // JWT_SECRET, so rotating that secret means re-entering the SMTP password.
+  // In production, the key must be explicitly set (at least MIN_SECRET_LENGTH
+  // characters, not a placeholder, and different from JWT_SECRET). In development
+  // it falls back to a JWT-derived key so the app works without configuration.
+  // @see productionConfigErrors for the production rule.
   SETTINGS_ENCRYPTION_KEY: z.string().default(''),
 
   // Absolute base used for links inside emails (e.g. the admin inquiries page).
@@ -256,6 +260,20 @@ export function productionConfigErrors(
   } else if (isPlaceholderSecret(env.jwtSecret)) {
     errors.JWT_SECRET =
       'JWT_SECRET still holds a placeholder value. Generate one with `openssl rand -base64 32`.';
+  }
+
+  const settingsEncryptionKey = rawEnv.SETTINGS_ENCRYPTION_KEY?.trim();
+  if (!settingsEncryptionKey) {
+    errors.SETTINGS_ENCRYPTION_KEY =
+      'SETTINGS_ENCRYPTION_KEY is required in production. Generate one with `openssl rand -base64 32`.';
+  } else if (settingsEncryptionKey.length < MIN_SECRET_LENGTH) {
+    errors.SETTINGS_ENCRYPTION_KEY = `SETTINGS_ENCRYPTION_KEY must be at least ${MIN_SECRET_LENGTH} characters.`;
+  } else if (PLACEHOLDER_SECRETS.has(settingsEncryptionKey.toLowerCase())) {
+    errors.SETTINGS_ENCRYPTION_KEY =
+      'SETTINGS_ENCRYPTION_KEY must not be a placeholder value. Generate one with `openssl rand -base64 32`.';
+  } else if (settingsEncryptionKey === env.jwtSecret.trim()) {
+    errors.SETTINGS_ENCRYPTION_KEY =
+      'SETTINGS_ENCRYPTION_KEY must be different from JWT_SECRET. Use a separate random key.';
   }
 
   return errors;

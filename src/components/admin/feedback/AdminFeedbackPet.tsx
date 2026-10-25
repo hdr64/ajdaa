@@ -27,6 +27,7 @@ const SECTION_LABELS: Record<AdminSection, { ar: string; en: string }> = {
   projectEdit: { ar: 'تعديل بيانات المشروع', en: 'Edit Project' },
   units: { ar: 'المخطط البصري للأدوار والوحدات', en: 'Floor & Units Visualizer' },
   inquiries: { ar: 'طلبات الاهتمام والعملاء', en: 'Customer Inquiries' },
+  inquiry: { ar: 'تفاصيل الطلب', en: 'Inquiry Details' },
   applications: { ar: 'طلبات التوظيف', en: 'Job Applications' },
   categories: { ar: 'التصنيفات والوسوم', en: 'Categories & Tags' },
   pastProjects: { ar: 'أعمالنا السابقة', en: 'Past Works' },

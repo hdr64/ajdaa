@@ -76,9 +76,10 @@ EOF
 | `JWT_SECRET` | at least 32 characters, and not a placeholder (`change me`, `secret`, `password`, … are refused) |
 | `LOGS_SECRET_KEY` | at least 24 characters |
 | `DEVELOPER_NOTES_SECRET` | at least 24 characters |
+| `SETTINGS_ENCRYPTION_KEY` | at least 24 characters, not a placeholder, and different from `JWT_SECRET` |
 
 ```bash
-openssl rand -base64 32    # a different value for each of the three
+openssl rand -base64 32    # a different value for each of the four
 ```
 
 `TRUST_PROXY=1` is required as well. The API sits behind Caddy, which sets
@@ -559,6 +560,12 @@ pending folders only:
 
 ```bash
 grep -nEi '\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX)\b|\bTRUNCATE\b|\bDELETE\s+FROM\b' server/prisma/migrations/<pending-folder>/migration.sql
+```
+
+**Mojibake rune-class check:** Arabic defaults in migrations should be valid UTF-8, not double-encoded. Run over all migration files:
+
+```bash
+grep -rnP '[^\x20-\x7E]*[\xC0-\xFF]{2,}[^\x20-\x7E]*' server/prisma/migrations/ | grep -v 'U\+2500' || echo "No mojibake detected (only the init migration has the known double-encoded defaults)"
 ```
 
 **Step 5 — only then migrate, build, swap the SPA and restart:**

@@ -16,7 +16,7 @@ import { ViewSwitcher } from '../../../components/admin/common/ViewSwitcher';
 import type { BulkAction, Column } from '../../../components/admin/common/dataTableTypes';
 import { isViewMode, type ViewMode } from '../../../components/admin/common/viewModes';
 import { usePersistentState } from '../../../hooks/usePersistentState';
-import { InquiryStatusSelect, WhatsAppLink } from './inquiryUi';
+import { InquiryStatusSelect, NotesEditor, WhatsAppLink } from './inquiryUi';
 import { formatAdminDateTime } from '../adminFormat';
 
 const STATUS_FILTERS: { key: 'all' | InquiryStatus; label: string }[] = [
@@ -129,56 +129,8 @@ function useIsPhone(): boolean {
   return isPhone;
 }
 
-/** Inline notes editor; saves on demand, not on every keystroke. */
-const NotesEditor: React.FC<{ inquiry: CustomerInquiry; onDone: () => void }> = ({ inquiry, onDone }) => {
-  const { inquiries, showToast } = useAdmin();
-  const { t } = useAdminT();
-  const [value, setValue] = useState(inquiry.notes ?? '');
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const notes = value.trim() || null;
-      await AdminStorage.updateInquiry(inquiry.id, { notes });
-      inquiries.setData((current) => current.map((item) => (item.id === inquiry.id ? { ...item, notes } : item)));
-      showToast(t('inquiries.notes.saved'));
-      onDone();
-    } catch (error) {
-      showToast(getErrorMessage(error, t('inquiries.notes.saveError')));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <textarea
-        rows={3}
-        autoFocus
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={t('inquiries.notes.placeholder')}
-        className="w-full px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent resize-y"
-      />
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={onDone} className="brand-btn-secondary px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer">
-          {t('inquiries.notes.cancel')}
-        </button>
-        <button
-          onClick={() => void save()}
-          disabled={saving}
-          className="brand-btn-primary px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-50"
-        >
-          {saving ? t('inquiries.notes.saving') : t('inquiries.notes.save')}
-        </button>
-      </div>
-    </div>
-  );
-};
-
 export const InquiriesSection: React.FC = () => {
-  const { inquiries, can, isSuperAdmin, showToast, confirmDelete } = useAdmin();
+  const { inquiries, can, isSuperAdmin, showToast, confirmDelete, navigate } = useAdmin();
   const { t } = useAdminT();
   const [view, setView] = usePersistentState<ViewMode>(VIEW_STORAGE_KEY, 'table', isViewMode);
   const isPhone = useIsPhone();
@@ -401,8 +353,11 @@ export const InquiriesSection: React.FC = () => {
         width: '120px',
         sortValue: (inq) => inq.status,
         filter: { type: 'select', options: STATUS_OPTIONS, value: (inq) => inq.status },
-        cell: (inq) => <InquiryStatusSelect inquiry={inq} />,
-      },
+        cell: (inq) => (
+           <div onClick={(e) => e.stopPropagation()}>
+             <InquiryStatusSelect inquiry={inq} />
+           </div>
+         ),      },
     ],
     [editingNotesId, interestOptions, projectOptions, t]
   );
@@ -613,6 +568,7 @@ export const InquiriesSection: React.FC = () => {
             selectable
             bulkActions={bulkActions}
             rowActions={rowActions}
+            onRowClick={(inq) => navigate({ section: 'inquiry', inquiryId: inq.id })}
             emptyState={noMatches}
           />
         </>
@@ -621,7 +577,16 @@ export const InquiriesSection: React.FC = () => {
       ) : (
         <div className="rounded-2xl bg-surface border border-muted-border/40 shadow-xs overflow-hidden divide-y divide-muted-border/20">
           {filtered.map((inq) => (
-            <div key={inq.id} className="p-4 space-y-3 text-xs">
+            <div
+              key={inq.id}
+              className="p-4 space-y-3 text-xs cursor-pointer"
+              onClick={() => navigate({ section: 'inquiry', inquiryId: inq.id })}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') navigate({ section: 'inquiry', inquiryId: inq.id });
+              }}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-bold text-heading">{inq.name}</div>
@@ -629,7 +594,9 @@ export const InquiriesSection: React.FC = () => {
                     {inq.phone || inq.email || '—'}
                   </div>
                 </div>
-                <InquiryStatusSelect inquiry={inq} />
+                <div onClick={(e) => e.stopPropagation()}>
+                  <InquiryStatusSelect inquiry={inq} />
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="font-bold text-heading">{projectLabel(inq)}</span>
