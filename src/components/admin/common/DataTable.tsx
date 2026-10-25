@@ -114,6 +114,7 @@ export function DataTable<T>({
   emptyState,
   toolbarStart,
   initialSort,
+  onRowClick,
   renderExpandedRow,
   expandOnRowClick = false,
 }: DataTableProps<T>) {

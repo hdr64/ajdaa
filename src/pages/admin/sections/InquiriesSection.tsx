@@ -1,7 +1,25 @@
 // Registers every admin string area first: module-scope translateAdmin calls below need them.
 import '../../../i18n/admin';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCheck, Download, Inbox, Lock, Phone, RefreshCw, Search, SearchX, StickyNote, Trash2, X } from 'lucide-react';
+import {
+  Building2,
+  Calendar,
+  CheckCheck,
+  Download,
+  ExternalLink,
+  Inbox,
+  Lock,
+  Mail,
+  MessageSquare,
+  Phone,
+  RefreshCw,
+  Search,
+  SearchX,
+  StickyNote,
+  Trash2,
+  User,
+  X,
+} from 'lucide-react';
 import type { CustomerInquiry } from '../../../types/property';
 import type { InquiryStatus } from '../../../services/inquiryService';
 import { AdminStorage } from '../../../services/adminStorage';
@@ -394,7 +412,16 @@ export const InquiriesSection: React.FC = () => {
   };
 
   const rowActions = (inq: CustomerInquiry) => (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => navigate({ section: 'inquiry', inquiryId: inq.id })}
+        className="p-2 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent transition inline-flex items-center justify-center cursor-pointer"
+        title={t('inquiries.action.openPage')}
+        aria-label={t('inquiries.action.openPage')}
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+      </button>
       <WhatsAppLink phone={inq.phone} />
       {inq.phone && (
         <a
@@ -407,6 +434,7 @@ export const InquiriesSection: React.FC = () => {
         </a>
       )}
       <button
+        type="button"
         onClick={() => setEditingNotesId(editingNotesId === inq.id ? null : inq.id)}
         className={`p-2 rounded-xl transition inline-flex items-center justify-center cursor-pointer ${
           inq.notes ? 'bg-gold/15 text-gold hover:bg-gold/25' : 'bg-canvas border border-muted-border/40 text-neutral-text/60 hover:text-heading'
@@ -418,6 +446,7 @@ export const InquiriesSection: React.FC = () => {
       </button>
       {isSuperAdmin && (
         <button
+          type="button"
           onClick={() => void handleDelete(inq)}
           className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition inline-flex items-center justify-center cursor-pointer"
           title={t('inquiries.action.delete')}
@@ -425,6 +454,180 @@ export const InquiriesSection: React.FC = () => {
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
+      )}
+    </div>
+  );
+
+  const renderExpandedInquiry = (inq: CustomerInquiry) => (
+    <div className="space-y-4 p-3 sm:p-4 text-xs bg-canvas/60 rounded-2xl border border-muted-border/30">
+      {/* Header bar with actions & direct navigation */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-muted-border/30">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-black text-heading text-xs">
+            {t('inquiries.expanded.fullDetails')}
+          </span>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-surface text-neutral-text/60 border border-muted-border/30" dir="ltr">
+            ID: {inq.id}
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full bg-accent/10 text-accent font-bold text-[10px] border border-accent/20">
+            {inq.interestTypeAr}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate({ section: 'inquiry', inquiryId: inq.id })}
+            className="brand-fill text-canvas font-bold text-xs px-3.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 cursor-pointer shadow-xs hover:opacity-95 transition"
+            title={t('inquiries.action.openPage')}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>{t('inquiries.action.openPage')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Grid of full inquiry details */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Customer Information */}
+        <div className="p-3.5 rounded-xl bg-surface border border-muted-border/30 space-y-2">
+          <div className="text-[10px] font-bold text-neutral-text/50 uppercase tracking-wider flex items-center gap-1">
+            <User className="w-3 h-3 text-accent" />
+            <span>{t('inquiries.detail.name')}</span>
+          </div>
+          <div className="font-bold text-heading text-sm">{inq.name}</div>
+          <div className="space-y-1.5 pt-1 text-[11px]">
+            {inq.phone && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-neutral-text/70 font-mono text-xs" dir="ltr">{inq.phone}</span>
+                <div className="flex items-center gap-1">
+                  <WhatsAppLink phone={inq.phone} />
+                  <a
+                    href={`tel:${inq.phone}`}
+                    className="p-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition inline-flex items-center"
+                    title={t('inquiries.action.call')}
+                  >
+                    <Phone className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            )}
+            {inq.email && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-neutral-text/70 font-mono text-xs truncate" dir="ltr">{inq.email}</span>
+                <a
+                  href={`mailto:${inq.email}`}
+                  className="p-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition inline-flex items-center"
+                  title="البريد الإلكتروني"
+                >
+                  <Mail className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Property & Context */}
+        <div className="p-3.5 rounded-xl bg-surface border border-muted-border/30 space-y-2">
+          <div className="text-[10px] font-bold text-neutral-text/50 uppercase tracking-wider flex items-center gap-1">
+            <Building2 className="w-3 h-3 text-accent" />
+            <span>{t('inquiries.detail.project')}</span>
+          </div>
+          <div className="font-bold text-heading text-sm">{projectLabel(inq)}</div>
+          {inq.unitNumber && (
+            <div className="text-xs text-accent font-bold">
+              <span>{t('inquiries.detail.unit')}: </span>
+              <span>{inq.unitNumber}</span>
+            </div>
+          )}
+          <div className="pt-1 flex items-center gap-1.5 text-[10px] text-neutral-text/60">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{formatAdminDateTime(inq.createdAt)}</span>
+          </div>
+        </div>
+
+        {/* Status & Notes Quick Trigger */}
+        <div className="p-3.5 rounded-xl bg-surface border border-muted-border/30 space-y-2">
+          <div className="text-[10px] font-bold text-neutral-text/50 uppercase tracking-wider">
+            {t('inquiries.detail.status')}
+          </div>
+          <div onClick={(e) => e.stopPropagation()}>
+            <InquiryStatusSelect inquiry={inq} />
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setEditingNotesId(editingNotesId === inq.id ? null : inq.id)}
+              className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition inline-flex items-center justify-center gap-1.5 cursor-pointer ${
+                inq.notes
+                  ? 'bg-gold/15 text-gold hover:bg-gold/25'
+                  : 'bg-canvas border border-muted-border/40 text-neutral-text/70 hover:text-heading'
+              }`}
+            >
+              <StickyNote className="w-3.5 h-3.5" />
+              <span>{inq.notes ? t('inquiries.action.editNotes') : t('inquiries.action.addNotes')}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Full Message Block - completely un-truncated */}
+      <div className="p-3.5 rounded-xl bg-surface border border-muted-border/30 space-y-2">
+        <div className="flex items-center justify-between text-xs font-bold text-heading">
+          <span className="inline-flex items-center gap-1.5 text-accent">
+            <MessageSquare className="w-4 h-4" />
+            <span>{t('inquiries.expanded.fullMessage')}</span>
+          </span>
+          {inq.message && (
+            <span className="text-[10px] text-neutral-text/50 font-normal">
+              {inq.message.length} حرف
+            </span>
+          )}
+        </div>
+        <div className="p-3.5 rounded-xl bg-canvas/80 border border-muted-border/20 text-xs text-heading leading-relaxed whitespace-pre-wrap select-text">
+          {inq.message || (
+            <span className="text-neutral-text/40 italic">{t('inquiries.expanded.noMessage')}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Internal Notes */}
+      {inq.notes && editingNotesId !== inq.id && (
+        <div className="p-3.5 rounded-xl bg-gold/10 border border-gold/25 space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] font-bold text-heading">
+            <span className="inline-flex items-center gap-1.5 text-gold">
+              <StickyNote className="w-3.5 h-3.5" />
+              <span>{t('inquiries.table.noteLabel')}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setEditingNotesId(inq.id)}
+              className="text-[10px] font-bold text-gold hover:underline cursor-pointer"
+            >
+              {t('inquiries.action.editNotes')}
+            </button>
+          </div>
+          <p className="text-xs text-heading leading-relaxed whitespace-pre-wrap select-text">
+            {inq.notes}
+          </p>
+        </div>
+      )}
+
+      {/* Inline Notes Editor when active */}
+      {editingNotesId === inq.id && (
+        <div className="p-3.5 rounded-xl bg-surface border border-accent/40 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs font-black text-heading">
+            <span>{t('inquiries.notes.editorTitle', { name: inq.name })}</span>
+            <button
+              type="button"
+              onClick={() => setEditingNotesId(null)}
+              className="text-neutral-text/50 hover:text-heading cursor-pointer p-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <NotesEditor inquiry={inq} onDone={() => setEditingNotesId(null)} />
+        </div>
       )}
     </div>
   );
@@ -568,7 +771,8 @@ export const InquiriesSection: React.FC = () => {
             selectable
             bulkActions={bulkActions}
             rowActions={rowActions}
-            onRowClick={(inq) => navigate({ section: 'inquiry', inquiryId: inq.id })}
+            renderExpandedRow={renderExpandedInquiry}
+            expandOnRowClick
             emptyState={noMatches}
           />
         </>
@@ -579,22 +783,32 @@ export const InquiriesSection: React.FC = () => {
           {filtered.map((inq) => (
             <div
               key={inq.id}
-              className="p-4 space-y-3 text-xs cursor-pointer"
-              onClick={() => navigate({ section: 'inquiry', inquiryId: inq.id })}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') navigate({ section: 'inquiry', inquiryId: inq.id });
-              }}
+              className="p-4 space-y-3 text-xs"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-bold text-heading">{inq.name}</div>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ section: 'inquiry', inquiryId: inq.id })}
+                    className="font-bold text-heading text-start hover:text-accent transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>{inq.name}</span>
+                    <ExternalLink className="w-3 h-3 text-accent" />
+                  </button>
                   <div className="text-[10px] text-neutral-text/60 font-mono truncate" dir="ltr">
                     {inq.phone || inq.email || '—'}
                   </div>
                 </div>
-                <div onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ section: 'inquiry', inquiryId: inq.id })}
+                    className="p-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition cursor-pointer"
+                    title={t('inquiries.action.openPage')}
+                    aria-label={t('inquiries.action.openPage')}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
                   <InquiryStatusSelect inquiry={inq} />
                 </div>
               </div>
@@ -604,9 +818,17 @@ export const InquiriesSection: React.FC = () => {
                 <span className="px-2 py-0.5 rounded-full bg-accent/10 text-accent font-bold text-[10px]">{inq.interestTypeAr}</span>
                 <span className="text-neutral-text/50 text-[10px]">{formatAdminDateTime(inq.createdAt)}</span>
               </div>
-              {inq.message && <p className="text-[11px] text-neutral-text/75 leading-relaxed">{inq.message}</p>}
+              {inq.message && (
+                <div className="p-3 rounded-xl bg-canvas/70 border border-muted-border/20 text-xs text-heading leading-relaxed whitespace-pre-wrap select-text">
+                  <div className="text-[10px] text-accent font-bold mb-1 flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    <span>{t('inquiries.expanded.fullMessage')}</span>
+                  </div>
+                  {inq.message}
+                </div>
+              )}
               {inq.notes && editingNotesId !== inq.id && (
-                <div className="p-2 rounded-lg bg-gold/10 text-[10px] text-heading">
+                <div className="p-2.5 rounded-lg bg-gold/10 text-[10px] text-heading whitespace-pre-wrap select-text">
                   <span className="font-black text-gold">{t('inquiries.table.noteLabel')}: </span>
                   {inq.notes}
                 </div>

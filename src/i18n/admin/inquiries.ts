@@ -70,6 +70,10 @@ export const inquiries = defineStrings('inquiries', {
   'detail.message': 'الرسالة',
   'detail.createdAt': 'تاريخ التسجيل',
   'detail.status': 'الحالة',
+  'action.openPage': 'فتح صفحة الطلب',
+  'expanded.fullDetails': 'تفاصيل الطلب الكاملة',
+  'expanded.fullMessage': 'نص الرسالة الكامل',
+  'expanded.noMessage': 'لا توجد رسالة مرفقة مع الطلب',
   'detail.notes': 'الملاحظات',
 }, {
   'status.new': 'New',
@@ -141,5 +145,9 @@ export const inquiries = defineStrings('inquiries', {
   'detail.message': 'Message',
   'detail.createdAt': 'Registered date',
   'detail.status': 'Status',
+  'action.openPage': 'Open item page',
+  'expanded.fullDetails': 'Full inquiry details',
+  'expanded.fullMessage': 'Full message text',
+  'expanded.noMessage': 'No message attached to inquiry',
   'detail.notes': 'Notes',
 });

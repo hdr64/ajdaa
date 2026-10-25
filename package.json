@@ -50,8 +50,8 @@
     "wrangler": "^4.35.0"
   },
   "allowScripts": {
-    "sharp@0.33.5": true,
-    "workerd@1.20250906.0": true,
-    "esbuild@0.25.4": true
+    "sharp": true,
+    "workerd": true,
+    "esbuild": true
   }
 }
