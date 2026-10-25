@@ -78,11 +78,11 @@ Wave 1 and Wave 2 are merged into `feat/backend-admin`. Each task is run by Open
 | 1 | w3-login-eye (password eye button) | ✅ committed | Reviewed. |
 | 2 | w3-auth-a (email verification, two-step password change) | ✅ committed on `lane/auth` | Reviewed; bypass fixed in review; owner approved 2026-10-23. |
 | 3 | w3-auth-a2 (email code, `verifyUsers` permission, "send password" checkbox) | ✅ committed on `lane/auth` (1473338) | Reviewed 2026-10-24; fixed a broken login code step and a `PUT /users/:id` verifyUsers edit block. |
-| 4 | w3-auth-b (authenticator 2FA + recovery codes) | 🟡 reviewed, not committed (uncommitted in `ajda-wt/auth`) | Code review and gates done 2026-10-25 (380 tests pass); fixed H-1..H-6 from `review-ajda-project.md` inline. **Browser pass still open**, then owner approval to commit. |
-| 4b | w5-client-fixes (C-1, H-10, M-3, M-4, M-25, M-26, M-28, M-29) | 🟡 reviewed 2026-10-25, not committed | Gates pass; browser-verified C-1, H-10 (after a server fix), M-29 forms. M-3, M-4, M-25, M-26, M-28 reviewed by code only. Claude added: server now stores `phone`, spam timer starts at first focus. |
-| 4c | w5-server-hardening (H-7, H-8, H-9, M-2, M-8, M-9, M-10, M-14, M-20) | 🟡 source reviewed, not committed. ⏳ follow-up `task-w5-server-hardening-b-prompt.md` | Tests missing and H-7 not done. Claude fixed a log-tail newline bug and removed helper shims. |
-| 5 | w3-auth-c (passkeys) | ⏳ | After #4. Decide `WEBAUTHN_RP_ID` before the production deploy. |
-| 6 | Merge `lane/auth` into `feat/backend-admin` | ⬜ Claude | After #5. Then run the three new migrations by hand on production. |
+| 4 | w3-auth-b (authenticator 2FA + recovery codes) | ✅ merged into `feat/backend-admin` (1f2ace9) | Committed `05e8cd0`; browser-verified 2026-10-25. |
+| 4b | w5-client-fixes (C-1, H-10, M-3, M-4, M-25, M-26, M-28, M-29) | ✅ committed (f40d538) | M-3, M-4, M-25, M-26, M-28 verified by code only. |
+| 4c | w5-server-hardening (H-7, H-8, H-9, M-2, M-8, M-9, M-10, M-14, M-20) | ✅ committed (644951c, fca787c) | Tests and H-7 included. |
+| 5 | w3-auth-c (passkeys) | ⬜ deferred by the owner 2026-10-25 | Needs a new lane and the `WEBAUTHN_RP_ID` decision. |
+| 6 | Merge `lane/auth` into `feat/backend-admin` | ✅ done 2026-10-25 (1f2ace9) | Owner must run the three new migrations by hand on production after a backup: `20261022000000_foundation_past_projects_applications`, `20261022100000_email_verification`, `20261024000000_totp`. |
 
 ### Phase 2 — Admin translation AR/EN (one worktree per lane; `i18n-core`, `i18n-l1` and `small` are merged and can be removed)
 
@@ -105,7 +105,7 @@ Wave 1 and Wave 2 are merged into `feat/backend-admin`. Each task is run by Open
 
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 12 | w4-postgres-dev (PostgreSQL for dev and tests, one schema, `migrate dev`) | ⏳ | After #6 so the drift check covers the auth migrations. Ends SQLite use. |
+| 12 | w4-postgres-dev (PostgreSQL for dev and tests, one schema, `migrate dev`) | ⬜ dropped for now (owner, 2026-10-25) | Revisit before the first production deploy: it would catch the M-1 drift. |
 | 13 | w2-monitoring | 🔒 | Needs owner decisions: `MONITOR_ALLOWED_IPS`, `MONITOR_EXTERNAL_UNTIL` (go-live + 30 days). Run after #6, #7 and #12 (uses the admin i18n system). |
 
 ### Phase 5 — Claude only (no prompt)

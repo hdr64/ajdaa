@@ -23,7 +23,7 @@ Real-estate platform "أجدا / Ajda" (ajdaa.sa). Vite + React 19 + Tailwind v4
 - **Deploy policy:** CI deploys the test instance only. Production deploys and every production DB command (migrations, seeds) are run by the owner by hand, after a backup. Prisma has no rollback.
 
 ## Worktrees (`D:\projects\html\ajda-wt\`)
-- `auth` — branch `lane/auth`. Tasks A (`2e20e21`) and A2 (`1473338`) committed, synced with `feat/backend-admin` (`09851d9`). Next: B, then C (prompts in `docs/prompts/`). The lane merges into `feat/backend-admin` only after C.
+- `auth` — branch `lane/auth`, **merged into `feat/backend-admin` on 2026-10-25** (`1f2ace9`: A, A2, B and the review fixes). The worktree and branch can be removed. Passkeys (task C) were deferred and need a new lane. Production needs the three new migrations run by hand after a backup (see `docs/TODO.md` row 6). `w4-postgres-dev` is dropped for now.
 - `i18n-core` was merged (`4f33941`) and deleted with its branch on 2026-10-23.
 - `i18n-l1` — merged into `feat/backend-admin` (`92cc42e`); worktree and branch can be removed. `small` — merged (`f6e9692`); same. Next lanes after the auth chain: i18n-l2, i18n-l3, i18n-server.
 - New worktrees get their own `npm ci` (no junctions to the main repo's `node_modules`), a `server/.env` from `server/.env.example` with their own PORT/APP_URL/CLIENT_ORIGIN, empty `MAIL_*` and `QUEUE_DRIVER=sync` (all local APIs share one Redis; with the default `auto` one lane's worker could run another lane's mail jobs), a `.env.local` with only the `VITE_*` lines, and a seeded SQLite `dev.db`. If Prisma's engine download fails (ECONNRESET), copy `server/node_modules` from a worktree at the same commit with robocopy.
