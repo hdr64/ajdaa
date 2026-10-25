@@ -47,7 +47,7 @@ function probeConfig(env: Record<string, string>): Record<string, unknown> {
 
 const BASE_ENV = {
   NODE_ENV: 'production',
-  DATABASE_URL: 'file:./env-probe.db',
+  DATABASE_URL: 'postgresql://ajda:secret@localhost:5432/ajda',
   JWT_SECRET: VALID_JWT_SECRET,
   LOGS_SECRET_KEY: VALID_LOGS_SECRET,
   DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
@@ -57,10 +57,11 @@ describe('the production rules of the environment', () => {
   it('accepts a complete configuration', () => {
     expect(
       productionConfigErrors(
-        { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
+        { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET, databaseUrl: 'postgresql://ajda:secret@localhost:5432/ajda' },
         {
           LOGS_SECRET_KEY: VALID_LOGS_SECRET,
           DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
+          DATABASE_URL: 'postgresql://ajda:secret@localhost:5432/ajda',
         }
       )
     ).toEqual({});

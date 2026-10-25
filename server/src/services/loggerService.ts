@@ -149,7 +149,7 @@ class LoggerService {
   /**
    * Get filtered logs from buffer or disk file.
    */
-  public getLogs(options: {
+  public async getLogs(options: {
     level?: string;
     search?: string;
     limit?: number;
@@ -162,7 +162,7 @@ class LoggerService {
     let entries: LogEntry[] = [];
 
     if (options.source === 'file') {
-      entries = this.readLogsFromFile();
+      entries = await this.readLogsFromFile();
     } else {
       // Default: copy from in-memory ring buffer
       entries = [...this.buffer];
@@ -198,17 +198,17 @@ class LoggerService {
   /**
    * Read and parse lines from physical log file if available.
    */
-  private readLogsFromFile(): LogEntry[] {
+  private async readLogsFromFile(): Promise<LogEntry[]> {
     try {
       if (!fs.existsSync(this.logFilePath)) {
         return [...this.buffer];
       }
-      const raw = fs.readFileSync(this.logFilePath, 'utf-8');
-      const lines = raw.split('\n').filter((l) => l.trim().length > 0);
+      const lines = await this.readTailLines(this.logFilePath);
       const parsed: LogEntry[] = [];
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        if (line.trim().length === 0) continue;
         // Expected format: [2026-10-01T00:00:00.000Z] [LEVEL] [SOURCE] message {json}
         const match = line.match(/^\[(.*?)\]\s+\[(.*?)\]\s+\[(.*?)\]\s+(.*)$/);
         if (match) {
@@ -252,14 +252,39 @@ class LoggerService {
     }
   }
 
+  private static readonly MAX_TAIL_BYTES = 1 * 1024 * 1024;
+
+  private async readTailLines(filePath: string): Promise<string[]> {
+    const stat = await fs.promises.stat(filePath);
+    const size = stat.size;
+    if (size === 0) return [];
+    const start = Math.max(0, size - LoggerService.MAX_TAIL_BYTES);
+    const length = size - start;
+    const handle = await fs.promises.open(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(length);
+      await handle.read(buf, 0, length, start);
+      const text = buf.toString('utf-8');
+      const lines = text.split('\n');
+      if (start > 0 && lines.length > 0) {
+        lines.shift();
+      }
+      if (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+      return lines;
+    } finally {
+      await handle.close();
+    }
+  }
+
   /**
    * Get raw log file content as plain text.
    */
-  public getRawFileContent(tailLines = 500): string {
+  public async getRawFileContent(tailLines = 500): Promise<string> {
     try {
       if (fs.existsSync(this.logFilePath)) {
-        const content = fs.readFileSync(this.logFilePath, 'utf-8');
-        const lines = content.split('\n');
+        const lines = await this.readTailLines(this.logFilePath);
         return lines.slice(-tailLines).join('\n');
       }
     } catch {
@@ -299,11 +324,10 @@ class LoggerService {
   /**
    * Get raw content of errors.log file.
    */
-  public getRawErrorsFileContent(tailLines = 500): string {
+  public async getRawErrorsFileContent(tailLines = 500): Promise<string> {
     try {
       if (fs.existsSync(this.errorLogFilePath)) {
-        const content = fs.readFileSync(this.errorLogFilePath, 'utf-8');
-        const lines = content.split('\n');
+        const lines = await this.readTailLines(this.errorLogFilePath);
         return lines.slice(-tailLines).join('\n');
       }
     } catch {

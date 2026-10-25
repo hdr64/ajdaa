@@ -1,4 +1,5 @@
 import { prisma } from './prisma.js';
+import { loggerService } from './loggerService.js';
 
 /**
  * Public website settings (contact details and social links), edited from the
@@ -76,6 +77,7 @@ export const SITE_DEFAULTS: SiteSettings = {
 const SETTING_KEY = 'site';
 
 let cached: SiteSettings | undefined;
+let corruptLogged = false;
 
 /** Saved values over the defaults, block by block (exported for tests). */
 export function withDefaults(stored: Partial<SiteSettings>): SiteSettings {
@@ -91,7 +93,20 @@ export function withDefaults(stored: Partial<SiteSettings>): SiteSettings {
 export async function getSiteSettings(): Promise<SiteSettings> {
   if (cached) return cached;
   const row = await prisma.appSetting.findUnique({ where: { key: SETTING_KEY } });
-  cached = row ? withDefaults(JSON.parse(row.value) as Partial<SiteSettings>) : SITE_DEFAULTS;
+  if (!row) {
+    cached = SITE_DEFAULTS;
+    return cached;
+  }
+  let stored: Partial<SiteSettings> | null = null;
+  try {
+    stored = JSON.parse(row.value) as Partial<SiteSettings>;
+  } catch {
+    if (!corruptLogged) {
+      corruptLogged = true;
+      loggerService.warn('Stored site settings row is corrupt; falling back to defaults', {}, 'site');
+    }
+  }
+  cached = stored ? withDefaults(stored) : SITE_DEFAULTS;
   return cached;
 }
 

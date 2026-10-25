@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { config, secretMatches } from '../config/env.js';
+import { caseInsensitiveContains } from '../utils/caseInsensitive.js';
 import { authenticate, requireSuperAdmin } from '../middleware/auth.js';
 import { loggerService } from '../services/loggerService.js';
 import { dispatch } from '../services/queueService.js';
@@ -187,11 +188,12 @@ export const developerNotesRoutes: FastifyPluginAsync = async (fastify) => {
         where.priority = query.priority;
       }
       if (query.search) {
+        const match = caseInsensitiveContains(config.databaseUrl, query.search);
         where.OR = [
-          { title: { contains: query.search } },
-          { body: { contains: query.search } },
-          { section: { contains: query.search } },
-          { adminName: { contains: query.search } },
+          { title: match },
+          { body: match },
+          { section: match },
+          { adminName: match },
         ];
       }
 

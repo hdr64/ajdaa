@@ -11,6 +11,10 @@ const querySchema = z.object({
   source: z.enum(['buffer', 'file']).optional().default('buffer'),
 });
 
+const linesQuerySchema = z.object({
+  lines: z.coerce.number().int().min(1).max(5000).optional().default(500),
+});
+
 /** The prefix this plugin is registered under (see `app.ts`). */
 const LOGS_PREFIX = '/api/logs';
 
@@ -533,7 +537,7 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
   // 1. GET /api/logs - JSON API with filtering, pagination, and system telemetry
   fastify.get('/', async (request: FastifyRequest<{ Querystring: z.infer<typeof querySchema> }>) => {
     const query = querySchema.parse(request.query);
-    const result = loggerService.getLogs({
+    const result = await loggerService.getLogs({
       level: query.level,
       search: query.search,
       limit: query.limit,
@@ -554,9 +558,11 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // 2. GET /api/logs/raw - Plain text raw prod.log stream
   fastify.get('/raw', async (request, reply) => {
-    const query = request.query as { lines?: string };
-    const lines = parseInt(query.lines || '500', 10);
-    const text = loggerService.getRawFileContent(isNaN(lines) ? 500 : lines);
+    const parsed = linesQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid lines value' });
+    }
+    const text = await loggerService.getRawFileContent(parsed.data.lines);
 
     reply.header('Content-Type', 'text/plain; charset=utf-8');
     return text;
@@ -564,9 +570,11 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // 3. GET /api/logs/errors - Plain text raw errors.log stream
   fastify.get('/errors', async (request, reply) => {
-    const query = request.query as { lines?: string };
-    const lines = parseInt(query.lines || '500', 10);
-    const text = loggerService.getRawErrorsFileContent(isNaN(lines) ? 500 : lines);
+    const parsed = linesQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid lines value' });
+    }
+    const text = await loggerService.getRawErrorsFileContent(parsed.data.lines);
 
     reply.header('Content-Type', 'text/plain; charset=utf-8');
     return text;
@@ -603,6 +611,13 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { message, source, url, stack, context } = parsed.data;
+      // Strip CR/LF so a single report cannot forge extra log lines.
+      const safeMessage = message.replace(/[\r\n]+/g, ' ');
+      const safeStack = stack ? stack.replace(/[\r\n]+/g, ' ') : undefined;
+      // Restrict source to a safe token set and cap its length.
+      const safeSource = (source || 'frontend')
+        .replace(/[^A-Za-z0-9_-]/g, '')
+        .slice(0, 64) || 'frontend';
       // The reported URL and the referer are page URLs: only their paths are
       // kept, so a query string that a page happened to carry cannot end up
       // in the log.
@@ -611,15 +626,16 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
       const reportedPath = url ? url.split('?')[0] : undefined;
 
       loggerService.error(
-        `Client error reported: ${message}`,
+        `Client error reported: ${safeMessage}`,
         {
+          // context is spread first so it cannot override trusted fields.
+          ...context,
           url: reportedPath || refererPath,
           ip: request.ip,
           userAgent: request.headers['user-agent'],
-          stack,
-          ...context,
+          stack: safeStack,
         },
-        source
+        safeSource
       );
 
       return { success: true, recorded: true };

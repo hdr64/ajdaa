@@ -553,11 +553,12 @@ npm --prefix server run db:gen:prod
 
 For every migration folder that `migrate status` reports as pending, read the
 `migration.sql` file. **Do not continue if a pending migration contains
-`DROP`, `TRUNCATE`, `DELETE` or `ALTER ... DROP`.** A one-line helper for the
+`DROP`, `TRUNCATE`, `DELETE` or `ALTER ... DROP`.** `ON DELETE …` inside a
+foreign-key clause is expected and does not count. A one-line helper for the
 pending folders only:
 
 ```bash
-grep -nEi 'drop|truncate|delete' server/prisma/migrations/<pending-folder>/migration.sql
+grep -nEi '\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX)\b|\bTRUNCATE\b|\bDELETE\s+FROM\b' server/prisma/migrations/<pending-folder>/migration.sql
 ```
 
 **Step 5 — only then migrate, build, swap the SPA and restart:**

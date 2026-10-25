@@ -306,8 +306,8 @@ export const cmsClientItemSchema = z.object({
   tagsAr: z.array(z.string().trim().max(50)).max(10),
   tagsEn: z.array(z.string().trim().max(50)).max(10),
   websiteUrl: externalUrl.optional(),
-  order: z.number().int().min(0).default(0),
-  visible: z.boolean().default(true),
+  order: z.number().int().min(0).nullish(),
+  visible: z.boolean().nullish(),
 });
 export type CmsClientItem = z.infer<typeof cmsClientItemSchema>;
 
