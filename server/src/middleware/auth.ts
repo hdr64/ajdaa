@@ -15,6 +15,13 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
   }
 
+  // A `scope` claim marks a narrow-purpose token (today only the TOTP
+  // enrollment token). Such a token must never open a normal endpoint, even
+  // though it is signed with the same secret.
+  if (request.user.scope !== undefined) {
+    return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
+  }
+
   const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
   if (!user || user.status !== 'active') {
     return reply.status(401).send({ error: 'Unauthorized: Account is no longer active' });
@@ -34,6 +41,33 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     role: user.role,
     permissions: parsePermissions(user.permissions),
   };
+}
+
+/**
+ * The mirror image of `authenticate`: accepts ONLY the 10-minute enrollment
+ * token issued by `/login` when TOTP is mandatory and the admin has not set it
+ * up yet. A normal session token (no `scope`) is rejected, so the enrollment
+ * endpoints can hand out a TOTP secret without letting a full session do the
+ * same thing through a different door.
+ */
+export async function authenticateTotpEnroll(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<FastifyReply | void> {
+  try {
+    await request.jwtVerify();
+  } catch {
+    return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
+  }
+
+  if (request.user.scope !== 'totp_enroll') {
+    return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
+  }
+
+  const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+  if (!user || user.status !== 'active') {
+    return reply.status(401).send({ error: 'Unauthorized: Account is no longer active' });
+  }
 }
 
 export function hasPermission(admin: AuthenticatedAdmin | undefined, permission: AdminPermission): boolean {

@@ -9,7 +9,7 @@ import type { GridColumns } from '../common/viewModes';
 import { gridColumnsClass } from '../common/viewModes';
 import { lastActiveLabel, userDepartmentLabel, userRoleLabel, isSuperAdminAccount } from './usersModel';
 import type { UserViewProps } from './usersModel';
-import { LockNote, PermissionPills, StatusChip, UserActions, UserAvatar } from './usersUi';
+import { LockNote, PermissionPills, StatusChip, TotpChip, UserActions, UserAvatar } from './usersUi';
 
 interface UsersGridProps extends UserViewProps {
   roles: Role[];
@@ -28,6 +28,7 @@ export const UsersGrid: React.FC<UsersGridProps> = ({
   onDelete,
   onResendVerification,
   onMarkVerified,
+  onResetTotp,
 }) => (
   <div className={`grid gap-4 ${gridColumnsClass(columns)}`}>
     {users.map((user) => {
@@ -56,7 +57,10 @@ export const UsersGrid: React.FC<UsersGridProps> = ({
                 </div>
               </div>
 
-              <StatusChip status={user.status} className="shrink-0" />
+              <div className="flex items-center gap-1.5 shrink-0">
+                <StatusChip status={user.status} />
+                {user.totpEnabled && <TotpChip />}
+              </div>
             </div>
 
             <div className="text-[11px] p-2.5 rounded-xl bg-canvas/60 border border-muted-border/30 space-y-1 mb-4">
@@ -98,6 +102,7 @@ export const UsersGrid: React.FC<UsersGridProps> = ({
                 onDelete={onDelete}
                 onResendVerification={onResendVerification}
                 onMarkVerified={onMarkVerified}
+                onResetTotp={onResetTotp}
                 variant="labels"
               />
             </div>

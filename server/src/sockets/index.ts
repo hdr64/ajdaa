@@ -25,8 +25,16 @@ async function resolveAuthenticatedAdmin(
     return null;
   }
 
+  // A scope claim marks a narrow-purpose token (the TOTP enrollment token),
+  // which `authenticate` also refuses as a session.
+  if (payload.scope !== undefined) return null;
+
   const user = await prisma.adminUser.findUnique({ where: { id: payload.id } });
   if (!user || user.status !== 'active') return null;
+
+  if (user.passwordChangedAt && payload.iat !== undefined) {
+    if (payload.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)) return null;
+  }
 
   let permissions: Record<string, boolean> = {};
   try {

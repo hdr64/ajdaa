@@ -5,16 +5,19 @@ import { ShieldCheck, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 import { LoginCredentialsStep } from '../../components/admin/auth/LoginCredentialsStep';
 import { LoginOtpStep } from '../../components/admin/auth/LoginOtpStep';
+import { LoginTotpStep } from '../../components/admin/auth/LoginTotpStep';
+import { EnrollTotpStep } from '../../components/admin/auth/EnrollTotpStep';
 import { VerifyEmailCodeStep } from '../../components/admin/auth/VerifyEmailCodeStep';
 import { ForgotPasswordStep } from '../../components/admin/auth/ForgotPasswordStep';
 import { ResetPasswordStep } from '../../components/admin/auth/ResetPasswordStep';
+import type { LoginResult } from '../../services/authService';
 
 interface AdminLoginPageProps {
   onLoginSuccess: () => void;
   onNavigateHome: () => void;
 }
 
-type AuthStep = 'credentials' | 'otp' | 'verifyCode' | 'forgot' | 'reset';
+type AuthStep = 'credentials' | 'otp' | 'totp' | 'enrollTotp' | 'verifyCode' | 'forgot' | 'reset';
 
 export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   onLoginSuccess,
@@ -30,10 +33,38 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [challengeId, setChallengeId] = useState('');
+  const [enrollToken, setEnrollToken] = useState('');
   const [emailHint, setEmailHint] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  /**
+   * Routes a login response to its next screen and reports whether a session
+   * was issued. Shared by the credentials step and the post-verification
+   * re-login so the second-factor branches live in exactly one place.
+   */
+  const advanceLogin = (result: LoginResult): boolean => {
+    switch (result.kind) {
+      case 'session':
+        return true;
+      case 'otp':
+        setChallengeId(result.challengeId);
+        setEmailHint(result.emailHint);
+        setStep('otp');
+        return false;
+      case 'totp':
+        setChallengeId(result.challengeId);
+        setEmailHint(result.emailHint);
+        setStep('totp');
+        return false;
+      case 'totpEnroll':
+        setEnrollToken(result.enrollToken);
+        setEmailHint(result.emailHint);
+        setStep('enrollTotp');
+        return false;
+    }
+  };
 
   /* ---------------------- Credentials Login ---------------------- */
 
@@ -45,13 +76,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
 
     try {
       const result = await AdminStorage.startLogin(email, password);
-      if (result.kind === 'session') {
-        onLoginSuccess();
-      } else {
-        setChallengeId(result.challengeId);
-        setEmailHint(result.emailHint);
-        setStep('otp');
-      }
+      if (advanceLogin(result)) onLoginSuccess();
     } catch (caught) {
       // Correct credentials on an unverified account are a 403, not a login
       // failure: the address must be confirmed before a session can be issued.
@@ -134,6 +159,58 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     }
   };
 
+  /* ------------------ Authenticator app (TOTP) ------------------ */
+
+  const handleVerifyTotp = async (code: string) => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await AdminStorage.verifyLoginTotp(challengeId, code);
+      onLoginSuccess();
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
+        setStep('credentials');
+        setError(
+          isAr
+            ? 'انتهت صلاحية جلسة التحقق، يرجى إعادة تسجيل الدخول'
+            : 'Verification session has expired. Please sign in again.'
+        );
+      } else {
+        setError(
+          getErrorMessage(
+            caught,
+            isAr ? 'الرمز غير صحيح أو منتهي الصلاحية' : 'Invalid or expired code'
+          )
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Loads the pending secret for the enrollment token (QR + manual key). */
+  const handleEnrollTotpLoad = () => AdminStorage.enrollTotpSetup(enrollToken);
+
+  /** Confirms the first app code; a session comes back with the recovery codes. */
+  const handleEnrollTotpVerify = async (code: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await AdminStorage.enrollTotpVerify(enrollToken, code);
+      onLoginSuccess();
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر تفعيل تطبيق المصادقة، تحقق من الرمز' : 'Could not enable the app, check the code'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   /* -------------------- Verify email code -------------------- */
 
   const handleVerifyEmailCode = async (code: string) => {
@@ -144,18 +221,15 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
 
       // The account is now active. Sign the user in automatically by
       // re-submitting the original login so they do not type credentials again.
+      // A second factor may still be required (app code or first-time setup).
       const result = await AdminStorage.startLogin(email, password);
-      if (result.kind === 'session') {
+      if (advanceLogin(result)) {
         setNotice(
           isAr
             ? 'تم تأكيد البريد الإلكتروني وتسجيل الدخول بنجاح.'
             : 'Email confirmed and you are signed in.'
         );
         onLoginSuccess();
-      } else {
-        setChallengeId(result.challengeId);
-        setEmailHint(result.emailHint);
-        setStep('otp');
       }
     } catch (caught) {
       // A wrong code answers 400 with `attemptsLeft`; the server's message is
@@ -298,6 +372,31 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
               emailHint={emailHint}
               onVerify={handleVerifyOtp}
               onResend={handleResendOtp}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
+
+          {step === 'totp' && (
+            <LoginTotpStep
+              emailHint={emailHint}
+              onVerify={handleVerifyTotp}
+              onBack={handleBackToCredentials}
+              onModeChange={() => setError(null)}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
+
+          {step === 'enrollTotp' && (
+            <EnrollTotpStep
+              onLoad={handleEnrollTotpLoad}
+              onVerify={handleEnrollTotpVerify}
               onBack={handleBackToCredentials}
               loading={loading}
               error={error}

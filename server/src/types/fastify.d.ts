@@ -5,7 +5,18 @@ import '@fastify/jwt';
 export interface JwtPayload {
   id: string;
   email: string;
-  role: string;
+  /**
+   * Absent on the short-lived TOTP enrollment token, which is not a session:
+   * `authenticate` rejects any token carrying a `scope`, so a role is pointless
+   * there and its absence keeps the two token shapes distinguishable.
+   */
+  role?: string;
+  /**
+   * Present only on the 10-minute enrollment token minted by `/login` when TOTP
+   * is mandatory and the admin has not set it up yet. `authenticate` rejects it;
+   * only `authenticateTotpEnroll` accepts it.
+   */
+  scope?: 'totp_enroll';
   iat?: number;
   exp?: number;
 }

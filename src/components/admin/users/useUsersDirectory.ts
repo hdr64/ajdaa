@@ -31,6 +31,7 @@ export interface UsersDirectory {
   remove: (user: AdminUser) => Promise<void>;
   resendVerification: (user: AdminUser) => Promise<void>;
   markVerified: (user: AdminUser) => Promise<void>;
+  resetTotp: (user: AdminUser) => Promise<void>;
 }
 
 interface StatusCopy {
@@ -91,6 +92,7 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
       currentUserId: currentUser?.id ?? null,
       isSuperAdmin,
       canVerifyUsers: isSuperAdmin || can('verifyUsers'),
+      canManageUsers: isSuperAdmin || can('manageUsers'),
       activeSuperAdminCount,
     }),
     [currentUser?.id, isSuperAdmin, can, activeSuperAdminCount]
@@ -241,5 +243,39 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
     [confirm, reloadUsers, showToast]
   );
 
-  return { users, reference, rightsById, setStatus, setManyStatus, remove, resendVerification, markVerified };
+  /**
+   * Clears an account's authenticator-app 2FA after a lost or replaced phone.
+   * The server guards who may do this; the UI pre-filters with rights.
+   */
+  const resetTotp = useCallback(
+    async (user: AdminUser) => {
+      const ok = await confirm({
+        title: 'إعادة تعيين التحقق بتطبيق المصادقة؟',
+        message: `سيتم فصل تطبيق المصادقة عن حساب "${user.name}" وحذف رموز الاسترداد. سيتمكن من الدخول بكلمة المرور فقط حتى يعيد ربط تطبيق المصادقة.`,
+        confirmLabel: 'إعادة التعيين',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await AdminStorage.resetUserTotp(user.id);
+        await reloadUsers();
+        showToast(`تم إعادة تعيين التحقق بتطبيق المصادقة لحساب ${user.name}`);
+      } catch (error) {
+        showToast(getErrorMessage(error, 'تعذر إعادة تعيين التحقق بتطبيق المصادقة'));
+      }
+    },
+    [confirm, reloadUsers, showToast]
+  );
+
+  return {
+    users,
+    reference,
+    rightsById,
+    setStatus,
+    setManyStatus,
+    remove,
+    resendVerification,
+    markVerified,
+    resetTotp,
+  };
 }

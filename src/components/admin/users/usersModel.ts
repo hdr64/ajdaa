@@ -327,6 +327,9 @@ export interface UserRights {
   /** Mark a pending account as verified without the emailed link or code. */
   canMarkVerified: boolean;
   markVerifiedHint: string | null;
+  /** Clear another account's authenticator-app 2FA (lost phone). */
+  canResetTotp: boolean;
+  resetTotpHint: string | null;
   isSelf: boolean;
 }
 
@@ -335,6 +338,8 @@ export interface RightsContext {
   isSuperAdmin: boolean;
   /** The signed-in user holds `verifyUsers` (super admins always do). */
   canVerifyUsers: boolean;
+  /** The signed-in user holds `manageUsers` (super admins always do). */
+  canManageUsers: boolean;
   /** Guards the last usable super admin, who cannot be demoted, suspended or deleted. */
   activeSuperAdminCount: number;
 }
@@ -378,6 +383,17 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     else markVerifiedHint = 'لا يمكن تأكيد حسابك بنفسك';
   }
 
+  // Resetting someone else's second factor is a `manageUsers` action, and only a
+  // super admin may touch a super admin's account.
+  const canResetTotp =
+    context.canManageUsers && Boolean(user.totpEnabled) && (!isSuperAdminTarget || context.isSuperAdmin);
+  let resetTotpHint: string | null = null;
+  if (!canResetTotp) {
+    if (!context.canManageUsers) resetTotpHint = 'تتطلب صلاحية «إدارة المستخدمين»';
+    else if (!user.totpEnabled) resetTotpHint = 'التحقق بتطبيق المصادقة غير مفعّل لهذا الحساب';
+    else resetTotpHint = 'إعادة تعيين حسابات المدير العام متاحة لمدير عام فقط';
+  }
+
   const canDelete = !isSelf && (!isSuperAdminTarget || context.isSuperAdmin) && !isLastActiveSuperAdmin;
   const deleteHint = canDelete
     ? null
@@ -398,6 +414,8 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     deleteHint,
     canMarkVerified,
     markVerifiedHint,
+    canResetTotp,
+    resetTotpHint,
     isSelf,
   };
 }
@@ -414,4 +432,6 @@ export interface UserViewProps {
   onResendVerification: (user: AdminUser) => void;
   /** Mark a pending account as verified without the emailed link or code. */
   onMarkVerified: (user: AdminUser) => void;
+  /** Clear an account's authenticator-app 2FA after a lost or replaced phone. */
+  onResetTotp: (user: AdminUser) => void;
 }

@@ -52,10 +52,15 @@ model AdminUser {
   // backfilled by the migration so nobody is locked out.
   emailVerifiedAt   DateTime?
   loginOtpEnabled   Boolean     @default(false)
+  // TOTP (authenticator app) 2FA fields
+  totpSecretEnc     String?     // AES-256-GCM encrypted secret (never returned by any endpoint)
+  totpEnabledAt     DateTime?   // Set when TOTP is successfully enabled
+  totpLastStep      Int?        // Last accepted step (replay protection)
   preferences       String      @default("{}") // JSON: per-admin UI choices, e.g. { skipConfirm: [...] }
   createdAt         DateTime    @default(now())
   otpChallenges     OtpChallenge[]
   emailVerificationTokens EmailVerificationToken[]
+  recoveryCodes     RecoveryCode[]
 }
 
 /// A one-time code emailed to an admin: login verification ('login'), password
@@ -91,6 +96,19 @@ model EmailVerificationToken {
   consumedAt  DateTime?
   createdAt   DateTime  @default(now())
   adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+}
+
+/// One-time recovery code for TOTP (authenticator app) 2FA.
+/// Stored as peppered SHA-256; the plaintext code is shown ONCE at enable time.
+model RecoveryCode {
+  id           String    @id @default(uuid())
+  adminUserId  String
+  codeHash     String
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
+  adminUser    AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
 
   @@index([adminUserId])
 }

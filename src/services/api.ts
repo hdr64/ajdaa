@@ -150,6 +150,12 @@ export interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined | null>;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /**
+   * Sends this bearer token instead of the stored session token, and never
+   * persists it. Used for the scope-limited TOTP enrollment token, which is
+   * deliberately not a session.
+   */
+  authToken?: string;
 }
 
 /** Reports a client-side or network error to server errors.log */
@@ -174,7 +180,7 @@ export function reportClientError(message: string, context?: Record<string, unkn
 /** JSON request helper. Serialises `body`, injects the JWT, and normalises errors. */
 async function request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
-  const token = getAuthToken();
+  const token = options.authToken ?? getAuthToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -223,7 +229,9 @@ async function request<T>(method: string, path: string, body?: unknown, options:
       });
     }
     // A dead token must not leave the admin portal in a half-authenticated state.
-    if (apiError.isUnauthorized) {
+    // A one-off token (no stored session involved) is exempt: failing it says
+    // nothing about the session the caller might still hold.
+    if (apiError.isUnauthorized && options.authToken === undefined) {
       clearAuthToken();
       notifyUnauthorized();
     }

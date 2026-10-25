@@ -147,6 +147,40 @@ export const AdminStorage = {
     return authService.setLoginOtp(enabled, password);
   },
 
+  /* --------------------- Authenticator app (TOTP) ------------------------ */
+
+  verifyLoginTotp(challengeId: string, code: string): Promise<AuthSession & { recoveryCodesLeft?: number }> {
+    return authService.verifyLoginTotp(challengeId, code);
+  },
+
+  enrollTotpSetup(enrollToken: string): Promise<{ otpauthUri: string; secret: string }> {
+    return authService.enrollTotpSetup(enrollToken);
+  },
+
+  enrollTotpVerify(enrollToken: string, code: string): Promise<AuthSession & { recoveryCodes: string[] }> {
+    return authService.enrollTotpVerify(enrollToken, code);
+  },
+
+  totpSetup(currentPassword: string): Promise<{ otpauthUri: string; secret: string }> {
+    return authService.totpSetup(currentPassword);
+  },
+
+  totpEnable(code: string): Promise<{ recoveryCodes: string[] }> {
+    return authService.totpEnable(code);
+  },
+
+  totpDisable(currentPassword: string, code: string): Promise<{ disabled: boolean }> {
+    return authService.totpDisable(currentPassword, code);
+  },
+
+  regenerateRecoveryCodes(currentPassword: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    return authService.regenerateRecoveryCodes(currentPassword, code);
+  },
+
+  resetUserTotp(userId: string): Promise<{ reset: boolean }> {
+    return authService.resetUserTotp(userId);
+  },
+
   updateProfile(input: { name?: string; email?: string; phone?: string | null }): Promise<AdminUser> {
     return authService.updateProfile(input);
   },

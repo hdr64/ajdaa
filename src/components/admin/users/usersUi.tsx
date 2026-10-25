@@ -4,7 +4,7 @@
  * status colours, same action guards).
  */
 import React from 'react';
-import { CheckCircle2, Lock, LogIn, LogOut, MailCheck, Pencil, Trash2 } from 'lucide-react';
+import { CheckCircle2, Lock, LogIn, LogOut, MailCheck, Pencil, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import type { AdminPermissions, AdminStatus, AdminUser } from '../../../types/admin';
 import {
   PERMISSION_KEYS,
@@ -30,6 +30,14 @@ const CHIP_TONE: Record<AdminStatus, string> = {
 
 export const StatusChip: React.FC<{ status: AdminStatus; className?: string }> = ({ status, className = '' }) => (
   <span className={`${CHIP_BASE} ${CHIP_TONE[status]} ${className}`}>{STATUS_LABELS[status]}</span>
+);
+
+/** Shown next to the status chip when the account has authenticator-app 2FA on. */
+export const TotpChip: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <span className={`${CHIP_BASE} bg-accent/10 text-accent border-accent/20 ${className}`}>
+    <ShieldCheck className="w-3 h-3" />
+    تطبيق المصادقة
+  </span>
 );
 
 export const RolePill: React.FC<{ label: string }> = ({ label }) => (
@@ -86,6 +94,7 @@ interface UserActionsProps {
   onDelete: (user: AdminUser) => void;
   onResendVerification: (user: AdminUser) => void;
   onMarkVerified: (user: AdminUser) => void;
+  onResetTotp: (user: AdminUser) => void;
   /** `labels` for cards, `icons` for the dense table and list rows. */
   variant: 'labels' | 'icons';
 }
@@ -110,6 +119,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
   onDelete,
   onResendVerification,
   onMarkVerified,
+  onResetTotp,
   variant,
 }) => {
   const suspending = user.status === 'active';
@@ -195,6 +205,25 @@ export const UserActions: React.FC<UserActionsProps> = ({
     </button>
   );
 
+  /** Clears the account's authenticator-app 2FA, for a lost or replaced phone. */
+  const resetTotpButton = (
+    <button
+      type="button"
+      onClick={() => onResetTotp(user)}
+      disabled={!rights.canResetTotp}
+      title={rights.resetTotpHint ?? 'إعادة تعيين التحقق بتطبيق المصادقة'}
+      aria-label={`إعادة تعيين التحقق بتطبيق المصادقة لحساب ${user.name}`}
+      className={
+        labelled
+          ? `${LABEL_BUTTON} border-amber-500/30 text-amber-600 hover:bg-amber-500/10`
+          : `${ICON_BUTTON} text-amber-500/80 hover:text-amber-500 hover:bg-amber-500/10`
+      }
+    >
+      <ShieldOff className="w-3 h-3" />
+      {labelled && <span>إعادة تعيين 2FA</span>}
+    </button>
+  );
+
   const deleteButton = (
     <button
       type="button"
@@ -219,6 +248,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
         {editButton}
         {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
         {user.status === 'pending' && resendButton}
+        {user.totpEnabled && resetTotpButton}
         {toggleButton}
         {deleteButton}
       </div>
@@ -230,6 +260,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       {editButton}
       {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
       {user.status === 'pending' && resendButton}
+      {user.totpEnabled && resetTotpButton}
       {toggleButton}
       {deleteButton}
     </div>

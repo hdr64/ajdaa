@@ -1,18 +1,18 @@
-import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
-import { authenticate, requirePermission } from '../middleware/auth.js';
+import { authenticate, authenticateTotpEnroll, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { buildCsv, sendCsv } from '../services/csv.js';
 import { config } from '../config/env.js';
 import { parsePreferences, preferencesSchema } from '../config/preferences.js';
-import { loginOtpRequiredForAll } from '../services/securitySettings.js';
+import { loginOtpRequiredForAll, totpRequiredForAll } from '../services/securitySettings.js';
 import { loginFailureTracker } from '../services/loginFailureService.js';
 import { loggerService } from '../services/loggerService.js';
 import { mailBrandName, isMailEnabled, sendMail } from '../services/mailService.js';
-import { emailVerificationEmail, loginOtpEmail, passwordResetEmail } from '../services/mailTemplates.js';
+import { emailVerificationEmail, loginOtpEmail, passwordResetEmail, totpNoticeEmail } from '../services/mailTemplates.js';
 import { notifyPasswordChanged } from '../services/notificationService.js';
 import { dispatch } from '../services/queueService.js';
 import { sendInviteEmailJob, sendEmailVerificationJob, sendPasswordChangeCodeJob } from '../jobs/emailJobs.js';
@@ -39,6 +39,16 @@ import {
   parseRolePermissions,
   rolePermissionsToUserPermissions,
 } from '../config/permissions.js';
+import { encryptSecret, decryptSecret } from '../services/secretBox.js';
+import {
+  generateTotpSecret,
+  verifyTotp,
+  buildOtpAuthUri,
+  formatSecretForDisplay,
+  generateRecoveryCodes,
+  hashRecoveryCode,
+  verifyRecoveryCode,
+} from '../services/totpService.js';
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
@@ -94,6 +104,16 @@ const SEND_PASSWORD_INVITE_ERROR =
 const MARK_VERIFIED_NOT_FOUND = 'المستخدم غير موجود / User not found';
 const MARK_VERIFIED_ALREADY_VERIFIED = 'بريد هذا الحساب مؤكد بالفعل / This account email is already verified';
 const MARK_VERIFIED_SUPER_ADMIN_TARGET = 'لا يمكن تأكيد حساب مدير عام من غير مدير عام / Only a super admin can verify a super admin account';
+
+const TOTP_NOT_ENABLED_ERROR = 'التحقق بتطبيق المصادقة غير مفعل / TOTP is not enabled';
+const TOTP_CODE_INVALID_ERROR = 'رمز تطبيق المصادقة غير صحيح / Invalid authenticator app code';
+const TOTP_CHALLENGE_EXPIRED_ERROR = 'انتهت صلاحية جلسة التحقق / Verification session has expired';
+const TOTP_ENROLLMENT_REQUIRED_ERROR = 'يجب تفعيل تطبيق المصادقة قبل تسجيل الدخول / You must enable an authenticator app before signing in';
+const RECOVERY_CODE_USED_ERROR = 'تم استخدام رمز الاسترداد هذا مسبقاً / This recovery code has already been used';
+const TOTP_ENROLLMENT_FORBIDDEN_ERROR = 'لا يمكن تعطيل التحقق بتطبيق المصادقة: مطلوب للجميع / Cannot disable TOTP: required for all accounts';
+const TOTP_SECRET_PENDING_ERROR = 'يوجد سر TOTP معلق، يرجى تأكيده أولاً / A pending TOTP secret exists, please confirm it first';
+const TOTP_ALREADY_ENABLED_ERROR = 'التحقق بتطبيق المصادقة مفعل بالفعل / Authenticator app verification is already enabled';
+const TOTP_SETUP_REQUIRED_ERROR = 'يرجى بدء إعداد تطبيق المصادقة أولاً / Please start the authenticator app setup first';
 
 
 const RATE_LIMIT_ERROR_BODY = {
@@ -183,6 +203,35 @@ const updateUserSchema = z
 
 const userIdParamsSchema = z.object({ id: z.string().min(1) });
 
+const totpSetupSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+});
+
+const totpEnableSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+const totpDisableSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  code: z.string().trim().min(1, 'Code is required'),
+});
+
+const totpRecoveryCodesSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  code: z.string().trim().min(1, 'Code is required'),
+});
+
+const loginVerifyTotpSchema = z.object({
+  challengeId: z.string().trim().min(1),
+  code: z.string().trim().min(1),
+});
+
+// The enrollment token travels in the Authorization header (it is a JWT), so
+// only the code is in the body.
+const loginEnrollTotpSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
 type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
 interface OtpUser {
@@ -195,6 +244,12 @@ interface OtpUser {
 /** True when this admin must clear a one-time code before a session is issued. */
 async function requiresLoginOtp(user: { loginOtpEnabled: boolean }): Promise<boolean> {
   return user.loginOtpEnabled || (await loginOtpRequiredForAll());
+}
+
+/** True when this admin must clear a TOTP code before a session is issued.
+ *  If the user has TOTP enabled, it takes precedence over emailed login OTP. */
+async function requiresTotp(user: { totpEnabledAt: Date | null }): Promise<boolean> {
+  return user.totpEnabledAt !== null || (await totpRequiredForAll());
 }
 
 /**
@@ -227,10 +282,131 @@ async function sendPasswordResetMail(user: OtpUser, code: string): Promise<void>
   await sendMail({ to: user.email, ...content });
 }
 
+/**
+ * Best-effort security notice for a TOTP change. The change has already been
+ * committed by the time this runs, so a dead SMTP server must never turn the
+ * request into an error — it is logged and swallowed instead.
+ */
+async function sendTotpNoticeMail(
+  user: OtpUser,
+  event: 'enabled' | 'disabled' | 'reset',
+  actorEmail?: string | null
+): Promise<void> {
+  try {
+    const content = totpNoticeEmail({
+      brandName: await mailBrandName(),
+      name: user.name,
+      event,
+      actorEmail,
+    });
+    await sendMail({ to: user.email, ...content });
+  } catch (error) {
+    loggerService.warn('[auth] totp notice mail failed', { userId: user.id, event, error: String(error) }, 'auth');
+  }
+}
+
 async function findActiveUser(id: string): Promise<OtpUser | null> {
   const user = await prisma.adminUser.findUnique({ where: { id } });
   if (!user || user.status !== 'active') return null;
   return { id: user.id, email: user.email, name: user.name, role: user.role };
+}
+
+/** Verify a login_totp challenge (TOTP code or recovery code). */
+async function verifyLoginTotpChallenge(
+  challengeId: string,
+  code: string,
+  user: {
+    id: string;
+    totpSecretEnc: string | null;
+    totpLastStep: number | null;
+    recoveryCodes: { id: string; codeHash: string; usedAt: Date | null }[];
+  }
+): Promise<{ ok: boolean; reason?: 'dead' | 'invalid' | 'recovery_used'; recoveryCodesLeft?: number }> {
+  const challenge = await prisma.otpChallenge.findUnique({ where: { id: challengeId } });
+  if (!challenge || challenge.purpose !== 'login_totp') {
+    return { ok: false, reason: 'dead' };
+  }
+
+  // Check expiry and attempt cap
+  if (challenge.consumedAt !== null || challenge.expiresAt.getTime() <= Date.now() || challenge.attempts >= config.loginOtpMaxAttempts) {
+    return { ok: false, reason: 'dead' };
+  }
+
+  // Try as TOTP code first (6 digits)
+  if (/^\d{6}$/.test(code)) {
+    const decryptedSecret = user.totpSecretEnc ? decryptSecret(user.totpSecretEnc) : null;
+    if (!decryptedSecret) return { ok: false, reason: 'dead' };
+
+    const matchedStep = verifyTotp(decryptedSecret, code);
+    if (matchedStep === null) {
+      // Wrong TOTP code
+      const attempts = challenge.attempts + 1;
+      await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts } });
+      if (attempts >= config.loginOtpMaxAttempts) {
+        return { ok: false, reason: 'dead' };
+      }
+      return { ok: false, reason: 'invalid' };
+    }
+
+    // Replay protection: reject same step
+    if (matchedStep <= (user.totpLastStep ?? -1)) {
+      return { ok: false, reason: 'dead' };
+    }
+
+    // Consume challenge and update last step
+    await prisma.$transaction([
+      prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
+      prisma.adminUser.update({ where: { id: user.id }, data: { totpLastStep: matchedStep } }),
+    ]);
+    return { ok: true };
+  }
+
+  // Try as recovery code (format XXXXX-XXXXX)
+  const normalizedCode = code.trim().toUpperCase();
+  for (const rc of user.recoveryCodes) {
+    if (rc.usedAt === null && verifyRecoveryCode(rc.codeHash, normalizedCode)) {
+      // Mark recovery code as used
+      await prisma.$transaction([
+        prisma.recoveryCode.update({ where: { id: rc.id }, data: { usedAt: new Date() } }),
+        prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
+      ]);
+      const left = user.recoveryCodes.filter((r) => r.usedAt === null && r.id !== rc.id).length;
+      return { ok: true, recoveryCodesLeft: left };
+    }
+  }
+
+  // Not a valid recovery code
+  const attempts = challenge.attempts + 1;
+  await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts } });
+  if (attempts >= config.loginOtpMaxAttempts) {
+    return { ok: false, reason: 'dead' };
+  }
+  return { ok: false, reason: 'invalid' };
+}
+
+/**
+ * Spend one unused recovery code. Every unused row is compared, because the
+ * code the user presents is any of their ten, not the first the database
+ * happens to return.
+ */
+async function spendRecoveryCode(adminUserId: string, code: string): Promise<boolean> {
+  const normalizedCode = code.trim().toUpperCase();
+  const unused = await prisma.recoveryCode.findMany({ where: { adminUserId, usedAt: null } });
+  const match = unused.find((rc) => verifyRecoveryCode(rc.codeHash, normalizedCode));
+  if (!match) return false;
+  await prisma.recoveryCode.update({ where: { id: match.id }, data: { usedAt: new Date() } });
+  return true;
+}
+
+/** How long the enrollment token stays valid: long enough to install an app, short enough to be useless later. */
+const TOTP_ENROLL_TOKEN_TTL = '10m';
+
+/** Issue an enrollment token (10m JWT with scope 'totp_enroll'). */
+function issueTotpEnrollmentToken(fastify: FastifyInstance, user: { id: string; email: string }): string {
+  return fastify.jwt.sign(
+    { id: user.id, email: user.email, scope: 'totp_enroll' },
+    { expiresIn: TOTP_ENROLL_TOKEN_TTL }
+  );
 }
 
 const VERIFICATION_MAIL_JOB = {
@@ -348,6 +524,8 @@ function serializeUser(user: {
   lastLogin: string | null;
   departmentRef?: { nameAr: string } | null;
   loginOtpEnabled?: boolean | null;
+  totpEnabledAt?: Date | null;
+  recoveryCodesCount?: number;
 }) {
   return {
     id: user.id,
@@ -364,6 +542,8 @@ function serializeUser(user: {
     status: user.status,
     lastLogin: user.lastLogin,
     loginOtpEnabled: Boolean(user.loginOtpEnabled),
+    totpEnabled: Boolean(user.totpEnabledAt),
+    recoveryCodesLeft: user.recoveryCodesCount ?? 0,
   };
 }
 
@@ -396,14 +576,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
-      if (user.status === 'suspended') {
-        return reply.status(403).send({ error: 'Account is suspended' });
-      }
-
       const isMatch = await bcrypt.compare(password, user.passwordHash);
       if (!isMatch) {
         loginFailureTracker.recordFailure(normalizedEmail);
         return reply.status(401).send({ error: 'Invalid credentials' });
+      }
+
+      // After the password check on purpose: a 403 before it would tell anyone
+      // which addresses exist and are suspended.
+      if (user.status === 'suspended') {
+        return reply.status(403).send({ error: 'Account is suspended' });
       }
 
       // The password is proven, so the failure counter is cleared. A wrong code
@@ -420,6 +602,37 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: EMAIL_NOT_VERIFIED_ERROR, code: 'EMAIL_NOT_VERIFIED' });
       }
 
+      // TOTP takes precedence over emailed login code: if the user has TOTP
+      // enabled (or TOTP is required for all), we issue a login_totp challenge.
+      // If TOTP is required for all but the user hasn't enrolled yet, we return
+      // an enrollment token instead of a session.
+      if (await requiresTotp(user)) {
+        if (user.totpEnabledAt === null) {
+          // TOTP is mandatory for everyone and this admin has not enrolled yet:
+          // hand back a scope-limited token instead of a session. Only
+          // `/login/enroll-totp/*` accepts it, and `authenticate` refuses it, so
+          // it cannot be used as a shortcut into the dashboard.
+          return reply.status(200).send({
+            totpEnrollmentRequired: true,
+            enrollToken: issueTotpEnrollmentToken(fastify, user),
+            emailHint: emailHint(user.email),
+          });
+        }
+
+        // Enrolled: issue a code-less `login_totp` challenge. The code it
+        // generates is discarded — the second factor is the TOTP/recovery code,
+        // verified in `/login/verify-totp`. Reusing the challenge machinery
+        // keeps the TTL, per-challenge attempt cap and superseding behaviour.
+        const { challengeId } = await issueChallenge(user.id, 'login_totp');
+
+        return reply.status(200).send({
+          totpRequired: true,
+          challengeId,
+          emailHint: emailHint(user.email),
+        });
+      }
+
+      // Emailed login OTP (legacy path, used when TOTP is not enabled/required).
       if (await requiresLoginOtp(user)) {
         const { challengeId, code } = await issueChallenge(user.id, 'login');
         // The password is already proven here, so a dead SMTP server can be
@@ -555,6 +768,169 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // Verify a TOTP code or recovery code (Public)
+  fastify.post(
+    '/login/verify-totp',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitOtpMax,
+          timeWindow: config.rateLimitOtpWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(loginVerifyTotpSchema)],
+    },
+    async (request, reply) => {
+      const { challengeId, code } = loginVerifyTotpSchema.parse(request.body ?? {});
+
+      const challenge = await prisma.otpChallenge.findUnique({ where: { id: challengeId } });
+      if (!challenge || challenge.purpose !== 'login_totp') {
+        return reply.status(410).send({ error: TOTP_CHALLENGE_EXPIRED_ERROR });
+      }
+
+      const user = await prisma.adminUser.findUnique({
+        where: { id: challenge.adminUserId },
+        include: { recoveryCodes: true },
+      });
+      if (!user || user.status !== 'active') {
+        return reply.status(410).send({ error: TOTP_CHALLENGE_EXPIRED_ERROR });
+      }
+      if (rejectIfLocked(user.email, reply)) return reply;
+
+      const result = await verifyLoginTotpChallenge(challengeId, code, {
+        id: user.id,
+        totpSecretEnc: user.totpSecretEnc,
+        totpLastStep: user.totpLastStep,
+        recoveryCodes: user.recoveryCodes,
+      });
+
+      if (!result.ok) {
+        if (result.reason === 'dead') {
+          return reply.status(410).send({ error: TOTP_CHALLENGE_EXPIRED_ERROR });
+        }
+        if (result.reason === 'recovery_used') {
+          return reply.status(400).send({ error: RECOVERY_CODE_USED_ERROR, recoveryCodesLeft: result.recoveryCodesLeft });
+        }
+        return reply.status(400).send({ error: TOTP_CODE_INVALID_ERROR });
+      }
+
+      const updatedUser = await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date().toISOString() },
+      });
+
+      return {
+        token: fastify.jwt.sign({ id: user.id, email: user.email, role: user.role }),
+        user: serializeUser(updatedUser),
+        ...(result.recoveryCodesLeft !== undefined && { recoveryCodesLeft: result.recoveryCodesLeft }),
+      };
+    }
+  );
+
+  // Enrollment flow, step 1: mint a pending secret and return the QR payload.
+  // Gated by the scope-limited token alone: a normal session cannot reach it and
+  // the token cannot reach anything else.
+  fastify.post(
+    '/login/enroll-totp/setup',
+    {
+      onRequest: [authenticateTotpEnroll],
+      config: {
+        rateLimit: {
+          max: config.rateLimitOtpMax,
+          timeWindow: config.rateLimitOtpWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user || user.status !== 'active') {
+        return reply.status(401).send({ error: TOTP_ENROLLMENT_REQUIRED_ERROR });
+      }
+      if (user.totpEnabledAt !== null) {
+        return reply.status(409).send({ error: TOTP_ALREADY_ENABLED_ERROR });
+      }
+
+      const secret = generateTotpSecret();
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { totpSecretEnc: encryptSecret(secret) },
+      });
+
+      const issuer = await mailBrandName();
+      return {
+        otpauthUri: buildOtpAuthUri(secret, issuer, user.email),
+        secret: formatSecretForDisplay(secret),
+      };
+    }
+  );
+
+  // Enrollment flow, step 2: prove the pending secret with a live code, switch
+  // TOTP on, and hand back the recovery codes plus a real session.
+  fastify.post(
+    '/login/enroll-totp/verify',
+    {
+      onRequest: [authenticateTotpEnroll],
+      config: {
+        rateLimit: {
+          max: config.rateLimitOtpMax,
+          timeWindow: config.rateLimitOtpWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(loginEnrollTotpSchema)],
+    },
+    async (request, reply) => {
+      const { code } = loginEnrollTotpSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user || user.status !== 'active') {
+        return reply.status(401).send({ error: TOTP_ENROLLMENT_REQUIRED_ERROR });
+      }
+
+      const decryptedSecret = user.totpSecretEnc ? decryptSecret(user.totpSecretEnc) : null;
+      if (!decryptedSecret) {
+        return reply.status(400).send({ error: TOTP_SETUP_REQUIRED_ERROR });
+      }
+
+      const matchedStep = verifyTotp(decryptedSecret, code);
+      if (matchedStep === null) {
+        return reply.status(400).send({ error: TOTP_CODE_INVALID_ERROR });
+      }
+
+      const recoveryCodes = generateRecoveryCodes();
+      const recoveryCodeHashes = recoveryCodes.map((value) => hashRecoveryCode(value));
+
+      await prisma.$transaction([
+        prisma.adminUser.update({
+          where: { id: user.id },
+          data: {
+            totpEnabledAt: new Date(),
+            // The setup code only proved the secret; it must not burn the first
+            // login window, so replay tracking starts empty.
+            totpLastStep: null,
+            lastLogin: new Date().toISOString(),
+          },
+        }),
+        // A fresh set replaces anything left over from an abandoned attempt.
+        prisma.recoveryCode.deleteMany({ where: { adminUserId: user.id } }),
+        prisma.recoveryCode.createMany({
+          data: recoveryCodeHashes.map((hash) => ({ adminUserId: user.id, codeHash: hash })),
+        }),
+      ]);
+
+      await clearChallenges(user.id, 'login_totp');
+
+      const updated = await prisma.adminUser.findUnique({ where: { id: user.id } });
+      return {
+        token: fastify.jwt.sign({ id: user.id, email: user.email, role: user.role }),
+        user: serializeUser({ ...updated!, recoveryCodesCount: recoveryCodes.length }),
+        recoveryCodes,
+      };
+    }
+  );
+
   // Start a password reset (Public). Always answers 200 so the endpoint cannot be
   // used to discover which email addresses have an account.
   fastify.post(
@@ -679,7 +1055,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       await prisma.adminUser.update({
         where: { id: user.id },
-        data: { emailVerifiedAt: new Date(), status: 'active' },
+        // A suspended account must not lift its own suspension with its link.
+        data: { emailVerifiedAt: new Date(), status: user.status === 'pending' ? 'active' : user.status },
       });
 
       return { verified: true };
@@ -858,7 +1235,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const passwordHash = await bcrypt.hash(password, 10);
       await prisma.adminUser.update({
         where: { id: user.id },
-        data: { passwordHash, passwordChangedAt: new Date(), emailVerifiedAt: new Date(), status: 'active' },
+        data: {
+          passwordHash,
+          passwordChangedAt: new Date(),
+          emailVerifiedAt: new Date(),
+          status: user.status === 'pending' ? 'active' : user.status,
+        },
       });
 
       // No session is minted here: the UI sends the new admin to the login page.
@@ -874,7 +1256,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    return { user: serializeUser(user) };
+    // The profile card shows how many recovery codes remain, so the count is
+    // resolved here rather than shipped as a list of hashes.
+    const recoveryCodesLeft = await prisma.recoveryCode.count({
+      where: { adminUserId: user.id, usedAt: null },
+    });
+
+    return { user: serializeUser({ ...user, recoveryCodesCount: recoveryCodesLeft }) };
   });
 
   // Update own profile
@@ -1067,6 +1455,227 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // TOTP setup: generate a pending secret and return the otpauth URI + secret (Authenticate)
+  fastify.post(
+    '/me/totp/setup',
+    { onRequest: [authenticate], preValidation: [validateBody(totpSetupSchema)] },
+    async (request, reply) => {
+      const { currentPassword } = totpSetupSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        return reply.status(401).send({ error: 'Current password is incorrect' });
+      }
+
+      // Re-enrolling an enabled account would invalidate the codes the user
+      // already saved, so they must disable first.
+      if (user.totpEnabledAt !== null) {
+        return reply.status(409).send({ error: TOTP_ALREADY_ENABLED_ERROR });
+      }
+
+      // Generate a new pending secret (encrypted, totpEnabledAt stays null)
+      const secret = generateTotpSecret();
+      const encryptedSecret = encryptSecret(secret);
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { totpSecretEnc: encryptedSecret },
+      });
+
+      const issuer = await mailBrandName();
+      const otpauthUri = buildOtpAuthUri(secret, issuer, user.email);
+
+      return { otpauthUri, secret: formatSecretForDisplay(secret) };
+    }
+  );
+
+  // Enable TOTP: verify the code against the pending secret and enable (Authenticate)
+  fastify.post(
+    '/me/totp/enable',
+    { onRequest: [authenticate], preValidation: [validateBody(totpEnableSchema)] },
+    async (request, reply) => {
+      const { code } = totpEnableSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      // A live account must go through disable first, otherwise this route
+      // would wipe its recovery codes and the replay guard.
+      if (user.totpEnabledAt !== null) {
+        return reply.status(409).send({ error: TOTP_ALREADY_ENABLED_ERROR });
+      }
+
+      // Must have a pending secret
+      if (!user.totpSecretEnc) {
+        return reply.status(400).send({ error: TOTP_SECRET_PENDING_ERROR });
+      }
+
+      const decryptedSecret = decryptSecret(user.totpSecretEnc);
+      if (!decryptedSecret) {
+        return reply.status(400).send({ error: TOTP_SECRET_PENDING_ERROR });
+      }
+
+      const matchedStep = verifyTotp(decryptedSecret, code);
+      if (matchedStep === null) {
+        return reply.status(400).send({ error: TOTP_CODE_INVALID_ERROR });
+      }
+
+      // Enable TOTP: set totpEnabledAt, generate recovery codes, store encrypted secret
+      const recoveryCodes = generateRecoveryCodes();
+      const recoveryCodeHashes = recoveryCodes.map((c) => hashRecoveryCode(c));
+
+      await prisma.$transaction([
+        prisma.adminUser.update({
+          where: { id: request.user.id },
+          data: {
+            totpEnabledAt: new Date(),
+            // Setup only proved the secret; leave the replay guard empty so the
+            // current window can still be used for the first real login.
+            totpLastStep: null,
+            totpSecretEnc: encryptSecret(decryptedSecret),
+          },
+        }),
+        // A fresh set replaces anything left over from an abandoned attempt.
+        prisma.recoveryCode.deleteMany({ where: { adminUserId: request.user.id } }),
+        prisma.recoveryCode.createMany({
+          data: recoveryCodeHashes.map((hash) => ({ adminUserId: request.user.id, codeHash: hash })),
+        }),
+      ]);
+
+      // Clear any pending login_totp challenges
+      await clearChallenges(request.user.id, 'login_totp');
+
+      await sendTotpNoticeMail(user, 'enabled');
+
+      return { recoveryCodes };
+    }
+  );
+
+  // Disable TOTP: current password + TOTP code or recovery code required (Authenticate)
+  fastify.post(
+    '/me/totp/disable',
+    { onRequest: [authenticate], preValidation: [validateBody(totpDisableSchema)] },
+    async (request, reply) => {
+      const { currentPassword, code } = totpDisableSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      if (user.totpEnabledAt === null) {
+        return reply.status(400).send({ error: TOTP_NOT_ENABLED_ERROR });
+      }
+
+      // Mandatory for everyone: only a super admin may still switch it off.
+      if ((await totpRequiredForAll()) && request.admin?.role !== 'super_admin') {
+        return reply.status(403).send({ error: TOTP_ENROLLMENT_FORBIDDEN_ERROR });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        return reply.status(401).send({ error: 'Current password is incorrect' });
+      }
+
+      // Verify code: TOTP or recovery code
+      const decryptedSecret = user.totpSecretEnc ? decryptSecret(user.totpSecretEnc) : null;
+      if (!decryptedSecret) {
+        return reply.status(400).send({ error: TOTP_CODE_INVALID_ERROR });
+      }
+
+      let verified = false;
+      if (/^\d{6}$/.test(code)) {
+        const matchedStep = verifyTotp(decryptedSecret, code);
+        if (matchedStep !== null && matchedStep > (user.totpLastStep ?? -1)) {
+          verified = true;
+        }
+      } else {
+        verified = await spendRecoveryCode(user.id, code);
+      }
+
+      if (!verified) {
+        return reply.status(400).send({ error: TOTP_CODE_INVALID_ERROR });
+      }
+
+      // Disable TOTP: clear secret, totpEnabledAt, totpLastStep, recovery codes
+      await prisma.$transaction([
+        prisma.adminUser.update({
+          where: { id: request.user.id },
+          data: { totpSecretEnc: null, totpEnabledAt: null, totpLastStep: null },
+        }),
+        prisma.recoveryCode.deleteMany({ where: { adminUserId: request.user.id } }),
+      ]);
+
+      // Clear any pending login_totp challenges
+      await clearChallenges(request.user.id, 'login_totp');
+
+      await sendTotpNoticeMail(user, 'disabled');
+
+      return { disabled: true };
+    }
+  );
+
+  // Regenerate recovery codes (Authenticate)
+  fastify.post(
+    '/me/totp/recovery-codes',
+    { onRequest: [authenticate], preValidation: [validateBody(totpRecoveryCodesSchema)] },
+    async (request, reply) => {
+      const { currentPassword, code } = totpRecoveryCodesSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      if (user.totpEnabledAt === null) {
+        return reply.status(400).send({ error: TOTP_NOT_ENABLED_ERROR });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        return reply.status(401).send({ error: 'Current password is incorrect' });
+      }
+
+      // Verify code: TOTP or recovery code
+      const decryptedSecret = user.totpSecretEnc ? decryptSecret(user.totpSecretEnc) : null;
+      if (!decryptedSecret) {
+        return reply.status(400).send({ error: TOTP_CODE_INVALID_ERROR });
+      }
+
+      let verified = false;
+      if (/^\d{6}$/.test(code)) {
+        const matchedStep = verifyTotp(decryptedSecret, code);
+        if (matchedStep !== null && matchedStep > (user.totpLastStep ?? -1)) {
+          verified = true;
+        }
+      } else {
+        verified = await spendRecoveryCode(user.id, code);
+      }
+
+      if (!verified) {
+        return reply.status(400).send({ error: TOTP_CODE_INVALID_ERROR });
+      }
+
+      // Regenerate recovery codes
+      const recoveryCodes = generateRecoveryCodes();
+      const recoveryCodeHashes = recoveryCodes.map((c) => hashRecoveryCode(c));
+
+      await prisma.$transaction([
+        prisma.recoveryCode.deleteMany({ where: { adminUserId: request.user.id } }),
+        prisma.recoveryCode.createMany({
+          data: recoveryCodeHashes.map((hash) => ({ adminUserId: request.user.id, codeHash: hash })),
+        }),
+      ]);
+
+      return { recoveryCodes };
+    }
+  );
   // Export admin users to CSV. Both permissions are required: holding
   // `exportData` alone must not turn into a directory of every admin account.
   // The `select` is a whitelist — password hashes, permissions, preferences and
@@ -1494,6 +2103,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           name: body.name,
           email: body.email ? body.email.toLowerCase() : undefined,
           passwordHash,
+          // Revokes the target's live tokens, like every other password change.
+          passwordChangedAt: passwordHash ? new Date() : undefined,
           role: resolvedRoleKey,
           roleAr: resolvedRoleAr,
           roleId: resolvedRoleId !== undefined ? resolvedRoleId : undefined,
@@ -1536,4 +2147,52 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     await prisma.adminUser.delete({ where: { id } });
     return { success: true };
   });
+
+  // Reset TOTP for another admin (Admin, `manageUsers`). Super admin target requires super admin actor.
+  fastify.post(
+    '/users/:id/reset-totp',
+    { onRequest: [authenticate, requirePermission('manageUsers')] },
+    async (request, reply) => {
+      const { id } = userIdParamsSchema.parse(request.params);
+      const requesterIsSuperAdmin = request.admin?.role === 'super_admin';
+
+      const target = await prisma.adminUser.findUnique({ where: { id } });
+      if (!target) {
+        return reply.status(404).send({ error: MARK_VERIFIED_NOT_FOUND });
+      }
+
+      // A non-super-admin may not act on a super admin account
+      if (!requesterIsSuperAdmin && target.role === 'super_admin') {
+        return reply.status(403).send({ error: MARK_VERIFIED_SUPER_ADMIN_TARGET });
+      }
+
+      // Only act if TOTP is actually enabled
+      if (target.totpEnabledAt === null) {
+        return reply.status(400).send({ error: TOTP_NOT_ENABLED_ERROR });
+      }
+
+      // Reset TOTP: clear secret, totpEnabledAt, totpLastStep, recovery codes
+      await prisma.$transaction([
+        prisma.adminUser.update({
+          where: { id },
+          data: { totpSecretEnc: null, totpEnabledAt: null, totpLastStep: null },
+        }),
+        prisma.recoveryCode.deleteMany({ where: { adminUserId: id } }),
+      ]);
+
+      // Clear any pending login_totp challenges
+      await clearChallenges(id, 'login_totp');
+
+      // Notify the target that someone reset their second factor.
+      await sendTotpNoticeMail(target, 'reset', request.admin?.email);
+
+      loggerService.info(
+        '[auth] reset-totp',
+        { actor: request.admin?.id, target: id, role: target.role },
+        'auth'
+      );
+
+      return { reset: true };
+    }
+  );
 };

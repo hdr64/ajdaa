@@ -18,7 +18,7 @@ import {
   userSearchText,
 } from './usersModel';
 import type { UserRights, ToggleableAdminStatus } from './usersModel';
-import { PermissionCount, RolePill, StatusChip, UserActions } from './usersUi';
+import { PermissionCount, RolePill, StatusChip, TotpChip, UserActions } from './usersUi';
 
 export const USERS_TABLE_STORAGE_KEY = 'ajda.admin.users';
 
@@ -34,6 +34,8 @@ const FALLBACK_RIGHTS: UserRights = {
   deleteHint: 'بيانات الحساب غير متاحة',
   canMarkVerified: false,
   markVerifiedHint: null,
+  canResetTotp: false,
+  resetTotpHint: 'بيانات الحساب غير متاحة',
   isSelf: false,
 };
 
@@ -47,6 +49,7 @@ interface UsersTableProps {
   onDelete: (user: AdminUser) => void;
   onResendVerification: (user: AdminUser) => void;
   onMarkVerified: (user: AdminUser) => void;
+  onResetTotp: (user: AdminUser) => void;
   onBulkStatus: (users: AdminUser[], status: ToggleableAdminStatus) => void;
 }
 
@@ -60,6 +63,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onDelete,
   onResendVerification,
   onMarkVerified,
+  onResetTotp,
   onBulkStatus,
 }) => {
   const roleIndex = useMemo(() => buildRoleIndex(users, roles), [users, roles]);
@@ -113,10 +117,15 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       {
         id: 'status',
         header: 'الحالة',
-        width: '110px',
+        width: '170px',
         sortValue: (user) => user.status,
         filter: { type: 'select', options: STATUS_OPTIONS, value: (user) => user.status },
-        cell: (user) => <StatusChip status={user.status} />,
+        cell: (user) => (
+          <span className="inline-flex items-center gap-1">
+            <StatusChip status={user.status} />
+            {user.totpEnabled && <TotpChip />}
+          </span>
+        ),
       },
       {
         id: 'permissions',
@@ -174,6 +183,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           onDelete={onDelete}
           onResendVerification={onResendVerification}
           onMarkVerified={onMarkVerified}
+          onResetTotp={onResetTotp}
           variant="icons"
         />
       )}

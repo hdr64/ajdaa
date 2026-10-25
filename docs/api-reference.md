@@ -57,6 +57,64 @@ Validates a 6-digit email verification code for login or password reset.
 
 ---
 
+### POST `/api/auth/login/verify-totp`
+Validates an authenticator-app code (or a recovery code) for a login challenge.
+
+**Request:**
+```json
+{
+  "challengeId": "challenge-uuid",
+  "code": "482910"
+}
+```
+A recovery code is also accepted here (`XXXXX-XXXXX`), and is marked used once verified.
+
+**Response (200 OK):**
+```json
+{
+  "token": "jwt-session-token",
+  "user": { "id": "uuid", "email": "a***@ajda.sa", "totpEnabled": true, "recoveryCodesLeft": 9 }
+}
+```
+
+---
+
+### POST `/api/auth/login/enroll-totp/setup`
+Returns the pending secret and `otpauth://` URI for an enrollment token. Called once per enrollment attempt.
+
+**Headers:** `Authorization: Bearer <totp_enroll_token>`
+
+**Response (200 OK):**
+```json
+{
+  "otpauthUri": "otpauth://totp/Ajda:admin@ajda.sa?secret=...&issuer=Ajda&algorithm=SHA1&digits=6&period=30",
+  "secret": "AAAA BBBB CCCC DDDD EEEE FFFF GGGG HHHH"
+}
+```
+
+---
+
+### POST `/api/auth/login/enroll-totp/verify`
+Confirms a live code, activates TOTP, and issues a session plus the one-time recovery codes.
+
+**Headers:** `Authorization: Bearer <totp_enroll_token>`
+
+**Request:**
+```json
+{ "code": "482910" }
+```
+
+**Response (200 OK):**
+```json
+{
+  "token": "jwt-session-token",
+  "user": { "totpEnabled": true },
+  "recoveryCodes": ["A2B3C-D4E5F", "8 more"]
+}
+```
+
+---
+
 ### GET `/api/auth/me`
 Retrieves current authenticated admin session data, permissions, and department info.
 

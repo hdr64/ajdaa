@@ -73,7 +73,16 @@ const siteSettingsSchema = z.object({
   }),
 });
 
-const securitySettingsSchema = z.object({ loginOtpRequired: z.boolean() });
+// Both switches are optional so a client that predates `totpRequiredForAll`
+// keeps working; omitting one leaves it untouched (see `saveSecuritySettings`).
+const securitySettingsSchema = z
+  .object({
+    loginOtpRequired: z.boolean().optional(),
+    totpRequiredForAll: z.boolean().optional(),
+  })
+  .refine((data) => data.loginOtpRequired !== undefined || data.totpRequiredForAll !== undefined, {
+    message: 'At least one field must be provided',
+  });
 
 /** Long enough for a useful SMTP error, short enough not to echo a server banner dump. */
 const MAX_ERROR_LENGTH = 300;

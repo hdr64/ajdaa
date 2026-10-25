@@ -18,6 +18,7 @@ import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useLanguage } from '../../../hooks/useLanguage';
 import { ConfirmChoicesCard } from './ConfirmChoicesCard';
+import { AuthenticatorTotpCard } from './AuthenticatorTotpCard';
 
 export const AdminProfilePage: React.FC = () => {
   const { currentUser, setCurrentUser, refreshUser, showToast } = useAdmin();
@@ -632,6 +633,9 @@ export const AdminProfilePage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* --------------- Card 4: Two-Step Authenticator App --------------- */}
+      <AuthenticatorTotpCard isAr={isAr} />
 
       <ConfirmChoicesCard isAr={isAr} />
 

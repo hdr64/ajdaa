@@ -15,7 +15,7 @@ import { ttlMinutes } from './otpService.js';
  * can name the template in a log line without copying any user-supplied text.
  */
 
-export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'job-application' | 'password-changed' | 'test' | 'developer-note' | 'invite' | 'verify-email' | 'password-change-code';
+export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'job-application' | 'password-changed' | 'test' | 'developer-note' | 'invite' | 'verify-email' | 'password-change-code' | 'totp-enabled' | 'totp-disabled' | 'totp-reset';
 
 export interface MailContent {
   kind: MailKind;
@@ -507,6 +507,69 @@ export function passwordChangedEmail(options: {
       '',
       'إذا لم تقم بتغيير كلمة المرور هذه، غيّرها الآن عبر "نسيت كلمة المرور" وتواصل مع مدير النظام فوراً.',
       'لأسباب أمنية، تم إنهاء الجلسات المفتوحة على الأجهزة الأخرى.',
+    ].join('\n'),
+  };
+}
+
+/**
+ * Security notice for a change to authenticator-app (TOTP) 2FA. One template
+ * for the three events so the wording and the "was this you?" warning stay
+ * identical wherever the change came from.
+ */
+export function totpNoticeEmail(options: {
+  brandName: string;
+  name?: string | null;
+  event: 'enabled' | 'disabled' | 'reset';
+  /** Who made the change, e.g. the resetting admin's address. */
+  actorEmail?: string | null;
+}): MailContent {
+  const { brandName, name, event, actorEmail } = options;
+  const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+
+  const COPY = {
+    enabled: {
+      kind: 'totp-enabled' as MailKind,
+      subject: `تم تفعيل التحقق بتطبيق المصادقة`,
+      heading: 'تم تفعيل التحقق بتطبيق المصادقة',
+      lead: 'تم تفعيل التحقق بخطوتين عبر تطبيق المصادقة على حسابك. ستحتاج إلى الرمز المكوّن من ٦ أرقام عند كل تسجيل دخول.',
+    },
+    disabled: {
+      kind: 'totp-disabled' as MailKind,
+      subject: `تم تعطيل التحقق بتطبيق المصادقة`,
+      heading: 'تم تعطيل التحقق بتطبيق المصادقة',
+      lead: 'تم تعطيل التحقق بخطوتين عبر تطبيق المصادقة على حسابك، وأصبح تسجيل الدخول بكلمة المرور فقط.',
+    },
+    reset: {
+      kind: 'totp-reset' as MailKind,
+      subject: `تم إعادة تعيين التحقق بتطبيق المصادقة`,
+      heading: 'تم إعادة تعيين التحقق بتطبيق المصادقة',
+      lead: actorEmail?.trim()
+        ? `تم إعادة تعيين إعدادات التحقق بتطبيق المصادقة لحسابك بواسطة ${actorEmail.trim()}. ستحتاج إلى إعداد التطبيق من جديد.`
+        : 'تم إعادة تعيين إعدادات التحقق بتطبيق المصادقة لحسابك. ستحتاج إلى إعداد التطبيق من جديد.',
+    },
+  } as const;
+
+  const copy = COPY[event];
+
+  return {
+    kind: copy.kind,
+    subject: `${brandName} — ${copy.subject}`,
+    html: shell({
+      brandName,
+      heading: copy.heading,
+      intro: `${greeting} ${copy.lead}`,
+      bodyHtml: `<p style="margin:0 0 12px;padding:12px 14px;background:${COLORS.goldSoft};border-right:3px solid ${COLORS.gold};border-radius:6px;color:${COLORS.ink};font-size:14px;line-height:1.9;">
+                   <strong>إذا لم تقم بهذا التغيير، تواصل مع مدير النظام فوراً وأعد تعيين كلمة المرور.</strong>
+                 </p>`,
+      footnote: 'هذه رسالة إشعار أمنية فقط ولا تتطلب أي إجراء إن كان التغيير من طرفك.',
+    }),
+    text: [
+      `${brandName} — ${copy.subject}`,
+      '',
+      greeting,
+      copy.lead,
+      '',
+      'إذا لم تقم بهذا التغيير، تواصل مع مدير النظام فوراً وأعد تعيين كلمة المرور.',
     ].join('\n'),
   };
 }
