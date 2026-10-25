@@ -13,7 +13,8 @@
 #   backup (prod) -> install -> prisma schema -> read pending migrations ->
 #   migrate -> build API + SPA -> swap dist -> restart -> health check -> smoke test.
 # It never runs git fetch/checkout (do that first), never touches .env except to
-# read the database NAME, and never deletes uploads.
+# read the database NAME and ensure SETTINGS_ENCRYPTION_KEY is configured, and
+# never deletes uploads.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
@@ -37,6 +38,102 @@ confirm() { # confirm "<question>" "<word to type>"
   [ "$answer" = "$2" ] || { echo "Aborted."; exit 1; }
 }
 
+ensure_settings_encryption_key() {
+  local env_file="server/.env"
+  local jwt_line jwt_val key_line key_val is_placeholder lower_key
+
+  [ -f "$env_file" ] || { echo "$env_file is missing." >&2; exit 1; }
+
+  jwt_line="$(grep -m1 -E '^[[:space:]]*JWT_SECRET[[:space:]]*=' "$env_file" 2>/dev/null || true)"
+  jwt_val="${jwt_line#*=}"
+  jwt_val="${jwt_val#"${jwt_val%%[![:space:]]*}"}"
+  jwt_val="${jwt_val%"${jwt_val##*[![:space:]]}"}"
+  if [[ "$jwt_val" == \"*\" || "$jwt_val" == \'*\' ]]; then
+    jwt_val="${jwt_val:1:${#jwt_val}-2}"
+  fi
+
+  key_line="$(grep -m1 -E '^[[:space:]]*SETTINGS_ENCRYPTION_KEY[[:space:]]*=' "$env_file" 2>/dev/null || true)"
+  key_val="${key_line#*=}"
+  key_val="${key_val#"${key_val%%[![:space:]]*}"}"
+  key_val="${key_val%"${key_val##*[![:space:]]}"}"
+  if [[ "$key_val" == \"*\" || "$key_val" == \'*\' ]]; then
+    key_val="${key_val:1:${#key_val}-2}"
+  fi
+
+  is_placeholder=0
+  if [ -n "$key_val" ]; then
+    case "$key_val" in
+      *\<*|*\>*) is_placeholder=1 ;;
+    esac
+    lower_key="$(printf '%s' "$key_val" | tr '[:upper:]' '[:lower:]')"
+    case "$lower_key" in
+      changeme|change_me|change-me|secret|secrets|password|password123|placeholder|example|your-secret-key|your_secret_key|yoursecretkey|ajda_secret_development_key_super_secure_2026)
+        is_placeholder=1
+        ;;
+      *changeme*|*change_me*|*change-me*|*super_secure_2026*)
+        is_placeholder=1
+        ;;
+    esac
+  fi
+
+  if [ -n "$key_val" ] && [ "${#key_val}" -ge 24 ] && [ "$key_val" != "$jwt_val" ] && [ "$is_placeholder" -eq 0 ]; then
+    echo "SETTINGS_ENCRYPTION_KEY: valid key present (${#key_val} chars)"
+    return 0
+  fi
+
+  local reason="missing"
+  if [ -z "$key_val" ]; then
+    reason="missing"
+  elif [ "${#key_val}" -lt 24 ]; then
+    reason="too short (${#key_val} < 24)"
+  elif [ "$is_placeholder" -eq 1 ]; then
+    reason="placeholder value"
+  elif [ "$key_val" = "$jwt_val" ]; then
+    reason="identical to JWT_SECRET"
+  fi
+
+  echo "SETTINGS_ENCRYPTION_KEY is $reason in $env_file. Generating a dedicated encryption key..."
+
+  local new_key=""
+  if command -v openssl >/dev/null 2>&1; then
+    new_key="$(openssl rand -base64 32)"
+  elif command -v node >/dev/null 2>&1; then
+    new_key="$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64"))')"
+  else
+    new_key="$(head -c 32 /dev/urandom | base64 | tr -d '\r\n')"
+  fi
+
+  [ -n "$new_key" ] || { echo "Failed to generate SETTINGS_ENCRYPTION_KEY." >&2; exit 1; }
+  [ "${#new_key}" -ge 24 ] || { echo "Generated key is unexpectedly short." >&2; exit 1; }
+  [ "$new_key" != "$jwt_val" ] || { echo "Generated key matches JWT_SECRET." >&2; exit 1; }
+
+  local tmp_file="${env_file}.tmp.$$"
+  if ! awk -v key="$new_key" '
+  BEGIN { replaced = 0 }
+  /^[[:space:]]*SETTINGS_ENCRYPTION_KEY[[:space:]]*=/ {
+    print "SETTINGS_ENCRYPTION_KEY=\"" key "\""
+    replaced = 1
+    next
+  }
+  { print }
+  END {
+    if (!replaced) {
+      print "SETTINGS_ENCRYPTION_KEY=\"" key "\""
+    }
+  }' "$env_file" > "$tmp_file"; then
+    rm -f "$tmp_file"
+    echo "Failed to write $tmp_file." >&2
+    exit 1
+  fi
+
+  mv "$tmp_file" "$env_file"
+  chmod 600 "$env_file" 2>/dev/null || true
+
+  echo "SETTINGS_ENCRYPTION_KEY: generated and configured in $env_file (${#new_key} chars)"
+  echo "  Note: Pick it once and never change it. Any SMTP password previously saved with"
+  echo "  the old derived key must be re-entered in Admin -> Settings."
+}
+
 # --- 0. guards -------------------------------------------------------------
 step "Instance: $TARGET ($DIR), commit $(git rev-parse --short HEAD)"
 if git -c core.fileMode=false status --short --untracked-files=no | grep -q .; then
@@ -53,6 +150,7 @@ else
   case "$DB_NAME" in *_test) echo "Refusing: prod instance points at test database '$DB_NAME'." >&2; exit 1 ;; esac
 fi
 echo "Database: $DB_NAME"
+ensure_settings_encryption_key
 
 # --- 1. backup (prod only; read-only on the database) ----------------------
 if [ "$TARGET" = prod ]; then
