@@ -20,10 +20,17 @@ Everything else on both pages, `Footer.tsx`, `Navbar.tsx`, `src/i18n/translation
 No commits, no installs, no new dependencies, do not touch `.env*`. keep each file's existing line endings (the tree is CRLF with no `.gitattributes`; never rewrite a whole file just to change them). Match surrounding style and comment density. Use only existing CSS tokens and button classes.
 
 ## Gates
-`npm run lint` (no new warnings), `npm run build`. In the browser (`npx vite --port 5189`, API on 4000): `/careers` in Arabic and English (RTL/LTR), desktop and 390 px wide; pick a PDF, pick a non-PDF, pick an oversized file (create a dummy file), remove the file, Tab to the control and check the focus ring; submit an empty form and check required errors still show; do NOT submit a valid application (it would create a record and send mail). `/past-works` with no data in English shows the English empty text. Stop the dev server afterwards.
+`npm run lint` (no new warnings), `npm run build`. In the browser (dev environment below: web 5189, API 4014): `/careers` in Arabic and English (RTL/LTR), desktop and 390 px wide; pick a PDF, pick a non-PDF, pick an oversized file (create a dummy file), remove the file, Tab to the control and check the focus ring; submit an empty form and check required errors still show; do NOT submit a valid application (it would create a record and send mail). `/past-works` with no data in English shows the English empty text. Stop the dev server afterwards.
 
 ## Report
 Write `D:\projects\html\ajda\docs\prompts\task-w4-public-polish-report.md`: files changed, gate results, what you verified in the browser, the limits found in the server config and where, decisions made.
+
+## Dev environment (prepared for you; use exactly this)
+- Work only in the worktree `D:\projects\html\ajda-wt\small` (branch `lane/small`). Dependencies are installed, `server/.env` and the seeded SQLite `server/prisma/dev.db` are ready, mail is disabled (in-memory, nothing is delivered).
+- API: from `server/`, `npm run dev` (listens on **4014**). Web: from the worktree root, set `VITE_API_PROXY_TARGET=http://localhost:4014` and run `npx vite --port 5189 --strictPort`.
+- Login: `admin@ajdaa.sa` / `password` (super admin) or `dev@ajdaa.sa` / `password`.
+- Do not edit `server/.env` or `.env.local`; never use ports 4000, 4011, 5173 or 5191 (other lanes and the owner). Stop your servers when done. On Windows a running API locks Prisma's engine file: stop it before `npm --prefix server test`.
+- Task `w4-create-dev-user` may run in the same worktree at the same time; it touches only `server/scripts/`, `package.json` files and `deploy/README-deploy.md`. Do not touch those.
 
 ## Quality guards (mandatory skills)
 These three skills must be followed. Load each with your skill tool by name; if the tool does not offer it, read the file directly:

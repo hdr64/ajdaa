@@ -1,6 +1,6 @@
 # Ajda Real Estate Platform — Task Status & Roadmap
 
-> **Last Updated**: 2026-10-23  
+> **Last Updated**: 2026-10-25  
 > **Current Status**: CMS Engine & Admin Suite Completed | Production VPS Deployment Ready
 
 ---
@@ -64,7 +64,7 @@
 
 ---
 
-## 3. Open tasks (updated 2026-10-23)
+## 3. Open tasks (updated 2026-10-25)
 
 Every prompt ends with mandatory quality guards (`clean-code-guard`, `test-guard`, `docs-guard`); a report without `## Guard results` goes back.
 
@@ -76,18 +76,19 @@ Wave 1 and Wave 2 are merged into `feat/backend-admin`. Each task is run by Open
 | # | Task | Status | Notes |
 |---|---|---|---|
 | 1 | w3-login-eye (password eye button) | ✅ committed | Reviewed. |
-| 2 | w3-auth-a (email verification, two-step password change) | 🟡 | Reviewed; pending-activation bypass fixed in review. Needs a browser check at :5191, then commit. |
-| 3 | w3-auth-a2 (email code, `verifyUsers` permission, "send password" checkbox) | ⏳ | Depends on #2 committed. |
-| 4 | w3-auth-b (authenticator 2FA + recovery codes) | ⏳ | After #3 reviewed and committed. |
+| 2 | w3-auth-a (email verification, two-step password change) | ✅ committed on `lane/auth` | Reviewed; bypass fixed in review; owner approved 2026-10-23. |
+| 3 | w3-auth-a2 (email code, `verifyUsers` permission, "send password" checkbox) | ✅ committed on `lane/auth` (1473338) | Reviewed 2026-10-24; fixed a broken login code step and a `PUT /users/:id` verifyUsers edit block. |
+| 4 | w3-auth-b (authenticator 2FA + recovery codes) | 🟡 reviewed, not committed (uncommitted in `ajda-wt/auth`) | Code review and gates done 2026-10-25 (380 tests pass); fixed H-1..H-6 from `review-ajda-project.md` inline. **Browser pass still open**, then owner approval to commit. |
+| 4b | w5-client-fixes (C-1, H-10, M-3, M-4, M-25, M-26, M-28, M-29) | ⏳ `task-w5-client-fixes-prompt.md` | Main repo, independent of the auth lane. |
 | 5 | w3-auth-c (passkeys) | ⏳ | After #4. Decide `WEBAUTHN_RP_ID` before the production deploy. |
 | 6 | Merge `lane/auth` into `feat/backend-admin` | ⬜ Claude | After #5. Then run the three new migrations by hand on production. |
 
-### Phase 2 — Admin translation AR/EN (worktree `ajda-wt/i18n-core` and one per lane)
+### Phase 2 — Admin translation AR/EN (one worktree per lane; `i18n-core`, `i18n-l1` and `small` are merged and can be removed)
 
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 7 | w4-i18n-core | 🟡 | Reviewed. Raw-key bug found in browser (registry never loaded) and fixed in `useAdminT.ts`; re-check AR/EN at :5192, then commit and merge. Everything below depends on it. |
-| 8 | w4-i18n-l1 (section pages, applications, past projects) | ⏳ | After #7. No auth overlap; may run in parallel with Phase 1. |
+| 7 | w4-i18n-core | ✅ merged into `feat/backend-admin` | Raw-key bug fixed in review; owner approved 2026-10-23. |
+| 8 | w4-i18n-l1 (section pages, applications, past projects) | ✅ merged into `feat/backend-admin` (92cc42e) | Reviewed 2026-10-24; fixed module-scope `translateAdmin` raw keys; browser-scanned 14 routes AR/EN. |
 | 9 | w4-i18n-l3 (users, roles, projects, floor plan) | ⏳ | After #7 and #6 (A2, B and C all change the users files it owns). |
 | 10 | w4-i18n-l2 (CMS, settings, profile, feedback) | ⏳ | After #7 and #6 (B and C change the profile page and the security settings panel). |
 | 11 | w4-i18n-server (localised API messages) | ⏳ | After #6 (rewrites messages in `auth.routes.ts`). |
@@ -96,8 +97,8 @@ Wave 1 and Wave 2 are merged into `feat/backend-admin`. Each task is run by Open
 `docs/ADMIN-I18N.md` (both copies) now requires a browser check that no raw keys appear and no `missing key` console warning (added 2026-10-23).
 
 ### Phase 3 — Independent (any time, in parallel)
-- ⏳ w4-public-polish (careers form, past-works page)
-- ⏳ w4-create-dev-user (CLI script to create developer admin users). After #6 merges, the script must also set `emailVerifiedAt` (Claude does this at merge time).
+- ✅ w4-public-polish (merged f6e9692) (careers form, past-works page)
+- ✅ w4-create-dev-user (merged f6e9692) (CLI script to create developer admin users). After #6 merges, the script must also set `emailVerifiedAt` (Claude does this at merge time).
 
 ### Phase 4 — Infrastructure
 

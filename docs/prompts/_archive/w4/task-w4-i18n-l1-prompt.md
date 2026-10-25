@@ -1,6 +1,6 @@
 # Task w4-i18n-l1 — translate admin section pages (+ applications, past projects)
 
-Start only after `task-w4-i18n-core` is merged (`useAdminT`, `defineStrings`, typed `showToast`, the empty area files exist). Read `D:\projects\html\ajda\docs\prompts\_archive\wave4\task-w4-i18n-core-report.md` first for key conventions. Own worktree and branch; touch only the files under "Files owned".
+Start only after `task-w4-i18n-core` is merged (`useAdminT`, `defineStrings`, typed `showToast`, the empty area files exist). Read `D:\projects\html\ajda\docs\prompts\_archive\wave4\task-w4-i18n-core-report.md` first for key conventions. Worktree `D:\projects\html\ajda-wt\i18n-l1`, branch `lane/i18n-l1`; touch only the files under "Files owned".
 
 ## Goal
 Complete AR+EN translation and feedback polish for the admin section pages and the components of the applications and past-projects screens.
@@ -21,10 +21,17 @@ Area files you fill: `projects`, `projectEdit`, `inquiries`, `applications`, `ca
 5. `ProjectEditSection` / `ProjectShowSection`: labels for the 3D model link and brochure PDF in both languages.
 
 ## Browser checks specific to this lane
-Past-project dialog (empty submit, title only, Esc with data), applications list incl. empty and filter states, project list cards, project editor (invalid 3D URL error, dirty cancel), categories, inquiries, newsletter, mail settings, departments, units, all in AR and EN. Use dev port 5186.
+Past-project dialog (empty submit, title only, Esc with data), applications list incl. empty and filter states, project list cards, project editor (invalid 3D URL error, dirty cancel), categories, inquiries, newsletter, mail settings, departments, units, all in AR and EN. Use the dev environment below (web 5186, API 4013).
 
 ## Gates, constraints, report
 As in the lane procedure of `docs/ADMIN-I18N.md`; report file `D:\projects\html\ajda\docs\prompts\task-w4-i18n-l1-report.md`.
+
+## Dev environment (prepared for you; use exactly this)
+- Work only in the worktree `D:\projects\html\ajda-wt\i18n-l1` (branch `lane/i18n-l1`). Dependencies are installed, `server/.env` and the seeded SQLite `server/prisma/dev.db` are ready, mail is disabled (in-memory, nothing is delivered).
+- API: from `server/`, `npm run dev` (listens on **4013**). Web: from the worktree root, set `VITE_API_PROXY_TARGET=http://localhost:4013` and run `npx vite --port 5186 --strictPort`.
+- Login: `admin@ajdaa.sa` / `password` (super admin) or `dev@ajdaa.sa` / `password`.
+- Do not edit `server/.env` or `.env.local`; never use ports 4000, 4011, 5173 or 5191 (other lanes and the owner). Stop your servers when done. On Windows a running API locks Prisma's engine file: stop it before `npm --prefix server test`.
+- Where `docs/ADMIN-I18N.md` says "API on 4000", use 4013.
 
 ## Quality guards (mandatory skills)
 These three skills must be followed. Load each with your skill tool by name; if the tool does not offer it, read the file directly:

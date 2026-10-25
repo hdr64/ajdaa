@@ -25,10 +25,17 @@ The admin UI, auth routes, seed file, any schema change or migration, 2FA/email-
 No commits, no installs, no new dependencies, do not touch `.env*`. keep each file's existing line endings (the tree is CRLF with no `.gitattributes`; never rewrite a whole file just to change them). Match surrounding style and comment density. Never log or print password hashes or the `DATABASE_URL`.
 
 ## Gates
-`npm --prefix server run build`, `npm --prefix server run test` (all pass; the flaky pre-existing mail-settings "tampered box" test may fail alone: re-run once and say so), `npm run lint`. Manual run against the LOCAL development database only (never test or production): create a user with the prompt, create another with `--generate`, run again for the same email (must refuse), run `--reset-password` on it, try `--password x` (must be refused), try a wrong confirmation (must abort without writing). Then sign in to the admin with the generated account in the browser (`npx vite --port 5193 --strictPort`, API on 4000; port 5191 belongs to the owner's auth dev server) and confirm every sidebar section is visible. Delete the accounts you created from the local database afterwards and list in the report that you did.
+`npm --prefix server run build`, `npm --prefix server run test` (all pass; the flaky pre-existing mail-settings "tampered box" test may fail alone: re-run once and say so), `npm run lint`. Manual run against this worktree's development database only (`server/prisma/dev.db` in `D:\projects\html\ajda-wt\small`; never test or production): create a user with the prompt, create another with `--generate`, run again for the same email (must refuse), run `--reset-password` on it, try `--password x` (must be refused), try a wrong confirmation (must abort without writing). Then sign in to the admin with the generated account in the browser (dev environment below: web 5193 with `VITE_API_PROXY_TARGET=http://localhost:4014`, API 4014) and confirm every sidebar section is visible. Delete the accounts you created from the local database afterwards and list in the report that you did.
 
 ## Report
 Write `D:\projects\html\ajda\docs\prompts\task-w4-create-dev-user-report.md`: files changed, gate results, what you verified manually (without printing any password), decisions made, anything the owner must know before running it on the servers.
+
+## Dev environment (prepared for you; use exactly this)
+- Work only in the worktree `D:\projects\html\ajda-wt\small` (branch `lane/small`). Dependencies are installed, `server/.env` and the seeded SQLite `server/prisma/dev.db` are ready, mail is disabled (in-memory, nothing is delivered).
+- API: from `server/`, `npm run dev` (listens on **4014**). Web: from the worktree root, set `VITE_API_PROXY_TARGET=http://localhost:4014` and run `npx vite --port 5193 --strictPort`.
+- Login: `admin@ajdaa.sa` / `password` (super admin) or `dev@ajdaa.sa` / `password`.
+- Do not edit `server/.env` or `.env.local`; never use ports 4000, 4011, 5173 or 5191 (other lanes and the owner). Stop your servers when done. On Windows a running API locks Prisma's engine file: stop it before `npm --prefix server test`.
+- Task `w4-public-polish` may run in the same worktree at the same time and uses web port 5189 and the same API (4014): if the API is already running, reuse it instead of starting a second one. Do not touch `src/pages/CareersPage.tsx` or `src/pages/PastProjectsPage.tsx`.
 
 ## Quality guards (mandatory skills)
 These three skills must be followed. Load each with your skill tool by name; if the tool does not offer it, read the file directly:
