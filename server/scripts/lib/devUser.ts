@@ -115,6 +115,7 @@ export function buildDevUserData(
     departmentId,
     permissions: JSON.stringify(allPermissionsObject()),
     status: 'active',
+    emailVerifiedAt: new Date(),
     passwordChangedAt: new Date(),
   };
 }
