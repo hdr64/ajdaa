@@ -15,7 +15,23 @@ import { ttlMinutes } from './otpService.js';
  * can name the template in a log line without copying any user-supplied text.
  */
 
-export type MailKind = 'login-otp' | 'password-reset' | 'new-inquiry' | 'job-application' | 'password-changed' | 'test' | 'developer-note' | 'invite' | 'verify-email' | 'password-change-code' | 'totp-enabled' | 'totp-disabled' | 'totp-reset';
+export type MailKind =
+  | 'login-otp'
+  | 'password-reset'
+  | 'new-inquiry'
+  | 'job-application'
+  | 'password-changed'
+  | 'test'
+  | 'developer-note'
+  | 'invite'
+  | 'verify-email'
+  | 'password-change-code'
+  | 'totp-enabled'
+  | 'totp-disabled'
+  | 'totp-reset'
+  | 'passkey-added'
+  | 'passkey-removed'
+  | 'passkey-reset';
 
 export interface MailContent {
   kind: MailKind;
@@ -571,6 +587,65 @@ export function totpNoticeEmail(options: {
       copy.lead,
       '',
       'إذا لم تقم بهذا التغيير، تواصل مع مدير النظام فوراً وأعد تعيين كلمة المرور.',
+    ].join('\n'),
+  };
+}
+
+export function passkeyNoticeEmail(options: {
+  brandName: string;
+  name?: string | null;
+  event: 'added' | 'removed' | 'reset';
+  passkeyName?: string | null;
+  actorEmail?: string | null;
+}): MailContent {
+  const { brandName, name, event, passkeyName, actorEmail } = options;
+  const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+  const label = passkeyName?.trim() ? ` «${passkeyName.trim()}»` : '';
+
+  const COPY = {
+    added: {
+      kind: 'passkey-added' as MailKind,
+      subject: 'تمت إضافة مفتاح مرور جديد إلى حسابك',
+      heading: 'تمت إضافة مفتاح مرور جديد',
+      lead: `تمت إضافة مفتاح مرور جديد${label} إلى حسابك. يمكنك الآن استخدامه لتسجيل الدخول السريع والآمن دون كلمة مرور.`,
+    },
+    removed: {
+      kind: 'passkey-removed' as MailKind,
+      subject: 'تم حذف مفتاح مرور من حسابك',
+      heading: 'تم حذف مفتاح مرور',
+      lead: `تم حذف مفتاح المرور${label} من حسابك.`,
+    },
+    reset: {
+      kind: 'passkey-reset' as MailKind,
+      subject: 'تم إعادة تعيين مفاتيح المرور لحسابك',
+      heading: 'تم إعادة تعيين مفاتيح المرور',
+      lead: actorEmail?.trim()
+        ? `تم حذف جميع مفاتيح المرور المسجلة لحسابك بواسطة ${actorEmail.trim()}.`
+        : 'تم حذف جميع مفاتيح المرور المسجلة لحسابك.',
+    },
+  } as const;
+
+  const copy = COPY[event];
+
+  return {
+    kind: copy.kind,
+    subject: `${brandName} — ${copy.subject}`,
+    html: shell({
+      brandName,
+      heading: copy.heading,
+      intro: `${greeting} ${copy.lead}`,
+      bodyHtml: `<p style="margin:0 0 12px;padding:12px 14px;background:${COLORS.goldSoft};border-right:3px solid ${COLORS.gold};border-radius:6px;color:${COLORS.ink};font-size:14px;line-height:1.9;">
+                   <strong>إذا لم تقم بهذا الإجراء بنفسك، تواصل مع مدير النظام فوراً وسجّل الدخول لتغيير كلمة المرور ومراجعة الأجهزة المسجلة.</strong>
+                 </p>`,
+      footnote: 'هذه رسالة إشعار أمنية تلقائية لحماية حسابك.',
+    }),
+    text: [
+      `${brandName} — ${copy.subject}`,
+      '',
+      greeting,
+      copy.lead,
+      '',
+      'إذا لم تقم بهذا الإجراء بنفسك، تواصل مع مدير النظام فوراً وسجّل الدخول لتغيير كلمة المرور ومراجعة الأجهزة المسجلة.',
     ].join('\n'),
   };
 }

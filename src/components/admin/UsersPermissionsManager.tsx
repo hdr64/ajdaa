@@ -68,6 +68,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     resendVerification,
     markVerified,
     resetTotp,
+    resetPasskeys,
   } = useUsersDirectory(onShowToast);
 
   /** Server catalogue first, built-in labels as the offline fallback. */
@@ -182,6 +183,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     onResendVerification: resendVerification,
     onMarkVerified: markVerified,
     onResetTotp: resetTotp,
+    onResetPasskeys: resetPasskeys,
   };
 
   const clearFilters = () => {

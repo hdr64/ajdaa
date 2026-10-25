@@ -61,6 +61,7 @@ model AdminUser {
   otpChallenges     OtpChallenge[]
   emailVerificationTokens EmailVerificationToken[]
   recoveryCodes     RecoveryCode[]
+  passkeys          Passkey[]
 }
 
 /// A one-time code emailed to an admin: login verification ('login'), password
@@ -111,6 +112,35 @@ model RecoveryCode {
   adminUser    AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
 
   @@index([adminUserId])
+}
+
+model Passkey {
+  id           String     @id @default(uuid())
+  adminUserId  String
+  credentialId String     @unique // base64url
+  publicKey    String     // base64url
+  counter      Int
+  transports   String?    // JSON array of strings
+  deviceType   String?    // 'singleDevice' | 'multiDevice'
+  backedUp     Boolean
+  name         String     // User label, max 60 chars
+  createdAt    DateTime   @default(now())
+  lastUsedAt   DateTime?
+  adminUser    AdminUser  @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+}
+
+model WebauthnChallenge {
+  id          String    @id @default(uuid())
+  kind        String    // 'register' | 'login'
+  adminUserId String?
+  challenge   String
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([adminUserId])
+  @@index([expiresAt])
 }
 
 model Project {

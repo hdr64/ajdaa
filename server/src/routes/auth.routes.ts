@@ -12,7 +12,7 @@ import { loginOtpRequiredForAll, totpRequiredForAll } from '../services/security
 import { loginFailureTracker } from '../services/loginFailureService.js';
 import { loggerService } from '../services/loggerService.js';
 import { mailBrandName, isMailEnabled, sendMail } from '../services/mailService.js';
-import { emailVerificationEmail, loginOtpEmail, passwordResetEmail, totpNoticeEmail } from '../services/mailTemplates.js';
+import { emailVerificationEmail, loginOtpEmail, passwordResetEmail, totpNoticeEmail, passkeyNoticeEmail } from '../services/mailTemplates.js';
 import { notifyPasswordChanged } from '../services/notificationService.js';
 import { dispatch } from '../services/queueService.js';
 import { sendInviteEmailJob, sendEmailVerificationJob, sendPasswordChangeCodeJob } from '../jobs/emailJobs.js';
@@ -49,6 +49,39 @@ import {
   hashRecoveryCode,
   verifyRecoveryCode,
 } from '../services/totpService.js';
+import {
+  createRegistrationOptions,
+  verifyAndSaveRegistration,
+  createLoginOptions,
+  verifyLogin,
+} from '../services/passkeyService.js';
+import type { RegistrationResponseJSON, AuthenticationResponseJSON } from '@simplewebauthn/server';
+
+const passkeyRegisterOptionsSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+});
+
+const passkeyRegisterVerifySchema = z.object({
+  response: z.record(z.unknown()),
+  name: z.string().trim().max(60).optional(),
+});
+
+const passkeyLoginVerifySchema = z.object({
+  challengeId: z.string().trim().min(1),
+  response: z.record(z.unknown()),
+});
+
+const passkeyRenameSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(60),
+});
+
+const passkeyDeleteSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+});
+
+const passkeyParamsSchema = z.object({
+  id: z.string().trim().min(1),
+});
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
@@ -305,6 +338,25 @@ async function sendTotpNoticeMail(
   }
 }
 
+async function sendPasskeyNoticeMail(
+  user: { id: string; email: string; name: string },
+  event: 'added' | 'removed' | 'reset',
+  options: { passkeyName?: string; actorEmail?: string | null } = {}
+): Promise<void> {
+  try {
+    const content = passkeyNoticeEmail({
+      brandName: await mailBrandName(),
+      name: user.name,
+      event,
+      passkeyName: options.passkeyName,
+      actorEmail: options.actorEmail,
+    });
+    await sendMail({ to: user.email, ...content });
+  } catch (error) {
+    loggerService.warn('[auth] passkey notice mail failed', { userId: user.id, event, error: String(error) }, 'auth');
+  }
+}
+
 async function findActiveUser(id: string): Promise<OtpUser | null> {
   const user = await prisma.adminUser.findUnique({ where: { id } });
   if (!user || user.status !== 'active') return null;
@@ -526,6 +578,7 @@ function serializeUser(user: {
   loginOtpEnabled?: boolean | null;
   totpEnabledAt?: Date | null;
   recoveryCodesCount?: number;
+  passkeyCount?: number;
 }) {
   return {
     id: user.id,
@@ -544,6 +597,7 @@ function serializeUser(user: {
     loginOtpEnabled: Boolean(user.loginOtpEnabled),
     totpEnabled: Boolean(user.totpEnabledAt),
     recoveryCodesLeft: user.recoveryCodesCount ?? 0,
+    passkeyCount: user.passkeyCount ?? 0,
   };
 }
 
@@ -661,9 +715,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         role: user.role,
       });
 
+      const passkeyCount = await prisma.passkey.count({
+        where: { adminUserId: user.id },
+      });
+
       return {
         token,
-        user: serializeUser(user),
+        user: serializeUser({ ...user, passkeyCount }),
       };
     }
   );
@@ -713,9 +771,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         data: { lastLogin: new Date().toISOString() },
       });
 
+      const passkeyCount = await prisma.passkey.count({
+        where: { adminUserId: user.id },
+      });
+
       return {
         token: fastify.jwt.sign({ id: user.id, email: user.email, role: user.role }),
-        user: serializeUser(user),
+        user: serializeUser({ ...user, passkeyCount }),
       };
     }
   );
@@ -820,9 +882,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         data: { lastLogin: new Date().toISOString() },
       });
 
+      const passkeyCount = await prisma.passkey.count({
+        where: { adminUserId: user.id },
+      });
+
       return {
         token: fastify.jwt.sign({ id: user.id, email: user.email, role: user.role }),
-        user: serializeUser(updatedUser),
+        user: serializeUser({ ...updatedUser, passkeyCount }),
         ...(result.recoveryCodesLeft !== undefined && { recoveryCodesLeft: result.recoveryCodesLeft }),
       };
     }
@@ -1261,8 +1327,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     const recoveryCodesLeft = await prisma.recoveryCode.count({
       where: { adminUserId: user.id, usedAt: null },
     });
+    const passkeyCount = await prisma.passkey.count({
+      where: { adminUserId: user.id },
+    });
 
-    return { user: serializeUser({ ...user, recoveryCodesCount: recoveryCodesLeft }) };
+    return { user: serializeUser({ ...user, recoveryCodesCount: recoveryCodesLeft, passkeyCount }) };
   });
 
   // Update own profile
@@ -1676,6 +1745,280 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       return { recoveryCodes };
     }
   );
+
+  // --- WebAuthn / Passkeys ---
+
+  // Generate registration options (Authenticate, password re-check)
+  fastify.post(
+    '/passkeys/register/options',
+    {
+      onRequest: [authenticate],
+      preValidation: [validateBody(passkeyRegisterOptionsSchema)],
+    },
+    async (request, reply) => {
+      const { currentPassword } = passkeyRegisterOptionsSchema.parse(request.body ?? {});
+      const admin = request.admin!;
+
+      const user = await prisma.adminUser.findUnique({
+        where: { id: admin.id },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: 'المستخدم غير موجود' });
+      }
+
+      if (rejectIfLocked(user.email, reply)) return reply;
+
+      const validPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!validPassword) {
+        loginFailureTracker.recordFailure(user.email);
+        return reply.status(401).send({ error: 'كلمة المرور الحالية غير صحيحة' });
+      }
+
+      try {
+        const options = await createRegistrationOptions({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        });
+        return { options };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'تعذّر إنشاء خيارات التسجيل';
+        return reply.status(400).send({ error: message });
+      }
+    }
+  );
+
+  // Verify and save registration
+  fastify.post(
+    '/passkeys/register/verify',
+    {
+      onRequest: [authenticate],
+      preValidation: [validateBody(passkeyRegisterVerifySchema)],
+    },
+    async (request, reply) => {
+      const { response, name } = passkeyRegisterVerifySchema.parse(request.body ?? {});
+      const admin = request.admin!;
+
+      const user = await prisma.adminUser.findUnique({
+        where: { id: admin.id },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: 'المستخدم غير موجود' });
+      }
+
+      try {
+        const passkey = await verifyAndSaveRegistration(
+          user.id,
+          response as unknown as RegistrationResponseJSON,
+          name
+        );
+
+        await sendPasskeyNoticeMail(user, 'added', { passkeyName: passkey.name });
+
+        loggerService.info(
+          '[auth] passkey-registered',
+          { userId: user.id, passkeyId: passkey.id },
+          'auth'
+        );
+
+        return {
+          passkey: {
+            id: passkey.id,
+            name: passkey.name,
+            createdAt: passkey.createdAt,
+            deviceType: passkey.deviceType,
+            backedUp: passkey.backedUp,
+          },
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'فشل التحقق من مفتاح المرور';
+        return reply.status(400).send({ error: message });
+      }
+    }
+  );
+
+  // Public: Generate login options
+  fastify.post(
+    '/passkeys/login/options',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitLoginMax,
+          timeWindow: config.rateLimitLoginWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+    },
+    async (_request, reply) => {
+      try {
+        const { options, challengeId } = await createLoginOptions();
+        return { options, challengeId };
+      } catch {
+        return reply.status(400).send({ error: 'تعذّر إنشاء خيارات تسجيل الدخول' });
+      }
+    }
+  );
+
+  // Public: Verify login
+  fastify.post(
+    '/passkeys/login/verify',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitLoginMax,
+          timeWindow: config.rateLimitLoginWindowMs,
+          errorResponseBuilder: () => RATE_LIMIT_ERROR_BODY,
+        },
+      },
+      preValidation: [validateBody(passkeyLoginVerifySchema)],
+    },
+    async (request, reply) => {
+      const { challengeId, response } = passkeyLoginVerifySchema.parse(request.body ?? {});
+
+      try {
+        const user = await verifyLogin(challengeId, response as unknown as AuthenticationResponseJSON);
+
+        await prisma.adminUser.update({
+          where: { id: user.id },
+          data: { lastLogin: new Date().toISOString() },
+        });
+
+        const token = fastify.jwt.sign({
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        });
+
+        loggerService.info(
+          '[auth] passkey-login-success',
+          { userId: user.id, role: user.role },
+          'auth'
+        );
+
+        const passkeyCount = await prisma.passkey.count({
+          where: { adminUserId: user.id },
+        });
+
+        return {
+          token,
+          user: serializeUser({ ...user, passkeyCount }),
+        };
+      } catch (err: unknown) {
+        const statusCode = (err as { statusCode?: number })?.statusCode;
+        if (statusCode === 403) {
+          const message = err instanceof Error ? err.message : 'غير مصرح';
+          return reply.status(403).send({ error: message });
+        }
+
+        return reply.status(401).send({ error: 'تعذّر الدخول بمفتاح المرور. جرّب كلمة المرور.' });
+      }
+    }
+  );
+
+  // List caller's passkeys
+  fastify.get(
+    '/passkeys',
+    { onRequest: [authenticate] },
+    async (request) => {
+      const passkeys = await prisma.passkey.findMany({
+        where: { adminUserId: request.admin!.id },
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          lastUsedAt: true,
+          deviceType: true,
+          backedUp: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      return { passkeys };
+    }
+  );
+
+  // Rename caller's passkey
+  fastify.patch(
+    '/passkeys/:id',
+    {
+      onRequest: [authenticate],
+      preValidation: [validateBody(passkeyRenameSchema)],
+    },
+    async (request, reply) => {
+      const { id } = passkeyParamsSchema.parse(request.params);
+      const { name } = passkeyRenameSchema.parse(request.body ?? {});
+
+      const passkey = await prisma.passkey.findUnique({
+        where: { id },
+      });
+
+      if (!passkey || passkey.adminUserId !== request.admin!.id) {
+        return reply.status(404).send({ error: 'مفتاح المرور غير موجود' });
+      }
+
+      const updated = await prisma.passkey.update({
+        where: { id },
+        data: { name: name.trim().slice(0, 60) },
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          lastUsedAt: true,
+          deviceType: true,
+          backedUp: true,
+        },
+      });
+
+      return { passkey: updated };
+    }
+  );
+
+  // Delete caller's passkey
+  fastify.delete(
+    '/passkeys/:id',
+    {
+      onRequest: [authenticate],
+      preValidation: [validateBody(passkeyDeleteSchema)],
+    },
+    async (request, reply) => {
+      const { id } = passkeyParamsSchema.parse(request.params);
+      const { currentPassword } = passkeyDeleteSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({
+        where: { id: request.admin!.id },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: 'المستخدم غير موجود' });
+      }
+
+      const validPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!validPassword) {
+        return reply.status(401).send({ error: 'كلمة المرور الحالية غير صحيحة' });
+      }
+
+      const passkey = await prisma.passkey.findUnique({
+        where: { id },
+      });
+
+      if (!passkey || passkey.adminUserId !== request.admin!.id) {
+        return reply.status(404).send({ error: 'مفتاح المرور غير موجود' });
+      }
+
+      await prisma.passkey.delete({
+        where: { id },
+      });
+
+      await sendPasskeyNoticeMail(user, 'removed', { passkeyName: passkey.name });
+
+      loggerService.info(
+        '[auth] passkey-deleted',
+        { userId: user.id, passkeyId: id },
+        'auth'
+      );
+
+      return { success: true };
+    }
+  );
+
   // Export admin users to CSV. Both permissions are required: holding
   // `exportData` alone must not turn into a directory of every admin account.
   // The `select` is a whitelist — password hashes, permissions, preferences and
@@ -2195,6 +2538,40 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       return { reset: true };
+    }
+  );
+
+  // Reset all passkeys for another admin (Admin, `manageUsers`). Super admin target requires super admin actor.
+  fastify.post(
+    '/users/:id/reset-passkeys',
+    { onRequest: [authenticate, requirePermission('manageUsers')] },
+    async (request, reply) => {
+      const { id } = userIdParamsSchema.parse(request.params);
+      const requesterIsSuperAdmin = request.admin?.role === 'super_admin';
+
+      const target = await prisma.adminUser.findUnique({ where: { id } });
+      if (!target) {
+        return reply.status(404).send({ error: MARK_VERIFIED_NOT_FOUND });
+      }
+
+      // A non-super-admin may not act on a super admin account
+      if (!requesterIsSuperAdmin && target.role === 'super_admin') {
+        return reply.status(403).send({ error: MARK_VERIFIED_SUPER_ADMIN_TARGET });
+      }
+
+      const deleted = await prisma.passkey.deleteMany({
+        where: { adminUserId: id },
+      });
+
+      await sendPasskeyNoticeMail(target, 'reset', { actorEmail: request.admin?.email });
+
+      loggerService.info(
+        '[auth] reset-passkeys',
+        { actor: request.admin?.id, target: id, deletedCount: deleted.count },
+        'auth'
+      );
+
+      return { reset: true, count: deleted.count };
     }
   );
 };

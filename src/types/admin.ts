@@ -90,6 +90,8 @@ export interface AdminUser {
   totpEnabled?: boolean;
   /** Unused recovery codes remaining; shown on the profile 2FA card. */
   recoveryCodesLeft?: number;
+  /** Number of registered WebAuthn passkeys for this account. */
+  passkeyCount?: number;
 }
 
 /** Payload accepted by the user create/update endpoints. */

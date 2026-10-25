@@ -167,6 +167,10 @@ const envSchema = z.object({
     .default('https://ajda.weghetk.com')
     .transform((value) => value.replace(/\/+$/, '')),
 
+  // --- WebAuthn / Passkeys ---
+  WEBAUTHN_RP_ID: z.string().trim().default(''),
+  WEBAUTHN_RP_NAME: z.string().trim().default('Ajda'),
+
   // --- Email OTP ---
   // When true every admin login needs a one-time code; otherwise only accounts
   // with `AdminUser.loginOtpEnabled` do.
@@ -223,8 +227,16 @@ const envSchema = z.object({
  * that is not set is a random placeholder, so only the raw value can tell
  * "not configured" from "configured with a random-looking string".
  */
+function getHostname(urlStr: string): string {
+  try {
+    return new URL(urlStr).hostname;
+  } catch {
+    return 'localhost';
+  }
+}
+
 export function productionConfigErrors(
-  env: { nodeEnv: string; jwtSecret: string; databaseUrl?: string },
+  env: { nodeEnv: string; jwtSecret: string; databaseUrl?: string; appUrl?: string },
   rawEnv: Record<string, string | undefined>
 ): Record<string, string> {
   const errors: Record<string, string> = {};
@@ -276,6 +288,12 @@ export function productionConfigErrors(
       'SETTINGS_ENCRYPTION_KEY must be different from JWT_SECRET. Use a separate random key.';
   }
 
+  const appHost = getHostname(env.appUrl || rawEnv.APP_URL || 'https://ajda.weghetk.com');
+  const rpId = rawEnv.WEBAUTHN_RP_ID?.trim() || appHost;
+  if (!appHost.endsWith(rpId)) {
+    errors.WEBAUTHN_RP_ID = `WEBAUTHN_RP_ID (${rpId}) must be a suffix of the APP_URL host (${appHost}).`;
+  }
+
   return errors;
 }
 
@@ -290,7 +308,7 @@ if (!parsed.success) {
 const env = parsed.data;
 
 const productionErrors = productionConfigErrors(
-  { nodeEnv: env.NODE_ENV, jwtSecret: env.JWT_SECRET, databaseUrl: env.DATABASE_URL },
+  { nodeEnv: env.NODE_ENV, jwtSecret: env.JWT_SECRET, databaseUrl: env.DATABASE_URL, appUrl: env.APP_URL },
   process.env
 );
 
@@ -386,6 +404,11 @@ export const config = {
     errorFilePath: path.resolve(env.ERROR_LOG_FILE_PATH),
     secretKey: env.LOGS_SECRET_KEY,
     isPublic: env.LOGS_PUBLIC,
+  },
+  webauthn: {
+    rpId: env.WEBAUTHN_RP_ID || getHostname(env.APP_URL),
+    rpName: env.WEBAUTHN_RP_NAME || 'Ajda',
+    expectedOrigins: clientOrigins,
   },
 } as const;
 

@@ -32,6 +32,7 @@ export interface UsersDirectory {
   resendVerification: (user: AdminUser) => Promise<void>;
   markVerified: (user: AdminUser) => Promise<void>;
   resetTotp: (user: AdminUser) => Promise<void>;
+  resetPasskeys: (user: AdminUser) => Promise<void>;
 }
 
 interface StatusCopy {
@@ -267,6 +268,30 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
     [confirm, reloadUsers, showToast]
   );
 
+  /**
+   * Clears an account's passkeys after a lost or replaced device.
+   * The server guards who may do this; the UI pre-filters with rights.
+   */
+  const resetPasskeys = useCallback(
+    async (user: AdminUser) => {
+      const ok = await confirm({
+        title: 'إعادة تعيين مفاتيح المرور؟',
+        message: `سيتم حذف جميع مفاتيح المرور المسجلة لحساب "${user.name}". سيتم إرسال إشعار بريدي لصاحب الحساب، وسيتمكن من الدخول بكلمة المرور.`,
+        confirmLabel: 'إعادة التعيين',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await AdminStorage.resetUserPasskeys(user.id);
+        await reloadUsers();
+        showToast(`تم إعادة تعيين مفاتيح المرور لحساب ${user.name}`);
+      } catch (error) {
+        showToast(getErrorMessage(error, 'تعذر إعادة تعيين مفاتيح المرور'));
+      }
+    },
+    [confirm, reloadUsers, showToast]
+  );
+
   return {
     users,
     reference,
@@ -277,5 +302,6 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
     resendVerification,
     markVerified,
     resetTotp,
+    resetPasskeys,
   };
 }

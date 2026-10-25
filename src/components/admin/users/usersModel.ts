@@ -336,6 +336,9 @@ export interface UserRights {
   /** Clear another account's authenticator-app 2FA (lost phone). */
   canResetTotp: boolean;
   resetTotpHint: string | null;
+  /** Clear another account's passkeys (lost device). */
+  canResetPasskeys: boolean;
+  resetPasskeysHint: string | null;
   isSelf: boolean;
 }
 
@@ -400,6 +403,17 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     else resetTotpHint = 'إعادة تعيين حسابات المدير العام متاحة لمدير عام فقط';
   }
 
+  const canResetPasskeys =
+    context.canManageUsers &&
+    Boolean(user.passkeyCount && user.passkeyCount > 0) &&
+    (!isSuperAdminTarget || context.isSuperAdmin);
+  let resetPasskeysHint: string | null = null;
+  if (!canResetPasskeys) {
+    if (!context.canManageUsers) resetPasskeysHint = 'تتطلب صلاحية «إدارة المستخدمين»';
+    else if (!user.passkeyCount) resetPasskeysHint = 'لا توجد مفاتيح مرور مسجلة لهذا الحساب';
+    else resetPasskeysHint = 'إعادة تعيين حسابات المدير العام متاحة لمدير عام فقط';
+  }
+
   const canDelete = !isSelf && (!isSuperAdminTarget || context.isSuperAdmin) && !isLastActiveSuperAdmin;
   const deleteHint = canDelete
     ? null
@@ -422,6 +436,8 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     markVerifiedHint,
     canResetTotp,
     resetTotpHint,
+    canResetPasskeys,
+    resetPasskeysHint,
     isSelf,
   };
 }
@@ -440,4 +456,6 @@ export interface UserViewProps {
   onMarkVerified: (user: AdminUser) => void;
   /** Clear an account's authenticator-app 2FA after a lost or replaced phone. */
   onResetTotp: (user: AdminUser) => void;
+  /** Clear an account's passkeys after a lost device. */
+  onResetPasskeys: (user: AdminUser) => void;
 }

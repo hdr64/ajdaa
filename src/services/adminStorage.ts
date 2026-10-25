@@ -181,6 +181,10 @@ export const AdminStorage = {
     return authService.resetUserTotp(userId);
   },
 
+  resetUserPasskeys(userId: string): Promise<{ reset: boolean; count: number }> {
+    return authService.resetPasskeys(userId);
+  },
+
   updateProfile(input: { name?: string; email?: string; phone?: string | null }): Promise<AdminUser> {
     return authService.updateProfile(input);
   },

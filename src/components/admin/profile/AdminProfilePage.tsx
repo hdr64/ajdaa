@@ -20,6 +20,7 @@ import { useLanguage } from '../../../hooks/useLanguage';
 import { passwordPolicyError } from '../users/usersModel';
 import { ConfirmChoicesCard } from './ConfirmChoicesCard';
 import { AuthenticatorTotpCard } from './AuthenticatorTotpCard';
+import { PasskeysCard } from './PasskeysCard';
 
 export const AdminProfilePage: React.FC = () => {
   const { currentUser, setCurrentUser, refreshUser, showToast } = useAdmin();
@@ -636,6 +637,9 @@ export const AdminProfilePage: React.FC = () => {
 
       {/* --------------- Card 4: Two-Step Authenticator App --------------- */}
       <AuthenticatorTotpCard isAr={isAr} />
+
+      {/* --------------- Card 5: Passkeys (WebAuthn) --------------- */}
+      <PasskeysCard isAr={isAr} />
 
       <ConfirmChoicesCard isAr={isAr} />
 

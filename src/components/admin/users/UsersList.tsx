@@ -13,6 +13,7 @@ import {
   RolePill,
   StatusChip,
   TotpChip,
+  PasskeyChip,
   UserActions,
   UserAvatar,
 } from './usersUi';
@@ -33,6 +34,7 @@ export const UsersList: React.FC<UsersListProps> = ({
   onResendVerification,
   onMarkVerified,
   onResetTotp,
+  onResetPasskeys,
 }) => (
   <div className="rounded-2xl bg-surface border border-muted-border/40 shadow-xs overflow-hidden divide-y divide-muted-border/20">
     {users.map((user) => {
@@ -79,6 +81,7 @@ export const UsersList: React.FC<UsersListProps> = ({
           <div className="flex items-center gap-2 xl:shrink-0">
             <StatusChip status={user.status} />
             {user.totpEnabled && <TotpChip />}
+            {Boolean(user.passkeyCount && user.passkeyCount > 0) && <PasskeyChip count={user.passkeyCount} />}
             {rights && (
               <UserActions
                 user={user}
@@ -89,6 +92,7 @@ export const UsersList: React.FC<UsersListProps> = ({
                 onResendVerification={onResendVerification}
                 onMarkVerified={onMarkVerified}
                 onResetTotp={onResetTotp}
+                onResetPasskeys={onResetPasskeys}
                 variant="icons"
               />
             )}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, AlertCircle, CheckCircle2, type LucideIcon } from 'lucide-react';
+import { Mail, AlertCircle, CheckCircle2, KeyRound, type LucideIcon } from 'lucide-react';
 import { PasswordInput } from './PasswordInput';
 
 interface LoginCredentialsStepProps {
@@ -15,6 +15,9 @@ interface LoginCredentialsStepProps {
   notice: string | null;
   isAr: boolean;
   ArrowIcon: LucideIcon;
+  supportsPasskeys?: boolean;
+  passkeyLoading?: boolean;
+  onPasskeyLogin?: () => void;
 }
 
 export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
@@ -30,6 +33,9 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
   notice,
   isAr,
   ArrowIcon,
+  supportsPasskeys = false,
+  passkeyLoading = false,
+  onPasskeyLogin,
 }) => {
   return (
     <>
@@ -90,7 +96,7 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || passkeyLoading}
           className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50 mt-2"
         >
           {loading ? (
@@ -102,6 +108,26 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
             </>
           )}
         </button>
+
+        {supportsPasskeys && (
+          <button
+            type="button"
+            onClick={onPasskeyLogin}
+            disabled={loading || passkeyLoading}
+            className="w-full brand-btn-secondary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:bg-accent/10 disabled:opacity-50 mt-2"
+          >
+            <KeyRound className="w-4 h-4 text-accent" />
+            <span>
+              {passkeyLoading
+                ? isAr
+                  ? 'جاري التحقق من مفتاح المرور...'
+                  : 'Checking passkey...'
+                : isAr
+                ? 'الدخول بمفتاح مرور'
+                : 'Sign In with Passkey'}
+            </span>
+          </button>
+        )}
       </form>
 
       <div className="mt-6 pt-5 border-t border-muted-border/30 text-center">

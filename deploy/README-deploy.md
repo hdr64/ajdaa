@@ -708,3 +708,11 @@ One-time step on both instances:
 mkdir -p server/private && chmod 700 server/private
 touch server/prod.log server/errors.log   # the unit refuses to start (226/NAMESPACE) without these
 ```
+
+## 11. Passkeys (WebAuthn)
+
+Passkeys are bound cryptographically to the configured Relying Party ID (`WEBAUTHN_RP_ID`).
+By default, this is the hostname of `APP_URL` (`ajdaa.sa` in production, `ajda.weghetk.com` on the test instance).
+
+> **Important**: Passkeys are permanently bound to the domain (RP ID) they were registered on. If the domain name changes in the future, all existing registered passkeys will stop working and admins will need to sign in with their password to register new passkeys.
+

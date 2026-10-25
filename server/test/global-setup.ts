@@ -41,7 +41,7 @@ export function setup(): void {
   runNodeStep(
     'prisma generate',
     PRISMA_CLI,
-    ['generate', '--schema', 'prisma/schema.prisma'],
+    ['generate', '--no-engine', '--schema', 'prisma/schema.prisma'],
     env
   );
 

@@ -18,7 +18,7 @@ import {
   userSearchText,
 } from './usersModel';
 import type { UserRights, ToggleableAdminStatus } from './usersModel';
-import { PermissionCount, RolePill, StatusChip, TotpChip, UserActions } from './usersUi';
+import { PermissionCount, RolePill, StatusChip, TotpChip, PasskeyChip, UserActions } from './usersUi';
 
 export const USERS_TABLE_STORAGE_KEY = 'ajda.admin.users';
 
@@ -36,6 +36,8 @@ const FALLBACK_RIGHTS: UserRights = {
   markVerifiedHint: null,
   canResetTotp: false,
   resetTotpHint: 'بيانات الحساب غير متاحة',
+  canResetPasskeys: false,
+  resetPasskeysHint: 'بيانات الحساب غير متاحة',
   isSelf: false,
 };
 
@@ -50,6 +52,7 @@ interface UsersTableProps {
   onResendVerification: (user: AdminUser) => void;
   onMarkVerified: (user: AdminUser) => void;
   onResetTotp: (user: AdminUser) => void;
+  onResetPasskeys: (user: AdminUser) => void;
   onBulkStatus: (users: AdminUser[], status: ToggleableAdminStatus) => void;
 }
 
@@ -64,6 +67,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onResendVerification,
   onMarkVerified,
   onResetTotp,
+  onResetPasskeys,
   onBulkStatus,
 }) => {
   const roleIndex = useMemo(() => buildRoleIndex(users, roles), [users, roles]);
@@ -124,6 +128,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           <span className="inline-flex items-center gap-1">
             <StatusChip status={user.status} />
             {user.totpEnabled && <TotpChip />}
+            {Boolean(user.passkeyCount && user.passkeyCount > 0) && <PasskeyChip count={user.passkeyCount} />}
           </span>
         ),
       },
@@ -184,6 +189,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           onResendVerification={onResendVerification}
           onMarkVerified={onMarkVerified}
           onResetTotp={onResetTotp}
+          onResetPasskeys={onResetPasskeys}
           variant="icons"
         />
       )}

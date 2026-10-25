@@ -4,7 +4,7 @@
  * status colours, same action guards).
  */
 import React from 'react';
-import { CheckCircle2, Lock, LogIn, LogOut, MailCheck, Pencil, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { CheckCircle2, KeyRound, Lock, LogIn, LogOut, MailCheck, Pencil, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import type { AdminPermissions, AdminStatus, AdminUser } from '../../../types/admin';
 import {
   PERMISSION_KEYS,
@@ -37,6 +37,17 @@ export const TotpChip: React.FC<{ className?: string }> = ({ className = '' }) =
   <span className={`${CHIP_BASE} bg-accent/10 text-accent border-accent/20 ${className}`}>
     <ShieldCheck className="w-3 h-3" />
     تطبيق المصادقة
+  </span>
+);
+
+/** Shown next to the status chip when the account has passkeys registered. */
+export const PasskeyChip: React.FC<{ count?: number; className?: string }> = ({ count, className = '' }) => (
+  <span
+    className={`${CHIP_BASE} bg-amber-500/10 text-amber-500 border-amber-500/20 ${className}`}
+    title={count ? `${count} مفتاح مرور مسجل` : 'مفتاح مرور مسجل'}
+  >
+    <KeyRound className="w-3 h-3" />
+    <span>مفتاح مرور{count && count > 1 ? ` (${count})` : ''}</span>
   </span>
 );
 
@@ -95,6 +106,7 @@ interface UserActionsProps {
   onResendVerification: (user: AdminUser) => void;
   onMarkVerified: (user: AdminUser) => void;
   onResetTotp: (user: AdminUser) => void;
+  onResetPasskeys: (user: AdminUser) => void;
   /** `labels` for cards, `icons` for the dense table and list rows. */
   variant: 'labels' | 'icons';
 }
@@ -120,6 +132,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
   onResendVerification,
   onMarkVerified,
   onResetTotp,
+  onResetPasskeys,
   variant,
 }) => {
   const suspending = user.status === 'active';
@@ -224,6 +237,25 @@ export const UserActions: React.FC<UserActionsProps> = ({
     </button>
   );
 
+  /** Clears the account's passkeys for lost devices. */
+  const resetPasskeysButton = (
+    <button
+      type="button"
+      onClick={() => onResetPasskeys(user)}
+      disabled={!rights.canResetPasskeys}
+      title={rights.resetPasskeysHint ?? 'إعادة تعيين مفاتيح المرور'}
+      aria-label={`إعادة تعيين مفاتيح المرور لحساب ${user.name}`}
+      className={
+        labelled
+          ? `${LABEL_BUTTON} border-amber-500/30 text-amber-600 hover:bg-amber-500/10`
+          : `${ICON_BUTTON} text-amber-500/80 hover:text-amber-500 hover:bg-amber-500/10`
+      }
+    >
+      <KeyRound className="w-3 h-3" />
+      {labelled && <span>إعادة تعيين مفاتيح المرور</span>}
+    </button>
+  );
+
   const deleteButton = (
     <button
       type="button"
@@ -249,6 +281,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
         {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
         {user.status === 'pending' && resendButton}
         {user.totpEnabled && resetTotpButton}
+        {Boolean(user.passkeyCount && user.passkeyCount > 0) && resetPasskeysButton}
         {toggleButton}
         {deleteButton}
       </div>
@@ -261,6 +294,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       {user.status === 'pending' && rights.canMarkVerified && markVerifiedButton}
       {user.status === 'pending' && resendButton}
       {user.totpEnabled && resetTotpButton}
+      {Boolean(user.passkeyCount && user.passkeyCount > 0) && resetPasskeysButton}
       {toggleButton}
       {deleteButton}
     </div>

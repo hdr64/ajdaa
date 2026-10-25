@@ -10,7 +10,8 @@ import { EnrollTotpStep } from '../../components/admin/auth/EnrollTotpStep';
 import { VerifyEmailCodeStep } from '../../components/admin/auth/VerifyEmailCodeStep';
 import { ForgotPasswordStep } from '../../components/admin/auth/ForgotPasswordStep';
 import { ResetPasswordStep } from '../../components/admin/auth/ResetPasswordStep';
-import type { LoginResult } from '../../services/authService';
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
+import { authService, type LoginResult } from '../../services/authService';
 
 interface AdminLoginPageProps {
   onLoginSuccess: () => void;
@@ -103,6 +104,36 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  /* -------------------------- Passkey Login -------------------------- */
+
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const supportsPasskeys = typeof window !== 'undefined' && browserSupportsWebAuthn();
+
+  const handlePasskeyLogin = async () => {
+    setError(null);
+    setNotice(null);
+    setPasskeyLoading(true);
+
+    try {
+      const { options, challengeId } = await authService.getPasskeyLoginOptions();
+      const authResponse = await startAuthentication({ optionsJSON: options });
+      const result = await authService.verifyPasskeyLogin(challengeId, authResponse);
+      if (advanceLogin(result)) onLoginSuccess();
+    } catch (caught: unknown) {
+      if (caught instanceof Error && caught.name === 'NotAllowedError') {
+        // User cancelled the prompt - silent
+        return;
+      }
+      setError(
+        isAr
+          ? 'تعذّر الدخول بمفتاح المرور. جرّب كلمة المرور.'
+          : 'Could not sign in with passkey. Please try with your password.'
+      );
+    } finally {
+      setPasskeyLoading(false);
     }
   };
 
@@ -364,6 +395,9 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
               notice={notice}
               isAr={isAr}
               ArrowIcon={ArrowIcon}
+              supportsPasskeys={supportsPasskeys}
+              passkeyLoading={passkeyLoading}
+              onPasskeyLogin={handlePasskeyLogin}
             />
           )}
 

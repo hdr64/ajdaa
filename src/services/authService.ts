@@ -1,5 +1,20 @@
 import { api, clearAuthToken, getAuthToken, setAuthToken } from './api';
 import type { AdminUser, AdminUserInput, AdminRole, AdminStatus } from '../types/admin';
+import type {
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON,
+} from '@simplewebauthn/browser';
+
+export interface PasskeyItem {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  deviceType?: string | null;
+  backedUp: boolean;
+}
 
 export interface AuthSession {
   token: string;
@@ -65,6 +80,7 @@ interface UserDto {
   loginOtpEnabled?: boolean;
   totpEnabled?: boolean;
   recoveryCodesLeft?: number;
+  passkeyCount?: number;
 }
 
 const ROLES = ['super_admin', 'project_manager', 'sales_agent', 'viewer'] as const;
@@ -136,6 +152,7 @@ export function toAdminUser(dto: UserDto): AdminUser {
     loginOtpEnabled: dto.loginOtpEnabled,
     totpEnabled: dto.totpEnabled ?? false,
     recoveryCodesLeft: dto.recoveryCodesLeft ?? 0,
+    passkeyCount: dto.passkeyCount ?? 0,
   };
 }
 
@@ -383,6 +400,67 @@ export const authService = {
       {}
     );
   },
+
+  /** WebAuthn: Generates registration options (requires current password). */
+  getPasskeyRegisterOptions(currentPassword: string): Promise<{ options: PublicKeyCredentialCreationOptionsJSON }> {
+    return api.post<{ options: PublicKeyCredentialCreationOptionsJSON }>('/api/auth/passkeys/register/options', {
+      currentPassword,
+    });
+  },
+
+  /** WebAuthn: Verifies and persists a newly registered passkey. */
+  verifyPasskeyRegister(response: RegistrationResponseJSON, name?: string): Promise<{ passkey: PasskeyItem }> {
+    return api.post<{ passkey: PasskeyItem }>('/api/auth/passkeys/register/verify', {
+      response,
+      name,
+    });
+  },
+
+  /** WebAuthn: Generates login options (public). */
+  getPasskeyLoginOptions(): Promise<{ options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }> {
+    return api.post<{ options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }>(
+      '/api/auth/passkeys/login/options',
+      {}
+    );
+  },
+
+  /** WebAuthn: Verifies passkey assertion and signs in (public). */
+  verifyPasskeyLogin(
+    challengeId: string,
+    response: AuthenticationResponseJSON
+  ): Promise<LoginSessionResult> {
+    return api
+      .post<{ token: string; user: UserDto }>('/api/auth/passkeys/login/verify', { challengeId, response })
+      .then((res) => {
+        setAuthToken(res.token);
+        return { kind: 'session' as const, token: res.token, user: toAdminUser(res.user) };
+      });
+  },
+
+  /** Lists current admin's registered passkeys. */
+  listPasskeys(): Promise<{ passkeys: PasskeyItem[] }> {
+    return api.get<{ passkeys: PasskeyItem[] }>('/api/auth/passkeys');
+  },
+
+  /** Renames a passkey owned by the caller. */
+  renamePasskey(id: string, name: string): Promise<{ passkey: PasskeyItem }> {
+    return api.patch<{ passkey: PasskeyItem }>(`/api/auth/passkeys/${encodeURIComponent(id)}`, { name });
+  },
+
+  /** Deletes a passkey owned by the caller (requires current password). */
+  deletePasskey(id: string, currentPassword: string): Promise<{ success: boolean }> {
+    return api.delete<{ success: boolean }>(`/api/auth/passkeys/${encodeURIComponent(id)}`, {
+      currentPassword,
+    });
+  },
+
+  /** Admin helper: resets all passkeys for another user (`manageUsers`). */
+  resetPasskeys(userId: string): Promise<{ reset: boolean; count: number }> {
+    return api.post<{ reset: boolean; count: number }>(
+      `/api/auth/users/${encodeURIComponent(userId)}/reset-passkeys`,
+      {}
+    );
+  },
 };
 
 export const updateProfile = authService.updateProfile.bind(authService);
@@ -393,6 +471,14 @@ export const forgotPassword = authService.forgotPassword.bind(authService);
 export const resetPassword = authService.resetPassword.bind(authService);
 export const setLoginOtp = authService.setLoginOtp.bind(authService);
 export const verifyLoginTotp = authService.verifyLoginTotp.bind(authService);
+export const getPasskeyRegisterOptions = authService.getPasskeyRegisterOptions.bind(authService);
+export const verifyPasskeyRegister = authService.verifyPasskeyRegister.bind(authService);
+export const getPasskeyLoginOptions = authService.getPasskeyLoginOptions.bind(authService);
+export const verifyPasskeyLogin = authService.verifyPasskeyLogin.bind(authService);
+export const listPasskeys = authService.listPasskeys.bind(authService);
+export const renamePasskey = authService.renamePasskey.bind(authService);
+export const deletePasskey = authService.deletePasskey.bind(authService);
+export const resetPasskeys = authService.resetPasskeys.bind(authService);
 
 
 /** Reversible on/off actions an admin may choose "don't ask again" for (the server rejects any other). */
