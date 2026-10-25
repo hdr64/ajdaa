@@ -45,9 +45,9 @@ Rewriting the router, switching UI libraries, moving to cookies for auth before 
 ## Known open issues (recorded 2026-10-25, do not lose)
 Source of detail: `docs/prompts/review-ajda-project.md` (IDs below). Fixed on 2026-10-25 in `lane/auth` (`05e8cd0`): H-1 to H-6. Everything else is open. Remove a line only when it is fixed and verified.
 
-**Prompt written, not yet run** (`docs/prompts/task-w5-client-fixes-prompt.md`): C-1 dead "Register Interest" CTA (critical, live site), H-10 phone dropped on user create/edit, M-3 filtered reorder swaps the wrong pair, M-4 contact subjects lose AR/EN pairing, M-25 client password rule 8 vs server 10, M-26 re-clicking the selected role wipes permissions, M-28 home map loses the project, M-29 sub-2s submit silently drops leads.
+**Fixed in the working tree 2026-10-25, not committed** (client: C-1, H-10 with a server change to store `phone`, M-3, M-4, M-25, M-26, M-28, M-29 reworked so the spam timer starts at first focus; server: H-8, H-9, M-2, M-8, M-9, M-10, M-14, M-20). Still open for them: browser check of M-3, M-4, M-25, M-26, M-28, and the tests plus H-7 in `task-w5-server-hardening-b-prompt.md`. The server still drops submissions under 2 s of focus-to-submit on purpose (`security.test.ts`).
 
-**Owner decision needed:** H-7 `manageNotifications` can route every lead (PII) to any address; decide intended or require super admin for explicit `config.emails`.
+**H-7 decided 2026-10-25:** require super admin for explicit `config.emails` on notification listeners; added to `task-w5-server-hardening-prompt.md` (item 9).
 
 **Server, no prompt yet (write a w5-server prompt after `lane/auth` merges):**
 - High: H-8 log views `readFileSync` the whole file per poll; H-9 public `/logs/client-error` forges log lines and lets `context` override ip/userAgent.
