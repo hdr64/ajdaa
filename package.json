@@ -47,10 +47,11 @@
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
-    "wrangler": "^4.123.0"
+    "wrangler": "^4.35.0"
   },
   "allowScripts": {
-    "esbuild@0.28.1": true,
-    "workerd@1.20260926.1": true
+    "sharp@0.33.5": true,
+    "workerd@1.20250906.0": true,
+    "esbuild@0.25.4": true
   }
 }
