@@ -26,13 +26,15 @@ let throwaways: TestSession[] = [];
  * an inline literal would be rejected by excess-property checking.
  */
 function expiredToken(app: FastifyInstance, session: TestSession): string {
+  // Back-date `iat` and pass `expiresIn` explicitly: `@fastify/jwt` 10 lets the app's
+  // default sign option override an `exp` claim, so a literal `exp` is not enough.
   const claims = {
     id: session.id,
     email: session.email,
     role: session.role,
-    exp: Math.floor(Date.now() / 1000) - 60,
+    iat: Math.floor(Date.now() / 1000) - 7200,
   };
-  return app.jwt.sign(claims);
+  return app.jwt.sign(claims, { expiresIn: '1h' });
 }
 
 beforeAll(async () => {

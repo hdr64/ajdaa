@@ -149,11 +149,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     prefix: '/uploads/',
     // Uploaded files are untrusted content: never let the browser render them
     // inline, and never let them sniff a different type.
-    setHeaders(res, filePath) {
+    setHeaders(reply, filePath) {
       if (filePath.toLowerCase().endsWith('.pdf')) {
-        res.setHeader('Content-Disposition', 'attachment');
+        reply.header('Content-Disposition', 'attachment');
       }
-      res.setHeader('X-Content-Type-Options', 'nosniff');
+      reply.header('X-Content-Type-Options', 'nosniff');
     },
   });
 
