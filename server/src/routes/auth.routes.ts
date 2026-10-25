@@ -783,6 +783,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           departmentId: resolvedDepartmentId,
           permissions: JSON.stringify(resolvedPermissions),
           status: 'active',
+          phone: body.phone || null,
         },
       });
 
@@ -923,6 +924,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           departmentId: resolvedDepartmentId !== undefined ? resolvedDepartmentId : undefined,
           permissions: resolvedPermissions ? JSON.stringify(resolvedPermissions) : undefined,
           status: body.status,
+          phone: body.phone === undefined ? undefined : body.phone || null,
         },
       });
 

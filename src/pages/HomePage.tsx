@@ -16,7 +16,7 @@ import type { NavPageKey } from '../components/common/Navbar';
 
 interface HomePageProps {
   onExploreHero: (filters?: { city?: string; type?: string; priceType?: string }) => void;
-  onNavigate: (page: NavPageKey, pushHistory?: boolean, options?: { projectId?: number }) => void;
+  onNavigate: (page: NavPageKey, pushHistory?: boolean, options?: { projectId?: number; property?: Property }) => void;
   onSelectProperty?: (prop: Property) => void;
   onQuickView: (prop: Property) => void;
   onShowToast?: (msg: string) => void;

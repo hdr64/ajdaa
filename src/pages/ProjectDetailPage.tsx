@@ -72,6 +72,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [activeFloorIndex, setActiveFloorIndex] = useState<number>(0);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [interestModalOpen, setInterestModalOpen] = useState(false);
   const [interestModalUnit, setInterestModalUnit] = useState<PropertyUnit | null>(null);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos' | 'video'>('photos');
   const [model3dModalOpen, setModel3dModalOpen] = useState(false);
@@ -104,11 +105,12 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setVideoModalOpen(false);
+        setInterestModalOpen(false);
         setInterestModalUnit(null);
         setModel3dModalOpen(false);
       }
     };
-    if (videoModalOpen || interestModalUnit !== null || model3dModalOpen) {
+    if (videoModalOpen || interestModalOpen || model3dModalOpen) {
       document.body.style.overflow = 'hidden';
       window.addEventListener('keydown', handleKeyDown);
     }
@@ -116,7 +118,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [videoModalOpen, interestModalUnit, model3dModalOpen]);
+  }, [videoModalOpen, interestModalOpen, model3dModalOpen]);
 
   // Return focus to the trigger whenever the 3D modal closes, from any path.
   useEffect(() => {
@@ -206,7 +208,8 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   const brochureUrl = isDownloadableMediaUrl(project.brochureUrl) ? project.brochureUrl : undefined;
 
   const handleOpenInterest = (unit?: PropertyUnit) => {
-    setInterestModalUnit(unit || null);
+    setInterestModalUnit(unit ?? null);
+    setInterestModalOpen(true);
     setSubmittedSuccess(false);
   };
 
@@ -225,8 +228,8 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
         email: interestEmail.trim() || undefined,
         projectId: project.id,
         projectTitle: project.title,
-        unitId: interestModalUnit?.id,
-        unitNumber: interestModalUnit?.unitNumber,
+        unitId: interestModalUnit ? interestModalUnit.id : undefined,
+        unitNumber: interestModalUnit ? interestModalUnit.unitNumber : undefined,
         interestType: project.priceType === 'بيع' ? 'buy' : project.priceType === 'إيجار' ? 'rent' : 'invest',
         message: interestNotes.trim() || undefined,
       });
@@ -234,6 +237,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
       setSubmittedSuccess(true);
       onShowToast(isAr ? 'تم تسجيل اهتمامك بنجاح!' : 'Your interest has been recorded!');
       setTimeout(() => {
+        setInterestModalOpen(false);
         setInterestModalUnit(null);
         setSubmittedSuccess(false);
         setInterestName('');
@@ -1007,11 +1011,14 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
       )}
 
       {/* Register Interest Modal */}
-      {interestModalUnit !== null && (
+      {interestModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="relative w-full max-w-lg bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 sm:p-8 my-8">
             <button
-              onClick={() => setInterestModalUnit(null)}
+              onClick={() => {
+                setInterestModalOpen(false);
+                setInterestModalUnit(null);
+              }}
               className="absolute top-5 left-5 w-8 h-8 rounded-full bg-surface border border-muted-border/40 flex items-center justify-center text-heading hover:text-accent cursor-pointer"
             >
               <X className="w-4 h-4" />

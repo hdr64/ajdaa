@@ -16,6 +16,7 @@ import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useLanguage } from '../../../hooks/useLanguage';
+import { passwordPolicyError } from '../users/usersModel';
 import { ConfirmChoicesCard } from './ConfirmChoicesCard';
 
 export const AdminProfilePage: React.FC = () => {
@@ -89,10 +90,9 @@ export const AdminProfilePage: React.FC = () => {
       return;
     }
 
-    if (newPassword.length < 8) {
-      setPasswordError(
-        isAr ? 'كلمة المرور الجديدة يجب أن لا تقل عن 8 أحرف' : 'New password must be at least 8 characters'
-      );
+    const policyErr = passwordPolicyError(newPassword, isAr);
+    if (policyErr) {
+      setPasswordError(policyErr);
       return;
     }
 
@@ -273,7 +273,7 @@ export const AdminProfilePage: React.FC = () => {
               {isAr ? 'تغيير كلمة المرور' : 'Change Password'}
             </h2>
             <p className="text-[11px] text-neutral-text/60 mt-0.5">
-              {isAr ? 'تحديث كلمة المرور الخاصة بحسابك (8 أحرف على الأقل)' : 'Update your account password (at least 8 characters)'}
+              {isAr ? 'تحديث كلمة المرور الخاصة بحسابك (10 أحرف على الأقل)' : 'Update your account password (at least 10 characters)'}
             </p>
           </div>
         </div>

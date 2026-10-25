@@ -110,16 +110,22 @@ export const MIN_PASSWORD_LENGTH = 10;
  * The server is the authority; this only keeps the form from sending a
  * password the API will reject.
  */
-export function passwordPolicyError(password: string): string | null {
+export function passwordPolicyError(password: string, isAr: boolean = true): string | null {
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل`;
+    return isAr
+      ? `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل`
+      : `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
   }
   // The same letter and digit checks as `meetsPasswordPolicy` on the server.
   if (!/\p{L}/u.test(password)) {
-    return 'كلمة المرور يجب أن تحتوي على حرف واحد على الأقل';
+    return isAr
+      ? 'كلمة المرور يجب أن تحتوي على حرف واحد على الأقل'
+      : 'Password must contain at least one letter';
   }
   if (!/\d/.test(password)) {
-    return 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل';
+    return isAr
+      ? 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل'
+      : 'Password must contain at least one digit';
   }
   return null;
 }

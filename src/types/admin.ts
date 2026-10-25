@@ -91,6 +91,7 @@ export interface AdminUser {
 export interface AdminUserInput {
   name: string;
   email: string;
+  phone?: string | null;
   password?: string;
   role: AdminRole;
   roleAr: string;

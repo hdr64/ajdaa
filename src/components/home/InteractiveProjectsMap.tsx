@@ -31,7 +31,10 @@ import {
 } from 'lucide-react';
 
 interface InteractiveProjectsMapProps {
-  onNavigate: (page: 'home' | 'works' | 'booking' | 'contact' | 'clients', options?: { projectId?: number; unitId?: string }) => void;
+  onNavigate: (
+    page: 'home' | 'works' | 'booking' | 'contact' | 'clients' | 'project',
+    options?: { projectId?: number; unitId?: string; property?: Property }
+  ) => void;
   onQuickView?: (prop: Property) => void;
 }
 
@@ -1128,7 +1131,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
               {/* Drawer Footer Actions */}
               <div className="p-4 border-t border-white/10 bg-black/40 flex flex-col gap-2 shrink-0">
                 <button
-                  onClick={() => onNavigate('works', { projectId: selectedProject.id })}
+                  onClick={() => onNavigate('project', { projectId: selectedProject.id, property: selectedProject })}
                   className="w-full bg-gradient-to-r from-gold to-[#bf8d3b] hover:from-[#e2c58f] hover:to-gold text-neutral-950 font-black text-xs py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-gold/20 transition-all active:scale-[0.99]"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-neutral-950" />
@@ -1137,7 +1140,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                 </button>
 
                 <button
-                  onClick={() => onNavigate('booking', { projectId: selectedProject.id })}
+                  onClick={() => onNavigate('booking', { projectId: selectedProject.id, property: selectedProject })}
                   className="w-full bg-white/10 hover:bg-white/15 text-white border border-white/15 font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:border-gold/40 hover:text-gold transition-all"
                 >
                   <span>{isAr ? 'سجل اهتمامك / حجز وحدة' : 'Register Interest / Book Unit'}</span>

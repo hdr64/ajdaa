@@ -40,6 +40,7 @@ export const cms = defineStrings('cms', {
   'section.tabContact': 'صفحة التواصل',
   'section.tabNav': 'شريط التنقل (Navbar)',
   'section.tabFooter': 'الهوية والتذييل (Footer)',
+  'contact.subjectPairIncomplete': 'يرجى إدخال نص الموضوع بالعربية والإنجليزية معاً أو ترك الحقلين فارغين لحذفه',
 }, {
   'section.exportSuccess': 'CMS backup exported successfully',
   'section.exportError': 'Could not export the backup',
@@ -79,4 +80,5 @@ export const cms = defineStrings('cms', {
   'section.tabContact': 'Contact page',
   'section.tabNav': 'Navigation bar (Navbar)',
   'section.tabFooter': 'Identity & footer (Footer)',
+  'contact.subjectPairIncomplete': 'Please enter the subject in both Arabic and English, or leave both empty to remove',
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Mail, MapPin, Clock, Send, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Reveal } from './Reveal';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -63,7 +63,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
     : logoEnLight;
 
   const [subscribing, setSubscribing] = useState(false);
-  const [startedAt] = useState<number>(() => Date.now());
+  // Starts when a field is first focused, not at mount: a visitor who pastes and submits right away is not a bot.
+  const startedAt = useRef<number | null>(null);
   const [website, setWebsite] = useState('');
 
   // Stores the subscriber (it used to only show the toast and drop the email).
@@ -72,19 +73,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
     const email = newsletterEmail.trim();
     if (!email || subscribing) return;
 
-    // Spam protection check (honeypot or submission faster than 2 seconds)
-    const isHoneypot = Boolean(website && website.trim().length > 0);
-    const isTooFast = Date.now() - startedAt < 2000;
-    if (isHoneypot || isTooFast) {
-      onToast(t.footer.newsletterSuccess);
-      setNewsletterEmail('');
-      return;
-    }
     setSubscribing(true);
     try {
       await newsletterService.subscribe(email, language === 'en' ? 'en' : 'ar', 'footer', {
         website,
-        elapsedMs: Date.now() - startedAt,
+        elapsedMs: Date.now() - (startedAt.current ?? Date.now()),
       });
       onToast(t.footer.newsletterSuccess);
       setNewsletterEmail('');
@@ -257,6 +250,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                 </p>
                 <form
                   onSubmit={handleNewsletterSubmit}
+                  onFocus={() => {
+                    if (startedAt.current === null) startedAt.current = Date.now();
+                  }}
                   className="relative flex items-center gap-2 bg-surface/80 border border-muted-border/40 rounded-xl p-1.5 focus-within:border-accent transition shadow-xs"
                 >
                   {/* Honeypot field for bot spam prevention */}

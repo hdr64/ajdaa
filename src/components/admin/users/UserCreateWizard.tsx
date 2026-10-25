@@ -211,6 +211,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       const input: AdminUserInput = {
         name: form.name.trim(),
         email: form.email.trim(),
+        phone: form.phone.trim() || null,
         password: form.password,
         role: roleKey,
         roleAr,
