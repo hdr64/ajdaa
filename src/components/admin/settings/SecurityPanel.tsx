@@ -96,7 +96,7 @@ export const SecurityPanel: React.FC = () => {
   }, [reloadToken]);
 
   if (error) return <SectionError message={error} onRetry={() => setReloadToken((n) => n + 1)} />;
-  if (!settings) return <SectionLoading label="جاري تحميل إعدادات الأمان..." />;
+  if (!settings) return <SectionLoading variant="form" label="جاري تحميل إعدادات الأمان..." />;
 
   const save = async (input: { loginOtpRequired?: boolean; totpRequiredForAll?: boolean }, successMessage: string) => {
     setSaving(true);

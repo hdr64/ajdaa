@@ -56,3 +56,6 @@ export type AdminArea = keyof typeof adminStrings;
 export type AdminKey = {
   [Area in AdminArea]: `${Area & string}.${Extract<keyof (typeof adminStrings)[Area]['ar'], string>}`;
 }[AdminArea];
+
+export { useAdminT, type AdminTranslation } from './useAdminT';
+

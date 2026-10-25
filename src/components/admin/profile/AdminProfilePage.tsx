@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Mail,
@@ -12,20 +12,97 @@ import {
   KeyRound,
   RotateCw,
   X,
+  Camera,
+  Trash2,
+  Upload,
+  Building2,
+  Clock,
+  Shield,
+  Sparkles,
 } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
-import { useLanguage } from '../../../hooks/useLanguage';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { passwordPolicyError } from '../users/usersModel';
 import { ConfirmChoicesCard } from './ConfirmChoicesCard';
 import { AuthenticatorTotpCard } from './AuthenticatorTotpCard';
 import { PasskeysCard } from './PasskeysCard';
 
+function initialsOf(name?: string): string {
+  if (!name) return '…';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '…';
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`;
+}
+
 export const AdminProfilePage: React.FC = () => {
   const { currentUser, setCurrentUser, refreshUser, showToast } = useAdmin();
-  const { language } = useLanguage();
-  const isAr = language === 'ar';
+  const { t, isAr } = useAdminT();
+
+  /* -------------------------- Card 0: Avatar --------------------------- */
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError(t('profile.avatarErrorInvalid'));
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError(t('profile.avatarErrorSize'));
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarError(null);
+    try {
+      const updatedUser = await AdminStorage.uploadAvatar(file);
+      setCurrentUser(updatedUser);
+      void refreshUser();
+      showToast(t('profile.avatarSuccess'));
+    } catch (caught) {
+      setAvatarError(getErrorMessage(caught, t('profile.avatarErrorUpload')));
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (!currentUser?.avatar) return;
+    setAvatarUploading(true);
+    setAvatarError(null);
+    try {
+      const updatedUser = await AdminStorage.deleteAvatar();
+      setCurrentUser(updatedUser);
+      void refreshUser();
+      showToast(t('profile.avatarRemoved'));
+    } catch (caught) {
+      setAvatarError(getErrorMessage(caught, t('profile.avatarErrorRemove')));
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const formatLastLogin = (dateStr?: string) => {
+    if (!dateStr) return t('profile.neverLoggedIn');
+    try {
+      const date = new Date(dateStr);
+      return new Intl.DateTimeFormat(isAr ? 'ar-SA' : 'en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(date);
+    } catch {
+      return dateStr;
+    }
+  };
 
   /* -------------------------- Card 1: Details -------------------------- */
   const [name, setName] = useState(currentUser?.name ?? '');
@@ -51,12 +128,12 @@ export const AdminProfilePage: React.FC = () => {
     const trimmedPhone = phone.trim();
 
     if (!trimmedName) {
-      setDetailsError(isAr ? 'يرجى إدخال الاسم' : 'Please enter your name');
+      setDetailsError(t('profile.details.nameRequired'));
       return;
     }
 
     if (!trimmedEmail) {
-      setDetailsError(isAr ? 'يرجى إدخال البريد الإلكتروني' : 'Please enter your email');
+      setDetailsError(t('profile.details.emailRequired'));
       return;
     }
 
@@ -69,9 +146,9 @@ export const AdminProfilePage: React.FC = () => {
       });
       setCurrentUser(updatedUser);
       void refreshUser();
-      showToast(isAr ? 'تم حفظ التعديلات بنجاح' : 'Profile updated successfully');
+      showToast(t('profile.details.success'));
     } catch (caught) {
-      setDetailsError(getErrorMessage(caught, isAr ? 'تعذر حفظ البيانات' : 'Could not save profile details'));
+      setDetailsError(getErrorMessage(caught, t('profile.details.error')));
     } finally {
       setDetailsSaving(false);
     }
@@ -128,7 +205,7 @@ export const AdminProfilePage: React.FC = () => {
     setPasswordError(null);
 
     if (!currentPassword) {
-      setPasswordError(isAr ? 'يرجى إدخال كلمة المرور الحالية' : 'Please enter your current password');
+      setPasswordError(t('profile.password.currentRequired'));
       return;
     }
 
@@ -139,7 +216,7 @@ export const AdminProfilePage: React.FC = () => {
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError(isAr ? 'كلمتا المرور الجديدتان غير متطابقتين' : 'New passwords do not match');
+      setPasswordError(t('profile.password.mismatch'));
       return;
     }
 
@@ -150,7 +227,7 @@ export const AdminProfilePage: React.FC = () => {
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
-        showToast(isAr ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully');
+        showToast(t('profile.password.success'));
       } else {
         // A resubmission while already waiting for a code is meaningless.
         if (passwordStep === 'password') {
@@ -164,7 +241,7 @@ export const AdminProfilePage: React.FC = () => {
         }
       }
     } catch (caught) {
-      setPasswordError(getErrorMessage(caught, isAr ? 'تعذر تغيير كلمة المرور' : 'Could not change password'));
+      setPasswordError(getErrorMessage(caught, t('profile.password.error')));
     } finally {
       setPasswordSaving(false);
     }
@@ -180,7 +257,7 @@ export const AdminProfilePage: React.FC = () => {
     }
 
     if (code.length < 6) {
-      setCodeError(isAr ? 'يرجى إدخال رمز التحقق المكون من 6 أرقام' : 'Please enter the 6-digit verification code');
+      setCodeError(t('profile.password.codeLengthError'));
       return;
     }
 
@@ -191,14 +268,9 @@ export const AdminProfilePage: React.FC = () => {
       setNewPassword('');
       setConfirmPassword('');
       resetCodeStep();
-      showToast(isAr ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully');
+      showToast(t('profile.password.success'));
     } catch (caught) {
-      setCodeError(
-        getErrorMessage(
-          caught,
-          isAr ? 'رمز التحقق غير صحيح أو منتهي الصلاحية' : 'Invalid or expired verification code'
-        )
-      );
+      setCodeError(getErrorMessage(caught, t('profile.password.codeInvalid')));
     } finally {
       setCodeSaving(false);
     }
@@ -215,9 +287,7 @@ export const AdminProfilePage: React.FC = () => {
       setCodeError(null);
       setCooldown(60);
     } catch (caught) {
-      setCodeError(
-        getErrorMessage(caught, isAr ? 'تعذر إعادة إرسال الرمز، يرجى الانتظار قليلاً' : 'Could not resend code, please wait')
-      );
+      setCodeError(getErrorMessage(caught, t('profile.password.resendError')));
     } finally {
       setResending(false);
     }
@@ -255,7 +325,7 @@ export const AdminProfilePage: React.FC = () => {
   const handleConfirmOtpToggle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dialogPassword) {
-      setDialogError(isAr ? 'يرجى إدخال كلمة المرور الحالية' : 'Please enter your current password');
+      setDialogError(t('profile.password.currentRequired'));
       return;
     }
 
@@ -272,22 +342,9 @@ export const AdminProfilePage: React.FC = () => {
       void refreshUser();
       setOtpDialogOpen(false);
       setDialogPassword('');
-      showToast(
-        targetState
-          ? isAr
-            ? 'تم تفعيل التحقق بخطوتين بنجاح'
-            : 'Two-step verification enabled successfully'
-          : isAr
-          ? 'تم تعطيل التحقق بخطوتين بنجاح'
-          : 'Two-step verification disabled successfully'
-      );
+      showToast(targetState ? t('profile.otp.enableSuccess') : t('profile.otp.disableSuccess'));
     } catch (caught) {
-      setDialogError(
-        getErrorMessage(
-          caught,
-          isAr ? 'تعذر تعديل إعدادات التحقق بخطوتين' : 'Could not update two-step verification settings'
-        )
-      );
+      setDialogError(getErrorMessage(caught, t('profile.otp.error')));
     } finally {
       setDialogLoading(false);
     }
@@ -295,6 +352,222 @@ export const AdminProfilePage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {/* ----------------- Card 0: Profile Hero & Avatar ----------------- */}
+      <div className="rounded-3xl bg-surface border border-muted-border/40 overflow-hidden shadow-xs relative">
+        {/* Subtle decorative banner header */}
+        <div className="h-28 sm:h-36 bg-gradient-to-r from-accent/25 via-accent/10 to-transparent relative border-b border-muted-border/30 overflow-hidden">
+          <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
+          <div className="absolute top-4 end-4 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-surface/85 backdrop-blur-xs border border-muted-border/50 text-heading shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              {t('profile.activeAccount')}
+            </span>
+          </div>
+        </div>
+
+        {/* Content row overlapping banner */}
+        <div className="px-5 sm:px-8 pb-6 pt-0 relative">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-5 -mt-14 sm:-mt-16 mb-5">
+            {/* Avatar container with hover overlay and upload */}
+            <div className="relative group shrink-0">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl overflow-hidden bg-surface border-4 border-surface shadow-md flex items-center justify-center relative">
+                {currentUser?.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full brand-fill text-canvas font-black flex items-center justify-center text-3xl sm:text-4xl">
+                    {initialsOf(currentUser?.name)}
+                  </div>
+                )}
+
+                {/* Uploading spinner overlay */}
+                {avatarUploading && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center text-white text-xs gap-1">
+                    <RotateCw className="w-6 h-6 animate-spin text-accent" />
+                    <span>{t('profile.avatarUploading')}</span>
+                  </div>
+                )}
+
+                {/* Hover trigger overlay button */}
+                {!avatarUploading && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label={t('profile.changeAvatar')}
+                    className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Camera className="w-6 h-6" />
+                    <span className="text-[10px] font-bold">
+                      {t('profile.changeAvatar')}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Camera badge trigger on corner */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={avatarUploading}
+                aria-label={t('profile.uploadAvatar')}
+                title={t('profile.changeAvatar')}
+                className="absolute bottom-1 end-1 p-2 rounded-xl bg-accent text-canvas shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/jpg"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+            </div>
+
+            {/* Profile text & badges */}
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-heading truncate">
+                  {currentUser?.name ?? '—'}
+                </h1>
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/25">
+                  {currentUser?.roleAr ?? currentUser?.role ?? '—'}
+                </span>
+                {(currentUser?.departmentName || currentUser?.department) && (
+                  <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-muted-border/30 text-neutral-text/80 border border-muted-border/50 inline-flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-neutral-text/50" />
+                    <span>{currentUser.departmentName || currentUser.department}</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-text/70">
+                <div className="flex items-center gap-1.5 font-mono">
+                  <Mail className="w-3.5 h-3.5 text-neutral-text/40" />
+                  <span>{currentUser?.email}</span>
+                </div>
+                {currentUser?.phone && (
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <Phone className="w-3.5 h-3.5 text-neutral-text/40" />
+                    <span dir="ltr">{currentUser.phone}</span>
+                  </div>
+                )}
+                {currentUser?.lastLogin && (
+                  <div className="flex items-center gap-1.5 text-neutral-text/50">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>
+                      {t('profile.lastLoginLabel', { time: formatLastLogin(currentUser.lastLogin) })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Avatar management buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>{t('profile.uploadAvatar')}</span>
+              </button>
+
+              {currentUser?.avatar && (
+                <button
+                  type="button"
+                  onClick={handleDeleteAvatar}
+                  disabled={avatarUploading}
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 border border-red-500/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title={t('profile.removeAvatar')}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{t('profile.removeAvatar')}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Avatar upload error if any */}
+          {avatarError && (
+            <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{avatarError}</span>
+            </div>
+          )}
+
+          {/* Quick Security Status Strip */}
+          <div className="mt-4 pt-4 border-t border-muted-border/30 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-canvas border border-muted-border/40">
+              <div className="text-[10px] text-neutral-text/60 mb-1 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-accent" />
+                <span>{t('profile.statEmailOtp')}</span>
+              </div>
+              <div className="font-bold text-heading flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    currentUser?.loginOtpEnabled ? 'bg-emerald-500' : 'bg-neutral-text/30'
+                  }`}
+                />
+                <span>
+                  {currentUser?.loginOtpEnabled
+                    ? t('profile.enabled')
+                    : t('profile.disabled')}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-canvas border border-muted-border/40">
+              <div className="text-[10px] text-neutral-text/60 mb-1 flex items-center gap-1">
+                <Shield className="w-3.5 h-3.5 text-accent" />
+                <span>{t('profile.statTotp')}</span>
+              </div>
+              <div className="font-bold text-heading flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    currentUser?.totpEnabled ? 'bg-emerald-500' : 'bg-neutral-text/30'
+                  }`}
+                />
+                <span>
+                  {currentUser?.totpEnabled
+                    ? t('profile.enabled')
+                    : t('profile.disabled')}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-canvas border border-muted-border/40">
+              <div className="text-[10px] text-neutral-text/60 mb-1 flex items-center gap-1">
+                <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                <span>{t('profile.statPasskeys')}</span>
+              </div>
+              <div className="font-bold text-heading">
+                {currentUser?.passkeyCount ?? 0}{' '}
+                <span className="text-[10px] text-neutral-text/60 font-normal">
+                  {t('profile.passkeysRegistered')}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-canvas border border-muted-border/40">
+              <div className="text-[10px] text-neutral-text/60 mb-1 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-accent" />
+                <span>{t('profile.statRole')}</span>
+              </div>
+              <div className="font-bold text-heading truncate">
+                {currentUser?.roleAr ?? currentUser?.role ?? '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ------------------------- Card 1: Details ------------------------- */}
       <div className="rounded-2xl bg-surface border border-muted-border/40 p-5 sm:p-7 shadow-xs">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-muted-border/30">
@@ -303,10 +576,10 @@ export const AdminProfilePage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-black text-heading">
-              {isAr ? 'البيانات الشخصية' : 'Personal Details'}
+              {t('profile.details.title')}
             </h2>
             <p className="text-[11px] text-neutral-text/60 mt-0.5">
-              {isAr ? 'تعديل اسم الحساب والبريد الإلكتروني ورقم الجوال' : 'Update your account name, email and phone'}
+              {t('profile.details.subtitle')}
             </p>
           </div>
         </div>
@@ -322,7 +595,7 @@ export const AdminProfilePage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'الاسم الكامل' : 'Full Name'}
+                {t('profile.details.name')}
               </label>
               <div className="relative flex items-center">
                 <User className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -331,7 +604,7 @@ export const AdminProfilePage: React.FC = () => {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={isAr ? 'الاسم' : 'Name'}
+                  placeholder={t('profile.details.namePlaceholder')}
                   className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
                 />
               </div>
@@ -339,7 +612,7 @@ export const AdminProfilePage: React.FC = () => {
 
             <div>
               <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'البريد الإلكتروني' : 'Email Address'}
+                {t('profile.details.email')}
               </label>
               <div className="relative flex items-center">
                 <Mail className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -358,7 +631,7 @@ export const AdminProfilePage: React.FC = () => {
 
           <div>
             <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-              {isAr ? 'رقم الجوال (اختياري)' : 'Phone Number (Optional)'}
+              {t('profile.details.phone')}
             </label>
             <div className="relative flex items-center">
               <Phone className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -380,7 +653,7 @@ export const AdminProfilePage: React.FC = () => {
               className="brand-btn-primary font-black px-5 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-sm text-xs disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{detailsSaving ? (isAr ? 'جاري الحفظ...' : 'Saving...') : isAr ? 'حفظ التعديلات' : 'Save Details'}</span>
+              <span>{detailsSaving ? t('profile.details.saving') : t('profile.details.save')}</span>
             </button>
           </div>
         </form>
@@ -394,10 +667,10 @@ export const AdminProfilePage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-black text-heading">
-              {isAr ? 'تغيير كلمة المرور' : 'Change Password'}
+              {t('profile.password.title')}
             </h2>
             <p className="text-[11px] text-neutral-text/60 mt-0.5">
-              {isAr ? 'تحديث كلمة المرور الخاصة بحسابك (10 أحرف على الأقل)' : 'Update your account password (at least 10 characters)'}
+              {t('profile.password.subtitle')}
             </p>
           </div>
         </div>
@@ -412,7 +685,7 @@ export const AdminProfilePage: React.FC = () => {
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
             <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-              {isAr ? 'كلمة المرور الحالية' : 'Current Password'}
+              {t('profile.password.current')}
             </label>
             <div className="relative flex items-center">
               <KeyRound className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -431,7 +704,7 @@ export const AdminProfilePage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'كلمة المرور الجديدة (8 أحرف كحد أدنى)' : 'New Password (min 8 chars)'}
+                {t('profile.password.new')}
               </label>
               <div className="relative flex items-center">
                 <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -449,7 +722,7 @@ export const AdminProfilePage: React.FC = () => {
 
             <div>
               <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password'}
+                {t('profile.password.confirm')}
               </label>
               <div className="relative flex items-center">
                 <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -475,20 +748,12 @@ export const AdminProfilePage: React.FC = () => {
               <Lock className="w-3.5 h-3.5" />
               <span>
                 {passwordSaving
-                  ? isAr
-                    ? 'جاري الإرسال...'
-                    : 'Sending...'
+                  ? t('profile.password.sending')
                   : awaitingCode
-                    ? isAr
-                      ? 'بانتظار رمز التحقق...'
-                      : 'Awaiting code...'
+                    ? t('profile.password.awaitingCode')
                     : isSuperAdmin
-                      ? isAr
-                        ? 'تحديث كلمة المرور'
-                        : 'Update Password'
-                      : isAr
-                        ? 'إرسال رمز التحقق'
-                        : 'Send Verification Code'}
+                      ? t('profile.password.submit')
+                      : t('profile.password.sendCode')}
               </span>
             </button>
           </div>
@@ -498,13 +763,12 @@ export const AdminProfilePage: React.FC = () => {
         {awaitingCode && (
           <div className="mt-5 pt-5 border-t border-muted-border/30 space-y-4">
             <p className="text-xs text-neutral-text/70 leading-relaxed">
-              {isAr ? `أدخل الرمز المرسل إلى ` : `Enter the code sent to `}
-              <span className="font-mono font-bold text-heading inline-block" dir="ltr">{emailHint}</span>
+              {t('profile.password.codeNotice', { emailHint })}
             </p>
 
             <div>
               <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5 text-center">
-                {isAr ? 'رمز التحقق (6 أرقام)' : 'Verification Code (6 digits)'}
+                {t('profile.password.codeLabel')}
               </label>
               <input
                 type="text"
@@ -535,7 +799,7 @@ export const AdminProfilePage: React.FC = () => {
               className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{codeSaving ? (isAr ? 'جاري التأكيد...' : 'Confirming...') : isAr ? 'تأكيد وتغيير كلمة المرور' : 'Confirm & Change Password'}</span>
+              <span>{codeSaving ? t('profile.password.verifying') : t('profile.password.confirmCode')}</span>
             </button>
 
             <div className="flex items-center justify-between gap-2 pt-1 text-xs">
@@ -544,7 +808,7 @@ export const AdminProfilePage: React.FC = () => {
                 onClick={handleBackToPasswordStep}
                 className="text-neutral-text/60 hover:text-heading font-bold cursor-pointer transition-colors"
               >
-                {isAr ? 'رجوع' : 'Back'}
+                {t('profile.password.back')}
               </button>
 
               <button
@@ -555,9 +819,9 @@ export const AdminProfilePage: React.FC = () => {
               >
                 <RotateCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
                 {cooldown > 0 ? (
-                  <span>{isAr ? `إعادة الإرسال بعد ${cooldown} ثانية` : `Resend code in ${cooldown}s`}</span>
+                  <span>{t('profile.password.resendIn', { seconds: String(cooldown) })}</span>
                 ) : (
-                  <span>{isAr ? 'إعادة إرسال الرمز' : 'Resend Code'}</span>
+                  <span>{t('profile.password.resend')}</span>
                 )}
               </button>
             </div>
@@ -573,12 +837,10 @@ export const AdminProfilePage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-black text-heading">
-              {isAr ? 'التحقق بخطوتين (رمز البريد الإلكتروني)' : 'Two-Step Verification (Email Code)'}
+              {t('profile.otp.title')}
             </h2>
             <p className="text-[11px] text-neutral-text/60 mt-0.5">
-              {isAr
-                ? 'تعزيز أمان الحساب بطلب رمز تحقق مؤقت يُرسل للبريد عند تسجيل الدخول'
-                : 'Enhance account security by requiring a one-time email code on sign-in'}
+              {t('profile.otp.subtitle')}
             </p>
           </div>
         </div>
@@ -597,7 +859,7 @@ export const AdminProfilePage: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-heading">
-                  {isAr ? 'حالة التحقق بخطوتين:' : 'Two-Step Status:'}
+                  {t('profile.otp.statusLabel')}
                 </span>
                 <span
                   className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
@@ -606,17 +868,11 @@ export const AdminProfilePage: React.FC = () => {
                       : 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
                   }`}
                 >
-                  {otpEnabled ? (isAr ? 'مفعل' : 'Enabled') : isAr ? 'معطل' : 'Disabled'}
+                  {otpEnabled ? t('profile.enabled') : t('profile.disabled')}
                 </span>
               </div>
               <p className="text-[11px] text-neutral-text/60 mt-0.5">
-                {otpEnabled
-                  ? isAr
-                    ? 'يتم إرسال رمز تحقق مؤقت إلى بريدك الإلكتروني عند كل عملية تسجيل دخول.'
-                    : 'A 6-digit verification code is sent to your email on each login attempt.'
-                  : isAr
-                  ? 'تسجيل الدخول يتم بكلمة المرور فقط دون طلب رمز تأكيد.'
-                  : 'Login requires only your password without an additional verification code.'}
+                {otpEnabled ? t('profile.otp.enabledDesc') : t('profile.otp.disabledDesc')}
               </p>
             </div>
           </div>
@@ -630,7 +886,7 @@ export const AdminProfilePage: React.FC = () => {
                 : 'brand-btn-primary shadow-sm'
             }`}
           >
-            {otpEnabled ? (isAr ? 'إلغاء التفعيل' : 'Disable') : isAr ? 'تفعيل الآن' : 'Enable Now'}
+            {otpEnabled ? t('profile.otp.disableBtn') : t('profile.otp.enableBtn')}
           </button>
         </div>
       </div>
@@ -649,13 +905,7 @@ export const AdminProfilePage: React.FC = () => {
           <div className="w-full max-w-md rounded-2xl bg-surface border border-muted-border/40 p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-muted-border/30">
               <h3 className="text-sm font-black text-heading">
-                {otpEnabled
-                  ? isAr
-                    ? 'إلغاء تفعيل التحقق بخطوتين'
-                    : 'Disable Two-Step Verification'
-                  : isAr
-                  ? 'تفعيل التحقق بخطوتين'
-                  : 'Enable Two-Step Verification'}
+                {otpEnabled ? t('profile.otp.dialogDisableTitle') : t('profile.otp.dialogEnableTitle')}
               </h3>
               <button
                 type="button"
@@ -667,9 +917,7 @@ export const AdminProfilePage: React.FC = () => {
             </div>
 
             <p className="text-xs text-neutral-text/70 leading-relaxed">
-              {isAr
-                ? 'لأسباب أمنية، يرجى إدخال كلمة المرور الحالية لتأكيد هذا الإجراء:'
-                : 'For security reasons, please enter your current password to confirm this action:'}
+              {t('profile.otp.dialogPrompt')}
             </p>
 
             {dialogError && (
@@ -682,7 +930,7 @@ export const AdminProfilePage: React.FC = () => {
             <form onSubmit={handleConfirmOtpToggle} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                  {isAr ? 'كلمة المرور الحالية' : 'Current Password'}
+                  {t('profile.otp.dialogCurrentPassword')}
                 </label>
                 <div className="relative flex items-center">
                   <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -705,7 +953,7 @@ export const AdminProfilePage: React.FC = () => {
                   onClick={() => setOtpDialogOpen(false)}
                   className="px-4 py-2 rounded-xl border border-muted-border/40 text-xs font-bold text-neutral-text/70 hover:bg-surface-hover cursor-pointer"
                 >
-                  {isAr ? 'إلغاء' : 'Cancel'}
+                  {t('profile.otp.dialogCancel')}
                 </button>
                 <button
                   type="submit"
@@ -717,16 +965,10 @@ export const AdminProfilePage: React.FC = () => {
                   }`}
                 >
                   {dialogLoading
-                    ? isAr
-                      ? 'جاري التحقق...'
-                      : 'Verifying...'
+                    ? t('profile.password.verifying')
                     : otpEnabled
-                    ? isAr
-                      ? 'تأكيد الإلغاء'
-                      : 'Confirm Disable'
-                    : isAr
-                    ? 'تأكيد التفعيل'
-                    : 'Confirm Enable'}
+                    ? t('profile.otp.dialogConfirmDisable')
+                    : t('profile.otp.dialogConfirmEnable')}
                 </button>
               </div>
             </form>

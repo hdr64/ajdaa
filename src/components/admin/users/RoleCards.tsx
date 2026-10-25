@@ -8,6 +8,8 @@ import { Check, Shield } from 'lucide-react';
 import type { Role } from '../../../types/admin';
 import { PERMISSION_KEYS, SUPER_ADMIN_ROLE_KEY } from './usersModel';
 
+import { useAdminT } from '../../../i18n/admin/useAdminT';
+
 interface RoleCardsProps {
   roles: Role[];
   selectedRoleId: string;
@@ -23,6 +25,9 @@ export const RoleCards: React.FC<RoleCardsProps> = ({
   canAssignSuperAdmin,
   disabled = false,
 }) => {
+  const { t, language } = useAdminT();
+  const isEn = language === 'en';
+
   const filteredRoles = roles.filter((role) => {
     if (role.key === SUPER_ADMIN_ROLE_KEY && !canAssignSuperAdmin) return false;
     return true;
@@ -33,11 +38,12 @@ export const RoleCards: React.FC<RoleCardsProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" role="radiogroup" aria-label="اختر الدور الوظيفي">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" role="radiogroup" aria-label={t('users.selectRoleAria')}>
       {filteredRoles.map((role) => {
         const isSelected = selectedRoleId === role.id;
         const permissionCount = getPermissionCount(role);
         const isSuperAdmin = role.key === SUPER_ADMIN_ROLE_KEY;
+        const roleDisplayName = isEn && role.nameEn ? role.nameEn : role.nameAr;
 
         return (
           <button
@@ -45,7 +51,7 @@ export const RoleCards: React.FC<RoleCardsProps> = ({
             type="button"
             role="radio"
             aria-checked={isSelected}
-            aria-label={role.nameAr}
+            aria-label={roleDisplayName}
             onClick={() => !disabled && onSelect(role.id)}
             disabled={disabled}
             className={`
@@ -73,11 +79,11 @@ export const RoleCards: React.FC<RoleCardsProps> = ({
                 {isSuperAdmin ? (
                   <Shield className="w-4.5 h-4.5" />
                 ) : (
-                  <span className="text-xs font-black">{role.nameAr.slice(0, 1)}</span>
+                  <span className="text-xs font-black">{roleDisplayName.slice(0, 1)}</span>
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-black text-heading truncate">{role.nameAr}</h4>
+                <h4 className="text-sm font-black text-heading truncate">{roleDisplayName}</h4>
                 {role.description && (
                   <p className="text-[10px] text-neutral-text/60 mt-0.5 line-clamp-1 truncate">
                     {role.description}
@@ -85,11 +91,11 @@ export const RoleCards: React.FC<RoleCardsProps> = ({
                 )}
                 <div className="flex items-center gap-2 mt-1.5">
                   <span className="text-[10px] font-bold text-neutral-text/70">
-                    {permissionCount} صلاحيات
+                    {t('users.permissionsCountOf', { count: permissionCount, total: PERMISSION_KEYS.length })}
                   </span>
                   {isSuperAdmin && (
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                      كل الصلاحيات
+                      {t('users.allPermissionsRole')}
                     </span>
                   )}
                 </div>

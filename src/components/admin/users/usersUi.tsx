@@ -8,16 +8,42 @@ import { CheckCircle2, KeyRound, Lock, LogIn, LogOut, MailCheck, Pencil, ShieldC
 import type { AdminPermissions, AdminStatus, AdminUser } from '../../../types/admin';
 import {
   PERMISSION_KEYS,
-  STATUS_LABELS,
   countPermissions,
+  userStatusLabel,
 } from './usersModel';
 import type { UserRights } from './usersModel';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
-export const UserAvatar: React.FC<{ user: AdminUser }> = ({ user }) => (
-  <div className="w-10 h-10 rounded-xl brand-fill text-canvas font-black flex items-center justify-center text-sm shrink-0">
-    {user.name.slice(0, 1)}
-  </div>
-);
+export const UserAvatar: React.FC<{
+  user: { name: string; avatar?: string | null };
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
+}> = ({ user, size = 'md', className = '' }) => {
+  const sizeClasses = {
+    sm: 'w-8 h-8 rounded-lg text-xs',
+    md: 'w-10 h-10 rounded-xl text-sm',
+    lg: 'w-14 h-14 rounded-2xl text-base',
+    xl: 'w-24 h-24 rounded-3xl text-2xl',
+  }[size];
+
+  if (user.avatar) {
+    return (
+      <img
+        src={user.avatar}
+        alt={user.name}
+        className={`${sizeClasses} object-cover shrink-0 border border-muted-border/40 shadow-xs ${className}`}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${sizeClasses} brand-fill text-canvas font-black flex items-center justify-center shrink-0 shadow-xs ${className}`}
+    >
+      {user.name.slice(0, 1)}
+    </div>
+  );
+};
 
 const CHIP_BASE =
   'text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap inline-flex items-center gap-1';
@@ -29,27 +55,33 @@ const CHIP_TONE: Record<AdminStatus, string> = {
 };
 
 export const StatusChip: React.FC<{ status: AdminStatus; className?: string }> = ({ status, className = '' }) => (
-  <span className={`${CHIP_BASE} ${CHIP_TONE[status]} ${className}`}>{STATUS_LABELS[status]}</span>
+  <span className={`${CHIP_BASE} ${CHIP_TONE[status]} ${className}`}>{userStatusLabel(status)}</span>
 );
 
 /** Shown next to the status chip when the account has authenticator-app 2FA on. */
-export const TotpChip: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <span className={`${CHIP_BASE} bg-accent/10 text-accent border-accent/20 ${className}`}>
-    <ShieldCheck className="w-3 h-3" />
-    تطبيق المصادقة
-  </span>
-);
+export const TotpChip: React.FC<{ className?: string }> = ({ className = '' }) => {
+  const { t } = useAdminT();
+  return (
+    <span className={`${CHIP_BASE} bg-accent/10 text-accent border-accent/20 ${className}`}>
+      <ShieldCheck className="w-3 h-3" />
+      {t('users.totpChip')}
+    </span>
+  );
+};
 
 /** Shown next to the status chip when the account has passkeys registered. */
-export const PasskeyChip: React.FC<{ count?: number; className?: string }> = ({ count, className = '' }) => (
-  <span
-    className={`${CHIP_BASE} bg-amber-500/10 text-amber-500 border-amber-500/20 ${className}`}
-    title={count ? `${count} مفتاح مرور مسجل` : 'مفتاح مرور مسجل'}
-  >
-    <KeyRound className="w-3 h-3" />
-    <span>مفتاح مرور{count && count > 1 ? ` (${count})` : ''}</span>
-  </span>
-);
+export const PasskeyChip: React.FC<{ count?: number; className?: string }> = ({ count, className = '' }) => {
+  const { t } = useAdminT();
+  return (
+    <span
+      className={`${CHIP_BASE} bg-amber-500/10 text-amber-500 border-amber-500/20 ${className}`}
+      title={t('users.passkeyChipTitle', { count: count || 1 })}
+    >
+      <KeyRound className="w-3 h-3" />
+      <span>{count && count > 1 ? t('users.passkeyChipCount', { count }) : t('users.passkeyChipSingle')}</span>
+    </span>
+  );
+};
 
 export const RolePill: React.FC<{ label: string }> = ({ label }) => (
   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 whitespace-nowrap inline-block">
@@ -63,11 +95,12 @@ export const PermissionPills: React.FC<{
   labels: Record<keyof AdminPermissions, string>;
   isSuperAdmin: boolean;
 }> = ({ permissions, labels, isSuperAdmin }) => {
+  const { t } = useAdminT();
   const granted = PERMISSION_KEYS.filter((key) => permissions[key]);
   if (granted.length === 0) {
     return (
       <span className="text-[10px] text-neutral-text/50">
-        {isSuperAdmin ? 'يملك كل الصلاحيات بحكم الدور' : 'لا توجد صلاحيات — عرض فقط'}
+        {isSuperAdmin ? t('users.allPermissionsRole') : t('users.noPermissionsReadOnly')}
       </span>
     );
   }
@@ -87,12 +120,15 @@ export const PermissionPills: React.FC<{
 };
 
 export const PermissionCount: React.FC<{ permissions: AdminPermissions }> = ({ permissions }) => {
+  const { t } = useAdminT();
   const count = countPermissions(permissions);
   if (count === 0) return <span className="text-neutral-text/45">—</span>;
   return (
     <span className="inline-flex items-center gap-1 text-heading">
       <span className="font-bold tabular-nums">{count}</span>
-      <span className="text-[10px] text-neutral-text/50">من {PERMISSION_KEYS.length}</span>
+      <span className="text-[10px] text-neutral-text/50">
+        {t('users.permissionsCountOf', { count: '', total: PERMISSION_KEYS.length }).trim()}
+      </span>
     </span>
   );
 };
@@ -135,8 +171,9 @@ export const UserActions: React.FC<UserActionsProps> = ({
   onResetPasskeys,
   variant,
 }) => {
+  const { t } = useAdminT();
   const suspending = user.status === 'active';
-  const toggleLabel = suspending ? 'تعطيل الحساب' : 'تنشيط الحساب';
+  const toggleLabel = suspending ? t('users.suspendAccount') : t('users.activateAccount');
   const labelled = variant === 'labels';
 
   const editButton = (
@@ -144,8 +181,8 @@ export const UserActions: React.FC<UserActionsProps> = ({
       type="button"
       onClick={() => onEdit(user)}
       disabled={!rights.canEdit}
-      title={rights.editHint ?? 'تعديل البيانات والصلاحيات'}
-      aria-label={`تعديل ${user.name}`}
+      title={rights.editHint ?? t('users.editHint')}
+      aria-label={`${t('users.edit')} ${user.name}`}
       className={
         labelled
           ? `${LABEL_BUTTON} border-muted-border/40 hover:border-accent text-neutral-text/70 hover:text-accent bg-surface/50`
@@ -153,7 +190,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       }
     >
       <Pencil className="w-3 h-3" />
-      {labelled && <span>تعديل</span>}
+      {labelled && <span>{t('users.edit')}</span>}
     </button>
   );
 
@@ -177,7 +214,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       }
     >
       {suspending ? <LogOut className="w-3 h-3" /> : <LogIn className="w-3 h-3" />}
-      {labelled && <span>{suspending ? 'تعطيل' : 'تنشيط'}</span>}
+      {labelled && <span>{suspending ? t('users.suspend') : t('users.activate')}</span>}
     </button>
   );
 
@@ -186,8 +223,8 @@ export const UserActions: React.FC<UserActionsProps> = ({
     <button
       type="button"
       onClick={() => onResendVerification(user)}
-      title="إعادة إرسال رابط التفعيل"
-      aria-label="إعادة إرسال رابط التفعيل"
+      title={t('users.resendVerificationHint')}
+      aria-label={t('users.resendVerificationHint')}
       className={
         labelled
           ? `${LABEL_BUTTON} border-muted-border/40 hover:border-accent text-neutral-text/70 hover:text-accent bg-surface/50`
@@ -195,7 +232,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       }
     >
       <MailCheck className="w-3 h-3" />
-      {labelled && <span>إعادة إرسال الرابط</span>}
+      {labelled && <span>{t('users.resendVerification')}</span>}
     </button>
   );
 
@@ -205,8 +242,8 @@ export const UserActions: React.FC<UserActionsProps> = ({
       type="button"
       onClick={() => onMarkVerified(user)}
       disabled={!rights.canMarkVerified}
-      title={rights.markVerifiedHint ?? 'تأكيد الحساب يدويًا'}
-      aria-label={`تأكيد حساب ${user.name}`}
+      title={rights.markVerifiedHint ?? t('users.markVerifiedHint')}
+      aria-label={`${t('users.markVerified')}: ${user.name}`}
       className={
         labelled
           ? `${LABEL_BUTTON} border-accent/30 text-accent hover:bg-accent/10`
@@ -214,7 +251,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       }
     >
       <CheckCircle2 className="w-3 h-3" />
-      {labelled && <span>تأكيد الحساب</span>}
+      {labelled && <span>{t('users.markVerified')}</span>}
     </button>
   );
 
@@ -224,8 +261,8 @@ export const UserActions: React.FC<UserActionsProps> = ({
       type="button"
       onClick={() => onResetTotp(user)}
       disabled={!rights.canResetTotp}
-      title={rights.resetTotpHint ?? 'إعادة تعيين التحقق بتطبيق المصادقة'}
-      aria-label={`إعادة تعيين التحقق بتطبيق المصادقة لحساب ${user.name}`}
+      title={rights.resetTotpHint ?? t('users.resetTotpHint')}
+      aria-label={`${t('users.resetTotpHint')}: ${user.name}`}
       className={
         labelled
           ? `${LABEL_BUTTON} border-amber-500/30 text-amber-600 hover:bg-amber-500/10`
@@ -233,7 +270,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       }
     >
       <ShieldOff className="w-3 h-3" />
-      {labelled && <span>إعادة تعيين 2FA</span>}
+      {labelled && <span>{t('users.resetTotp')}</span>}
     </button>
   );
 
@@ -243,8 +280,8 @@ export const UserActions: React.FC<UserActionsProps> = ({
       type="button"
       onClick={() => onResetPasskeys(user)}
       disabled={!rights.canResetPasskeys}
-      title={rights.resetPasskeysHint ?? 'إعادة تعيين مفاتيح المرور'}
-      aria-label={`إعادة تعيين مفاتيح المرور لحساب ${user.name}`}
+      title={rights.resetPasskeysHint ?? t('users.resetPasskeysHint')}
+      aria-label={`${t('users.resetPasskeysHint')}: ${user.name}`}
       className={
         labelled
           ? `${LABEL_BUTTON} border-amber-500/30 text-amber-600 hover:bg-amber-500/10`
@@ -252,7 +289,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       }
     >
       <KeyRound className="w-3 h-3" />
-      {labelled && <span>إعادة تعيين مفاتيح المرور</span>}
+      {labelled && <span>{t('users.resetPasskeys')}</span>}
     </button>
   );
 
@@ -261,8 +298,8 @@ export const UserActions: React.FC<UserActionsProps> = ({
       type="button"
       onClick={() => onDelete(user)}
       disabled={!rights.canDelete}
-      title={rights.deleteHint ?? 'حذف الحساب'}
-      aria-label={`حذف ${user.name}`}
+      title={rights.deleteHint ?? t('users.deleteHint')}
+      aria-label={`${t('users.delete')} ${user.name}`}
       className={
         labelled
           ? `${LABEL_BUTTON} border-red-500/30 text-red-500 hover:bg-red-500/10`
@@ -270,7 +307,7 @@ export const UserActions: React.FC<UserActionsProps> = ({
       }
     >
       <Trash2 className="w-3 h-3" />
-      {labelled && <span>حذف</span>}
+      {labelled && <span>{t('users.delete')}</span>}
     </button>
   );
 

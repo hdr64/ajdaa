@@ -829,7 +829,7 @@ export const ProjectEditSection: React.FC = () => {
 
   if (!can('manageProjects')) return <NoAccess />;
   if (projects.error) return <SectionError message={projects.error} onRetry={() => void projects.reload()} />;
-  if (!project && projects.loading) return <SectionLoading label={t('projectEdit.loading')} />;
+  if (!project && projects.loading) return <SectionLoading variant="form" label={t('projectEdit.loading')} />;
   if (!project) {
     return (
       <EmptyState

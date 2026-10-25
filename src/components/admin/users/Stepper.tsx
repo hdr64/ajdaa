@@ -6,13 +6,9 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 
-export type WizardStep = 1 | 2 | 3;
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
-const STEP_LABELS: Record<WizardStep, string> = {
-  1: 'الحساب',
-  2: 'الدور والصلاحيات',
-  3: 'كلمة المرور والمراجعة',
-};
+export type WizardStep = 1 | 2 | 3;
 
 interface StepperProps {
   currentStep: WizardStep;
@@ -27,11 +23,17 @@ export const Stepper: React.FC<StepperProps> = ({
   onStepClick,
   disabledSteps = new Set(),
 }) => {
+  const { t } = useAdminT();
   const steps: WizardStep[] = [1, 2, 3];
+  const stepLabels: Record<WizardStep, string> = {
+    1: t('users.step1'),
+    2: t('users.step2'),
+    3: t('users.step3'),
+  };
 
   return (
     <nav
-      aria-label="خطوات إنشاء الحساب"
+      aria-label={t('users.stepperAria')}
       className="flex items-center justify-center gap-2 sm:gap-4 px-4 py-3 border-b border-muted-border/30"
     >
       {steps.map((step, index) => {
@@ -70,7 +72,7 @@ export const Stepper: React.FC<StepperProps> = ({
                 {isCompleted ? <Check className="w-4.5 h-4.5" /> : <span className="text-xs sm:text-sm font-black">{step}</span>}
               </div>
               <span className="text-[10px] sm:text-[11px] font-bold whitespace-nowrap">
-                {STEP_LABELS[step]}
+                {stepLabels[step]}
               </span>
             </button>
             {showConnector && (

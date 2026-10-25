@@ -283,7 +283,7 @@ export const NotificationListenersPanel: React.FC = () => {
   };
 
   if (error) return <SectionError message={error} onRetry={() => void load()} />;
-  if (!data) return <SectionLoading label="جاري تحميل إعدادات الإشعارات..." />;
+  if (!data) return <SectionLoading variant="form" label="جاري تحميل إعدادات الإشعارات..." />;
 
   return (
     <div className="space-y-4">

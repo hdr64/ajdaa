@@ -185,8 +185,16 @@ export const AdminStorage = {
     return authService.resetPasskeys(userId);
   },
 
-  updateProfile(input: { name?: string; email?: string; phone?: string | null }): Promise<AdminUser> {
+  updateProfile(input: { name?: string; email?: string; phone?: string | null; avatar?: string | null }): Promise<AdminUser> {
     return authService.updateProfile(input);
+  },
+
+  uploadAvatar(file: File): Promise<AdminUser> {
+    return authService.uploadAvatar(file);
+  },
+
+  deleteAvatar(): Promise<AdminUser> {
+    return authService.deleteAvatar();
   },
 
   changePassword(

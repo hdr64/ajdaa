@@ -36,6 +36,7 @@ model AdminUser {
   passwordHash      String
   name              String
   phone             String?
+  avatar            String?
   role              String      @default("sales_agent") // super_admin | project_manager | sales_agent | viewer
   roleAr            String      @default("مسؤول مبيعات")
   roleId            String?

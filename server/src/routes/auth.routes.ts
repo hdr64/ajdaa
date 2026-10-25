@@ -56,6 +56,7 @@ import {
   verifyLogin,
 } from '../services/passkeyService.js';
 import type { RegistrationResponseJSON, AuthenticationResponseJSON } from '@simplewebauthn/server';
+import { processAndSaveFile, detectMediaType } from '../services/mediaService.js';
 
 const passkeyRegisterOptionsSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
@@ -160,6 +161,7 @@ const updateProfileSchema = z
     name: z.string().trim().min(1).optional(),
     email: z.string().trim().toLowerCase().email().optional(),
     phone: z.string().trim().nullish(),
+    avatar: z.string().trim().nullish(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 
@@ -565,6 +567,7 @@ function serializeUser(user: {
   name: string;
   email: string;
   phone?: string | null;
+  avatar?: string | null;
   role: string;
   roleAr: string;
   roleId?: string | null;
@@ -585,6 +588,7 @@ function serializeUser(user: {
     name: user.name,
     email: user.email,
     phone: user.phone ?? null,
+    avatar: user.avatar ?? null,
     role: user.role,
     roleAr: user.roleAr,
     roleId: user.roleId ?? null,
@@ -1350,10 +1354,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const updateData: { name?: string; email?: string; phone?: string | null } = {};
+      const updateData: { name?: string; email?: string; phone?: string | null; avatar?: string | null } = {};
       if (data.name !== undefined) updateData.name = data.name;
       if (data.email !== undefined) updateData.email = data.email;
       if (data.phone !== undefined) updateData.phone = data.phone || null;
+      if (data.avatar !== undefined) updateData.avatar = data.avatar || null;
 
       const updated = await prisma.adminUser.update({
         where: { id: request.user.id },
@@ -1362,6 +1367,52 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       return reply.status(200).send({ user: serializeUser(updated) });
+    }
+  );
+
+  // Upload own avatar image
+  fastify.post(
+    '/me/avatar',
+    { onRequest: [authenticate] },
+    async (request, reply) => {
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ error: 'No image uploaded' });
+      }
+
+      const buffer = await data.toBuffer();
+      if (data.file.truncated || buffer.length > 5 * 1024 * 1024) {
+        return reply.status(413).send({ error: 'Image exceeds 5 MB limit' });
+      }
+
+      const detected = detectMediaType(buffer);
+      if (detected !== 'image') {
+        return reply.status(400).send({ error: 'Only image files (PNG, JPEG, WebP) are allowed as avatars' });
+      }
+
+      const stored = await processAndSaveFile(buffer, data.filename);
+      const updated = await prisma.adminUser.update({
+        where: { id: request.user.id },
+        data: { avatar: stored.url },
+        include: { departmentRef: true, roleRef: true },
+      });
+
+      return reply.status(200).send({ avatar: stored.url, user: serializeUser(updated) });
+    }
+  );
+
+  // Delete own avatar image
+  fastify.delete(
+    '/me/avatar',
+    { onRequest: [authenticate] },
+    async (request, reply) => {
+      const updated = await prisma.adminUser.update({
+        where: { id: request.user.id },
+        data: { avatar: null },
+        include: { departmentRef: true, roleRef: true },
+      });
+
+      return reply.status(200).send({ success: true, user: serializeUser(updated) });
     }
   );
 

@@ -12,6 +12,7 @@ import type { Department, PermissionDef, Role } from '../../../types/admin';
 import { ApiError, getErrorMessage } from '../../../services/api';
 import { useAsyncData, type AsyncResource } from '../../../hooks/useAsyncData';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { getUserRights, type RightsContext, type ToggleableAdminStatus, type UserRights } from './usersModel';
 
 export interface DirectoryReference {
@@ -35,37 +36,9 @@ export interface UsersDirectory {
   resetPasskeys: (user: AdminUser) => Promise<void>;
 }
 
-interface StatusCopy {
-  /** Verb used in the single-account confirm title. */
-  label: string;
-  message: string;
-  confirmLabel: string;
-  danger: boolean;
-}
-
-const STATUS_COPY: Record<ToggleableAdminStatus, StatusCopy> = {
-  active: {
-    label: 'تنشيط',
-    message: 'سيتمكن من الدخول إلى لوحة التحكم فوراً بجميع صلاحياته.',
-    confirmLabel: 'تنشيط الحساب',
-    danger: false,
-  },
-  suspended: {
-    label: 'تعطيل',
-    message: 'سيتم تسجيل خروجه فوراً ولن يتمكن من الدخول حتى إعادة التنشيط.',
-    confirmLabel: 'تعطيل الحساب',
-    danger: true,
-  },
-};
-
-const DELETE_CONFIRM = {
-  title: (name: string) => `حذف المستخدم "${name}"؟`,
-  message: 'سيفقد هذا الحساب الوصول إلى لوحة التحكم نهائياً، وسيُحذف من النظام ولا يمكن التراجع عن ذلك.',
-  confirmLabel: 'حذف المستخدم',
-};
-
 export function useUsersDirectory(showToast: (message: string) => void): UsersDirectory {
   const { currentUser, isSuperAdmin, can, confirm, confirmDelete } = useAdmin();
+  const { t } = useAdminT();
 
   const users = useAsyncData<AdminUser[]>(useCallback((signal) => AdminStorage.getUsers(signal), []), [], []);
   const reloadUsers = users.reload;
@@ -106,24 +79,24 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
 
   const setStatus = useCallback(
     async (user: AdminUser, status: ToggleableAdminStatus) => {
-      const copy = STATUS_COPY[status];
+      const isAct = status === 'active';
       const ok = await confirm({
-        title: `${copy.label} حساب "${user.name}"؟`,
-        message: copy.message,
-        confirmLabel: copy.confirmLabel,
-        danger: copy.danger,
+        title: isAct ? t('users.confirmActivateTitle', { name: user.name }) : t('users.confirmSuspendTitle', { name: user.name }),
+        message: isAct ? t('users.confirmActivateMessage') : t('users.confirmSuspendMessage'),
+        confirmLabel: isAct ? t('users.activateAccount') : t('users.suspendAccount'),
+        danger: !isAct,
         rememberKey: 'user.status',
       });
       if (!ok) return;
       try {
         await AdminStorage.setUserStatus(user.id, status);
         await reloadUsers();
-        showToast(`تم ${copy.label} حساب ${user.name}`);
+        showToast(isAct ? t('users.toastActivated', { name: user.name }) : t('users.toastSuspended', { name: user.name }));
       } catch (error) {
-        showToast(getErrorMessage(error, 'تعذر تغيير حالة الحساب'));
+        showToast(getErrorMessage(error, t('users.toastStatusError')));
       }
     },
-    [confirm, reloadUsers, showToast]
+    [confirm, reloadUsers, showToast, t]
   );
 
   /**
@@ -134,26 +107,25 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   const setManyStatus = useCallback(
     async (selected: AdminUser[], status: ToggleableAdminStatus) => {
       if (selected.length === 0) return;
-      const copy = STATUS_COPY[status];
+      const isAct = status === 'active';
+      const label = isAct ? t('users.activate') : t('users.suspend');
       const targets = selected.filter((user) => {
         const rights = getUserRights(user, rightsContext);
         return !rights.accessLocked && user.status !== status;
       });
       const skipped = selected.length - targets.length;
       if (targets.length === 0) {
-        showToast('لا توجد حسابات مؤهلة لهذا الإجراء');
+        showToast(t('users.bulkNoEligible'));
         return;
       }
 
+      const baseMessage = isAct ? t('users.confirmActivateMessage') : t('users.confirmSuspendMessage');
+      const detail = skipped > 0 ? t('users.bulkSkipNotice', { count: skipped }) : t('users.bulkOnlySelectedNotice');
       const ok = await confirm({
-        title: `${copy.label} ${targets.length} من الحسابات المحددة؟`,
-        message: `${copy.message} ${
-          skipped > 0
-            ? `سيتم تجاوز ${skipped} حساب محمي أو موجود في الحالة المطلوبة أصلاً.`
-            : 'سيتم تطبيق الإجراء على الحسابات المحددة فقط.'
-        }`,
-        confirmLabel: copy.confirmLabel,
-        danger: copy.danger,
+        title: t('users.confirmBulkTitle', { action: label, count: targets.length }),
+        message: `${baseMessage} ${detail}`,
+        confirmLabel: isAct ? t('users.activateAccount') : t('users.suspendAccount'),
+        danger: !isAct,
       });
       if (!ok) return;
 
@@ -168,31 +140,28 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
       await reloadUsers();
 
       const succeeded = targets.length - failures;
-      let message = `تم ${copy.label} ${succeeded} من ${selected.length} حساب`;
-      if (skipped > 0) message += ` (تم تجاوز ${skipped} غير مؤهل)`;
-      if (failures > 0) message += `، وتعذر تنفيذ ${failures} منها`;
-      showToast(message);
+      showToast(t('users.toastBulkSuccess', { action: label, count: succeeded, total: selected.length }));
     },
-    [confirm, rightsContext, reloadUsers, showToast]
+    [confirm, rightsContext, reloadUsers, showToast, t]
   );
 
   const remove = useCallback(
     async (user: AdminUser) => {
       const ok = await confirmDelete({
-        title: DELETE_CONFIRM.title(user.name),
-        message: DELETE_CONFIRM.message,
-        confirmLabel: DELETE_CONFIRM.confirmLabel,
+        title: t('users.confirmDeleteTitle', { name: user.name }),
+        message: t('users.confirmDeleteMessage'),
+        confirmLabel: t('users.confirmDeleteBtn'),
       });
       if (!ok) return;
       try {
         await AdminStorage.deleteUser(user.id);
         await reloadUsers();
-        showToast(`تم حذف المستخدم ${user.name}`);
+        showToast(t('users.toastDeleted', { name: user.name }));
       } catch (error) {
-        showToast(getErrorMessage(error, 'تعذر حذف المستخدم'));
+        showToast(getErrorMessage(error, t('users.toastDeleteError')));
       }
     },
-    [confirmDelete, reloadUsers, showToast]
+    [confirmDelete, reloadUsers, showToast, t]
   );
 
   /**
@@ -205,13 +174,13 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
       try {
         await AdminStorage.resendVerification(user.id);
         await reloadUsers();
-        showToast(`تم إعادة إرسال رابط التفعيل إلى ${user.name}`);
+        showToast(t('users.toastResent', { name: user.name }));
       } catch (error) {
         if (error instanceof ApiError && error.status === 429) showToast(error.message);
-        else showToast(getErrorMessage(error, 'تعذر إعادة إرسال رابط التفعيل'));
+        else showToast(getErrorMessage(error, t('users.toastResendError')));
       }
     },
-    [reloadUsers, showToast]
+    [reloadUsers, showToast, t]
   );
 
   /**
@@ -223,9 +192,9 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   const markVerified = useCallback(
     async (user: AdminUser) => {
       const ok = await confirm({
-        title: 'تأكيد الحساب يدويًا؟',
-        message: `سيتم تأكيد بريد "${user.name}" وتنشيط الحساب دون الحاجة إلى الرابط أو الرمز المرسل بالبريد. إذا كان الحساب دعوة، سيُطلب من مستخدمه اختيار كلمة مرور عبر "نسيت كلمة المرور" عند أول دخول.`,
-        confirmLabel: 'تأكيد الحساب',
+        title: t('users.confirmMarkVerifiedTitle'),
+        message: t('users.confirmMarkVerifiedMessage', { name: user.name }),
+        confirmLabel: t('users.markVerified'),
         danger: false,
       });
       if (!ok) return;
@@ -233,15 +202,15 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
         const result = await AdminStorage.markVerified(user.id);
         await reloadUsers();
         if (result.needsPassword) {
-          showToast(`تم تأكيد الحساب. على ${user.name} اختيار كلمة مرور عبر "نسيت كلمة المرور" عند أول دخول.`);
+          showToast(t('users.toastMarkVerifiedNeedsPassword', { name: user.name }));
         } else {
-          showToast(`تم تأكيد حساب ${user.name} وتنشيطه`);
+          showToast(t('users.toastMarkVerifiedSuccess', { name: user.name }));
         }
       } catch (error) {
-        showToast(getErrorMessage(error, 'تعذر تأكيد الحساب'));
+        showToast(getErrorMessage(error, t('users.toastMarkVerifiedError')));
       }
     },
-    [confirm, reloadUsers, showToast]
+    [confirm, reloadUsers, showToast, t]
   );
 
   /**
@@ -251,21 +220,21 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   const resetTotp = useCallback(
     async (user: AdminUser) => {
       const ok = await confirm({
-        title: 'إعادة تعيين التحقق بتطبيق المصادقة؟',
-        message: `سيتم فصل تطبيق المصادقة عن حساب "${user.name}" وحذف رموز الاسترداد. سيتمكن من الدخول بكلمة المرور فقط حتى يعيد ربط تطبيق المصادقة.`,
-        confirmLabel: 'إعادة التعيين',
+        title: t('users.confirmResetTotpTitle'),
+        message: t('users.confirmResetTotpMessage', { name: user.name }),
+        confirmLabel: t('users.resetTotp'),
         danger: true,
       });
       if (!ok) return;
       try {
         await AdminStorage.resetUserTotp(user.id);
         await reloadUsers();
-        showToast(`تم إعادة تعيين التحقق بتطبيق المصادقة لحساب ${user.name}`);
+        showToast(t('users.toastResetTotpSuccess', { name: user.name }));
       } catch (error) {
-        showToast(getErrorMessage(error, 'تعذر إعادة تعيين التحقق بتطبيق المصادقة'));
+        showToast(getErrorMessage(error, t('users.toastResetTotpError')));
       }
     },
-    [confirm, reloadUsers, showToast]
+    [confirm, reloadUsers, showToast, t]
   );
 
   /**
@@ -275,21 +244,21 @@ export function useUsersDirectory(showToast: (message: string) => void): UsersDi
   const resetPasskeys = useCallback(
     async (user: AdminUser) => {
       const ok = await confirm({
-        title: 'إعادة تعيين مفاتيح المرور؟',
-        message: `سيتم حذف جميع مفاتيح المرور المسجلة لحساب "${user.name}". سيتم إرسال إشعار بريدي لصاحب الحساب، وسيتمكن من الدخول بكلمة المرور.`,
-        confirmLabel: 'إعادة التعيين',
+        title: t('users.confirmResetPasskeysTitle'),
+        message: t('users.confirmResetPasskeysMessage', { name: user.name }),
+        confirmLabel: t('users.resetPasskeys'),
         danger: true,
       });
       if (!ok) return;
       try {
         await AdminStorage.resetUserPasskeys(user.id);
         await reloadUsers();
-        showToast(`تم إعادة تعيين مفاتيح المرور لحساب ${user.name}`);
+        showToast(t('users.toastResetPasskeysSuccess', { name: user.name }));
       } catch (error) {
-        showToast(getErrorMessage(error, 'تعذر إعادة تعيين مفاتيح المرور'));
+        showToast(getErrorMessage(error, t('users.toastResetPasskeysError')));
       }
     },
-    [confirm, reloadUsers, showToast]
+    [confirm, reloadUsers, showToast, t]
   );
 
   return {

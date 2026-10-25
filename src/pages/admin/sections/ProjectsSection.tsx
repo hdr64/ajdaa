@@ -185,7 +185,7 @@ export const ProjectsSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label={t('projects.loading')} />
+        <SectionLoading variant={view === 'grid' ? 'cards' : 'table'} label={t('projects.loading')} />
       </>
     );
   }

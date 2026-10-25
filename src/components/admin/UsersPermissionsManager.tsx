@@ -4,6 +4,7 @@ import type { AdminPermissions, AdminStatus, AdminUser } from '../../types/admin
 import { AdminStorage } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
 import { useAdmin } from '../../pages/admin/adminContextDef';
+import { useAdminT } from '../../i18n/admin/useAdminT';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { AdminHeaderActions } from './layout/AdminHeaderActions';
 import { GridColumnsSwitcher, ViewSwitcher } from './common/ViewSwitcher';
@@ -15,7 +16,7 @@ import { UsersTable } from './users/UsersTable';
 import { UsersGrid } from './users/UsersGrid';
 import { UsersList } from './users/UsersList';
 import { UserFormDialog } from './users/UserFormDialog';
-import { PERMISSION_LABELS, STATUS_LABELS, userSearchText, type ToggleableAdminStatus } from './users/usersModel';
+import { PERMISSION_LABELS, userSearchText, type ToggleableAdminStatus } from './users/usersModel';
 
 interface UsersPermissionsManagerProps {
   onShowToast: (msg: string) => void;
@@ -28,21 +29,25 @@ const COLUMNS_STORAGE_KEY = 'ajda.admin.users.gridColumns';
 
 type StatusFilter = 'all' | AdminStatus;
 
-const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-  { key: 'all', label: 'الكل' },
-  { key: 'active', label: STATUS_LABELS.active },
-  { key: 'pending', label: STATUS_LABELS.pending },
-  { key: 'suspended', label: STATUS_LABELS.suspended },
-];
-
 const NEW_USER_BUTTON =
   'brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs';
 
 export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = ({ onShowToast }) => {
   const { isSuperAdmin, can } = useAdmin();
+  const { t } = useAdminT();
   const [view, setView] = usePersistentState<ViewMode>(VIEW_STORAGE_KEY, 'table', isViewMode);
   const [gridColumns, setGridColumns] = usePersistentState<GridColumns>(COLUMNS_STORAGE_KEY, 3, isGridColumns);
   const [exporting, setExporting] = useState(false);
+
+  const statusFilters = useMemo<{ key: StatusFilter; label: string }[]>(
+    () => [
+      { key: 'all', label: t('users.filterAll') },
+      { key: 'active', label: t('users.statusActive') },
+      { key: 'pending', label: t('users.statusPending') },
+      { key: 'suspended', label: t('users.statusSuspended') },
+    ],
+    [t]
+  );
 
   // The table owns its own search box and filters, so a query typed for the cards
   // must not keep narrowing rows once the table takes over.
@@ -112,7 +117,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     try {
       await AdminStorage.exportUsersCsv();
     } catch (error) {
-      onShowToast(getErrorMessage(error, 'تعذر تصدير الملف'));
+      onShowToast(getErrorMessage(error, t('users.loadError')));
     } finally {
       setExporting(false);
     }
@@ -123,7 +128,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
       <ViewSwitcher value={view} onChange={setView} modes={VIEW_MODES} />
       <button type="button" onClick={openCreate} className={NEW_USER_BUTTON}>
         <UserPlus className="w-4 h-4" />
-        <span className="hidden sm:inline">مستخدم جديد</span>
+        <span className="hidden sm:inline">{t('users.newUser')}</span>
       </button>
       {can('manageUsers') && can('exportData') && (
         <button
@@ -131,10 +136,10 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
           onClick={() => void handleExport()}
           disabled={exporting || users.data.length === 0}
           className="brand-btn-primary font-black px-3 sm:px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-          title="تصدير كل المستخدمين"
+          title={t('users.export')}
         >
           {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          <span className="hidden sm:inline">تصدير CSV</span>
+          <span className="hidden sm:inline">{t('users.export')}</span>
         </button>
       )}
     </AdminHeaderActions>
@@ -152,7 +157,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
     return (
       <>
         {header}
-        <SectionLoading label="جاري تحميل المستخدمين..." />
+        <SectionLoading label={t('users.loading')} />
       </>
     );
   }
@@ -162,12 +167,12 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
         {header}
         <EmptyState
           icon={UsersIcon}
-          title="لا يوجد مستخدمون مسجلون"
-          description="ابدأ بإضافة عضو جديد إلى فريق العمل، ثم خصّص له الدور والقسم والصلاحيات."
+          title={t('users.emptyTitle')}
+          description={t('users.subtitle')}
           action={
             <button type="button" onClick={openCreate} className={`${NEW_USER_BUTTON} px-5`}>
               <UserPlus className="w-4 h-4" />
-              إضافة أول مستخدم
+              {t('users.newUser')}
             </button>
           }
         />
@@ -194,14 +199,15 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
   const noMatches = (
     <EmptyState
       icon={SearchX}
-      title="لا توجد حسابات مطابقة"
+      title={t('users.emptyFilterTitle')}
+      description={t('users.emptyFilterDesc')}
       action={
         <button
           type="button"
           onClick={clearFilters}
           className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
         >
-          مسح عوامل التصفية
+          {t('users.clearFilters')}
         </button>
       }
     />
@@ -216,15 +222,15 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="ابحث بالاسم، البريد الإلكتروني أو القسم..."
-          aria-label="بحث في المستخدمين"
+          placeholder={t('users.searchPlaceholder')}
+          aria-label={t('users.searchPlaceholder')}
           className="w-full ps-10 pe-9 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
         />
         {search !== '' && (
           <button
             type="button"
             onClick={() => setSearch('')}
-            aria-label="مسح البحث"
+            aria-label={t('users.clearFilters')}
             className="absolute end-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
@@ -233,7 +239,7 @@ export const UsersPermissionsManager: React.FC<UsersPermissionsManagerProps> = (
       </div>
 
       <div className="flex items-center gap-1.5 overflow-x-auto">
-        {STATUS_FILTERS.map((filter) => (
+        {statusFilters.map((filter) => (
           <button
             key={filter.key}
             type="button"

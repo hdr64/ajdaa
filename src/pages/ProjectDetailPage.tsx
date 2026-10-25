@@ -25,8 +25,7 @@ import {
   Compass,
   Maximize2,
   ExternalLink,
-  Download,
-  RefreshCw
+  Download
 } from 'lucide-react';
 
 const PROJECT_AMENITIES = [
@@ -151,11 +150,64 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 px-4 pt-32">
-        <RefreshCw className="w-6 h-6 text-accent animate-spin" />
-        <p className="text-sm text-neutral-text/60">
-          {isAr ? 'جاري تحميل بيانات المشروع...' : 'Loading project details...'}
-        </p>
+      <div className="min-h-screen pt-28 sm:pt-36 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 animate-pulse">
+        {/* Breadcrumb & Title skeleton */}
+        <div className="space-y-3">
+          <div className="h-4 w-48 rounded-lg bg-muted-border/30" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="h-8 w-72 rounded-xl bg-muted-border/40" />
+              <div className="h-4 w-40 rounded-lg bg-muted-border/25" />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-28 rounded-xl bg-muted-border/30" />
+              <div className="h-10 w-28 rounded-xl bg-muted-border/30" />
+            </div>
+          </div>
+        </div>
+
+        {/* Gallery hero skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 aspect-[16/10] rounded-3xl bg-surface border border-muted-border/40 overflow-hidden" />
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-4">
+            <div className="aspect-[16/10] rounded-2xl bg-surface border border-muted-border/40" />
+            <div className="aspect-[16/10] rounded-2xl bg-surface border border-muted-border/40" />
+          </div>
+        </div>
+
+        {/* Details & Specs skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="rounded-3xl bg-surface border border-muted-border/40 p-6 sm:p-8 space-y-4">
+              <div className="h-5 w-36 rounded-lg bg-muted-border/35" />
+              <div className="space-y-2">
+                <div className="h-4 w-full rounded bg-muted-border/25" />
+                <div className="h-4 w-5/6 rounded bg-muted-border/25" />
+                <div className="h-4 w-4/6 rounded bg-muted-border/25" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-2xl bg-surface border border-muted-border/40 p-4 space-y-2">
+                  <div className="h-3 w-16 rounded bg-muted-border/25" />
+                  <div className="h-5 w-24 rounded bg-muted-border/35" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-3xl bg-surface border border-muted-border/40 p-6 space-y-4">
+              <div className="h-5 w-32 rounded-lg bg-muted-border/35" />
+              <div className="space-y-3">
+                <div className="h-11 rounded-xl bg-canvas border border-muted-border/30" />
+                <div className="h-11 rounded-xl bg-canvas border border-muted-border/30" />
+                <div className="h-24 rounded-xl bg-canvas border border-muted-border/30" />
+                <div className="h-11 rounded-xl bg-muted-border/40" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

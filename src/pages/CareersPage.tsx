@@ -94,8 +94,36 @@ export const CareersPage: React.FC<CareersPageProps> = () => {
 
   if (loadingConfig) {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-accent animate-spin" />
+      <div className="pt-28 sm:pt-36 pb-24 min-h-screen">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-pulse">
+          <div className="text-center space-y-3">
+            <div className="h-6 w-32 rounded-full bg-muted-border/30 mx-auto" />
+            <div className="h-10 w-72 rounded-2xl bg-muted-border/40 mx-auto" />
+            <div className="h-4 w-96 max-w-full rounded-lg bg-muted-border/25 mx-auto" />
+          </div>
+
+          <div className="rounded-3xl bg-surface border border-muted-border/40 p-6 sm:p-8 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="h-3 w-20 rounded bg-muted-border/25" />
+                <div className="h-11 rounded-xl bg-canvas border border-muted-border/30" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-3 w-28 rounded bg-muted-border/25" />
+                <div className="h-11 rounded-xl bg-canvas border border-muted-border/30" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 w-24 rounded bg-muted-border/25" />
+              <div className="h-11 rounded-xl bg-canvas border border-muted-border/30" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 w-32 rounded bg-muted-border/25" />
+              <div className="h-32 rounded-xl bg-canvas border border-muted-border/30" />
+            </div>
+            <div className="h-12 w-full rounded-xl bg-muted-border/35" />
+          </div>
+        </div>
       </div>
     );
   }

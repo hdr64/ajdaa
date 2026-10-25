@@ -68,6 +68,7 @@ interface UserDto {
   name: string;
   email: string;
   phone?: string | null;
+  avatar?: string | null;
   role: string;
   roleAr: string;
   roleId?: string | null;
@@ -140,6 +141,7 @@ export function toAdminUser(dto: UserDto): AdminUser {
     name: dto.name,
     email: dto.email,
     phone: dto.phone ?? null,
+    avatar: dto.avatar ?? null,
     role: normalizeRole(dto.role),
     roleAr: dto.roleAr,
     roleId: dto.roleId ?? null,
@@ -332,8 +334,20 @@ export const authService = {
     return toAdminUser(updated);
   },
 
-  async updateProfile(input: { name?: string; email?: string; phone?: string | null }): Promise<AdminUser> {
+  async updateProfile(input: { name?: string; email?: string; phone?: string | null; avatar?: string | null }): Promise<AdminUser> {
     const result = await api.patch<{ user: UserDto }>('/api/auth/me', input);
+    return toAdminUser(result.user);
+  },
+
+  async uploadAvatar(file: File): Promise<AdminUser> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const result = await api.upload<{ avatar: string; user: UserDto }>('/api/auth/me/avatar', formData);
+    return toAdminUser(result.user);
+  },
+
+  async deleteAvatar(): Promise<AdminUser> {
+    const result = await api.delete<{ success: boolean; user: UserDto }>('/api/auth/me/avatar');
     return toAdminUser(result.user);
   },
 
@@ -478,6 +492,8 @@ export const verifyPasskeyLogin = authService.verifyPasskeyLogin.bind(authServic
 export const listPasskeys = authService.listPasskeys.bind(authService);
 export const renamePasskey = authService.renamePasskey.bind(authService);
 export const deletePasskey = authService.deletePasskey.bind(authService);
+export const uploadAvatar = authService.uploadAvatar.bind(authService);
+export const deleteAvatar = authService.deleteAvatar.bind(authService);
 export const resetPasskeys = authService.resetPasskeys.bind(authService);
 
 

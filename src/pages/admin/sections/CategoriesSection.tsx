@@ -598,7 +598,7 @@ export const CategoriesSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label={t('categories.loading')} />
+        <SectionLoading variant="cards" label={t('categories.loading')} />
       </>
     );
   }

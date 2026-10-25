@@ -54,7 +54,7 @@ export const AnnouncementPanel: React.FC = () => {
   );
 
   if (error) return <SectionError message={error} onRetry={() => setReloadToken((n) => n + 1)} />;
-  if (!saved || !announcement || !maintenance) return <SectionLoading label="جاري التحميل..." />;
+  if (!saved || !announcement || !maintenance) return <SectionLoading variant="form" label="جاري التحميل..." />;
 
   const save = async () => {
     const problem = problemIn(announcement, maintenance);

@@ -237,15 +237,23 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
             } ${rail ? 'md:justify-center' : ''}`}
             title={rail ? `${currentUser?.name ?? ''} · ${t('common.entity.profile')}` : undefined}
           >
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 border transition ${
-                location.section === 'profile'
-                  ? 'bg-accent text-canvas border-accent'
-                  : 'bg-accent/15 text-accent border-accent/25 group-hover:bg-accent group-hover:text-canvas'
-              }`}
-            >
-              {currentUser ? initialsOf(currentUser.name) : '…'}
-            </div>
+            {currentUser?.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="w-9 h-9 rounded-xl object-cover shrink-0 border border-muted-border/40 shadow-xs"
+              />
+            ) : (
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 border transition ${
+                  location.section === 'profile'
+                    ? 'bg-accent text-canvas border-accent'
+                    : 'bg-accent/15 text-accent border-accent/25 group-hover:bg-accent group-hover:text-canvas'
+                }`}
+              >
+                {currentUser ? initialsOf(currentUser.name) : '…'}
+              </div>
+            )}
             <div className={`min-w-0 flex-1 ${rail ? 'md:hidden' : ''}`}>
               <div className="text-xs font-bold text-heading truncate">{currentUser?.name ?? '…'}</div>
               <div className="text-[10px] text-neutral-text/55 truncate">

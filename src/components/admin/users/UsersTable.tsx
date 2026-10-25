@@ -18,26 +18,28 @@ import {
   userSearchText,
 } from './usersModel';
 import type { UserRights, ToggleableAdminStatus } from './usersModel';
-import { PermissionCount, RolePill, StatusChip, TotpChip, PasskeyChip, UserActions } from './usersUi';
+import { PermissionCount, RolePill, StatusChip, TotpChip, PasskeyChip, UserActions, UserAvatar } from './usersUi';
+
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 export const USERS_TABLE_STORAGE_KEY = 'ajda.admin.users';
 
 /** A row can only be missing from the index if it arrived with the last refresh. */
 const FALLBACK_RIGHTS: UserRights = {
   canEdit: false,
-  editHint: 'بيانات الحساب غير متاحة',
+  editHint: '—',
   accessLocked: true,
   lockReason: null,
   canToggleStatus: false,
-  toggleHint: 'بيانات الحساب غير متاحة',
+  toggleHint: '—',
   canDelete: false,
-  deleteHint: 'بيانات الحساب غير متاحة',
+  deleteHint: '—',
   canMarkVerified: false,
   markVerifiedHint: null,
   canResetTotp: false,
-  resetTotpHint: 'بيانات الحساب غير متاحة',
+  resetTotpHint: '—',
   canResetPasskeys: false,
-  resetPasskeysHint: 'بيانات الحساب غير متاحة',
+  resetPasskeysHint: '—',
   isSelf: false,
 };
 
@@ -70,6 +72,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onResetPasskeys,
   onBulkStatus,
 }) => {
+  const { t } = useAdminT();
   const roleIndex = useMemo(() => buildRoleIndex(users, roles), [users, roles]);
   const departmentIndex = useMemo(() => buildDepartmentIndex(users, departments), [users, departments]);
 
@@ -77,28 +80,31 @@ export const UsersTable: React.FC<UsersTableProps> = ({
     () => [
       {
         id: 'user',
-        header: 'المستخدم',
-        width: '210px',
+        header: t('users.colUser'),
+        width: '240px',
         sortValue: (user) => user.name,
         cell: (user) => (
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-[10px] font-black text-heading truncate">{user.name}</span>
-              {rightsById.get(user.id)?.isSelf && (
-                <span className="text-[9px] font-bold text-accent bg-accent/10 border border-accent/20 rounded-full px-1.5 py-px shrink-0">
-                  أنت
-                </span>
-              )}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <UserAvatar user={user} size="sm" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[10px] font-black text-heading truncate">{user.name}</span>
+                {rightsById.get(user.id)?.isSelf && (
+                  <span className="text-[9px] font-bold text-accent bg-accent/10 border border-accent/20 rounded-full px-1.5 py-px shrink-0">
+                    {t('users.you')}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-neutral-text/60 font-mono block truncate" dir="ltr">
+                {user.email}
+              </span>
             </div>
-            <span className="text-[10px] text-neutral-text/60 font-mono block truncate" dir="ltr">
-              {user.email}
-            </span>
           </div>
         ),
       },
       {
         id: 'role',
-        header: 'الدور',
+        header: t('users.colRole'),
         width: '170px',
         sortValue: (user) => userRoleLabel(user, roles),
         filter: { type: 'select', options: roleIndex.options, value: (user) => roleIndex.keyByUserId.get(user.id) ?? '' },
@@ -106,7 +112,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       },
       {
         id: 'department',
-        header: 'القسم',
+        header: t('users.colDepartment'),
         width: '150px',
         sortValue: (user) => user.departmentName || user.department || '',
         filter: {
@@ -120,7 +126,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       },
       {
         id: 'status',
-        header: 'الحالة',
+        header: t('users.colStatus'),
         width: '170px',
         sortValue: (user) => user.status,
         filter: { type: 'select', options: STATUS_OPTIONS, value: (user) => user.status },
@@ -134,39 +140,39 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       },
       {
         id: 'permissions',
-        header: 'الصلاحيات',
+        header: t('users.colPermissions'),
         width: '110px',
         sortValue: (user) => countPermissions(user.permissions),
         cell: (user) => <PermissionCount permissions={user.permissions} />,
       },
       {
         id: 'lastActive',
-        header: 'آخر نشاط',
+        header: t('users.colLastActive'),
         width: '150px',
         sortValue: (user) => (user.lastLogin ? new Date(user.lastLogin) : null),
         cell: (user) => <span className="text-[10px] text-neutral-text/60 whitespace-nowrap">{lastActiveLabel(user)}</span>,
       },
     ],
-    [rightsById, roleIndex, departmentIndex, roles]
+    [rightsById, roleIndex, departmentIndex, roles, t]
   );
 
   const bulkActions = useMemo<BulkAction<AdminUser>[]>(
     () => [
       {
         id: 'activate',
-        label: 'تنشيط',
+        label: t('users.activate'),
         icon: LogIn,
         onRun: (rows) => onBulkStatus(rows, 'active'),
       },
       {
         id: 'suspend',
-        label: 'تعطيل',
+        label: t('users.suspend'),
         icon: LogOut,
         danger: true,
         onRun: (rows) => onBulkStatus(rows, 'suspended'),
       },
     ],
-    [onBulkStatus]
+    [onBulkStatus, t]
   );
 
   return (

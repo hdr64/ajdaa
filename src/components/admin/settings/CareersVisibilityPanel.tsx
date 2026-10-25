@@ -34,7 +34,7 @@ export const CareersVisibilityPanel: React.FC = () => {
   }, [reloadToken, t]);
 
   if (error) return <SectionError message={error} onRetry={() => setReloadToken((n) => n + 1)} />;
-  if (!saved || !careers) return <SectionLoading label={t('settings.careers.loading')} />;
+  if (!saved || !careers) return <SectionLoading variant="form" label={t('settings.careers.loading')} />;
 
   const dirty =
     careers.showFooterLink !== saved.careers.showFooterLink ||

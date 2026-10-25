@@ -17,6 +17,7 @@ import type {
   Role,
 } from '../../../types/admin';
 import { formatRelativeTime } from '../../../pages/admin/adminFormat';
+import { documentLanguage, translateCurrent } from '../../../i18n/admin/core';
 
 /* ------------------------------------------------------------------ *
  * Roles, statuses, permissions
@@ -33,6 +34,13 @@ export const ROLE_AR_LABELS: Record<AdminRole, string> = {
   project_manager: 'مدير التطوير والمشاريع',
   sales_agent: 'مسؤول تأجير ومبيعات',
   viewer: 'محلل استثماري ومتابع',
+};
+
+export const ROLE_EN_LABELS: Record<AdminRole, string> = {
+  super_admin: 'Super Admin',
+  project_manager: 'Project & Development Manager',
+  sales_agent: 'Sales & Leasing Agent',
+  viewer: 'Investment Analyst / Viewer',
 };
 
 /** Roles that may only be granted by a super admin. */
@@ -83,6 +91,30 @@ export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
   rollbackCms: 'استعادة نسخ محتوى الموقع',
 };
 
+export const PERMISSION_EN_LABELS: Record<keyof AdminPermissions, string> = {
+  manageProjects: 'Manage Projects (Full)',
+  viewProjects: 'View Projects on Dashboard',
+  createProject: 'Create New Projects',
+  editProject: 'Edit Project Data',
+  deleteProject: 'Delete Projects',
+  publishProject: 'Publish / Hide Projects',
+  manageUnits: 'Manage Units & Floors',
+  viewInquiries: 'View Customer Inquiries',
+  viewApplications: 'View Job Applications',
+  manageApplications: 'Manage Job Applications',
+  exportData: 'Export Reports',
+  manageUsers: 'Manage Users',
+  verifyUsers: 'Verify User Accounts',
+  manageNotifications: 'Manage Notifications',
+  manageCms: 'Manage Site Content',
+  manageClients: 'Manage Partners & Clients',
+  managePastProjects: 'Manage Past Projects',
+  rollbackCms: 'Rollback CMS Versions',
+};
+
+export const getPermissionLabels = (): Record<keyof AdminPermissions, string> =>
+  documentLanguage() === 'en' ? PERMISSION_EN_LABELS : PERMISSION_LABELS;
+
 /** `PermissionDef.group` is an English slug on the server; show an Arabic heading. */
 const PERMISSION_GROUP_LABELS: Record<string, string> = {
   projects: 'المشاريع',
@@ -94,11 +126,30 @@ const PERMISSION_GROUP_LABELS: Record<string, string> = {
   cms: 'محتوى الموقع (CMS)',
 };
 
+const PERMISSION_GROUP_EN_LABELS: Record<string, string> = {
+  projects: 'Projects',
+  units: 'Units & Floors',
+  inquiries: 'Inquiries',
+  reports: 'Reports',
+  users: 'Users',
+  settings: 'Settings',
+  cms: 'Website Content (CMS)',
+};
+
 export const STATUS_LABELS: Record<AdminStatus, string> = {
   active: 'نشط',
   pending: 'بانتظار التفعيل',
   suspended: 'معطل',
 };
+
+export const STATUS_EN_LABELS: Record<AdminStatus, string> = {
+  active: 'Active',
+  pending: 'Pending',
+  suspended: 'Suspended',
+};
+
+export const userStatusLabel = (status: AdminStatus): string =>
+  documentLanguage() === 'en' ? STATUS_EN_LABELS[status] : STATUS_LABELS[status];
 
 /**
  * The statuses an admin may set through the toggle / bulk actions. `pending` is
@@ -121,7 +172,7 @@ export const MIN_PASSWORD_LENGTH = 10;
  * The server is the authority; this only keeps the form from sending a
  * password the API will reject.
  */
-export function passwordPolicyError(password: string, isAr: boolean = true): string | null {
+export function passwordPolicyError(password: string, isAr: boolean = documentLanguage() !== 'en'): string | null {
   if (password.length < MIN_PASSWORD_LENGTH) {
     return isAr
       ? `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل`
@@ -173,9 +224,15 @@ export const STATUS_OPTIONS: readonly { value: string; label: string }[] = [
   { value: 'suspended', label: STATUS_LABELS.suspended },
 ];
 
+export const getStatusOptions = (): { value: string; label: string }[] => [
+  { value: 'active', label: userStatusLabel('active') },
+  { value: 'suspended', label: userStatusLabel('suspended') },
+];
+
 /** Sentinel for the "no department" option; `departmentId` is nullable on the wire. */
 export const NO_DEPARTMENT = '__no_department__';
 export const NO_DEPARTMENT_LABEL = 'بدون قسم';
+export const getNoDepartmentLabel = (): string => translateCurrent('users.noDepartment');
 
 /** Narrows a free-form role key to a known one; custom keys fall back to the default. */
 export const toAdminRole = (key: string | null | undefined, fallback: AdminRole = DEFAULT_ROLE_KEY): AdminRole =>
@@ -221,6 +278,8 @@ export interface PermissionGroup {
 
 /** Groups the server catalogue in the order it arrives, so the form reads as sections. */
 export function groupPermissions(definitions: PermissionDef[]): PermissionGroup[] {
+  const isEn = documentLanguage() === 'en';
+  const groupLabelMap = isEn ? PERMISSION_GROUP_EN_LABELS : PERMISSION_GROUP_LABELS;
   const groups = new Map<string, PermissionDef[]>();
   for (const definition of definitions) {
     const items = groups.get(definition.group);
@@ -229,7 +288,7 @@ export function groupPermissions(definitions: PermissionDef[]): PermissionGroup[
   }
   return [...groups].map(([key, items]) => ({
     key,
-    label: PERMISSION_GROUP_LABELS[key] ?? key,
+    label: groupLabelMap[key] ?? key,
     items,
   }));
 }
@@ -238,14 +297,21 @@ export function groupPermissions(definitions: PermissionDef[]): PermissionGroup[
  * User-facing labels
  * ------------------------------------------------------------------ */
 
-export const userRoleLabel = (user: AdminUser, roles: Role[]): string =>
-  roles.find((role) => role.id === user.roleId)?.nameAr ?? user.roleAr ?? ROLE_AR_LABELS[user.role];
+export const userRoleLabel = (user: AdminUser, roles: Role[]): string => {
+  const isEn = documentLanguage() === 'en';
+  const role = roles.find((r) => r.id === user.roleId);
+  if (role) return isEn && role.nameEn ? role.nameEn : role.nameAr;
+  if (user.role && user.role in ROLE_AR_LABELS) {
+    return isEn ? ROLE_EN_LABELS[user.role as AdminRole] : ROLE_AR_LABELS[user.role as AdminRole];
+  }
+  return user.roleAr ?? user.role;
+};
 
 export const userDepartmentLabel = (user: AdminUser): string =>
-  user.departmentName || user.department || NO_DEPARTMENT_LABEL;
+  user.departmentName || user.department || translateCurrent('users.noDepartment');
 
 export const lastActiveLabel = (user: AdminUser): string =>
-  user.lastLogin ? formatRelativeTime(user.lastLogin) : 'لم يسجل الدخول بعد';
+  user.lastLogin ? formatRelativeTime(user.lastLogin) : translateCurrent('users.neverLoggedIn');
 
 export const userSearchText = (user: AdminUser): string =>
   [user.name, user.email, user.departmentName, user.department].filter(Boolean).join(' ');
@@ -360,9 +426,9 @@ function accessLockReason(
   isSuperAdmin: boolean,
   isLastActiveSuperAdmin: boolean
 ): string | null {
-  if (isSelf) return 'لا يمكنك تغيير دورك أو حالتك أو صلاحياتك بنفسك';
-  if (isLastActiveSuperAdmin) return 'لا يمكن تخفيض رتبة أو تعطيل آخر مدير عام نشط';
-  if (!isSuperAdmin && user.role === SUPER_ADMIN_ROLE_KEY) return 'حسابات المدير العام متاحة لمدير عام فقط';
+  if (isSelf) return translateCurrent('users.lockSelf');
+  if (isLastActiveSuperAdmin) return translateCurrent('users.lockLastSuperAdmin');
+  if (!isSuperAdmin && user.role === SUPER_ADMIN_ROLE_KEY) return translateCurrent('users.lockSuperAdminOnly');
   return null;
 }
 
@@ -384,12 +450,12 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     context.canVerifyUsers && user.status === 'pending' && !isSuperAdminTarget && !isSelf;
   let markVerifiedHint: string | null = null;
   if (!canMarkVerified) {
-    if (!context.canVerifyUsers) markVerifiedHint = 'تتطلب صلاحية «تأكيد حسابات المستخدمين»';
+    if (!context.canVerifyUsers) markVerifiedHint = translateCurrent('users.hintReqVerifyPerm');
     else if (isSuperAdminTarget)
-      markVerifiedHint = 'لا يمكن تأكيد حساب مدير عام من غير مدير عام';
+      markVerifiedHint = translateCurrent('users.hintSuperAdminVerify');
     else if (user.status !== 'pending')
-      markVerifiedHint = 'لا يمكن تأكيد حساب غير منتظر التفعيل';
-    else markVerifiedHint = 'لا يمكن تأكيد حسابك بنفسك';
+      markVerifiedHint = translateCurrent('users.hintNotPending');
+    else markVerifiedHint = translateCurrent('users.hintSelfVerify');
   }
 
   // Resetting someone else's second factor is a `manageUsers` action, and only a
@@ -398,9 +464,9 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     context.canManageUsers && Boolean(user.totpEnabled) && (!isSuperAdminTarget || context.isSuperAdmin);
   let resetTotpHint: string | null = null;
   if (!canResetTotp) {
-    if (!context.canManageUsers) resetTotpHint = 'تتطلب صلاحية «إدارة المستخدمين»';
-    else if (!user.totpEnabled) resetTotpHint = 'التحقق بتطبيق المصادقة غير مفعّل لهذا الحساب';
-    else resetTotpHint = 'إعادة تعيين حسابات المدير العام متاحة لمدير عام فقط';
+    if (!context.canManageUsers) resetTotpHint = translateCurrent('users.hintReqManagePerm');
+    else if (!user.totpEnabled) resetTotpHint = translateCurrent('users.hintTotpNotEnabled');
+    else resetTotpHint = translateCurrent('users.lockSuperAdminOnly');
   }
 
   const canResetPasskeys =
@@ -409,23 +475,23 @@ export function getUserRights(user: AdminUser, context: RightsContext): UserRigh
     (!isSuperAdminTarget || context.isSuperAdmin);
   let resetPasskeysHint: string | null = null;
   if (!canResetPasskeys) {
-    if (!context.canManageUsers) resetPasskeysHint = 'تتطلب صلاحية «إدارة المستخدمين»';
-    else if (!user.passkeyCount) resetPasskeysHint = 'لا توجد مفاتيح مرور مسجلة لهذا الحساب';
-    else resetPasskeysHint = 'إعادة تعيين حسابات المدير العام متاحة لمدير عام فقط';
+    if (!context.canManageUsers) resetPasskeysHint = translateCurrent('users.hintReqManagePerm');
+    else if (!user.passkeyCount) resetPasskeysHint = translateCurrent('users.hintNoPasskeys');
+    else resetPasskeysHint = translateCurrent('users.lockSuperAdminOnly');
   }
 
   const canDelete = !isSelf && (!isSuperAdminTarget || context.isSuperAdmin) && !isLastActiveSuperAdmin;
   const deleteHint = canDelete
     ? null
     : isSelf
-      ? 'لا يمكنك حذف حسابك'
+      ? translateCurrent('users.hintSelfDelete')
       : !context.isSuperAdmin && isSuperAdminTarget
-        ? 'حذف حسابات المدير العام متاح لمدير عام فقط'
-        : 'لا يمكن حذف آخر مدير عام نشط من النظام';
+        ? translateCurrent('users.lockSuperAdminOnly')
+        : translateCurrent('users.hintLastSuperAdminDelete');
 
   return {
     canEdit: !isSuperAdminTarget || context.isSuperAdmin,
-    editHint: isSuperAdminTarget && !context.isSuperAdmin ? 'تعديل حسابات المدير العام متاح لمدير عام فقط' : null,
+    editHint: isSuperAdminTarget && !context.isSuperAdmin ? translateCurrent('users.hintSuperAdminEdit') : null,
     accessLocked,
     lockReason: lockReason,
     canToggleStatus: !accessLocked,

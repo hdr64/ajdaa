@@ -76,6 +76,7 @@ export interface AdminUser {
   name: string;
   email: string;
   phone?: string | null;
+  avatar?: string | null;
   role: AdminRole;
   roleAr: string;
   roleId?: string | null;
@@ -99,6 +100,7 @@ export interface AdminUserInput {
   name: string;
   email: string;
   phone?: string | null;
+  avatar?: string | null;
   password?: string;
   /** 'create' keeps the admin-set-password flow; 'invite' emails a self-service link. */
   mode?: 'create' | 'invite';

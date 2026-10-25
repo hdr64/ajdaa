@@ -502,7 +502,7 @@ export const ProjectShowSection: React.FC = () => {
   const project = projects.data.find((p) => p.id === location.projectId);
 
   if (projects.error) return <SectionError message={projects.error} onRetry={() => void projects.reload()} />;
-  if (!project && projects.loading) return <SectionLoading label={t('projects.show.loading')} />;
+  if (!project && projects.loading) return <SectionLoading variant="detail" label={t('projects.show.loading')} />;
   if (!project) {
     return (
       <EmptyState

@@ -40,7 +40,7 @@ export const InquiryDetailSection: React.FC = () => {
   const inquiry = resource.data ?? fallback;
 
   if (resource.loading && !inquiry) {
-    return <SectionLoading label={t('inquiries.loading')} />;
+    return <SectionLoading variant="detail" label={t('inquiries.loading')} />;
   }
 
   if (!inquiry) {

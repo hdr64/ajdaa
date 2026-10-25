@@ -74,7 +74,7 @@ export const PastProjectsSection: React.FC = () => {
     return (
       <>
         {header}
-        <SectionLoading label={t('pastProjects.loading')} />
+        <SectionLoading variant="cards" label={t('pastProjects.loading')} />
       </>
     );
   }

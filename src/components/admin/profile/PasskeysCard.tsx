@@ -12,18 +12,20 @@ import {
 } from 'lucide-react';
 import { browserSupportsWebAuthn, startRegistration } from '@simplewebauthn/browser';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin';
 import { authService } from '../../../services/authService';
 import type { PasskeyItem } from '../../../services/authService';
 import { getErrorMessage } from '../../../services/api';
 
 interface PasskeysCardProps {
-  isAr: boolean;
+  isAr?: boolean;
 }
 
 type DialogKind = 'register' | 'rename' | 'delete' | null;
 
-export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
+export const PasskeysCard: React.FC<PasskeysCardProps> = () => {
   const { refreshUser, showToast } = useAdmin();
+  const { t, language } = useAdminT();
 
   const [passkeys, setPasskeys] = useState<PasskeyItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,6 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
   const [error, setError] = useState<string | null>(null);
 
   const supported = browserSupportsWebAuthn();
-  const text = (ar: string, en: string) => (isAr ? ar : en);
 
   const loadPasskeys = async () => {
     try {
@@ -63,8 +64,8 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
 
   const openRegister = () => {
     resetDialog();
-    const today = new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-US');
-    setName(text(`مفتاحي (${today})`, `My Passkey (${today})`));
+    const today = new Date().toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US');
+    setName(t('profile.passkeys.defaultName', { date: today }));
     setDialog('register');
   };
 
@@ -84,7 +85,7 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supported) {
-      setError(text('متصفحك الحالي لا يدعم مفاتيح المرور', 'WebAuthn is not supported in this browser'));
+      setError(t('profile.passkeys.unsupported'));
       return;
     }
 
@@ -108,10 +109,10 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
       await authService.verifyPasskeyRegister(regResponse, name.trim());
       await loadPasskeys();
       void refreshUser();
-      showToast(text('تمت إضافة مفتاح المرور بنجاح', 'Passkey added successfully'));
+      showToast(t('profile.passkeys.registerSuccess'));
       resetDialog();
     } catch (caught) {
-      setError(getErrorMessage(caught, text('تعذر تسجيل مفتاح المرور', 'Could not register passkey')));
+      setError(getErrorMessage(caught, t('profile.details.error')));
     } finally {
       setBusy(false);
     }
@@ -126,10 +127,10 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
     try {
       await authService.renamePasskey(activeItem.id, name.trim());
       await loadPasskeys();
-      showToast(text('تمت إعادة تسمية مفتاح المرور', 'Passkey renamed'));
+      showToast(t('profile.passkeys.renameSuccess'));
       resetDialog();
     } catch (caught) {
-      setError(getErrorMessage(caught, text('تعذر إعادة التسمية', 'Could not rename passkey')));
+      setError(getErrorMessage(caught, t('profile.details.error')));
     } finally {
       setBusy(false);
     }
@@ -145,19 +146,19 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
       await authService.deletePasskey(activeItem.id, password);
       await loadPasskeys();
       void refreshUser();
-      showToast(text('تم حذف مفتاح المرور', 'Passkey deleted'));
+      showToast(t('profile.passkeys.deleteSuccess'));
       resetDialog();
     } catch (caught) {
-      setError(getErrorMessage(caught, text('تعذر حذف مفتاح المرور', 'Could not delete passkey')));
+      setError(getErrorMessage(caught, t('profile.details.error')));
     } finally {
       setBusy(false);
     }
   };
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return text('لم يُستخدم بعد', 'Never used');
+    if (!dateStr) return t('profile.passkeys.neverUsed');
     const date = new Date(dateStr);
-    return date.toLocaleDateString(isAr ? 'ar-SA' : 'en-US', {
+    return date.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -175,17 +176,14 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-black text-heading">
-                  {text('مفاتيح المرور (Passkeys)', 'Passkeys (WebAuthn)')}
+                  {t('profile.passkeys.title')}
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
                   {passkeys.length}/10
                 </span>
               </div>
               <p className="text-xs text-neutral-text/70 leading-relaxed max-w-xl">
-                {text(
-                  'يتيح الدخول بالبصمة أو بوجهك دون كلمة مرور أو رمز. مفاتيح المرور توفر أعلى مستويات الأمان المقاوم للتصيد.',
-                  'Sign in with fingerprint or Face ID without password or verification code. Phishing-resistant standard.'
-                )}
+                {t('profile.passkeys.subtitle')}
               </p>
             </div>
           </div>
@@ -196,32 +194,29 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
             disabled={passkeys.length >= 10 || !supported}
             title={
               !supported
-                ? text('المتصفح لا يدعم مفاتيح المرور', 'Browser does not support passkeys')
+                ? t('profile.passkeys.unsupported')
                 : passkeys.length >= 10
-                ? text('بلغت الحد الأقصى (10 مفاتيح)', 'Maximum 10 passkeys reached')
+                ? t('profile.passkeys.limitReached')
                 : undefined
             }
             className="cursor-pointer text-xs font-bold px-4 py-2 rounded-xl brand-btn-primary shadow-sm transition-all shrink-0 flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             <Plus className="w-3.5 h-3.5" />
-            {text('إضافة مفتاح مرور', 'Add Passkey')}
+            {t('profile.passkeys.addBtn')}
           </button>
         </div>
 
         {loading ? (
           <div className="py-6 text-center text-xs text-neutral-text/50">
-            {text('جاري التحميل...', 'Loading passkeys...')}
+            {t('profile.passkeys.loading')}
           </div>
         ) : passkeys.length === 0 ? (
           <div className="rounded-xl bg-canvas border border-muted-border/30 p-5 text-center space-y-1.5">
             <p className="text-xs font-bold text-neutral-text/70">
-              {text('لم تسجل أي مفتاح مرور بعد', 'No passkeys registered yet')}
+              {t('profile.passkeys.empty')}
             </p>
             <p className="text-[11px] text-neutral-text/50">
-              {text(
-                'سجل جهازك الحالي أو مفتاح أمان خارجي لتسجيل الدخول بلمسة واحدة.',
-                'Register this device or a security key for instant one-touch login.'
-              )}
+              {t('profile.passkeys.emptyHint')}
             </p>
           </div>
         ) : (
@@ -238,39 +233,39 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
                       className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-surface border border-muted-border/50 text-neutral-text/70"
                       title={
                         item.deviceType === 'multiDevice'
-                          ? text('مفتاح متزامن سحابياً (iCloud / Google Password Manager)', 'Synced multi-device credential')
-                          : text('مفتاح مقيد بهذا الجهاز فقط', 'Device-bound single device credential')
+                          ? t('profile.passkeys.syncedDesc')
+                          : t('profile.passkeys.deviceBoundDesc')
                       }
                     >
                       {item.deviceType === 'multiDevice' ? (
                         <>
                           <Cloud className="w-2.5 h-2.5 text-accent" />
-                          <span>{text('سحابي متزامن', 'Synced')}</span>
+                          <span>{t('profile.passkeys.synced')}</span>
                         </>
                       ) : (
                         <>
                           <Laptop className="w-2.5 h-2.5 text-neutral-text/70" />
-                          <span>{text('مرتبط بالجهاز', 'Device-bound')}</span>
+                          <span>{t('profile.passkeys.deviceBound')}</span>
                         </>
                       )}
                     </span>
                     {item.backedUp && (
                       <span
                         className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                        title={text('تم إنشاء نسخة احتياطية سحابية لهذا المفتاح', 'Backed up to cloud')}
+                        title={t('profile.passkeys.backedUpDesc')}
                       >
                         <CheckCircle2 className="w-2.5 h-2.5" />
-                        <span>{text('نسخة احتياطية', 'Backed up')}</span>
+                        <span>{t('profile.passkeys.backedUp')}</span>
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-neutral-text/50">
                     <span>
-                      {text('أُضيف:', 'Added:')} {formatDate(item.createdAt)}
+                      {t('profile.passkeys.added')} {formatDate(item.createdAt)}
                     </span>
                     <span>•</span>
                     <span>
-                      {text('آخر استخدام:', 'Last used:')} {formatDate(item.lastUsedAt)}
+                      {t('profile.passkeys.lastUsed')} {formatDate(item.lastUsedAt)}
                     </span>
                   </div>
                 </div>
@@ -279,7 +274,7 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
                   <button
                     type="button"
                     onClick={() => openRename(item)}
-                    title={text('إعادة تسمية', 'Rename')}
+                    title={t('profile.passkeys.rename')}
                     className="p-1.5 rounded-lg text-neutral-text/50 hover:text-heading hover:bg-surface cursor-pointer transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -287,7 +282,7 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
                   <button
                     type="button"
                     onClick={() => openDelete(item)}
-                    title={text('حذف مفتاح المرور', 'Delete')}
+                    title={t('profile.passkeys.delete')}
                     className="p-1.5 rounded-lg text-neutral-text/40 hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -306,7 +301,7 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
             <div className="flex items-center justify-between pb-3 border-b border-muted-border/30">
               <h3 className="text-sm font-black text-heading flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-amber-500" />
-                {text('إضافة مفتاح مرور جديد', 'Add New Passkey')}
+                {t('profile.passkeys.registerTitle')}
               </h3>
               <button
                 type="button"
@@ -326,15 +321,12 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
 
             <form onSubmit={handleRegister} className="space-y-4">
               <p className="text-xs text-neutral-text/70 leading-relaxed">
-                {text(
-                  'أدخل كلمة المرور الحالية لتأكيد هويتك، ثم اختر اسماً للمفتاح واتبع تعليمات متصفحك.',
-                  'Enter current password to confirm identity, label your passkey, and follow browser prompt.'
-                )}
+                {t('profile.passkeys.registerNotice')}
               </p>
 
               <div>
                 <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-                  {text('اسم المفتاح', 'Passkey Label')}
+                  {t('profile.passkeys.passkeyName')}
                 </label>
                 <input
                   type="text"
@@ -342,14 +334,14 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
                   maxLength={60}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={text('مثال: MacBook Pro', 'e.g. MacBook Pro')}
+                  placeholder={t('profile.passkeys.placeholder')}
                   className="w-full py-2.5 px-3.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
                 />
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-                  {text('كلمة المرور الحالية', 'Current Password')}
+                  {t('profile.passkeys.currentPassword')}
                 </label>
                 <input
                   type="password"
@@ -366,14 +358,14 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
                   onClick={resetDialog}
                   className="px-4 py-2 rounded-xl border border-muted-border/40 text-xs font-bold text-neutral-text/70 hover:bg-surface-hover cursor-pointer"
                 >
-                  {text('إلغاء', 'Cancel')}
+                  {t('profile.passkeys.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={busy || !password || !name.trim()}
                   className="px-5 py-2 rounded-xl text-xs font-black cursor-pointer shadow-sm brand-btn-primary disabled:opacity-50"
                 >
-                  {busy ? text('جاري التسجيل...', 'Registering...') : text('متابعة التسجيل', 'Continue')}
+                  {busy ? t('profile.passkeys.registering') : t('profile.passkeys.continue')}
                 </button>
               </div>
             </form>
@@ -388,7 +380,7 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
             <div className="flex items-center justify-between pb-3 border-b border-muted-border/30">
               <h3 className="text-sm font-black text-heading flex items-center gap-2">
                 <Pencil className="w-4 h-4 text-accent" />
-                {text('إعادة تسمية مفتاح المرور', 'Rename Passkey')}
+                {t('profile.passkeys.renameTitle')}
               </h3>
               <button
                 type="button"
@@ -409,7 +401,7 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
             <form onSubmit={handleRename} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-                  {text('الاسم الجديد', 'New Name')}
+                  {t('profile.passkeys.newName')}
                 </label>
                 <input
                   type="text"
@@ -427,14 +419,14 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
                   onClick={resetDialog}
                   className="px-4 py-2 rounded-xl border border-muted-border/40 text-xs font-bold text-neutral-text/70 hover:bg-surface-hover cursor-pointer"
                 >
-                  {text('إلغاء', 'Cancel')}
+                  {t('profile.passkeys.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={busy || !name.trim()}
                   className="px-5 py-2 rounded-xl text-xs font-black cursor-pointer shadow-sm brand-btn-primary disabled:opacity-50"
                 >
-                  {busy ? text('جاري الحفظ...', 'Saving...') : text('حفظ التعديل', 'Save')}
+                  {busy ? t('profile.passkeys.saving') : t('profile.passkeys.save')}
                 </button>
               </div>
             </form>
@@ -449,7 +441,7 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
             <div className="flex items-center justify-between pb-3 border-b border-muted-border/30">
               <h3 className="text-sm font-black text-heading flex items-center gap-2">
                 <Trash2 className="w-4 h-4 text-red-500" />
-                {text('حذف مفتاح المرور', 'Delete Passkey')}
+                {t('profile.passkeys.deleteTitle')}
               </h3>
               <button
                 type="button"
@@ -469,15 +461,12 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
 
             <form onSubmit={handleDelete} className="space-y-4">
               <p className="text-xs text-neutral-text/70 leading-relaxed">
-                {text(
-                  `هل أنت متأكد من حذف مفتاح المرور "${activeItem.name}"؟ سيتطلب الدخول من هذا الجهاز استخدام كلمة المرور مجدداً.`,
-                  `Are you sure you want to delete passkey "${activeItem.name}"? Password will be required on this device.`
-                )}
+                {t('profile.passkeys.deletePrompt', { name: activeItem.name })}
               </p>
 
               <div>
                 <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-                  {text('كلمة المرور الحالية للتأكيد', 'Current Password to Confirm')}
+                  {t('profile.passkeys.currentPassword')}
                 </label>
                 <input
                   type="password"
@@ -494,14 +483,14 @@ export const PasskeysCard: React.FC<PasskeysCardProps> = ({ isAr }) => {
                   onClick={resetDialog}
                   className="px-4 py-2 rounded-xl border border-muted-border/40 text-xs font-bold text-neutral-text/70 hover:bg-surface-hover cursor-pointer"
                 >
-                  {text('إلغاء', 'Cancel')}
+                  {t('profile.passkeys.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={busy || !password}
                   className="px-5 py-2 rounded-xl text-xs font-black cursor-pointer shadow-sm bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
                 >
-                  {busy ? text('جاري الحذف...', 'Deleting...') : text('تأكيد الحذف', 'Confirm Delete')}
+                  {busy ? t('profile.passkeys.deleting') : t('profile.passkeys.confirmDelete')}
                 </button>
               </div>
             </form>

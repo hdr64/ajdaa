@@ -85,7 +85,7 @@ export const SiteSettingsPanel: React.FC = () => {
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(saved), [form, saved]);
 
   if (error) return <SectionError message={error} onRetry={() => setReloadToken((n) => n + 1)} />;
-  if (!form) return <SectionLoading label="جاري تحميل معلومات التواصل..." />;
+  if (!form) return <SectionLoading variant="form" label="جاري تحميل معلومات التواصل..." />;
 
   const set = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) =>
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
