@@ -45,3 +45,6 @@ Owner request (2026-10-22): UI review of the admin (details, dialogs, toasts, fe
 
 ## Production readiness (Claude check, 2026-10-25)
 - Prompts `docs/prompts/task-w5-ready-a-prompt.md` (dependency security upgrades: `@fastify/jwt`/`fast-jwt`, `@fastify/static`, patches) and `task-w5-ready-b-prompt.md` (dedicated `SETTINGS_ENCRYPTION_KEY` required in production, proxy-trust warning, React error boundary, migration for the mojibake defaults and indexes). Owner checklist items found: set `TRUST_PROXY=1` and `HOST=127.0.0.1` in production `.env`; set `SETTINGS_ENCRYPTION_KEY` before anyone enrols TOTP.
+
+## Careers visibility (owner, 2026-10-25)
+- Floating "Apply for a job" button on the public site; admin can show/hide the footer item and the floating button independently (site settings `careers.showFooterLink`, `careers.showFloatingButton`). Prompt: `docs/prompts/task-w5-careers-toggle-prompt.md`.
