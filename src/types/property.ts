@@ -1,7 +1,8 @@
-export type PropertyType = 'logistics' | 'commercial' | 'office' | 'residential';
+export type PropertyType = 'logistics' | 'commercial' | 'office' | 'residential' | 'hotel';
 export type PriceType = 'بيع' | 'إيجار' | 'استثمار';
 export type InterestType = 'rent' | 'buy' | 'invest' | 'general';
 export type UnitStatus = 'available' | 'reserved' | 'rented' | 'sold';
+export type PublishStatus = 'draft' | 'published' | 'hidden';
 
 export interface PropertyUnit {
   id: string;
@@ -23,6 +24,8 @@ export interface PropertyUnit {
 }
 
 export interface PropertyFloor {
+  /** Database id. Required to create or delete units against a specific floor. */
+  id?: number;
   floorNumber: number;
   floorNameAr: string;
   floorNameEn: string;
@@ -45,6 +48,8 @@ export interface Property {
   priceTypeEn?: string;
   status?: string;
   statusEn?: string;
+  publishStatus?: PublishStatus;
+  publishedAt?: string;
   area: number;
   rooms?: number;
   bathrooms?: number;
@@ -62,17 +67,21 @@ export interface Property {
   featuresEn?: string[];
   // Extended fields for project page & admin
   videoUrl?: string;
+  /** External https link to a 3D model viewer. Presence of it = 3D tour available. */
+  model3dUrl?: string;
   virtualTour3dAvailable?: boolean;
   locationHighlightsAr?: string[];
   locationHighlightsEn?: string[];
   floors?: PropertyFloor[];
   lat?: number;
   lng?: number;
+  brochureUrl?: string;
 }
 
 export interface CustomerInquiry {
   id: string;
   createdAt: string;
+  updatedAt?: string;
   name: string;
   phone?: string;
   email?: string;
@@ -83,6 +92,7 @@ export interface CustomerInquiry {
   interestType: InterestType;
   interestTypeAr: string;
   message?: string;
+  notes?: string | null;
   status: 'new' | 'contacted' | 'closed';
   statusAr: string;
 }

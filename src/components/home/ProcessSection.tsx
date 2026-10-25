@@ -1,42 +1,14 @@
 import React from 'react';
-import { Search, MousePointerClick, MessagesSquare, KeyRound, Route } from 'lucide-react';
+import { Route, Search } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
-import { useLanguage } from '../../hooks/useLanguage';
-
-const steps = [
-  {
-    icon: Search,
-    titleAr: 'استكشف العقارات والمشاريع',
-    titleEn: 'Discover Flagship Projects',
-    descAr: 'تصفح باقتنا المتنوعة من المستودعات اللوجستية، المحلات التجارية، والمكاتب الإدارية في أهم مدن المملكة.',
-    descEn: 'Browse our portfolio of modern logistics facilities, commercial hubs, and corporate towers across the Kingdom.',
-  },
-  {
-    icon: MousePointerClick,
-    titleAr: 'اختر المساحة والموقع المثالي',
-    titleEn: 'Select Your Ideal Space',
-    descAr: 'قارن المواصفات الاستراتيجية، السعات التشغيلية، وخطط المساحات التي تلبي متطلبات نشاطك المؤسسي بدقة.',
-    descEn: 'Evaluate operational specifications, loading capacities, and layouts tailored precisely to your operational goals.',
-  },
-  {
-    icon: MessagesSquare,
-    titleAr: 'تواصل مع مستشارنا العقاري',
-    titleEn: 'Consult With Our Advisors',
-    descAr: 'فريقنا الاستشاري المتخصص جاهز للإجابة على استفساراتك وترتيب معاينة ميدانية فورية للموقع.',
-    descEn: 'Our specialized advisory team coordinates private on-site viewings and delivers customized financial models.',
-  },
-  {
-    icon: KeyRound,
-    titleAr: 'أتمم التعاقد واستلم مفاتيحك',
-    titleEn: 'Finalize & Receive Keys',
-    descAr: 'نوفر إجراءات تعاقدية موثوقة وميسرة ترافقك خطوة بخطوة حتى استلام وحدتك وبدء نشاطك بنجاح.',
-    descEn: 'Seamless end-to-end lease or acquisition procedures ensuring prompt handover and operational launch.',
-  },
-];
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import { resolveCmsIcon } from '../common/cmsIcons';
 
 export const ProcessSection: React.FC = () => {
-  const { language } = useLanguage();
-  const isAr = language === 'ar';
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const section = content.home.process;
 
   return (
     <section className="relative overflow-hidden py-24 max-w-7xl mx-auto px-6">
@@ -48,23 +20,14 @@ export const ProcessSection: React.FC = () => {
       <div className="relative text-center mb-16">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full">
           <Route className="w-3.5 h-3.5 text-accent-light" />
-          {isAr ? 'كيف نعمل' : 'Our Advisory Process'}
+          {text(section.badgeAr, section.badgeEn)}
         </span>
         <h2 className="text-3xl md:text-4xl lg:text-5xl font-black mt-6">
-          {isAr ? (
-            <>
-              أربع خطوات تفصلك عن <span className="brand-gradient-text">عقارك المثالي</span>
-            </>
-          ) : (
-            <>
-              Four Clear Steps to Your <span className="brand-gradient-text">Ideal Commercial Asset</span>
-            </>
-          )}
+          {text(section.titleAr, section.titleEn)}{' '}
+          <span className="brand-gradient-text">{text(section.titleHighlightAr, section.titleHighlightEn)}</span>
         </h2>
         <p className="text-sm md:text-base text-neutral-text/75 max-w-xl mx-auto mt-4 leading-relaxed">
-          {isAr
-            ? 'رحلة استثمارية وتشغيلية سلسة ومبسطة، مع مستشارين متخصصين يرافقونك باحترافية في كل خطوة.'
-            : 'A transparent, streamlined advisory journey with dedicated real estate professionals guiding you every step.'}
+          {text(section.descAr, section.descEn)}
         </p>
       </div>
 
@@ -74,10 +37,10 @@ export const ProcessSection: React.FC = () => {
           className="absolute top-7 inset-x-12 hidden lg:block h-px bg-gradient-to-r from-accent/0 via-accent/30 to-accent/0"
         />
 
-        {steps.map((step, i) => {
-          const Icon = step.icon;
+        {section.steps.map((step, i) => {
+          const Icon = resolveCmsIcon(step.icon, Search);
           return (
-            <Reveal key={i} delay={i * 130} direction="up" className="h-full">
+            <Reveal key={step.id} delay={i * 130} direction="up" className="h-full">
               <div className="relative h-full flex flex-col items-center text-center px-4">
                 <div className="relative z-10 w-13 h-13 rounded-full brand-fill flex items-center justify-center text-lg font-black border border-white/20 mb-6">
                   {i + 1}
@@ -86,10 +49,10 @@ export const ProcessSection: React.FC = () => {
                   <Icon className="w-5.5 h-5.5" />
                 </div>
                 <h3 className="font-bold text-lg mb-2 text-heading">
-                  {isAr ? step.titleAr : step.titleEn}
+                  {text(step.titleAr, step.titleEn)}
                 </h3>
                 <p className="text-xs text-neutral-text/75 leading-relaxed">
-                  {isAr ? step.descAr : step.descEn}
+                  {text(step.descAr, step.descEn)}
                 </p>
               </div>
             </Reveal>

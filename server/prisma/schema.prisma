@@ -1,0 +1,404 @@
+datasource db {
+  provider = "sqlite" // DEV only. Production uses postgresql via schema.postgresql.prisma (run `npm run db:gen:prod`)
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id          String      @id @default(uuid())
+  key         String      @unique
+  nameAr      String
+  nameEn      String
+  description String?
+  permissions String      // JSON array of permission keys
+  isSystem    Boolean     @default(false)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  users       AdminUser[]
+}
+
+model Department {
+  id        String      @id @default(uuid())
+  nameAr    String      @unique
+  nameEn    String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  users     AdminUser[]
+}
+
+model AdminUser {
+  id                String      @id @default(uuid())
+  email             String      @unique
+  passwordHash      String
+  name              String
+  phone             String?
+  role              String      @default("sales_agent") // super_admin | project_manager | sales_agent | viewer
+  roleAr            String      @default("مسؤول مبيعات")
+  roleId            String?
+  roleRef           Role?       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  department        String?
+  departmentId      String?
+  departmentRef     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  permissions       String      @default("{}") // JSON string of permissions
+  status            String      @default("active") // active | pending | suspended (pending = must verify email before sign-in)
+  lastLogin         String?
+  passwordChangedAt DateTime?
+  // Set once the admin proved ownership of their address (verify link or
+  // accepted invite). Null for a `pending` account; every pre-existing row is
+  // backfilled by the migration so nobody is locked out.
+  emailVerifiedAt   DateTime?
+  loginOtpEnabled   Boolean     @default(false)
+  // TOTP (authenticator app) 2FA fields
+  totpSecretEnc     String?     // AES-256-GCM encrypted secret (never returned by any endpoint)
+  totpEnabledAt     DateTime?   // Set when TOTP is successfully enabled
+  totpLastStep      Int?        // Last accepted step (replay protection)
+  preferences       String      @default("{}") // JSON: per-admin UI choices, e.g. { skipConfirm: [...] }
+  createdAt         DateTime    @default(now())
+  otpChallenges     OtpChallenge[]
+  emailVerificationTokens EmailVerificationToken[]
+  recoveryCodes     RecoveryCode[]
+  passkeys          Passkey[]
+}
+
+/// A one-time code emailed to an admin: login verification ('login'), password
+/// reset ('password_reset'), or the confirmation step of a self-service password
+/// change ('password_change'). Only `codeHash` is stored, so a database leak
+/// cannot be replayed as a valid code.
+model OtpChallenge {
+  id          String    @id @default(uuid())
+  adminUserId String
+  purpose     String // login | password_reset | password_change
+  codeHash    String
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, purpose])
+  @@index([expiresAt])
+}
+
+/// A single-use emailed link that proves an admin owns their address:
+/// accepting an invite ('invite', where the admin also chooses their first
+/// password) or confirming a password-chosen account ('verify'). Only the
+/// SHA-256 of a random token is stored (peppered with JWT_SECRET), so a
+/// database dump cannot be replayed. Issuing a new one deletes the previous row.
+model EmailVerificationToken {
+  id          String    @id @default(uuid())
+  adminUserId String
+  purpose     String // invite | verify
+  tokenHash   String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+}
+
+/// One-time recovery code for TOTP (authenticator app) 2FA.
+/// Stored as peppered SHA-256; the plaintext code is shown ONCE at enable time.
+model RecoveryCode {
+  id           String    @id @default(uuid())
+  adminUserId  String
+  codeHash     String
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
+  adminUser    AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+}
+
+model Passkey {
+  id           String     @id @default(uuid())
+  adminUserId  String
+  credentialId String     @unique // base64url
+  publicKey    String     // base64url
+  counter      Int
+  transports   String?    // JSON array of strings
+  deviceType   String?    // 'singleDevice' | 'multiDevice'
+  backedUp     Boolean
+  name         String     // User label, max 60 chars
+  createdAt    DateTime   @default(now())
+  lastUsedAt   DateTime?
+  adminUser    AdminUser  @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+}
+
+model WebauthnChallenge {
+  id          String    @id @default(uuid())
+  kind        String    // 'register' | 'login'
+  adminUserId String?
+  challenge   String
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+}
+
+model Project {
+  id                     Int               @id @default(autoincrement())
+  type                   String // logistics | commercial | office | residential
+  typeAr                 String
+  typeEn                 String?
+  title                  String
+  titleEn                String?
+  price                  Float?
+  priceLabel             String?
+  priceType              String // بيع | إيجار | استثمار
+  priceTypeEn            String?
+  status                 String?
+  statusEn               String?
+  publishStatus          String            @default("published") // draft | published | hidden
+  publishedAt            DateTime?
+  area                   Float
+  rooms                  Int?
+  bathrooms              Int?
+  unitsCount             String?
+  unitsCountEn           String?
+  city                   String
+  cityEn                 String?
+  image                  String
+  gallery                String? // JSON string array
+  description            String?
+  descriptionEn          String?
+  badge                  String?
+  badgeEn                String?
+  features               String? // JSON string array
+  featuresEn             String? // JSON string array
+  videoUrl               String?
+  model3dUrl             String? // external 3D viewer link (iframe or new tab)
+  virtualTour3dAvailable Boolean           @default(false)
+  locationHighlightsAr   String? // JSON string array
+  locationHighlightsEn   String? // JSON string array
+  lat                    Float?
+  lng                    Float?
+  brochureUrl            String?
+  floors                 PropertyFloor[]
+  inquiries              CustomerInquiry[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  @@index([publishStatus])
+  @@index([city])
+}
+
+model PropertyFloor {
+  id            Int            @id @default(autoincrement())
+  projectId     Int
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  floorNumber   Int
+  floorNameAr   String
+  floorNameEn   String?
+  descriptionAr String?
+  descriptionEn String?
+  totalArea     Float?
+  units         PropertyUnit[]
+}
+
+model PropertyUnit {
+  id          String            @id // e.g. "p206-g-s1"
+  floorId     Int
+  floor       PropertyFloor     @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  unitNumber  String
+  floorNumber Int
+  floorNameAr String
+  floorNameEn String?
+  sectionAr   String?
+  type        String // showroom | office | apartment | warehouse | outdoor
+  typeAr      String
+  typeEn      String?
+  area        Float
+  priceLabel  String?
+  status      String            @default("available") // available | reserved | rented | sold
+  statusAr    String            @default("متاح")
+  statusEn    String?           @default("Available")
+  features    String? // JSON string array
+  featuresEn  String? // JSON string array
+  inquiries   CustomerInquiry[]
+  updatedAt   DateTime          @updatedAt
+}
+
+model CustomerInquiry {
+  id             String        @id @default(uuid())
+  createdAt      DateTime      @default(now())
+  name           String
+  phone          String?
+  email          String?
+  projectId      Int?
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectTitle   String?
+  unitId         String?
+  unit           PropertyUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  unitNumber     String?
+  interestType   String // rent | buy | invest | general
+  interestTypeAr String
+  message        String?
+  notes          String?
+  status         String        @default("new") // new | contacted | closed
+  statusAr       String        @default("جديد")
+  updatedAt      DateTime      @updatedAt
+  @@index([createdAt])
+}
+
+model CategoryItem {
+  id     String @id
+  nameAr String
+  nameEn String
+  type   String
+  tags   String // JSON string array
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  locale    String?
+  source    String?
+  createdAt DateTime @default(now())
+}
+
+
+/// Admin-editable settings, one JSON document per key (e.g. "mail").
+model AppSetting {
+  key         String   @id
+  value       String
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}
+
+/// Who is told about an event (e.g. a new inquiry) and how. `config` is JSON
+/// specific to the channel; for `email`: { toInquiryViewers: boolean, emails: string[] }.
+model NotificationListener {
+  id          String   @id @default(cuid())
+  event       String
+  channel     String
+  name        String
+  enabled     Boolean  @default(true)
+  config      String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([event, enabled])
+}
+
+/// Stores document-style CMS content (e.g. "nav", "footer", "home", "works", "contact", "clientsPage").
+model CmsSection {
+  key         String              @id
+  content     String              // JSON string payload
+  version     Int                 @default(1)
+  updatedAt   DateTime            @updatedAt
+  updatedById String?
+  versions    CmsSectionVersion[]
+
+  @@map("cms_sections")
+}
+
+/// Stores point-in-time snapshots for version history, audit logging, and 1-click rollback.
+model CmsSectionVersion {
+  id          String     @id @default(uuid())
+  sectionKey  String
+  section     CmsSection @relation(fields: [sectionKey], references: [key], onDelete: Cascade)
+  content     String     // JSON snapshot of the section at this version
+  version     Int
+  createdById String?
+  createdAt   DateTime   @default(now())
+
+  @@unique([sectionKey, version])
+  @@index([sectionKey])
+  @@map("cms_section_versions")
+}
+
+/// Dedicated relational table for Partners & Corporate Clients with full CRUD, indexing, and sorting.
+model CmsClient {
+  id         String   @id @default(uuid())
+  nameAr     String
+  nameEn     String
+  sectorAr   String
+  sectorEn   String
+  descAr     String
+  descEn     String
+  logo       String   // e.g. "/clients/almanea.webp" or "/uploads/uuid.webp"
+  tagsAr     String   // JSON string array e.g. '["معارض كبرى"]'
+  tagsEn     String   // JSON string array e.g. '["Major Showrooms"]'
+  websiteUrl String?
+  order      Int      @default(0)
+  visible    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([visible, order])
+  @@map("cms_clients")
+}
+
+/// Developer notes, bug reports, and technical feedback created from the admin feedback pet.
+/// Strictly isolated from CustomerInquiry so it never pollutes the business leads / interest table.
+model DeveloperNote {
+  id            String   @id @default(uuid())
+  title         String
+  section       String
+  body          String
+  solution      String?
+  screenshotUrl String?
+  adminName     String?
+  adminEmail    String?
+  status        String   @default("pending") // pending | in_progress | resolved | closed
+  priority      String   @default("medium")  // low | medium | high | critical
+  metadata      String?  // JSON: browser, viewport, current URL
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("developer_notes")
+}
+
+/// Finished projects shown on the public "our past works" page. A separate
+/// table from `Project`, which lists the current sale/rental offerings.
+model PastProject {
+  id            Int      @id @default(autoincrement())
+  title         String
+  titleEn       String?
+  category      String?
+  categoryEn    String?
+  image         String // main image
+  gallery       String? // JSON string array
+  pdfUrl        String?
+  description   String?
+  descriptionEn String?
+  sortOrder     Int      @default(0)
+  published     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([published, sortOrder])
+  @@map("past_projects")
+}
+
+/// Applications sent from the public careers form. `cvPath` is a relative path
+/// inside a private CV directory that must NOT live under the publicly served
+/// `UPLOAD_DIR`.
+model JobApplication {
+  id             String   @id @default(cuid())
+  name           String
+  email          String
+  phone          String
+  jobTitle       String
+  message        String?
+  cvPath         String?
+  cvOriginalName String?
+  status         String   @default("new") // new | reviewed | shortlisted | rejected | hired
+  adminNote      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("job_applications")
+}

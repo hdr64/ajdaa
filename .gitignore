@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+*.err
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -27,3 +28,50 @@ temp
 */**.jpeg
 *.jpeg
 graphify-out
+
+# Frontend env (VITE_* vars are compiled into the client bundle)
+.env
+.env.local
+.env.*.local
+
+# Backend (server/)
+server/node_modules
+server/dist
+server/.env
+server/dev.db
+server/dev.db-journal
+server/prisma/dev.db
+server/prisma/dev.db-journal
+server/uploads
+server/private
+server/prisma/schema.postgresql.prisma
+
+# Auto-generated directory-tree dumps from an external tool (regenerate, never edit)
+# Root-anchored so the committed md/ajda.md is unaffected.
+/ajda.md
+/src/src.md
+md/ajda.md
+md
+md/*
+# Local scratch notes / tooling (not part of the app)
+/a.txt
+/g.py
+*.log
+server/*.log
+/image.png
+screenshots
+.antigravityignore
+.agents/rules/restrict-scan.md
+.env.backup
+server-10-21-2026.sql
+server-21-10-26.backup
+
+# Deployment artifacts and local database dumps
+.deploy/
+*.backup
+*.sql
+# ... but the committed migration and sanitizing scripts must stay tracked.
+!server/prisma/migrations/**/migration.sql
+!deploy/sanitize-test-db.sql
+deploy/mkuser.sh
+2026-10-25-215702-local-command-caveatthe-command-below-was-run-d.txt

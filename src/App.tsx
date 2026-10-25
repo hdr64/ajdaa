@@ -1,38 +1,104 @@
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect, lazy, Suspense } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { TOAST_DURATION_MS, type AdminToast, type ToastKind } from './pages/admin/adminContextDef';
 import type { Property } from './types/property';
 import { Navbar, type NavPageKey } from './components/common/Navbar';
-import { PropertyModal } from './components/common/PropertyModal';
 import { Footer } from './components/common/Footer';
+import { CareersFloatingButton } from './components/common/CareersFloatingButton';
 import { BackgroundDecor } from './components/common/BackgroundDecor';
 import { ThemeProvider } from './context/ThemeProvider';
-import {
-  HomePage,
-  WorksPage,
-  ClientsPage,
-  ProjectDetailPage,
-  InterestRegistrationView,
-  ContactPage,
-  AdminLoginPage,
-  AdminDashboardPage,
-} from './pages';
+import { HomePage } from './pages/HomePage';
 import { AdminStorage } from './services/adminStorage';
-import { CheckCircle2 } from 'lucide-react';
+import { onUnauthorized } from './services/api';
+import { AnnouncementBar } from './components/common/AnnouncementBar';
+import { MaintenanceScreen } from './components/common/MaintenanceScreen';
+import { useSiteSettings } from './hooks/useSiteSettings';
+import { useLanguage } from './hooks/useLanguage';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+
+// Lazy-loaded routes for code splitting
+const WorksPage = lazy(() => import('./components/works/WorksPage').then((m) => ({ default: m.WorksPage })));
+const ClientsPage = lazy(() => import('./pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
+const PastProjectsPage = lazy(() => import('./pages/PastProjectsPage').then((m) => ({ default: m.PastProjectsPage })));
+const CareersPage = lazy(() => import('./pages/CareersPage').then((m) => ({ default: m.CareersPage })));
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })));
+const InterestRegistrationView = lazy(() => import('./components/booking/InterestRegistrationView').then((m) => ({ default: m.InterestRegistrationView })));
+const ContactPage = lazy(() => import('./components/contact/ContactPage').then((m) => ({ default: m.ContactPage })));
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage })));
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+// Public, session-less account onboarding pages (deep-linked from email).
+const VerifyEmailPage = lazy(() => import('./pages/admin/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })));
+const AcceptInvitePage = lazy(() => import('./pages/admin/AcceptInvitePage').then((m) => ({ default: m.AcceptInvitePage })));
+
+/** Branded loading skeleton for lazy sub-routes */
+function RouteLoadingFallback() {
+  return (
+    <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-8 h-8 text-accent animate-spin opacity-80" />
+      <span className="text-xs text-muted tracking-wider">...</span>
+    </div>
+  );
+}
+
+/** Branded full-screen loader for admin lazy chunks */
+function AdminLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-canvas flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-9 h-9 text-accent animate-spin opacity-80" />
+    </div>
+  );
+}
+
+/** Icon, border and text colour per toast kind, from the existing theme tokens. */
+const TOAST_LOOK: Record<ToastKind, { icon: LucideIcon; iconClass: string; borderClass: string }> = {
+  success: { icon: CheckCircle2, iconClass: 'text-success', borderClass: 'border-accent/40' },
+  error: { icon: AlertCircle, iconClass: 'text-red-500', borderClass: 'border-red-500/40' },
+  info: { icon: Info, iconClass: 'text-accent', borderClass: 'border-accent/40' },
+};
+
+/** The one toast, shared by the login portal, the admin dashboard and the public site. */
+function ToastView({ message, kind }: AdminToast) {
+  const { icon: Icon, iconClass, borderClass } = TOAST_LOOK[kind];
+  return (
+    <div
+      role={kind === 'error' ? 'alert' : 'status'}
+      aria-live={kind === 'error' ? 'assertive' : 'polite'}
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border ${borderClass} text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in`}
+    >
+      <Icon className={`w-4 h-4 shrink-0 ${iconClass}`} />
+      <span>{message}</span>
+    </div>
+  );
+}
 
 export type PageKey = NavPageKey;
 
 interface RouteState {
-  page: PageKey;
+  page: PageKey | 'admin_verify_email' | 'admin_accept_invite';
   projectId?: number;
+  /** Admin sub-route after `/admin/`, e.g. "projects/206/units". */
+  adminPath?: string;
 }
+
+// Matches `/admin` and everything below it except the login portal.
+const ADMIN_PATH_RE = /\/admin(?:\/(.*))?$/i;
 
 const parsePath = (pathname: string): RouteState => {
   const clean = pathname.replace(/\/$/, '').toLowerCase();
 
   if (clean.includes('/admin/login')) return { page: 'admin_login' };
-  if (clean.endsWith('/admin')) {
-    return AdminStorage.isAuthenticated() ? { page: 'admin' } : { page: 'admin_login' };
+  // Public onboarding links opened from email — no session required, so they are
+  // matched before the authenticated `/admin` branch.
+  if (clean.endsWith('/admin/verify-email')) return { page: 'admin_verify_email' };
+  if (clean.endsWith('/admin/accept-invite')) return { page: 'admin_accept_invite' };
+  const adminMatch = pathname.replace(/\/$/, '').match(ADMIN_PATH_RE);
+  if (adminMatch) {
+    return AdminStorage.isAuthenticated() ? { page: 'admin', adminPath: adminMatch[1] ?? '' } : { page: 'admin_login' };
   }
   if (clean.endsWith('/clients')) return { page: 'clients' };
+  if (clean.endsWith('/past-works')) return { page: 'pastWorks' };
+  if (clean.endsWith('/careers')) return { page: 'careers' };
   if (clean.endsWith('/works')) return { page: 'works' };
   if (clean.endsWith('/booking') || clean.endsWith('/register-interest')) return { page: 'booking' };
   if (clean.endsWith('/contact')) return { page: 'contact' };
@@ -48,8 +114,9 @@ const parsePath = (pathname: string): RouteState => {
 
 const getPathForRoute = (route: RouteState): string => {
   const pathname = window.location.pathname;
-  let basePath = pathname;
-  ['/works', '/clients', '/booking', '/register-interest', '/contact', '/admin/login', '/admin'].forEach((p) => {
+  // Strip any /admin/... sub-route first (it can have several segments).
+  let basePath = pathname.replace(/\/$/, '').replace(/\/admin(?:\/.*)?$/i, '');
+  ['/works', '/past-works', '/clients', '/careers', '/booking', '/register-interest', '/contact', '/admin/login', '/admin'].forEach((p) => {
     if (basePath.endsWith(p)) {
       basePath = basePath.slice(0, -p.length);
     }
@@ -71,10 +138,16 @@ const getPathForRoute = (route: RouteState): string => {
       return `${basePath}/projects/${route.projectId || 206}`;
     case 'admin_login':
       return `${basePath}/admin/login`;
+    case 'admin_verify_email':
+      return `${basePath}/admin/verify-email`;
+    case 'admin_accept_invite':
+      return `${basePath}/admin/accept-invite`;
     case 'admin':
-      return `${basePath}/admin`;
+      return `${basePath}/admin${route.adminPath ? `/${route.adminPath}` : ''}`;
     case 'booking':
       return `${basePath}/booking`;
+    case 'pastWorks':
+      return `${basePath}/past-works`;
     default:
       return `${basePath}/${route.page}`;
   }
@@ -86,15 +159,56 @@ const TRANSITION_ENTER_MS = 220;
 export function App() {
   const [route, setRoute] = useState<RouteState>(() => parsePath(window.location.pathname));
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [selectedModalProperty, setSelectedModalProperty] = useState<Property | null>(null);
   const [initialFilters, setInitialFilters] = useState<{ city?: string; type?: string; priceType?: string } | undefined>(undefined);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<AdminToast | null>(null);
   const [transition, setTransition] = useState<'idle' | 'out' | 'in'>('idle');
   const transitioningRef = useRef(false);
+  const toastTimerRef = useRef<number | null>(null);
   const scrollPositionsRef = useRef<Record<string, number>>({});
+
+  const { settings } = useSiteSettings();
+  const { language } = useLanguage();
+  const [topOffset, setTopOffset] = useState<number>(0);
+
+  const showAdminMaintenanceWarning = Boolean(
+    settings.maintenance?.enabled && AdminStorage.isAuthenticated()
+  );
+
+  // The fixed stack above the Navbar (maintenance warning, announcement) changes
+  // height with its content, wrapping and dismissal. A callback ref attaches the
+  // observer whenever the stack mounts, including after returning from /admin.
+  const topStackObserver = useRef<ResizeObserver | null>(null);
+  const topStackRef = useCallback((node: HTMLDivElement | null) => {
+    topStackObserver.current?.disconnect();
+    topStackObserver.current = null;
+    if (!node) {
+      setTopOffset(0);
+      return;
+    }
+    const measure = () => setTopOffset(node.getBoundingClientRect().height);
+    measure();
+    topStackObserver.current = new ResizeObserver(measure);
+    topStackObserver.current.observe(node);
+  }, []);
 
   const currentPage = route.page;
   const currentProjectId = route.projectId || 206;
+
+  // An expired or revoked JWT must eject the admin portal from anywhere in the app.
+  useEffect(
+    () =>
+      onUnauthorized(() => {
+        setRoute({ page: 'admin_login' });
+      }),
+    []
+  );
+
+  useEffect(() => {
+    // Reaching /admin without a token is a hard redirect to the login portal.
+    if (route.page === 'admin' && !AdminStorage.isAuthenticated()) {
+      setRoute({ page: 'admin_login' });
+    }
+  }, [route.page]);
 
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
@@ -127,9 +241,11 @@ export function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (msg: string, kind: ToastKind = 'success') => {
+    // A new toast replaces the previous one and takes over its timer.
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+    setToast({ message: msg, kind });
+    toastTimerRef.current = window.setTimeout(() => setToast(null), TOAST_DURATION_MS[kind]);
   };
 
   const runTransition = (onSwap?: () => void) => {
@@ -148,12 +264,21 @@ export function App() {
     }, TRANSITION_EXIT_MS);
   };
 
-  const navigateTo = (page: PageKey, pushHistory = true, options?: { projectId?: number }) => {
-    const nextRoute: RouteState = { page, projectId: options?.projectId };
+  const navigateTo = (page: PageKey, pushHistory = true, options?: { projectId?: number; property?: Property }) => {
+    const targetProjectId = options?.projectId ?? options?.property?.id;
+    const nextRoute: RouteState = { page, projectId: targetProjectId };
 
-    if (page === currentPage && options?.projectId === route.projectId) {
+    if (page === currentPage && targetProjectId === route.projectId) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
+    }
+
+    if (options?.property) {
+      setSelectedProperty(options.property);
+    } else if (targetProjectId) {
+      void AdminStorage.getProjectById(targetProjectId).then((p) => {
+        if (p) setSelectedProperty(p);
+      }).catch(() => {});
     }
 
     const currentScrollY = window.scrollY;
@@ -169,6 +294,28 @@ export function App() {
     });
   };
 
+  // Sync selectedProperty with route.projectId if navigating directly or via browser history
+  useEffect(() => {
+    if (route.projectId && (!selectedProperty || selectedProperty.id !== route.projectId)) {
+      let cancelled = false;
+      AdminStorage.getProjectById(route.projectId).then((p) => {
+        if (!cancelled && p) setSelectedProperty(p);
+      }).catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [route.projectId, selectedProperty]);
+
+  // Admin sections change without the page transition; the dashboard is one screen.
+  const navigateAdmin = (adminPath: string, options?: { replace?: boolean }) => {
+    const nextRoute: RouteState = { page: 'admin', adminPath };
+    setRoute(nextRoute);
+    const url = getPathForRoute(nextRoute);
+    if (options?.replace) window.history.replaceState({ route: nextRoute, scrollY: 0 }, '', url);
+    else window.history.pushState({ route: nextRoute, scrollY: 0 }, '', url);
+  };
+
   const handleHeroExplore = (filters?: { city?: string; type?: string; priceType?: string }) => {
     setInitialFilters(filters);
     navigateTo('works');
@@ -176,27 +323,35 @@ export function App() {
 
   const handleSelectProperty = (prop: Property) => {
     setSelectedProperty(prop);
-    navigateTo('booking');
+    navigateTo('booking', true, { projectId: prop.id, property: prop });
   };
 
   const handleQuickView = (prop: Property) => {
-    navigateTo('project', true, { projectId: prop.id });
+    navigateTo('project', true, { projectId: prop.id, property: prop });
   };
 
   // Dedicated Admin views (clean full-screen portals)
   if (currentPage === 'admin_login') {
     return (
       <ThemeProvider>
-        <AdminLoginPage
-          onLoginSuccess={() => navigateTo('admin')}
-          onNavigateHome={() => navigateTo('home')}
-        />
-        {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
-            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
+        <Suspense fallback={<AdminLoadingFallback />}>
+          <AdminLoginPage
+            onLoginSuccess={() => navigateTo('admin')}
+            onNavigateHome={() => navigateTo('home')}
+          />
+        </Suspense>
+        {toast && <ToastView message={toast.message} kind={toast.kind} />}
+      </ThemeProvider>
+    );
+  }
+
+  // Public, session-less onboarding pages (opened from email).
+  if (currentPage === 'admin_verify_email' || currentPage === 'admin_accept_invite') {
+    return (
+      <ThemeProvider>
+        <Suspense fallback={<AdminLoadingFallback />}>
+          {currentPage === 'admin_verify_email' ? <VerifyEmailPage /> : <AcceptInvitePage />}
+        </Suspense>
       </ThemeProvider>
     );
   }
@@ -205,41 +360,72 @@ export function App() {
     if (!AdminStorage.isAuthenticated()) {
       return (
         <ThemeProvider>
-          <AdminLoginPage
-            onLoginSuccess={() => navigateTo('admin')}
-            onNavigateHome={() => navigateTo('home')}
-          />
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminLoginPage
+              onLoginSuccess={() => navigateTo('admin')}
+              onNavigateHome={() => navigateTo('home')}
+            />
+          </Suspense>
         </ThemeProvider>
       );
     }
 
     return (
       <ThemeProvider>
-        <AdminDashboardPage
-          onLogout={() => {
-            AdminStorage.logout();
-            navigateTo('home');
-          }}
-          onNavigateHome={() => navigateTo('home')}
-          onShowToast={showToast}
-        />
-        {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
-            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
+        <ErrorBoundary language={language}>
+        <Suspense fallback={<AdminLoadingFallback />}>
+          <AdminDashboardPage
+            adminPath={route.adminPath}
+            onAdminNavigate={navigateAdmin}
+            onLogout={() => {
+              AdminStorage.logout();
+              navigateTo('home');
+            }}
+            onNavigateHome={() => navigateTo('home')}
+            onShowToast={showToast}
+          />
+        </Suspense>
+        {toast && <ToastView message={toast.message} kind={toast.kind} />}
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  // Maintenance screen for visitors on public pages
+  const isMaintenance = settings.maintenance?.enabled && !AdminStorage.isAuthenticated();
+
+  if (isMaintenance) {
+    return (
+      <ThemeProvider>
+        <MaintenanceScreen onAdminLogin={() => navigateTo('admin_login')} />
       </ThemeProvider>
     );
   }
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-canvas flex flex-col justify-between overflow-clip transition-colors duration-300 relative">
+      <ErrorBoundary language={language}>
+        <div className="min-h-screen bg-canvas flex flex-col justify-between overflow-clip transition-colors duration-300 relative">
         <BackgroundDecor />
-        <Navbar currentPage={currentPage} onNavigate={navigateTo} />
 
-        <main className="flex-1">
+        {/* Fixed Top Stack: Admin Maintenance Warning & Announcement Bar */}
+        <div ref={topStackRef} className="fixed top-0 inset-x-0 z-[55] flex flex-col">
+          {showAdminMaintenanceWarning && (
+            <div className="bg-amber-500 text-amber-950 dark:bg-amber-600 dark:text-amber-50 text-xs font-bold py-1.5 px-4 text-center border-b border-amber-600/30 flex items-center justify-center gap-2 shadow-xs select-none">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                {language === 'ar'
+                  ? 'وضع الصيانة مفعّل: الزوار يرون صفحة الصيانة'
+                  : 'Maintenance mode is on: visitors see the maintenance page'}
+              </span>
+            </div>
+          )}
+          <AnnouncementBar />
+        </div>
+
+        <Navbar currentPage={currentPage} onNavigate={navigateTo} topOffset={topOffset} />
+
+        <main className="flex-1" style={topOffset > 0 ? { paddingTop: `${topOffset}px` } : undefined}>
           <div className={transition === 'out' ? 'page-exit-fade' : transition === 'in' ? 'page-enter-fade' : ''}>
             {currentPage === 'home' && (
               <HomePage
@@ -251,57 +437,58 @@ export function App() {
               />
             )}
 
-            {currentPage === 'works' && (
-              <WorksPage
-                onSelect={handleSelectProperty}
-                onQuickView={handleQuickView}
-                onFavToast={showToast}
-                initialFilters={initialFilters}
-              />
-            )}
+            {currentPage !== 'home' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                {currentPage === 'works' && (
+                  <WorksPage
+                    onSelect={handleSelectProperty}
+                    onQuickView={handleQuickView}
+                    onFavToast={showToast}
+                    initialFilters={initialFilters}
+                  />
+                )}
 
-            {currentPage === 'clients' && (
-              <ClientsPage onNavigate={navigateTo} />
-            )}
+                {currentPage === 'clients' && (
+                  <ClientsPage onNavigate={navigateTo} />
+                )}
 
-            {currentPage === 'project' && (
-              <ProjectDetailPage
-                projectId={currentProjectId}
-                onNavigate={(p, opts) => navigateTo(p, true, opts)}
-                onShowToast={showToast}
-              />
-            )}
+                {currentPage === 'pastWorks' && (
+                  <PastProjectsPage onNavigate={navigateTo} />
+                )}
 
-            {currentPage === 'booking' && (
-              <InterestRegistrationView
-                selectedProperty={selectedProperty}
-                onSelectProperty={(p) => setSelectedProperty(p)}
-                onSuccessToast={showToast}
-              />
-            )}
+                {currentPage === 'careers' && (
+                  <CareersPage onNavigate={navigateTo} />
+                )}
 
-            {currentPage === 'contact' && (
-              <ContactPage onSuccessToast={showToast} />
+                {currentPage === 'project' && (
+                  <ProjectDetailPage
+                    projectId={currentProjectId}
+                    onNavigate={(p, opts) => navigateTo(p, true, opts)}
+                    onShowToast={showToast}
+                  />
+                )}
+
+                {currentPage === 'booking' && (
+                  <InterestRegistrationView
+                    selectedProperty={selectedProperty}
+                    onSelectProperty={(p) => setSelectedProperty(p)}
+                    onSuccessToast={showToast}
+                  />
+                )}
+
+                {currentPage === 'contact' && (
+                  <ContactPage onSuccessToast={showToast} />
+                )}
+              </Suspense>
             )}
           </div>
         </main>
 
-        {/* Property Details Quick View Modal */}
-        <PropertyModal
-          property={selectedModalProperty}
-          onClose={() => setSelectedModalProperty(null)}
-          onBook={(prop) => {
-            setSelectedProperty(prop);
-            navigateTo('booking');
-          }}
-          onViewProjectPage={(prop) => {
-            setSelectedModalProperty(null);
-            navigateTo('project', true, { projectId: prop.id });
-          }}
-          onToast={showToast}
-        />
-
         <Footer onNavigate={navigateTo} onToast={showToast} />
+
+        {settings.careers.showFloatingButton && currentPage !== 'careers' && (
+          <CareersFloatingButton onClick={() => navigateTo('careers')} />
+        )}
 
         {transition !== 'idle' && (
           <div className="page-transition-overlay" aria-hidden="true">
@@ -309,13 +496,9 @@ export function App() {
           </div>
         )}
 
-        {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur-md border border-accent/40 text-heading px-6 py-3 rounded-full flex items-center gap-2.5 shadow-lg text-xs font-bold z-50 panel-in">
-            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
+        {toast && <ToastView message={toast.message} kind={toast.kind} />}
       </div>
-    </ThemeProvider>
+    </ErrorBoundary>
+  </ThemeProvider>
   );
 }

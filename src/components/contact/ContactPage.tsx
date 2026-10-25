@@ -1,6 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Phone, Mail, MapPin, Clock, Send, CheckCircle2, Zap, ShieldCheck, Headphones, MessageCircleMore } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
+import { AdminStorage } from '../../services/adminStorage';
+import { getErrorMessage } from '../../services/api';
+import { useLanguage } from '../../hooks/useLanguage';
+import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import { useCmsContact } from '../../hooks/useCmsContact';
+import { SOCIAL_KEYS } from '../../services/settingsService';
+import { SOCIAL_ICONS } from '../common/socialIcons';
 
 interface ContactPageProps {
   onSuccessToast?: (msg: string) => void;
@@ -10,62 +19,28 @@ interface FormState {
   name: string;
   phone: string;
   email: string;
-  subject: string;
+  /** Positional index into the CMS subject list, not the label text. */
+  subjectIndex: number;
   message: string;
 }
 
-const initialForm: FormState = { name: '', phone: '', email: '', subject: 'استفسار عام', message: '' };
+const initialForm: FormState = { name: '', phone: '', email: '', subjectIndex: 0, message: '' };
 
-const contactItems = [
-  { icon: MapPin, label: 'العنوان', value: 'الرياض، طريق الملك فهد', dir: 'rtl' as const },
-  {
-    icon: Phone,
-    label: 'واتساب والمحادثة المباشرة',
-    value: '+966 58 048 4528',
-    dir: 'ltr' as const,
-    href: 'https://wa.me/966580484528',
-    isExternal: true,
-  },
-  { icon: Mail, label: 'البريد الإلكتروني', value: 'info@ajdaa.sa', dir: 'ltr' as const, href: 'mailto:info@ajdaa.sa' },
-  { icon: Clock, label: 'ساعات العمل', value: 'الأحد – الخميس، 8ص – 4م', dir: 'rtl' as const },
+/**
+ * CRM interest type per subject position. The subject labels are admin-editable
+ * CMS copy, so the form tracks the index instead of the label — renaming a
+ * subject in the CMS can no longer break the interest routing.
+ */
+const SUBJECT_INTEREST: readonly ('rent' | 'buy' | 'invest' | 'general')[] = [
+  'general',
+  'rent',
+  'rent',
+  'rent',
+  'invest',
 ];
 
-const socialLinks = [
-  {
-    label: 'X (Twitter)',
-    href: 'https://x.com/Ajdaa_RS',
-    path: 'M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.451-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z',
-  },
-  {
-    label: 'Instagram',
-    href: 'https://www.instagram.com/ajdaa_rs',
-    path: 'M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069Zm0-2.163C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0Zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324ZM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881Z',
-  },
-  {
-    label: 'TikTok',
-    href: 'https://www.tiktok.com/@ajdaa_rs',
-    path: 'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-1.01-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.24 1.17 2.22 2.39 2.47.78.17 1.6.09 2.33-.24.78-.34 1.41-.97 1.74-1.74.24-.54.34-1.13.34-1.72V0h2.09l.11.02Z',
-  },
-  {
-    label: 'Snapchat',
-    href: 'https://snapchat.com/t/sVxEBu75',
-    path: 'M12.002 2.002c-4.07 0-6.73 3.03-6.73 6.38 0 1.29.38 2.58.98 3.51.2.31.28.63.22.95-.1.52-.57.85-1.07 1.01-.48.15-1.05.2-1.35.47-.2.18-.28.46-.17.7.15.33.61.53 1.1.66.86.23 1.83.18 2.56.7.4.29.61.73.66 1.17.06.51-.09.99-.44 1.37-.47.51-1.21.84-1.93 1.16-.62.27-.79.62-.64 1.04.14.39.63.63 1.22.75.9.18 1.91.13 2.76.62.58.33.91.86 1.29 1.39.56.77 1.35 1.13 2.73 1.13s2.17-.36 2.73-1.13c.38-.53.71-1.06 1.29-1.39.85-.49 1.86-.44 2.76-.62.59-.12 1.08-.36 1.22-.75.15-.42-.02-.77-.64-1.04-.72-.32-1.46-.65-1.93-1.16-.35-.38-.5-.86-.44-1.37.05-.44.26-.88.66-1.17.73-.52 1.7-.47 2.56-.7.49-.13.95-.33 1.1-.66.11-.24.03-.52-.17-.7-.3-.27-.87-.32-1.35-.47-.5-.16-.97-.49-1.07-1.01-.06-.32.02-.64.22-.95.6-.93.98-2.22.98-3.51 0-3.35-2.66-6.38-6.73-6.38z',
-  },
-];
-
-const highlights = [
-  { icon: Zap, text: 'رد سريع خلال 24 ساعة' },
-  { icon: ShieldCheck, text: 'خصوصية وأمان لبياناتك' },
-  { icon: Headphones, text: 'دعم استشاري واستثماري مستمر' },
-];
-
-const subjects = [
-  'استفسار عام',
-  'حجز / استفسار عن مستودع لوجستي',
-  'حجز / استفسار عن محل أو معرض تجاري',
-  'استفسار عن مكاتب إدارية',
-  'فرص استثمار وشراكات'
-];
+const interestFor = (index: number): 'rent' | 'buy' | 'invest' | 'general' =>
+  SUBJECT_INTEREST[index] ?? 'general';
 
 interface FieldProps {
   label: string;
@@ -82,10 +57,92 @@ const Field: React.FC<FieldProps> = ({ label, error, children }) => (
 );
 
 export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
+  const { language } = useLanguage();
+  const isAr = language === 'ar';
+
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Spam protection state
+  // Starts when a field is first focused, not at mount: a visitor who pastes and submits right away is not a bot.
+  const startedAt = useRef<number | null>(null);
+  const [website, setWebsite] = useState('');
+
+  const { settings } = useSiteSettings();
+  const { content } = useCmsContent();
+  const { text, list } = useCmsText();
+  const cmsContact = useCmsContact();
+  const contact = content.contact;
+
+  // CMS footer contact is authoritative; the legacy site settings remain as a
+  // fallback so a partially-populated CMS cannot blank the contact panel.
+  const cmsAddress = text(settings.addressAr, settings.addressEn);
+  const address = cmsContact.address ?? cmsAddress;
+  const hours = cmsContact.hours;
+  const whatsappHref = cmsContact.whatsappHref || whatsappUrl(settings.whatsapp);
+  const phone = cmsContact.phone;
+  const email = cmsContact.email;
+  const phoneDisplay = phone || (cmsContact.whatsappHref ? `+${content.footer.whatsapp}` : settings.phone || (settings.whatsapp ? `+${settings.whatsapp}` : ''));
+  const subjectLabels = list(contact.subjectsAr, contact.subjectsEn);
+  // Subjects are positional, so blank entries are dropped before rendering to
+  // avoid an unselectable empty option in the dropdown.
+  const subjects = subjectLabels
+    .map((label, index) => ({ label, index }))
+    .filter((s) => s.label.trim().length > 0);
+  const selectedSubject =
+    subjects.find((s) => s.index === form.subjectIndex)?.label ?? subjects[0]?.label ?? '';
+
+  const activeSocials = SOCIAL_KEYS.map((key) => {
+    const href = settings.socials[key];
+    const icon = SOCIAL_ICONS[key];
+    return { key, href, label: icon.label, path: icon.path };
+  }).filter((s) => Boolean(s.href && s.href.trim()));
+
+  const contactItems = [
+    address
+      ? {
+          icon: MapPin,
+          label: isAr ? 'العنوان' : 'Address',
+          value: address,
+          dir: (isAr ? 'rtl' : 'ltr') as 'rtl' | 'ltr',
+        }
+      : null,
+    whatsappHref && phoneDisplay
+      ? {
+          icon: Phone,
+          label: isAr ? 'واتساب والمحادثة المباشرة' : 'WhatsApp & Live Chat',
+          value: phoneDisplay,
+          dir: 'ltr' as const,
+          href: whatsappHref,
+          isExternal: true,
+        }
+      : null,
+    email
+      ? {
+          icon: Mail,
+          label: isAr ? 'البريد الإلكتروني' : 'Email Address',
+          value: email,
+          dir: 'ltr' as const,
+          href: `mailto:${email}`,
+        }
+      : null,
+    hours
+      ? {
+          icon: Clock,
+          label: isAr ? 'ساعات العمل' : 'Working Hours',
+          value: hours,
+          dir: (isAr ? 'rtl' : 'ltr') as 'rtl' | 'ltr',
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => item !== null);
+
+  const highlights = [
+    { icon: Zap, text: isAr ? 'رد سريع خلال 24 ساعة' : 'Prompt response within 24 hours' },
+    { icon: ShieldCheck, text: isAr ? 'خصوصية وأمان لبياناتك' : 'Data privacy & security guaranteed' },
+    { icon: Headphones, text: isAr ? 'دعم استشاري واستثماري مستمر' : 'Continuous advisory & investment support' },
+  ];
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -94,30 +151,63 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
-    if (!form.name.trim()) next.name = 'يرجى إدخال الاسم';
-    if (!form.phone.trim()) next.phone = 'يرجى إدخال رقم الجوال';
-    else if (!/^[0-9+()\s-]{7,}$/.test(form.phone.trim())) next.phone = 'رقم الجوال غير صالح';
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = 'البريد الإلكتروني غير صالح';
-    if (form.message.trim().length < 10) next.message = 'اكتب رسالة لا تقل عن 10 أحرف';
+    if (!form.name.trim()) {
+      next.name = isAr ? 'يرجى إدخال الاسم' : 'Please enter your name';
+    }
+    if (!form.phone.trim()) {
+      next.phone = isAr ? 'يرجى إدخال رقم الجوال' : 'Please enter your mobile phone number';
+    } else if (!/^[0-9+()\s-]{7,}$/.test(form.phone.trim())) {
+      next.phone = isAr ? 'رقم الجوال غير صالح' : 'Invalid phone number';
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      next.email = isAr ? 'البريد الإلكتروني غير صالح' : 'Invalid email address';
+    }
+    if (form.message.trim().length < 10) {
+      next.message = isAr ? 'اكتب رسالة لا تقل عن 10 أحرف' : 'Please write a message of at least 10 characters';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Contact messages land in the admin inquiries list (one inbox for the team).
+  // The subject is kept at the top of the message so it stays visible there.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
     setSubmitting(true);
-    window.setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await AdminStorage.addInquiry({
+        name: form.name.trim(),
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
+        interestType: interestFor(form.subjectIndex),
+        message: `[${selectedSubject}] ${form.message.trim()}`,
+        website,
+        elapsedMs: Date.now() - (startedAt.current ?? Date.now()),
+      });
       setSent(true);
-      onSuccessToast?.('تم إرسال رسالتك بنجاح');
-    }, 900);
+      onSuccessToast?.(isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully');
+    } catch (caught) {
+      onSuccessToast?.(
+        getErrorMessage(
+          caught,
+          isAr
+            ? 'تعذر إرسال الرسالة، يرجى المحاولة مرة أخرى أو التواصل عبر واتساب'
+            : 'Could not send the message. Please try again or contact us via WhatsApp'
+        )
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
     setForm(initialForm);
     setErrors({});
     setSent(false);
+    setWebsite('');
+    startedAt.current = null;
   };
 
   return (
@@ -125,26 +215,28 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
       <div aria-hidden className="absolute top-40 right-1/4 w-[480px] h-[320px] bg-gold/8 blur-[130px] rounded-full pointer-events-none -z-10" />
       <div aria-hidden className="absolute top-[640px] -left-32 w-[460px] h-[380px] bg-accent/10 blur-[130px] rounded-full pointer-events-none -z-10" />
       <div aria-hidden className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11rem] md:text-[15rem] font-black text-heading/[0.015] select-none pointer-events-none leading-none">
-        تواصل
+        {isAr ? 'تواصل' : 'Contact'}
       </div>
 
       <div className="relative text-center mb-14 stagger-anim" style={{ animationDelay: '80ms' }}>
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-4 py-2 rounded-full">
           <MessageCircleMore className="w-3.5 h-3.5 text-accent-light" />
-          تواصل معنا
+          {text(contact.badgeAr, contact.badgeEn)}
         </span>
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-black mt-6">
-          نحن هنا <span className="brand-gradient-text">لخدمتك</span>
+          {text(contact.titleAr, contact.titleEn)}
         </h1>
         <p className="text-sm md:text-base text-neutral-text/60 max-w-xl mx-auto mt-4 leading-relaxed">
-          فريقنا جاهز للإجابة على استفساراتك وتقديم الاستشارة العقارية المناسبة لاحتياجاتك
+          {text(contact.subtitleAr, contact.subtitleEn)}
         </p>
       </div>
 
       <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
         <Reveal direction="right" className="lg:col-span-2">
           <div className="glass-card h-full rounded-3xl p-8 flex flex-col">
-            <h3 className="text-lg font-black text-heading mb-6">معلومات التواصل</h3>
+            <h3 className="text-lg font-black text-heading mb-6">
+              {isAr ? 'معلومات التواصل' : 'Contact Information'}
+            </h3>
 
             <div className="flex flex-col gap-4 mb-8">
               {contactItems.map((item) => {
@@ -156,7 +248,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                     </div>
                     <div className="min-w-0">
                       <div className="text-[11px] text-neutral-text/50 mb-0.5">{item.label}</div>
-                      <div dir={item.dir} className="text-sm font-bold text-heading truncate group-hover:text-accent transition-colors">{item.value}</div>
+                      <div dir={item.dir} className="text-sm font-bold text-heading truncate group-hover:text-accent transition-colors">
+                        {item.value}
+                      </div>
                     </div>
                   </>
                 );
@@ -184,26 +278,30 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
             </div>
 
             <div className="border-t border-muted-border/20 pt-6 mt-auto">
-              <div className="mb-6">
-                <span className="text-[11px] font-bold text-neutral-text/60 block mb-2.5">تابعنا على منصات التواصل:</span>
-                <div className="flex items-center gap-2">
-                  {socialLinks.map((s) => (
-                    <a
-                      key={s.label}
-                      href={s.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={s.label}
-                      aria-label={s.label}
-                      className="w-10 h-10 rounded-xl border border-muted-border/40 bg-surface/60 flex items-center justify-center text-neutral-text/70 hover:text-accent hover:border-accent/80 hover:bg-accent/15 transition-all hover:scale-105"
-                    >
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
-                        <path d={s.path} />
-                      </svg>
-                    </a>
-                  ))}
+              {activeSocials.length > 0 && (
+                <div className="mb-6">
+                  <span className="text-[11px] font-bold text-neutral-text/60 block mb-2.5">
+                    {isAr ? 'تابعنا على منصات التواصل:' : 'Follow us on social platforms:'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {activeSocials.map((s) => (
+                      <a
+                        key={s.key}
+                        href={s.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={s.label}
+                        aria-label={s.label}
+                        className="w-10 h-10 rounded-xl border border-muted-border/40 bg-surface/60 flex items-center justify-center text-neutral-text/70 hover:text-accent hover:border-accent/80 hover:bg-accent/15 transition-all hover:scale-105"
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+                          <path d={s.path} />
+                        </svg>
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex flex-col gap-3">
                 {highlights.map((item) => {
@@ -224,36 +322,70 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
           <div className="glass-card rounded-3xl p-8 md:p-10 h-full relative overflow-hidden">
             <div aria-hidden className="absolute -top-20 -right-20 w-56 h-56 bg-accent/8 blur-[90px] rounded-full pointer-events-none" />
 
+            {!sent && (
+              <h3 className="relative text-lg font-black text-heading mb-6">
+                {text(contact.formTitleAr, contact.formTitleEn)}
+              </h3>
+            )}
+
             {sent ? (
               <div className="relative h-full min-h-[420px] flex flex-col items-center justify-center text-center">
                 <div className="w-20 h-20 rounded-full bg-success/15 border border-success/40 flex items-center justify-center mb-7 pop-in">
                   <CheckCircle2 className="w-10 h-10 text-success" />
                 </div>
-                <h3 className="text-2xl font-black text-heading mb-3">تم إرسال رسالتك بنجاح</h3>
+                <h3 className="text-2xl font-black text-heading mb-3">
+                  {isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully'}
+                </h3>
                 <p className="text-sm text-neutral-text/60 max-w-sm leading-relaxed mb-8">
-                  شكراً لتواصلك معنا، سيتواصل معك أحد مستشارينا في أقرب وقت ممكن
+                  {isAr
+                    ? 'شكراً لتواصلك معنا، سيتواصل معك أحد مستشارينا في أقرب وقت ممكن'
+                    : 'Thank you for reaching out to us. One of our consultants will contact you as soon as possible.'}
                 </p>
                 <button
                   onClick={resetForm}
                   className="brand-btn-secondary text-xs font-bold px-6 py-2.5 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
                 >
-                  إرسال رسالة أخرى
+                  {isAr ? 'إرسال رسالة أخرى' : 'Send Another Message'}
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} noValidate className="relative grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="الاسم الكامل" error={errors.name}>
+              <form
+                onSubmit={handleSubmit}
+                onFocus={() => {
+                  if (startedAt.current === null) startedAt.current = Date.now();
+                }}
+                noValidate
+                className="relative grid grid-cols-1 sm:grid-cols-2 gap-5">
+                {/* Honeypot field for bot spam prevention */}
+                <div
+                  className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                >
+                  <label htmlFor="contact-website">Website</label>
+                  <input
+                    id="contact-website"
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                  />
+                </div>
+
+                <Field label={isAr ? 'الاسم الكامل' : 'Full Name'} error={errors.name}>
                   <div className={`field-shell ${errors.name ? '!border-red-400/70' : ''}`}>
                     <input
                       value={form.name}
                       onChange={set('name')}
-                      placeholder="مثال: أحمد محمد"
+                      placeholder={isAr ? 'مثال: أحمد محمد' : 'e.g. Ahmed Mohammed'}
                       className="w-full min-w-0 bg-transparent text-sm text-heading outline-none placeholder:text-neutral-text/40"
                     />
                   </div>
                 </Field>
 
-                <Field label="رقم الجوال" error={errors.phone}>
+                <Field label={isAr ? 'رقم الجوال' : 'Mobile Phone'} error={errors.phone}>
                   <div className={`field-shell ${errors.phone ? '!border-red-400/70' : ''}`}>
                     <input
                       type="tel"
@@ -266,7 +398,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                   </div>
                 </Field>
 
-                <Field label="البريد الإلكتروني (اختياري)" error={errors.email}>
+                <Field label={isAr ? 'البريد الإلكتروني (اختياري)' : 'Email (Optional)'} error={errors.email}>
                   <div className={`field-shell ${errors.email ? '!border-red-400/70' : ''}`}>
                     <input
                       type="email"
@@ -279,24 +411,30 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                   </div>
                 </Field>
 
-                <Field label="الموضوع">
+                <Field label={isAr ? 'الموضوع' : 'Subject'}>
                   <div className="field-shell">
-                    <select value={form.subject} onChange={set('subject')} className="field-select">
+                    <select
+                      value={form.subjectIndex}
+                      onChange={(e) => setForm((f) => ({ ...f, subjectIndex: Number(e.target.value) }))}
+                      className="field-select"
+                    >
                       {subjects.map((s) => (
-                        <option key={s} value={s}>{s}</option>
+                        <option key={s.index} value={s.index}>
+                          {s.label}
+                        </option>
                       ))}
                     </select>
                   </div>
                 </Field>
 
                 <div className="sm:col-span-2">
-                  <Field label="الرسالة" error={errors.message}>
+                  <Field label={isAr ? 'الرسالة' : 'Message'} error={errors.message}>
                     <div className={`field-shell ${errors.message ? '!border-red-400/70' : ''}`}>
                       <textarea
                         rows={4}
                         value={form.message}
                         onChange={set('message')}
-                        placeholder="اكتب رسالتك هنا..."
+                        placeholder={isAr ? 'اكتب رسالتك هنا...' : 'Write your message here...'}
                         className="w-full min-w-0 bg-transparent text-sm text-heading outline-none placeholder:text-neutral-text/40 resize-none"
                       />
                     </div>
@@ -305,7 +443,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
 
                 <div className="sm:col-span-2 flex flex-col sm:flex-row items-center justify-between gap-4 pt-1">
                   <p className="text-[11px] text-neutral-text/45">
-                    بالضغط على إرسال أنت توافق على سياسة الخصوصية الخاصة بنا
+                    {isAr
+                      ? 'بالضغط على إرسال أنت توافق على سياسة الخصوصية الخاصة بنا'
+                      : 'By clicking submit, you agree to our privacy policy'}
                   </p>
                   <button
                     type="submit"
@@ -315,11 +455,11 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                     {submitting ? (
                       <>
                         <span className="w-4 h-4 border-2 border-canvas/40 border-t-canvas rounded-full animate-spin" />
-                        جاري الإرسال...
+                        {isAr ? 'جاري الإرسال...' : 'Sending...'}
                       </>
                     ) : (
                       <>
-                        إرسال الرسالة
+                        {isAr ? 'إرسال الرسالة' : 'Send Message'}
                         <Send className="w-4 h-4" />
                       </>
                     )}
@@ -333,3 +473,4 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
     </div>
   );
 };
+

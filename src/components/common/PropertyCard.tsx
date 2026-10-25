@@ -13,8 +13,10 @@ import {
   Warehouse,
   Store,
   Building2,
+  FileText,
 } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
+import { isDownloadableMediaUrl } from '../../utils/urlValidation';
 import { getPropertyDisplay } from '../../data/properties';
 
 interface PropertyCardProps {
@@ -36,6 +38,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
 
   const display = getPropertyDisplay(property, language);
   const galleryCount = property.gallery?.length || 1;
+  const brochureUrl = isDownloadableMediaUrl(property.brochureUrl) ? property.brochureUrl : undefined;
 
   const toggleFav = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -189,6 +192,19 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
               </>
             )}
           </div>
+          {brochureUrl && (
+            <a
+              href={brochureUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-accent hover:underline rounded-lg px-1 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              {isAr ? 'تحميل ملف المشروع (PDF)' : 'Download project profile (PDF)'}
+            </a>
+          )}
         </div>
 
         <div className="flex items-center justify-between pt-1">

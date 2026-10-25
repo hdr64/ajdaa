@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
-import { Building2, MapPin, CheckCircle2, ArrowLeft, ArrowRight, TrendingUp, Layers, Eye } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Building2, MapPin, CheckCircle2, ArrowLeft, ArrowRight, TrendingUp, Layers, Eye, RefreshCw, AlertCircle } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 import { useLanguage } from '../../hooks/useLanguage';
-import { properties, getPropertyDisplay } from '../../data/properties';
+import { AdminStorage } from '../../services/adminStorage';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { useCmsContent } from '../../hooks/useCmsContent';
+import { useCmsText } from '../../hooks/useCmsText';
+import { getPropertyDisplay } from '../../data/properties';
 import type { Property } from '../../types/property';
 
 interface ProjectsSectionProps {
@@ -10,38 +14,53 @@ interface ProjectsSectionProps {
   onQuickView?: (prop: Property) => void;
 }
 
-type FilterCategory = 'all' | 'commercial' | 'office' | 'logistics';
+type FilterCategory = 'all' | 'commercial' | 'office' | 'logistics' | 'residential' | 'hotel';
 
 export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQuickView }) => {
   const { language, isRTL } = useLanguage();
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const portfolio = {
+    badge: text(content.home.portfolioSection.badgeAr, content.home.portfolioSection.badgeEn),
+    title: text(content.home.portfolioSection.titleAr, content.home.portfolioSection.titleEn),
+    titleHighlight: text(
+      content.home.portfolioSection.titleHighlightAr,
+      content.home.portfolioSection.titleHighlightEn
+    ),
+    desc: text(content.home.portfolioSection.descAr, content.home.portfolioSection.descEn),
+  };
   const [activeTab, setActiveTab] = useState<FilterCategory>('all');
 
-  // Categories for filtering
-  const tabs: { id: FilterCategory; labelAr: string; labelEn: string }[] = [
-    { id: 'all', labelAr: 'كافة المشاريع الرائدة (6)', labelEn: 'All Signature Hubs (6)' },
-    { id: 'office', labelAr: 'المباني والأبراج الإدارية', labelEn: 'Corporate & Business Towers' },
-    { id: 'commercial', labelAr: 'المعارض والمجمعات التجارية', labelEn: 'Commercial & Showrooms' },
-    { id: 'logistics', labelAr: 'المستودعات وسلاسل الإمداد', labelEn: 'Logistics & Warehousing' },
-  ];
+  const { data: properties, loading, error, reload } = useAsyncData<Property[]>(
+    useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
+    [],
+    []
+  );
 
-  // In the top section of the home page, the first 3 properties (201, 202, 203) are displayed.
-  // Here, we feature all 6 flagship projects (or filtered by category) so the other projects
-  // (Ajda Vera 204, Ajda Vista 205, Ajda Prime 206, Ajda Line 207) are fully highlighted!
-  const allProjects = [
-    properties[3], // 204: Ajda Vera
-    properties[4], // 205: Ajda Vista
-    properties[5], // 206: Ajda Prime
-    properties[6] || properties[0], // 207: Ajda Line
-    properties[1], // 202: Al Ahsa
-    properties[0], // 201: Al Mansoria
-  ].filter(Boolean);
+  // The first three projects are already showcased in the hero, so this section
+  // highlights everything after them instead of hardcoding seed-array offsets.
+  const allProjects = useMemo(() => properties.slice(3, 9), [properties]);
 
   const displayedProjects = allProjects.filter((p) => {
     if (activeTab === 'all') return true;
     return p.type === activeTab;
   });
+
+  // Categories for filtering
+  const tabs: { id: FilterCategory; labelAr: string; labelEn: string }[] = [
+    {
+      id: 'all',
+      labelAr: `كافة المشاريع الرائدة (${allProjects.length})`,
+      labelEn: `All Signature Hubs (${allProjects.length})`,
+    },
+    { id: 'office', labelAr: 'المباني والأبراج الإدارية', labelEn: 'Corporate & Business Towers' },
+    { id: 'commercial', labelAr: 'المعارض والمجمعات التجارية', labelEn: 'Commercial & Showrooms' },
+    { id: 'logistics', labelAr: 'المستودعات وسلاسل الإمداد', labelEn: 'Logistics & Warehousing' },
+    { id: 'residential', labelAr: 'سكني', labelEn: 'Residential' },
+    { id: 'hotel', labelAr: 'فنادق', labelEn: 'Hotels' },
+  ];
 
   return (
     <section className="relative py-14 sm:py-24 max-w-7xl mx-auto px-4 sm:px-6 overflow-hidden">
@@ -49,16 +68,14 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
       <div className="relative text-center mb-8 sm:mb-12">
         <span className="inline-flex items-center gap-2 text-xs font-semibold brand-badge px-3.5 py-1.5 rounded-full mb-3">
           <Building2 className="w-3.5 h-3.5 text-gold" />
-          {isAr ? 'محفظة مشاريع أجدا العقارية' : 'Ajda Real Estate Portfolio'}
+          {portfolio.badge}
         </span>
         <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black mt-2 sm:mt-3 leading-tight text-heading">
-          {isAr ? 'المشاريع الاستثمارية والإدارية ' : 'Investment & Corporate Developments '}
-          <span className="brand-gradient-text">{isAr ? 'لأجدا العقارية' : 'by Ajda Real Estate'}</span>
+          {portfolio.title}{' '}
+          <span className="brand-gradient-text">{portfolio.titleHighlight}</span>
         </h2>
         <p className="text-xs sm:text-base text-neutral-text/80 max-w-2xl mx-auto mt-3 sm:mt-4 leading-relaxed font-medium">
-          {isAr
-            ? 'مراكز أعمال تنفيذية ومجمعات تجارية ومعارض متطورة في أرقى المواقع الاستراتيجية بالعاصمة الرياض والمملكة.'
-            : 'Executive corporate centers, flagship commercial showrooms, and prime logistics hubs developed in prestigious locations across Riyadh and the Kingdom.'}
+          {portfolio.desc}
         </p>
 
         {/* Filter Tabs - Calm Luxury Pill Controls */}
@@ -85,6 +102,39 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
 
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 relative z-10">
+        {loading &&
+          [0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-72 rounded-2xl sm:rounded-3xl bg-surface/60 border border-muted-border/30 animate-pulse"
+            />
+          ))}
+
+        {error && (
+          <div className="col-span-full text-center py-12 space-y-3">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
+            <p className="text-xs font-bold text-neutral-text/70">
+              {isAr ? 'تعذر تحميل المشاريع' : 'Could not load projects'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void reload()}
+              className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              {isAr ? 'إعادة المحاولة' : 'Retry'}
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && displayedProjects.length === 0 && (
+          <div className="col-span-full text-center py-12">
+            <p className="text-xs font-bold text-neutral-text/60">
+              {isAr ? 'لا توجد مشاريع في هذا التصنيف' : 'No projects in this category'}
+            </p>
+          </div>
+        )}
+
         {displayedProjects.map((prop, idx) => {
           const display = getPropertyDisplay(prop, language);
           const galleryCount = prop.gallery?.length || 1;
@@ -112,6 +162,10 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                         ? 'bg-blue-600 text-white'
                         : prop.type === 'commercial'
                         ? 'bg-emerald-600 text-white'
+                        : prop.type === 'residential'
+                        ? 'bg-violet-600 text-white'
+                        : prop.type === 'hotel'
+                        ? 'bg-amber-600 text-white'
                         : 'brand-fill'
                     }`}
                   >

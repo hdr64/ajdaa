@@ -1,12 +1,24 @@
 import React, { useState } from 'react';
 import { AdminStorage } from '../../services/adminStorage';
-import { ShieldCheck, Lock, Mail, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
+import { ApiError, getErrorMessage } from '../../services/api';
+import { ShieldCheck, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
+import { LoginCredentialsStep } from '../../components/admin/auth/LoginCredentialsStep';
+import { LoginOtpStep } from '../../components/admin/auth/LoginOtpStep';
+import { LoginTotpStep } from '../../components/admin/auth/LoginTotpStep';
+import { EnrollTotpStep } from '../../components/admin/auth/EnrollTotpStep';
+import { VerifyEmailCodeStep } from '../../components/admin/auth/VerifyEmailCodeStep';
+import { ForgotPasswordStep } from '../../components/admin/auth/ForgotPasswordStep';
+import { ResetPasswordStep } from '../../components/admin/auth/ResetPasswordStep';
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
+import { authService, type LoginResult } from '../../services/authService';
 
 interface AdminLoginPageProps {
   onLoginSuccess: () => void;
   onNavigateHome: () => void;
 }
+
+type AuthStep = 'credentials' | 'otp' | 'totp' | 'enrollTotp' | 'verifyCode' | 'forgot' | 'reset';
 
 export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   onLoginSuccess,
@@ -16,25 +28,329 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const isAr = language === 'ar';
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
-  const [email, setEmail] = useState('admin@ajdaa.sa');
+  const [step, setStep] = useState<AuthStep>('credentials');
+  // Empty by default: a prefilled address tells an unauthenticated visitor
+  // which account to attack, and it is a default credential on a public page.
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [challengeId, setChallengeId] = useState('');
+  const [enrollToken, setEnrollToken] = useState('');
+  const [emailHint, setEmailHint] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  /**
+   * Routes a login response to its next screen and reports whether a session
+   * was issued. Shared by the credentials step and the post-verification
+   * re-login so the second-factor branches live in exactly one place.
+   */
+  const advanceLogin = (result: LoginResult): boolean => {
+    switch (result.kind) {
+      case 'session':
+        return true;
+      case 'otp':
+        setChallengeId(result.challengeId);
+        setEmailHint(result.emailHint);
+        setStep('otp');
+        return false;
+      case 'totp':
+        setChallengeId(result.challengeId);
+        setEmailHint(result.emailHint);
+        setStep('totp');
+        return false;
+      case 'totpEnroll':
+        setEnrollToken(result.enrollToken);
+        setEmailHint(result.emailHint);
+        setStep('enrollTotp');
+        return false;
+    }
+  };
+
+  /* ---------------------- Credentials Login ---------------------- */
+
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setLoading(true);
+
+    try {
+      const result = await AdminStorage.startLogin(email, password);
+      if (advanceLogin(result)) onLoginSuccess();
+    } catch (caught) {
+      // Correct credentials on an unverified account are a 403, not a login
+      // failure: the address must be confirmed before a session can be issued.
+      const details = (caught as { details?: unknown }).details;
+      if (
+        caught instanceof ApiError &&
+        details &&
+        typeof details === 'object' &&
+        (details as { code?: unknown }).code === 'EMAIL_NOT_VERIFIED'
+      ) {
+        // Correct credentials on an unverified create-mode account: offer the
+        // emailed code step instead of a dead end, keeping the credentials in
+        // page state only.
+        setError(null);
+        setNotice(null);
+        setStep('verifyCode');
+        return;
+      }
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر تسجيل الدخول. حاول مرة أخرى.' : 'Unable to sign in. Please try again.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* -------------------------- Passkey Login -------------------------- */
+
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const supportsPasskeys = typeof window !== 'undefined' && browserSupportsWebAuthn();
+
+  const handlePasskeyLogin = async () => {
+    setError(null);
+    setNotice(null);
+    setPasskeyLoading(true);
+
+    try {
+      const { options, challengeId } = await authService.getPasskeyLoginOptions();
+      const authResponse = await startAuthentication({ optionsJSON: options });
+      const result = await authService.verifyPasskeyLogin(challengeId, authResponse);
+      if (advanceLogin(result)) onLoginSuccess();
+    } catch (caught: unknown) {
+      if (caught instanceof Error && caught.name === 'NotAllowedError') {
+        // User cancelled the prompt - silent
+        return;
+      }
+      setError(
+        isAr
+          ? 'تعذّر الدخول بمفتاح المرور. جرّب كلمة المرور.'
+          : 'Could not sign in with passkey. Please try with your password.'
+      );
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
+  /* -------------------------- Login OTP -------------------------- */
+
+  const handleVerifyOtp = async (code: string) => {
     setError(null);
     setLoading(true);
 
-    setTimeout(() => {
-      const ok = AdminStorage.login(email, password);
-      setLoading(false);
-      if (ok) {
-        onLoginSuccess();
+    try {
+      await AdminStorage.verifyLoginOtp(challengeId, code);
+      onLoginSuccess();
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
+        setStep('credentials');
+        setError(
+          isAr
+            ? 'انتهت صلاحية جلسة التحقق، يرجى إعادة تسجيل الدخول'
+            : 'Verification session has expired. Please sign in again.'
+        );
       } else {
-        setError(isAr ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة' : 'Invalid email or password');
+        setError(
+          getErrorMessage(
+            caught,
+            isAr ? 'رمز التحقق غير صحيح أو منتهي الصلاحية' : 'Invalid or expired verification code'
+          )
+        );
       }
-    }, 400);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setError(null);
+    try {
+      await AdminStorage.resendLoginOtp(challengeId);
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
+        setStep('credentials');
+        setError(
+          isAr
+            ? 'انتهت صلاحية جلسة التحقق، يرجى إعادة تسجيل الدخول'
+            : 'Verification session has expired. Please sign in again.'
+        );
+      } else {
+        setError(
+          getErrorMessage(
+            caught,
+            isAr ? 'تعذر إعادة إرسال الرمز، يرجى الانتظار قليلاً' : 'Could not resend code, please wait'
+          )
+        );
+      }
+    }
+  };
+
+  /* ------------------ Authenticator app (TOTP) ------------------ */
+
+  const handleVerifyTotp = async (code: string) => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await AdminStorage.verifyLoginTotp(challengeId, code);
+      onLoginSuccess();
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 410 || caught.status === 404)) {
+        setStep('credentials');
+        setError(
+          isAr
+            ? 'انتهت صلاحية جلسة التحقق، يرجى إعادة تسجيل الدخول'
+            : 'Verification session has expired. Please sign in again.'
+        );
+      } else {
+        setError(
+          getErrorMessage(
+            caught,
+            isAr ? 'الرمز غير صحيح أو منتهي الصلاحية' : 'Invalid or expired code'
+          )
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Loads the pending secret for the enrollment token (QR + manual key). */
+  const handleEnrollTotpLoad = () => AdminStorage.enrollTotpSetup(enrollToken);
+
+  /** Confirms the first app code; a session comes back with the recovery codes. */
+  const handleEnrollTotpVerify = async (code: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await AdminStorage.enrollTotpVerify(enrollToken, code);
+      onLoginSuccess();
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر تفعيل تطبيق المصادقة، تحقق من الرمز' : 'Could not enable the app, check the code'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* -------------------- Verify email code -------------------- */
+
+  const handleVerifyEmailCode = async (code: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await AdminStorage.verifyEmailCode(email, password, code);
+
+      // The account is now active. Sign the user in automatically by
+      // re-submitting the original login so they do not type credentials again.
+      // A second factor may still be required (app code or first-time setup).
+      const result = await AdminStorage.startLogin(email, password);
+      if (advanceLogin(result)) {
+        setNotice(
+          isAr
+            ? 'تم تأكيد البريد الإلكتروني وتسجيل الدخول بنجاح.'
+            : 'Email confirmed and you are signed in.'
+        );
+        onLoginSuccess();
+      }
+    } catch (caught) {
+      // A wrong code answers 400 with `attemptsLeft`; the server's message is
+      // already bilingual.
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : getErrorMessage(
+              caught,
+              isAr ? 'تعذر تأكيد البريد الإلكتروني' : 'Could not verify email'
+            )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerificationCode = async () => {
+    setError(null);
+    try {
+      await AdminStorage.resendVerificationCode(email, password);
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر إعادة إرسال الرمز، يرجى الانتظار قليلاً' : 'Could not resend code, please wait'
+        )
+      );
+    }
+  };
+
+  /* ----------------------- Forgot Password ----------------------- */
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setLoading(true);
+
+    try {
+      await AdminStorage.forgotPassword(email);
+      setStep('reset');
+      setNotice(
+        isAr
+          ? 'إذا كان الحساب مسجلاً، فقد تم إرسال رمز التحقق إلى بريدك الإلكتروني'
+          : 'If an account exists with this email, a verification code was sent.'
+      );
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر إرسال طلب الاستعادة' : 'Could not process password reset request'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ------------------------ Reset Password ----------------------- */
+
+  const handleResetPassword = async (code: string, newPassword: string) => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await AdminStorage.resetPassword(email, code, newPassword);
+      setStep('credentials');
+      setPassword('');
+      setNotice(
+        isAr
+          ? 'تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.'
+          : 'Password reset successfully. You can now sign in.'
+      );
+    } catch (caught) {
+      setError(
+        getErrorMessage(
+          caught,
+          isAr ? 'تعذر تغيير كلمة المرور. تحقق من صحة الرمز.' : 'Could not reset password. Check the code and try again.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToCredentials = () => {
+    setError(null);
+    setNotice(null);
+    setStep('credentials');
   };
 
   return (
@@ -61,82 +377,108 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
 
         {/* Card */}
         <div className="rounded-3xl bg-surface/90 border border-muted-border/40 p-6 sm:p-8 shadow-xl backdrop-blur-xl">
-          {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+          {step === 'credentials' && (
+            <LoginCredentialsStep
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              onSubmit={handleCredentialsSubmit}
+              onForgotPassword={() => {
+                setError(null);
+                setNotice(null);
+                setStep('forgot');
+              }}
+              onNavigateHome={onNavigateHome}
+              loading={loading}
+              error={error}
+              notice={notice}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+              supportsPasskeys={supportsPasskeys}
+              passkeyLoading={passkeyLoading}
+              onPasskeyLogin={handlePasskeyLogin}
+            />
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'البريد الإلكتروني للإدارة' : 'Admin Email'}
-              </label>
-              <div className="relative flex items-center">
-                <Mail className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
-                <input
-                  type="email"
-                  required
-                  dir="ltr"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@ajdaa.sa"
-                  className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent font-mono"
-                />
-              </div>
-            </div>
+          {step === 'otp' && (
+            <LoginOtpStep
+              emailHint={emailHint}
+              onVerify={handleVerifyOtp}
+              onResend={handleResendOtp}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
 
-            <div>
-              <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-                {isAr ? 'كلمة المرور' : 'Password'}
-              </label>
-              <div className="relative flex items-center">
-                <Lock className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
-                <input
-                  type="password"
-                  required
-                  dir="ltr"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full ps-10 pe-4 py-3 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent"
-                />
-              </div>
-            </div>
+          {step === 'totp' && (
+            <LoginTotpStep
+              emailHint={emailHint}
+              onVerify={handleVerifyTotp}
+              onBack={handleBackToCredentials}
+              onModeChange={() => setError(null)}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
 
-            {/* Helper credentials note */}
-            <div className="p-3 rounded-xl bg-accent/5 border border-accent/20 text-[11px] text-neutral-text/70 flex items-center justify-between font-mono">
-              <span>user: admin@ajdaa.sa</span>
-              <span>pass: password</span>
-            </div>
+          {step === 'enrollTotp' && (
+            <EnrollTotpStep
+              onLoad={handleEnrollTotpLoad}
+              onVerify={handleEnrollTotpVerify}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50 mt-2"
-            >
-              {loading ? (
-                <span>{isAr ? 'جاري التحقق...' : 'Signing in...'}</span>
-              ) : (
-                <>
-                  <span>{isAr ? 'تسجيل الدخول إلى النظام' : 'Sign In to Dashboard'}</span>
-                  <ArrowIcon className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+          {step === 'verifyCode' && (
+            <VerifyEmailCodeStep
+              onVerify={handleVerifyEmailCode}
+              onResend={handleResendVerificationCode}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
 
-          <div className="mt-6 pt-5 border-t border-muted-border/30 text-center">
-            <button
-              onClick={onNavigateHome}
-              className="text-xs font-bold text-neutral-text/60 hover:text-accent transition cursor-pointer"
-            >
-              {isAr ? '← العودة للموقع الرئيسي' : '← Return to Main Website'}
-            </button>
-          </div>
+          {step === 'forgot' && (
+            <ForgotPasswordStep
+              email={email}
+              setEmail={setEmail}
+              onSubmit={handleForgotPasswordSubmit}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
+
+          {step === 'reset' && (
+            <ResetPasswordStep
+              email={email}
+              onReset={handleResetPassword}
+              onBack={handleBackToCredentials}
+              loading={loading}
+              error={error}
+              notice={notice}
+              isAr={isAr}
+              ArrowIcon={ArrowIcon}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 };
+

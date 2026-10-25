@@ -1,0 +1,93 @@
+# Task w4-postgres-dev — PostgreSQL everywhere (dev, tests, prod)
+
+## Goal
+Today dev and tests use SQLite (`schema.prisma`, `provider = "sqlite"`) while production uses PostgreSQL through a generated copy (`schema.postgresql.prisma`, gitignored, made by `db:gen:prod`). The committed migrations are already PostgreSQL SQL. That split lets dev and production drift apart and makes every migration a hand-written, unchecked file.
+
+After this task there is **one** schema (`server/prisma/schema.prisma`, `provider = "postgresql"`), local development and the test suite run on PostgreSQL, and migrations are created with `prisma migrate dev`. The generated production schema and `db:gen:prod` are removed.
+
+## Read first
+- `server/package.json`, `package.json` (root forwarding scripts)
+- `server/prisma/schema.prisma`, `server/prisma/schema.postgresql.prisma` (stale generated copy), `server/prisma/migrations/` (+ `migration_lock.toml`)
+- `server/scripts/generate-prod-schema.mjs`
+- `server/test/global-setup.ts`, `server/test/env.ts`, `server/test/setup-env.ts`, `server/vitest.config.ts`, `server/test/harness.test.ts`, `server/test/env-config.test.ts`
+- `server/src/config/env.ts` (the `DATABASE_URL` default), `server/src/routes/careers.routes.ts` (~line 300, SQLite/Postgres branch)
+- `docker-compose.dev.yml`, `server/.env.example`
+- `reload.sh`, `deploy/remote-deploy.sh`, `.github/workflows/deploy.yml`, `deploy/README-deploy.md`, `docs/deployment.md`, `README.md`
+- `docs/archive/**` and old `task-*` files are history: do **not** edit them.
+
+## Decided design (no open choices)
+
+### 1. One schema, PostgreSQL
+- `schema.prisma`: `provider = "postgresql"`, `url = env("DATABASE_URL")`. Replace the SQLite comment with a one-line note.
+- Delete `server/scripts/generate-prod-schema.mjs` and the gitignored `server/prisma/schema.postgresql.prisma` file (and its `.gitignore` entry if it has its own line).
+- Do not touch the SQL of any existing migration.
+
+### 2. Scripts (`server/package.json`; root `package.json` forwards each one)
+| script | command |
+|---|---|
+| `db:migrate` | `prisma migrate deploy` (apply committed migrations; the production command, unchanged in meaning) |
+| `db:migrate:dev` | `prisma migrate dev` (create + apply a migration from schema changes, local only) |
+| `db:reset` | `prisma migrate reset` (drop local DB, re-apply migrations, run seed; local only) |
+| `db:seed` | unchanged |
+| `db:studio` | unchanged |
+| `db:sync-data` | unchanged |
+- **Remove** `db:gen:prod` and `db:push` (everywhere: both package.json files, docs, scripts). `postinstall: prisma generate` stays.
+- In `package.json` of the server add `"prisma": { "seed": "tsx prisma/seed.ts" }` if it is not already there, so `migrate reset` seeds.
+
+### 3. Local database
+- Keep `docker-compose.dev.yml` as is (user `ajda_dev`, db `ajda_realestate_dev`, port 5432). The owner may instead use a native PostgreSQL install; both work through `DATABASE_URL`.
+- `server/.env.example`: the default `DATABASE_URL` is now `postgresql://ajda_dev:ajda_dev_password_123@localhost:5432/ajda_realestate_dev?schema=public` (dev-only credentials already committed in the compose file). Remove the SQLite wording.
+- `server/src/config/env.ts`: change the `DATABASE_URL` default to the same dev URL. If the server refuses to start in production when `DATABASE_URL` is unset or equals this dev default, keep that behaviour; if such a check does not exist, add nothing.
+- `server/src/routes/careers.routes.ts`: delete the `databaseUrl.startsWith('file:')` branch; always use `mode: 'insensitive'`.
+
+### 4. Test suite on PostgreSQL (schema per run)
+Isolation unit = a **throwaway PostgreSQL schema inside the dev database**, not a new database (no extra setup, works with docker and native installs).
+- `test/env.ts`: `createTestEnvironment()` builds `DATABASE_URL` from `TEST_DATABASE_URL` (env var; default = the dev URL above) with `schema=ajda_test_<random 12 hex chars>` replacing any existing `schema` param. Keep the temp dir for `UPLOAD_DIR` / `PRIVATE_DIR` exactly as today.
+- `isTestEnvironment()` / `tempRootFromDatabaseUrl()`: the guard now requires the URL to be `postgres(ql)://` **and** its `schema` parameter to start with `ajda_test_`. Anything else must throw, so a misconfigured run can never touch the dev schema `public`. Keep the temp-dir prefix checks for the upload and private dirs. The temp root can no longer be derived from the database URL: derive it from `UPLOAD_DIR` (its parent) and keep the "refuse non-temp directory" check.
+- `test/global-setup.ts`: `prisma generate` (default schema path), then **`prisma migrate deploy`** (replaces `db push --accept-data-loss`; this makes every test run prove that the committed migrations build the schema the code expects), then seed as today. Teardown: drop the run's schema with `DROP SCHEMA "<name>" CASCADE` (use `prisma db execute --url ... --stdin`, or a short script through the Prisma client; the schema name is generated by us and must be validated against `/^ajda_test_[0-9a-f]{12}$/` before it is placed in SQL), then remove the temp dir. Teardown must run even when tests fail (it is already in `teardown()`).
+- If PostgreSQL is unreachable, `setup()` must fail fast with one clear message: "PostgreSQL not reachable at <host:port>. Start it (docker compose -f docker-compose.dev.yml up -d, or your local PostgreSQL) and retry." (never print the password).
+- Update `harness.test.ts` and `env-config.test.ts` to the new URL shape (the `file:./env-probe.db` strings become a PostgreSQL URL; assertions about `file:` become assertions about the schema prefix guard). Add tests for the new guard: rejects a URL without a schema, rejects `schema=public`, accepts `ajda_test_<hex>`.
+- Run the suite twice in a row to confirm no schema is left behind (`SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'ajda_test_%'` returns zero rows) and that two runs do not collide.
+
+### 5. Migration drift check (do this before writing docs)
+The migrations were hand-written and never checked against the schema. With PostgreSQL available, run (shadow database = a scratch database or schema you create and drop):
+`npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url <scratch url> --script`
+- Empty output: record "no drift" in the report.
+- Non-empty output: **do not edit any existing migration and do not auto-create one.** Paste the SQL into the report under "Drift found" and stop that part; Claude decides. (The rest of the task is still delivered.)
+- Also run `npx prisma migrate status` against a freshly created local database after `db:migrate` and paste the result.
+
+### 6. Deploy scripts and docs
+- `reload.sh`, `deploy/remote-deploy.sh`: remove the `db:gen:prod` calls and `--schema prisma/schema.postgresql.prisma` arguments; `prisma migrate status` and `db:migrate` use the default schema. **Behaviour must stay identical otherwise** (the pending-migration safety stop in `reload.sh`, the owner-only production migration rule): do not weaken or reorder any guard. Keep the production deploy order: install, generate client, (migrate only as the script already decides), build, restart.
+- `.github/workflows/deploy.yml`: remove any `db:gen:prod` / SQLite step. If a CI job runs the server tests, add a `postgres:16` service container and `TEST_DATABASE_URL`. If CI runs no tests, change nothing else.
+- Update `README.md` (the SQLite-vs-PostgreSQL table and the setup sections), `docs/deployment.md`, `deploy/README-deploy.md`, `server/.env.example`, `salah-tasks.md` is out of scope. Document: how to start PostgreSQL (docker or native), first-time setup (`npm --prefix server run db:migrate && npm --prefix server run db:seed`), how to change the schema (`db:migrate:dev --name <what>`, commit the generated folder), how to reset (`db:reset`), how to run tests, and that **`db:migrate` on production stays a manual owner step after a backup**.
+- Delete `server/prisma/dev.db` and any `*.db` files from the working tree only if they are untracked/ignored; if `dev.db` is tracked by git, leave it and mention it in the report.
+
+## Out of scope
+- Any change to existing migration SQL; any new feature; any production data command; changing application behaviour beyond the careers `mode: 'insensitive'` line.
+- Case-insensitive search elsewhere: SQLite `contains` ignored case, PostgreSQL does not. Production was already PostgreSQL, so do not change application code for it. Do `grep -rn "contains" server/src` and list in the report every query that depends on it, plus any test that fails because of it (fix the test's expectation only if it asserted SQLite-only behaviour).
+
+## Constraints
+- No commits, no `npm install` of new packages (use Prisma CLI and what is already installed; no `pg` package), no `git push`, no production access, never print DB passwords in the report.
+- Do not touch `server/.env` (the owner's file). Do not edit `salah-tasks.md`.
+- Files you must not touch: `server/prisma/migrations/**`, `docs/archive/**`, `src/**` (frontend).
+- Windows host: the owner has native PostgreSQL 18 at `C:\Program Files\PostgreSQL\18` and Docker Desktop (daemon may be off). Use whichever is reachable on `localhost:5432`; if none is, say so in the report instead of faking results.
+
+## Gates (all must be run and pasted into the report)
+1. `npm run lint` (root)
+2. `npm run build` (root) and `npm --prefix server run build`
+3. `npm --prefix server run db:migrate` against an empty local database, then `db:seed`, then start the API and `GET /api/health`
+4. `npm --prefix server test` twice in a row, all green, zero leftover `ajda_test_*` schemas
+5. The drift check from section 5
+6. `grep -rn "db:gen:prod\|schema.postgresql\|db:push\|sqlite" --include=* . ` excluding `node_modules`, `docs/archive`, `graphify-out`, `task-*.md`: no remaining live references (explain any that stay)
+
+## Report
+Write `D:\projects\html\ajda\docs\prompts\task-w4-postgres-dev-report.md`: files changed, gate output (trimmed), drift result, the `contains` list, the test-guard design as built, anything you could not verify, decisions you had to make.
+
+## Quality guards (mandatory skills)
+These three skills must be followed. Load each with your skill tool by name; if the tool does not offer it, read the file directly:
+- **`clean-code-guard`** (`C:\Users\salah\.claude\skills\clean-code-guard\SKILL.md`). Read its `references/ai-failure-modes.md` before you write code. Use **live mode** while writing production code, then run the **guard pass** and its "Self-check before delivery" over your whole diff before you write the report. Fix every violation you find.
+- **`test-guard`** (`C:\Users\salah\.claude\skills\test-guard\SKILL.md`, plus `references/jest.md` for Vitest) for every test you add or change: behaviour not implementation, mocks only at system boundaries, data-driven variants instead of copy-pasted tests, no test without a bug it catches.
+- **`docs-guard`** (`C:\Users\salah\.claude\skills\docs-guard\SKILL.md`) for every doc, README section, `.env.example` line and behaviour-describing comment you add or change: every name, flag, path and command you mention must be checked against the code.
+
+When a skill conflicts with this prompt or with the existing code style, this prompt and the existing style win; say so in the report.
+The report **must** contain a section `## Guard results` with, for each of the three guards: what you checked, the violations you found and fixed, and anything you left with the reason. A report without it is incomplete and will be sent back.

@@ -1,0 +1,125 @@
+import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
+import { prisma } from '../services/prisma.js';
+import { config } from '../config/env.js';
+import { caseInsensitiveContains } from '../utils/caseInsensitive.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
+import { validateBody } from '../middleware/validate.js';
+import { buildCsv, sendCsv } from '../services/csv.js';
+
+const subscribeSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  locale: z.enum(['ar', 'en']).nullish(),
+  source: z.string().trim().max(40).nullish(),
+  website: z.string().nullish(),
+  // Milliseconds the form was open, measured by the browser (no clock-skew issue).
+  elapsedMs: z.coerce.number().nullish(),
+});
+
+const listQuerySchema = z.object({
+  q: z.string().trim().optional(),
+});
+
+const subscriberParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
+export const newsletterRoutes: FastifyPluginAsync = async (fastify) => {
+  // Subscribe to newsletter (Public, idempotent)
+  fastify.post(
+    '/',
+    {
+      config: {
+        rateLimit: {
+          max: config.rateLimitNewsletterMax,
+          timeWindow: config.rateLimitNewsletterWindowMs,
+          errorResponseBuilder: () => ({
+            statusCode: 429,
+            error: 'Too Many Requests',
+            message: 'تم تجاوز الحد الأقصى للطلبات، يرجى المحاولة لاحقاً / Rate limit exceeded, please try again later',
+          }),
+        },
+      },
+      preValidation: [validateBody(subscribeSchema)],
+    },
+    async (request, reply) => {
+      const body = subscribeSchema.parse(request.body);
+      const { email, locale, source } = body;
+
+      // Spam protection (honeypot or too-fast submission < 2s)
+      const isHoneypot = Boolean(body.website && body.website.trim().length > 0);
+      const isTooFast = body.elapsedMs != null && body.elapsedMs < 2000;
+
+      if (isHoneypot || isTooFast) {
+        return reply.status(200).send({ subscribed: true });
+      }
+
+      try {
+        await prisma.newsletterSubscriber.create({
+          data: {
+            email,
+            locale: locale || null,
+            source: source || null,
+          },
+        });
+      } catch (error) {
+        const code = (error as { code?: unknown }).code;
+        if (code !== 'P2002') {
+          throw error;
+        }
+      }
+
+      return reply.status(200).send({ subscribed: true });
+    }
+  );
+
+  // Export newsletter subscribers to CSV (Admin: exportData)
+  // Registered before :id routes to prevent shadowing
+  fastify.get(
+    '/export',
+    { onRequest: [authenticate, requirePermission('exportData')] },
+    async (_request, reply) => {
+      const subscribers = await prisma.newsletterSubscriber.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const headers = ['email', 'locale', 'source', 'createdAt'];
+      const rows = subscribers.map((sub) => [sub.email, sub.locale, sub.source, sub.createdAt.toISOString()]);
+
+      return sendCsv(reply, 'newsletter', buildCsv(headers, rows));
+    }
+  );
+
+  // List newsletter subscribers (Admin: exportData)
+  fastify.get(
+    '/',
+    { onRequest: [authenticate, requirePermission('exportData')] },
+    async (request) => {
+      const query = listQuerySchema.parse(request.query ?? {});
+
+      const where: Record<string, unknown> = {};
+      if (query.q) {
+        where.email = caseInsensitiveContains(config.databaseUrl, query.q.toLowerCase());
+      }
+
+      const subscribers = await prisma.newsletterSubscriber.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return subscribers;
+    }
+  );
+
+  // Delete / unsubscribe subscriber (Admin: exportData)
+  fastify.delete(
+    '/:id',
+    { onRequest: [authenticate, requirePermission('exportData')] },
+    async (request, reply) => {
+      const { id } = subscriberParamsSchema.parse(request.params);
+      await prisma.newsletterSubscriber.delete({ where: { id } });
+
+      return reply.status(200).send({ success: true });
+    }
+  );
+};

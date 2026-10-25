@@ -1,0 +1,55 @@
+[Unit]
+Description=Ajda Real Estate API (Fastify)
+Documentation=https://github.com/your-org/ajda
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=salah
+Group=salah
+
+# Required: UPLOAD_DIR defaults to ./uploads and is resolved against the cwd,
+# and dotenv reads .env from the cwd as well.
+WorkingDirectory=/srv/ajda/app/server
+
+# systemd-provided variables take precedence over the .env file, because dotenv
+# never overwrites an already-set process.env value.
+EnvironmentFile=/srv/ajda/app/server/.env
+Environment=NODE_ENV=production
+Environment=PORT=4000
+
+ExecStart=/home/salah/.nvm/versions/node/v24.21.0/bin/node dist/server.js
+
+# dist/server.js must exist first: `npm ci && npm run db:gen:prod && npm run build`
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+
+# --- Hardening ---
+# ProtectHome=read-only keeps /home/salah readable (so the nvm node binary
+# under /home/salah/.nvm stays executable) but forbids writes there.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# The upload directory and production log files are writable.
+ReadWritePaths=/srv/ajda/app/server/uploads -/srv/ajda/app/server/private /srv/ajda/app/server/prod.log /srv/ajda/app/server/errors.log
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ajda-api
+
+[Install]
+WantedBy=multi-user.target

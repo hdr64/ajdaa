@@ -1,0 +1,412 @@
+import fs from 'fs';
+import path from 'path';
+import { config } from '../config/env.js';
+
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  message: string;
+  context?: Record<string, unknown>;
+  source?: string;
+  reqId?: string;
+}
+
+export interface LogStats {
+  uptimeSeconds: number;
+  uptimeFormatted: string;
+  nodeVersion: string;
+  platform: string;
+  memory: {
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+  };
+  counts: {
+    total: number;
+    error: number;
+    warn: number;
+    info: number;
+    debug: number;
+  };
+}
+
+class LoggerService {
+  private buffer: LogEntry[] = [];
+  private readonly maxBufferSize = 2000;
+  private readonly logFilePath: string;
+  private readonly errorLogFilePath: string;
+  private idCounter = 0;
+
+  constructor() {
+    this.logFilePath = config.logs.filePath;
+    this.errorLogFilePath = config.logs.errorFilePath;
+    this.ensureLogDirectory();
+    this.registerGlobalErrorHandlers();
+  }
+
+  private ensureLogDirectory() {
+    try {
+      const dirs = [path.dirname(this.logFilePath), path.dirname(this.errorLogFilePath)];
+      for (const dir of dirs) {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+      }
+    } catch (err) {
+      console.error('[LoggerService] Failed to create log directory:', err);
+    }
+  }
+
+  private registerGlobalErrorHandlers() {
+    // Prevent unhandled promise rejections and exceptions from escaping silently
+    process.on('unhandledRejection', (reason) => {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      const stack = reason instanceof Error ? reason.stack : undefined;
+      this.error(`Unhandled Promise Rejection: ${message}`, { stack }, 'process');
+    });
+
+    process.on('uncaughtException', (err) => {
+      this.error(`Uncaught Exception: ${err.message}`, { stack: err.stack }, 'process');
+    });
+  }
+
+  /**
+   * Log an event into both the in-memory ring buffer and the persistent log file.
+   */
+  public log(
+    level: LogLevel,
+    message: string,
+    context?: Record<string, unknown>,
+    source = 'app',
+    reqId?: string
+  ): LogEntry {
+    this.idCounter += 1;
+    const entry: LogEntry = {
+      id: `${Date.now()}-${this.idCounter}`,
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      context,
+      source,
+      reqId,
+    };
+
+    // 1. Maintain in-memory ring buffer
+    this.buffer.push(entry);
+    if (this.buffer.length > this.maxBufferSize) {
+      this.buffer.shift();
+    }
+
+    // 2. Persist formatted line to disk asynchronously
+    this.appendToFile(entry);
+
+    return entry;
+  }
+
+  public error(message: string, context?: Record<string, unknown>, source = 'app') {
+    return this.log('error', message, context, source);
+  }
+
+  public warn(message: string, context?: Record<string, unknown>, source = 'app') {
+    return this.log('warn', message, context, source);
+  }
+
+  public info(message: string, context?: Record<string, unknown>, source = 'app') {
+    return this.log('info', message, context, source);
+  }
+
+  public debug(message: string, context?: Record<string, unknown>, source = 'app') {
+    return this.log('debug', message, context, source);
+  }
+
+  private appendToFile(entry: LogEntry) {
+    try {
+      const line = `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.message}${
+        entry.context ? ' ' + JSON.stringify(entry.context) : ''
+      }\n`;
+      fs.appendFile(this.logFilePath, line, (err) => {
+        if (err && config.env !== 'test') {
+          console.error('[LoggerService] Failed to write log to file:', err.message);
+        }
+      });
+
+      // Dedicated error log file: any error level entry is recorded into errors.log
+      if (entry.level === 'error') {
+        fs.appendFile(this.errorLogFilePath, line, (err) => {
+          if (err && config.env !== 'test') {
+            console.error('[LoggerService] Failed to write to errors.log:', err.message);
+          }
+        });
+      }
+    } catch {
+      // Swallowed to prevent logging failure from crashing worker
+    }
+  }
+
+  /**
+   * Get filtered logs from buffer or disk file.
+   */
+  public async getLogs(options: {
+    level?: string;
+    search?: string;
+    limit?: number;
+    source?: 'buffer' | 'file';
+  }) {
+    const limit = Math.min(Math.max(options.limit || 100, 1), 1000);
+    const filterLevel = options.level?.toLowerCase();
+    const search = options.search?.toLowerCase().trim();
+
+    let entries: LogEntry[] = [];
+
+    if (options.source === 'file') {
+      entries = await this.readLogsFromFile();
+    } else {
+      // Default: copy from in-memory ring buffer
+      entries = [...this.buffer];
+    }
+
+    // Apply filters
+    if (filterLevel && filterLevel !== 'all') {
+      entries = entries.filter((e) => e.level.toLowerCase() === filterLevel);
+    }
+
+    if (search) {
+      entries = entries.filter((e) => {
+        const msgMatch = e.message.toLowerCase().includes(search);
+        const sourceMatch = e.source?.toLowerCase().includes(search);
+        const contextMatch = e.context ? JSON.stringify(e.context).toLowerCase().includes(search) : false;
+        return msgMatch || sourceMatch || contextMatch;
+      });
+    }
+
+    // Newest first
+    entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    const paginated = entries.slice(0, limit);
+
+    return {
+      entries: paginated,
+      returnedCount: paginated.length,
+      totalMatched: entries.length,
+      stats: this.getStats(),
+    };
+  }
+
+  /**
+   * Read and parse lines from physical log file if available.
+   */
+  private async readLogsFromFile(): Promise<LogEntry[]> {
+    try {
+      if (!fs.existsSync(this.logFilePath)) {
+        return [...this.buffer];
+      }
+      const lines = await this.readTailLines(this.logFilePath);
+      const parsed: LogEntry[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.trim().length === 0) continue;
+        // Expected format: [2026-10-01T00:00:00.000Z] [LEVEL] [SOURCE] message {json}
+        const match = line.match(/^\[(.*?)\]\s+\[(.*?)\]\s+\[(.*?)\]\s+(.*)$/);
+        if (match) {
+          const [, timestamp, levelStr, source, rest] = match;
+          const level = levelStr.toLowerCase() as LogLevel;
+          let message = rest;
+          let context: Record<string, unknown> | undefined;
+
+          const jsonIndex = rest.indexOf(' {');
+          if (jsonIndex !== -1) {
+            message = rest.substring(0, jsonIndex);
+            try {
+              context = JSON.parse(rest.substring(jsonIndex + 1));
+            } catch {
+              message = rest;
+            }
+          }
+
+          parsed.push({
+            id: `file-${i}`,
+            timestamp,
+            level: ['error', 'warn', 'info', 'debug'].includes(level) ? level : 'info',
+            message,
+            source,
+            context,
+          });
+        } else {
+          parsed.push({
+            id: `raw-${i}`,
+            timestamp: new Date().toISOString(),
+            level: 'info',
+            message: line,
+            source: 'file',
+          });
+        }
+      }
+      return parsed;
+    } catch (err) {
+      this.error('Error reading log file from disk', { err: String(err) });
+      return [...this.buffer];
+    }
+  }
+
+  private static readonly MAX_TAIL_BYTES = 1 * 1024 * 1024;
+
+  private async readTailLines(filePath: string): Promise<string[]> {
+    const stat = await fs.promises.stat(filePath);
+    const size = stat.size;
+    if (size === 0) return [];
+    const start = Math.max(0, size - LoggerService.MAX_TAIL_BYTES);
+    const length = size - start;
+    const handle = await fs.promises.open(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(length);
+      await handle.read(buf, 0, length, start);
+      const text = buf.toString('utf-8');
+      const lines = text.split('\n');
+      if (start > 0 && lines.length > 0) {
+        lines.shift();
+      }
+      if (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+      return lines;
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /**
+   * Get raw log file content as plain text.
+   */
+  public async getRawFileContent(tailLines = 500): Promise<string> {
+    try {
+      if (fs.existsSync(this.logFilePath)) {
+        const lines = await this.readTailLines(this.logFilePath);
+        return lines.slice(-tailLines).join('\n');
+      }
+    } catch {
+      // Fallback to buffer
+    }
+
+    return this.buffer
+      .map(
+        (e) =>
+          `[${e.timestamp}] [${e.level.toUpperCase()}] [${e.source || 'app'}] ${e.message}${
+            e.context ? ' ' + JSON.stringify(e.context) : ''
+          }`
+      )
+      .join('\n');
+  }
+
+  /**
+   * Clear in-memory logs and truncate log file.
+   */
+  public clearLogs(): { cleared: boolean; memoryEntries: number } {
+    const count = this.buffer.length;
+    this.buffer = [];
+
+    try {
+      if (fs.existsSync(this.logFilePath)) {
+        fs.writeFileSync(this.logFilePath, '');
+      }
+    } catch (err) {
+      console.error('[LoggerService] Failed to truncate log file:', err);
+    }
+
+    this.info('Production logs cleared by administrator', {}, 'system');
+
+    return { cleared: true, memoryEntries: count };
+  }
+
+  /**
+   * Get raw content of errors.log file.
+   */
+  public async getRawErrorsFileContent(tailLines = 500): Promise<string> {
+    try {
+      if (fs.existsSync(this.errorLogFilePath)) {
+        const lines = await this.readTailLines(this.errorLogFilePath);
+        return lines.slice(-tailLines).join('\n');
+      }
+    } catch {
+      // Fallback
+    }
+
+    return this.buffer
+      .filter((e) => e.level === 'error')
+      .map(
+        (e) =>
+          `[${e.timestamp}] [ERROR] [${e.source || 'app'}] ${e.message}${
+            e.context ? ' ' + JSON.stringify(e.context) : ''
+          }`
+      )
+      .join('\n');
+  }
+
+  /**
+   * Clear errors.log file.
+   */
+  public clearErrors(): { cleared: boolean } {
+    try {
+      if (fs.existsSync(this.errorLogFilePath)) {
+        fs.writeFileSync(this.errorLogFilePath, '');
+      }
+    } catch (err) {
+      console.error('[LoggerService] Failed to truncate errors.log file:', err);
+    }
+    return { cleared: true };
+  }
+
+  public getStats(): LogStats {
+    const uptime = process.uptime();
+    const mem = process.memoryUsage();
+
+    let error = 0;
+    let warn = 0;
+    let info = 0;
+    let debug = 0;
+
+    for (const e of this.buffer) {
+      if (e.level === 'error') error++;
+      else if (e.level === 'warn') warn++;
+      else if (e.level === 'info') info++;
+      else if (e.level === 'debug') debug++;
+    }
+
+    return {
+      uptimeSeconds: Math.floor(uptime),
+      uptimeFormatted: this.formatUptime(uptime),
+      nodeVersion: process.version,
+      platform: `${process.platform} (${process.arch})`,
+      memory: {
+        rssMb: Math.round(mem.rss / 1024 / 1024),
+        heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotalMb: Math.round(mem.heapTotal / 1024 / 1024),
+      },
+      counts: {
+        total: this.buffer.length,
+        error,
+        warn,
+        info,
+        debug,
+      },
+    };
+  }
+
+  private formatUptime(seconds: number): string {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (mins > 0) parts.push(`${mins}m`);
+    parts.push(`${secs}s`);
+    return parts.join(' ');
+  }
+}
+
+export const loggerService = new LoggerService();

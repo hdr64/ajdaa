@@ -1,7 +1,7 @@
 {
   "name": "aqar-react-ts",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,28 +9,50 @@
     "lint": "oxlint",
     "predeploy": "npm run build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist --nojekyll"
+    "deploy": "gh-pages -d dist --nojekyll",
+    "dev:api": "npm --prefix server run dev",
+    "build:api": "npm --prefix server run build",
+    "start:api": "npm --prefix server run start",
+    "test:api": "npm --prefix server run test",
+    "db:gen:prod": "npm --prefix server run db:gen:prod",
+    "db:sync-data": "npm --prefix server run db:sync-data",
+    "db:push": "npm --prefix server run db:push",
+    "db:migrate": "npm --prefix server run db:migrate",
+    "db:seed": "npm --prefix server run db:seed",
+    "user:create-dev": "npm --prefix server run user:create-dev --",
+    "db:studio": "npm --prefix server run db:studio",
+    "dev:all": "concurrently -k -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev\""
   },
   "dependencies": {
+    "@googlemaps/js-api-loader": "^2.1.3",
+    "@simplewebauthn/browser": "^14.0.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/leaflet": "^1.9.22",
-    "leaflet": "^1.9.4",
+    "@types/google.maps": "^3.66.4",
     "lucide-react": "^1.31.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "socket.io-client": "^4.8.4",
     "tailwindcss": "^4.3.3",
     "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.0.4",
+    "concurrently": "^9.2.4",
     "gh-pages": "^6.3.0",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
-    "wrangler": "^4.123.0"
+    "wrangler": "^4.35.0"
+  },
+  "allowScripts": {
+    "sharp": true,
+    "workerd": true,
+    "esbuild": true
   }
 }

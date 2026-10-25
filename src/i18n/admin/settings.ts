@@ -1,0 +1,36 @@
+import { defineStrings } from './core';
+
+/** Owner lane: settings tabs (contact, notifications, mail). */
+export const settings = defineStrings('settings', {
+  'section.tabSite': 'معلومات التواصل',
+  'section.tabAnnouncement': 'الإعلان والصيانة',
+  'section.tabNotifications': 'الإشعارات',
+  'section.tabSecurity': 'الأمان',
+  'section.tabMail': 'البريد (SMTP)',
+  'section.tabsAria': 'أقسام الإعدادات',
+  'careers.title': 'صفحة الوظائف',
+  'careers.help': 'تبقى صفحة الوظائف متاحة عبر رابطها المباشر في الحالتين.',
+  'careers.footerLabel': 'إظهار «الوظائف» في تذييل الموقع',
+  'careers.buttonLabel': 'إظهار زر «الوظائف» العائم',
+  'careers.save': 'حفظ',
+  'careers.saved': 'تم الحفظ وتحديث الموقع',
+  'careers.saveFailed': 'تعذر الحفظ',
+  'careers.loadFailed': 'تعذر تحميل إعدادات الوظائف',
+  'careers.loading': 'جاري التحميل...',
+}, {
+  'section.tabSite': 'Contact details',
+  'section.tabAnnouncement': 'Announcement & maintenance',
+  'section.tabNotifications': 'Notifications',
+  'section.tabSecurity': 'Security',
+  'section.tabMail': 'Mail (SMTP)',
+  'section.tabsAria': 'Settings sections',
+  'careers.title': 'Jobs page',
+  'careers.help': 'The Jobs page stays reachable by its direct link either way.',
+  'careers.footerLabel': 'Show "Jobs" in the site footer',
+  'careers.buttonLabel': 'Show the floating "Jobs" button',
+  'careers.save': 'Save',
+  'careers.saved': 'Saved and the site was updated',
+  'careers.saveFailed': 'Could not save',
+  'careers.loadFailed': 'Could not load the Jobs settings',
+  'careers.loading': 'Loading...',
+});
