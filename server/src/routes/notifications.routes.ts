@@ -2,10 +2,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { loggerService } from '../services/loggerService.js';
 import {
   configuredEvents,
   createListener,
   deleteListener,
+  getListener,
   listListeners,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_EVENTS,
@@ -40,6 +42,16 @@ const listenerSchema = z
 
 const idParamsSchema = z.object({ id: z.string().min(1) });
 
+function emailsEqual(a: string[], b: string[]): boolean {
+  const setA = new Set(a.map((e) => e.trim().toLowerCase()));
+  const setB = new Set(b.map((e) => e.trim().toLowerCase()));
+  if (setA.size !== setB.size) return false;
+  for (const email of setA) {
+    if (!setB.has(email)) return false;
+  }
+  return true;
+}
+
 export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   // A fresh array per route (see settings.routes.ts for why).
   const guards = () => ({ onRequest: [authenticate, requirePermission('manageNotifications')] });
@@ -61,7 +73,16 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     '/listeners',
     { ...guards(), preValidation: [validateBody(listenerSchema)] },
     async (request, reply) => {
-      const created = await createListener(listenerSchema.parse(request.body), request.admin!.id);
+      const body = listenerSchema.parse(request.body);
+      if (request.admin?.role !== 'super_admin' && body.config.emails.length > 0) {
+        return reply.status(403).send({ error: 'Only a super admin can send notifications to explicit email addresses' });
+      }
+      const created = await createListener(body, request.admin!.id);
+      loggerService.info(
+        'Notification listener created',
+        { actorId: request.admin!.id, listenerId: created.id, emails: created.config.emails },
+        'notifications'
+      );
       return reply.status(201).send(created);
     }
   );
@@ -71,15 +92,35 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     { ...guards(), preValidation: [validateBody(listenerSchema)] },
     async (request, reply) => {
       const { id } = idParamsSchema.parse(request.params);
-      const updated = await updateListener(id, listenerSchema.parse(request.body));
+      const existing = await getListener(id);
+      if (!existing) return reply.status(404).send({ error: 'Listener not found' });
+
+      const body = listenerSchema.parse(request.body);
+      if (request.admin?.role !== 'super_admin' && !emailsEqual(existing.config.emails, body.config.emails)) {
+        return reply.status(403).send({ error: 'Only a super admin can send notifications to explicit email addresses' });
+      }
+
+      const updated = await updateListener(id, body);
       if (!updated) return reply.status(404).send({ error: 'Listener not found' });
+      loggerService.info(
+        'Notification listener updated',
+        { actorId: request.admin!.id, listenerId: updated.id, emails: updated.config.emails },
+        'notifications'
+      );
       return updated;
     }
   );
 
   fastify.delete('/listeners/:id', guards(), async (request, reply) => {
     const { id } = idParamsSchema.parse(request.params);
-    if (!(await deleteListener(id))) return reply.status(404).send({ error: 'Listener not found' });
+    const existing = await getListener(id);
+    if (!existing) return reply.status(404).send({ error: 'Listener not found' });
+    await deleteListener(id);
+    loggerService.info(
+      'Notification listener deleted',
+      { actorId: request.admin!.id, listenerId: id, emails: [] },
+      'notifications'
+    );
     return { deleted: true };
   });
 };

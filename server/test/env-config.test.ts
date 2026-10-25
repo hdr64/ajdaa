@@ -67,6 +67,50 @@ describe('the production rules of the environment', () => {
     ).toEqual({});
   });
 
+  it('rejects a missing and a file: DATABASE_URL in production, accepting postgresql:// and postgres://', () => {
+    // Missing DATABASE_URL
+    const missing = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
+      { LOGS_SECRET_KEY: VALID_LOGS_SECRET, DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET }
+    );
+    expect(missing.DATABASE_URL).toBeDefined();
+    expect(missing.DATABASE_URL).toContain('DATABASE_URL is required in production');
+
+    // file: DATABASE_URL
+    const fileUrl = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET, databaseUrl: 'file:./dev.db' },
+      {
+        LOGS_SECRET_KEY: VALID_LOGS_SECRET,
+        DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
+        DATABASE_URL: 'file:./dev.db',
+      }
+    );
+    expect(fileUrl.DATABASE_URL).toBeDefined();
+    expect(fileUrl.DATABASE_URL).toContain('DATABASE_URL must start with postgres:// or postgresql://');
+
+    // postgresql:// URL
+    const postgresql = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET, databaseUrl: 'postgresql://ajda:secret@localhost:5432/ajda' },
+      {
+        LOGS_SECRET_KEY: VALID_LOGS_SECRET,
+        DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
+        DATABASE_URL: 'postgresql://ajda:secret@localhost:5432/ajda',
+      }
+    );
+    expect(postgresql.DATABASE_URL).toBeUndefined();
+
+    // postgres:// URL
+    const postgres = productionConfigErrors(
+      { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET, databaseUrl: 'postgres://ajda:secret@localhost:5432/ajda' },
+      {
+        LOGS_SECRET_KEY: VALID_LOGS_SECRET,
+        DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
+        DATABASE_URL: 'postgres://ajda:secret@localhost:5432/ajda',
+      }
+    );
+    expect(postgres.DATABASE_URL).toBeUndefined();
+  });
+
   it('requires the log key and the developer key', () => {
     const errors = productionConfigErrors(
       { nodeEnv: 'production', jwtSecret: VALID_JWT_SECRET },
