@@ -165,12 +165,9 @@ resolve_node() {
     return 0
   fi
 
-  if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
-    # shellcheck disable=SC1091
-    . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1 || true
-    nvm use --silent >/dev/null 2>&1 || true
-  fi
-
+  # nvm.sh is deliberately not sourced: under `set -eEu` its internals trip the
+  # ERR trap, and the trap's message goes to the /dev/null redirect of the
+  # source line, so the whole deploy would exit 1 without a word.
   if ! command -v npm >/dev/null 2>&1; then
     local candidate
     candidate="$(find "$HOME/.nvm/versions/node" -mindepth 2 -maxdepth 2 -type d -name bin 2>/dev/null | sort -V | tail -n 1)"
