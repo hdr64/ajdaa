@@ -292,49 +292,106 @@ describe('Login OTP', () => {
 });
 
 describe('Email OTP settings', () => {
-  it('PATCH /api/auth/me/login-otp requires the current password and then persists the flag', async () => {
+  it('never enables OTP before verifying email ownership with a confirmation code', async () => {
     const user = await createThrowawayUser({ name: 'Otp Settings', password: PASSWORD });
     cleanupUsers.push(user.id);
     loginFailureTracker.recordSuccess(user.email);
     const session = await login(user.email, PASSWORD);
 
-    const wrongPassword = await authInject(session.token, {
-      method: 'PATCH',
-      url: '/api/auth/me/login-otp',
-      payload: { enabled: true, password: 'WrongPassword123' },
-    });
-    expect(wrongPassword.statusCode).toBe(401);
-    expect(
-      (await prisma.adminUser.findUnique({ where: { id: user.id } }))?.loginOtpEnabled
-    ).toBe(false);
-
-    const enabled = await authInject(session.token, {
+    // 1. Enabling via PATCH without verification code is strictly forbidden
+    const directEnable = await authInject(session.token, {
       method: 'PATCH',
       url: '/api/auth/me/login-otp',
       payload: { enabled: true, password: PASSWORD },
     });
-    expect(enabled.statusCode).toBe(200);
-    expect(enabled.json()).toEqual({ loginOtpEnabled: true });
+    expect(directEnable.statusCode).toBe(400);
+    expect(directEnable.json().code).toBe('EMAIL_VERIFICATION_REQUIRED');
+    expect(
+      (await prisma.adminUser.findUnique({ where: { id: user.id } }))?.loginOtpEnabled
+    ).toBe(false);
+
+    // 2. Setup requires current password
+    const wrongPassword = await authInject(session.token, {
+      method: 'POST',
+      url: '/api/auth/me/login-otp/setup',
+      payload: { currentPassword: 'WrongPassword123' },
+    });
+    expect(wrongPassword.statusCode).toBe(401);
+
+    clearSentMail();
+
+    // 3. Setup with correct password sends email verification code and returns challenge
+    const setup = await authInject(session.token, {
+      method: 'POST',
+      url: '/api/auth/me/login-otp/setup',
+      payload: { currentPassword: PASSWORD },
+    });
+    expect(setup.statusCode).toBe(200);
+    const { challengeId, emailHint } = setup.json() as { challengeId: string; emailHint: string };
+    expect(typeof challengeId).toBe('string');
+    expect(emailHint).toContain('***');
+
+    // Mail was dispatched
+    const sent = getSentMail();
+    expect(sent.length).toBeGreaterThan(0);
+    const activationMail = sent[sent.length - 1];
+    expect(activationMail.kind).toBe('login-otp-activation');
+    const code = extractCode(activationMail);
+
+    // 4. Resending within cooldown is throttled
+    const throttledResend = await authInject(session.token, {
+      method: 'POST',
+      url: '/api/auth/me/login-otp/resend',
+      payload: { challengeId },
+    });
+    expect(throttledResend.statusCode).toBe(429);
+
+    // 5. Verify rejects a wrong code
+    const wrongCode = await authInject(session.token, {
+      method: 'POST',
+      url: '/api/auth/me/login-otp/verify',
+      payload: { challengeId, code: '999999' === code ? '000000' : '999999' },
+    });
+    expect(wrongCode.statusCode).toBe(400);
+
+    // 6. Verify with the real code activates OTP and records email verification
+    const verified = await authInject(session.token, {
+      method: 'POST',
+      url: '/api/auth/me/login-otp/verify',
+      payload: { challengeId, code },
+    });
+    expect(verified.statusCode).toBe(200);
+    expect(verified.json()).toEqual({ loginOtpEnabled: true });
+
+    const updatedUser = await prisma.adminUser.findUnique({ where: { id: user.id } });
+    expect(updatedUser?.loginOtpEnabled).toBe(true);
+    expect(updatedUser?.emailVerifiedAt).not.toBeNull();
 
     // The next login is now OTP-gated.
     expect((await startOtpLogin(user.email, PASSWORD)).otpRequired).toBe(true);
+
+    // 7. Disabling requires the current password
+    const wrongDisable = await authInject(session.token, {
+      method: 'PATCH',
+      url: '/api/auth/me/login-otp',
+      payload: { enabled: false, password: 'WrongPassword' },
+    });
+    expect(wrongDisable.statusCode).toBe(401);
 
     const disabled = await authInject(session.token, {
       method: 'PATCH',
       url: '/api/auth/me/login-otp',
       payload: { enabled: false, password: PASSWORD },
     });
+    expect(disabled.statusCode).toBe(200);
     expect(disabled.json()).toEqual({ loginOtpEnabled: false });
     expect((await startOtpLogin(user.email, PASSWORD)).otpRequired).toBeUndefined();
   });
 
-  it('requires authentication', async () => {
-    const response = await inject({
-      method: 'PATCH',
-      url: '/api/auth/me/login-otp',
-      payload: { enabled: true, password: PASSWORD },
-    });
-    expect(response.statusCode).toBe(401);
+  it('requires authentication for all login-otp endpoints', async () => {
+    expect((await inject({ method: 'PATCH', url: '/api/auth/me/login-otp', payload: { enabled: true } })).statusCode).toBe(401);
+    expect((await inject({ method: 'POST', url: '/api/auth/me/login-otp/setup', payload: { password: PASSWORD } })).statusCode).toBe(401);
+    expect((await inject({ method: 'POST', url: '/api/auth/me/login-otp/verify', payload: { challengeId: 'c1', code: '123456' } })).statusCode).toBe(401);
   });
 });
 

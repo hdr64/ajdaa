@@ -1,6 +1,6 @@
 import { config } from '../config/env.js';
 import { mailBrandName, sendMail } from '../services/mailService.js';
-import { developerNoteNotification, emailVerificationEmail, inviteEmail, passwordChangeCodeEmail, type InquiryMailData } from '../services/mailTemplates.js';
+import { developerNoteNotification, emailVerificationEmail, inviteEmail, passwordChangeCodeEmail, loginOtpActivationEmail, type InquiryMailData } from '../services/mailTemplates.js';
 import { notifyNewInquiry, notifyNewJobApplication } from '../services/notificationService.js';
 import { EMAIL_VERIFICATION_TTL_MS } from '../services/emailVerificationService.js';
 import { ttlMinutes } from '../services/otpService.js';
@@ -176,3 +176,25 @@ export const sendPasswordChangeCodeJob: QueueableJob<PasswordChangeCodePayload> 
     await sendMail({ to: payload.to, ...content });
   },
 };
+
+export interface LoginOtpActivationCodePayload {
+  to: string;
+  name?: string | null;
+  code: string;
+}
+
+/** Emails the confirmation code that verifies email ownership before activating login OTP. */
+export const sendLoginOtpActivationCodeJob: QueueableJob<LoginOtpActivationCodePayload> = {
+  name: 'email:login-otp-activation-code',
+
+  async handle(payload) {
+    const content = loginOtpActivationEmail({
+      brandName: await mailBrandName(),
+      name: payload.name,
+      code: payload.code,
+      expiresInMinutes: ttlMinutes(),
+    });
+    await sendMail({ to: payload.to, ...content });
+  },
+};
+

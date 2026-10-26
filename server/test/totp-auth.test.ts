@@ -212,12 +212,10 @@ describe('login with an authenticator app', () => {
     const { session, secret } = await enrolledAdmin();
 
     // Both factors asked for: the app code must win and no mail may be sent.
-    const both = await authInject(session.token, {
-      method: 'PATCH',
-      url: '/api/auth/me/login-otp',
-      payload: { enabled: true, password: THROWAWAY_PASSWORD },
+    await prisma.adminUser.update({
+      where: { email: session.email },
+      data: { loginOtpEnabled: true },
     });
-    expect(both.statusCode).toBe(200);
     clearSentMail();
 
     const challengeId = await startTotpLogin(session.email);

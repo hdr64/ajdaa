@@ -79,6 +79,7 @@ interface UserDto {
   status: string;
   lastLogin: string | null;
   loginOtpEnabled?: boolean;
+  emailVerifiedAt?: string | null;
   totpEnabled?: boolean;
   recoveryCodesLeft?: number;
   passkeyCount?: number;
@@ -152,6 +153,7 @@ export function toAdminUser(dto: UserDto): AdminUser {
     lastLogin: dto.lastLogin ?? undefined,
     status: dto.status === 'suspended' ? 'suspended' : dto.status === 'pending' ? 'pending' : 'active',
     loginOtpEnabled: dto.loginOtpEnabled,
+    emailVerifiedAt: dto.emailVerifiedAt ?? null,
     totpEnabled: dto.totpEnabled ?? false,
     recoveryCodesLeft: dto.recoveryCodesLeft ?? 0,
     passkeyCount: dto.passkeyCount ?? 0,
@@ -224,9 +226,46 @@ export const authService = {
     });
   },
 
-  /** Turns login OTP on/off for the signed-in admin; requires the current password. */
-  setLoginOtp(enabled: boolean, password: string): Promise<{ loginOtpEnabled: boolean }> {
-    return api.patch<{ loginOtpEnabled: boolean }>('/api/auth/me/login-otp', { enabled, password });
+  /** Step 1 of enabling login OTP: verifies current password, sends 6-digit code to email. */
+  requestLoginOtpSetup(currentPassword: string): Promise<{ challengeId: string; emailHint: string }> {
+    return api.post<{ challengeId: string; emailHint: string }>('/api/auth/me/login-otp/setup', {
+      currentPassword,
+    });
+  },
+
+  /** Resends the 6-digit verification code for activating login OTP. */
+  resendLoginOtpSetup(challengeId: string): Promise<{ sent: boolean }> {
+    return api.post<{ sent: boolean }>('/api/auth/me/login-otp/resend', { challengeId });
+  },
+
+  /** Step 2 of enabling login OTP: verifies 6-digit code, proves email ownership, enables OTP. */
+  verifyLoginOtpSetup(challengeId: string, code: string): Promise<{ loginOtpEnabled: boolean }> {
+    return api.post<{ loginOtpEnabled: boolean }>('/api/auth/me/login-otp/verify', {
+      challengeId,
+      code: code.trim(),
+    });
+  },
+
+  /** Disables login OTP for the signed-in admin (current password required). */
+  disableLoginOtp(password: string): Promise<{ loginOtpEnabled: boolean }> {
+    return api.patch<{ loginOtpEnabled: boolean }>('/api/auth/me/login-otp', {
+      enabled: false,
+      password,
+    });
+  },
+
+  /** Turns login OTP on/off for the signed-in admin. */
+  setLoginOtp(
+    enabled: boolean,
+    password?: string,
+    verification?: { challengeId: string; code: string }
+  ): Promise<{ loginOtpEnabled: boolean }> {
+    return api.patch<{ loginOtpEnabled: boolean }>('/api/auth/me/login-otp', {
+      enabled,
+      password,
+      challengeId: verification?.challengeId,
+      code: verification?.code?.trim(),
+    });
   },
 
   /** Exchanges an authenticator-app code (or a recovery code) for a session. */
@@ -484,6 +523,10 @@ export const resendLoginOtp = authService.resendLoginOtp.bind(authService);
 export const forgotPassword = authService.forgotPassword.bind(authService);
 export const resetPassword = authService.resetPassword.bind(authService);
 export const setLoginOtp = authService.setLoginOtp.bind(authService);
+export const requestLoginOtpSetup = authService.requestLoginOtpSetup.bind(authService);
+export const resendLoginOtpSetup = authService.resendLoginOtpSetup.bind(authService);
+export const verifyLoginOtpSetup = authService.verifyLoginOtpSetup.bind(authService);
+export const disableLoginOtp = authService.disableLoginOtp.bind(authService);
 export const verifyLoginTotp = authService.verifyLoginTotp.bind(authService);
 export const getPasskeyRegisterOptions = authService.getPasskeyRegisterOptions.bind(authService);
 export const verifyPasskeyRegister = authService.verifyPasskeyRegister.bind(authService);

@@ -26,6 +26,7 @@ export type MailKind =
   | 'invite'
   | 'verify-email'
   | 'password-change-code'
+  | 'login-otp-activation'
   | 'totp-enabled'
   | 'totp-disabled'
   | 'totp-reset'
@@ -354,6 +355,41 @@ export function passwordChangeCodeEmail(options: {
       '',
       greeting,
       `رمز التأكيد: ${code}`,
+      `الرمز صالح لمدة ${expiresInMinutes} دقائق.`,
+      '',
+      OTP_FOOTNOTE,
+    ].join('\n'),
+  };
+}
+
+/**
+ * Confirmation code emailed to verify email ownership before activating login OTP.
+ */
+export function loginOtpActivationEmail(options: {
+  brandName: string;
+  name?: string | null;
+  code: string;
+  expiresInMinutes: number;
+}): MailContent {
+  const { brandName, name, code, expiresInMinutes } = options;
+  const greeting = name?.trim() ? `مرحباً ${name.trim()}،` : 'مرحباً،';
+
+  return {
+    kind: 'login-otp-activation',
+    subject: `${brandName} — رمز تأكيد تفعيل التحقق بخطوتين`,
+    html: shell({
+      brandName,
+      heading: 'رمز تأكيد تفعيل التحقق بخطوتين',
+      intro: `${greeting} لتأكيد ملكية بريدك الإلكتروني وتفعيل التحقق بخطوتين لحسابك، استخدم الرمز التالي.`,
+      bodyHtml: codeBlock(code),
+      footnote: `صالح لمدة ${expiresInMinutes} دقائق. ${OTP_FOOTNOTE}`,
+    }),
+    text: [
+      `${brandName} — رمز تأكيد تفعيل التحقق بخطوتين`,
+      '',
+      greeting,
+      'لتأكيد ملكية بريدك الإلكتروني وتفعيل التحقق بخطوتين لحسابك، استخدم الرمز التالي:',
+      `رمز التحقق: ${code}`,
       `الرمز صالح لمدة ${expiresInMinutes} دقائق.`,
       '',
       OTP_FOOTNOTE,

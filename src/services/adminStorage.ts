@@ -143,8 +143,28 @@ export const AdminStorage = {
     return authService.resetPassword(email, code, newPassword);
   },
 
-  setLoginOtp(enabled: boolean, password: string): Promise<{ loginOtpEnabled: boolean }> {
-    return authService.setLoginOtp(enabled, password);
+  requestLoginOtpSetup(currentPassword: string): Promise<{ challengeId: string; emailHint: string }> {
+    return authService.requestLoginOtpSetup(currentPassword);
+  },
+
+  resendLoginOtpSetup(challengeId: string): Promise<{ sent: boolean }> {
+    return authService.resendLoginOtpSetup(challengeId);
+  },
+
+  verifyLoginOtpSetup(challengeId: string, code: string): Promise<{ loginOtpEnabled: boolean }> {
+    return authService.verifyLoginOtpSetup(challengeId, code);
+  },
+
+  disableLoginOtp(password: string): Promise<{ loginOtpEnabled: boolean }> {
+    return authService.disableLoginOtp(password);
+  },
+
+  setLoginOtp(
+    enabled: boolean,
+    password?: string,
+    verification?: { challengeId: string; code: string }
+  ): Promise<{ loginOtpEnabled: boolean }> {
+    return authService.setLoginOtp(enabled, password, verification);
   },
 
   /* --------------------- Authenticator app (TOTP) ------------------------ */

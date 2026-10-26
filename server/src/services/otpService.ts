@@ -22,7 +22,14 @@ import { config } from '../config/env.js';
  *   on the routes are the outer layer.
  */
 
-export const OTP_PURPOSES = ['login', 'password_reset', 'password_change', 'email_verification', 'login_totp'] as const;
+export const OTP_PURPOSES = [
+  'login',
+  'password_reset',
+  'password_change',
+  'email_verification',
+  'login_totp',
+  'login_otp_activation',
+] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 
 const CODE_MIN = 0;

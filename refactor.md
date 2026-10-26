@@ -56,3 +56,20 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
 
 ## Nav: Past Works missing, "Book a Viewing" shown as a button (owner, 2026-10-26)
 - Code defaults were already right (`DEFAULT_NAV_ITEMS`, `defaultCmsContent.ts`); the stored `nav` row in older databases overrides them. Fixed with the data migration `20261026100000_nav_past_works_booking_link` (adds the Past Works entry if missing, sets booking `isCta:false`). Run on the test instance first, then production after a backup.
+
+## OTP email ownership verification before activation (owner, 2026-10-27)
+- In the admin dashboard (Profile -> Two-Step Login OTP), activating OTP must verify email ownership before activating OTP:
+  - Step 1: user enters current password to confirm the action, triggering a 6-digit verification code sent to their email address.
+  - Step 2: user enters the verification code in the dialog to prove access/ownership of the email address.
+  - Only after successful code verification is OTP activated (`loginOtpEnabled: true`) and `emailVerifiedAt` recorded.
+  - Never enable OTP before verifying the email ownership. Disabling OTP remains password-protected without code.
+
+## Admin Profile Page UI/UX Redesign (owner, 2026-10-27)
+- Redesigned `/admin/profile` from a plain, vertically stacked layout into an executive-grade SaaS profile experience:
+  - Fixed reversed/scrambled Arabic role title (`ماظنلا ماع ريدم (Super Admin)`) using bidirectional isolation `<bdi>` and clean Arabic role normalization (`getRoleLabel`).
+  - Added modern ambient hero card with soft mesh gradient banner, active account pulsing indicator, squircle avatar with camera overlay, integrated photo upload/remove controls, and scannable interactive security tiles.
+  - Implemented sleek segmented tab navigation:
+    - **Personal Profile (البيانات الشخصية)**: 2-column layout with personal details form, verified email indicator, and structured Account & System Identity card.
+    - **Security & Access (الأمان والتحقق)**: Security health banner (emerald protected status or amber recommendation), Two-Step Login OTP (with 2-step email verification modal), Authenticator App (TOTP), Passkeys (WebAuthn), and Change Password.
+    - **Preferences (التفضيلات)**: Integrated confirmation dialog choices (`ConfirmChoicesCard`).
+

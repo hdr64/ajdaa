@@ -15,7 +15,7 @@ import { mailBrandName, isMailEnabled, sendMail } from '../services/mailService.
 import { emailVerificationEmail, loginOtpEmail, passwordResetEmail, totpNoticeEmail, passkeyNoticeEmail } from '../services/mailTemplates.js';
 import { notifyPasswordChanged } from '../services/notificationService.js';
 import { dispatch } from '../services/queueService.js';
-import { sendInviteEmailJob, sendEmailVerificationJob, sendPasswordChangeCodeJob } from '../jobs/emailJobs.js';
+import { sendInviteEmailJob, sendEmailVerificationJob, sendPasswordChangeCodeJob, sendLoginOtpActivationCodeJob } from '../jobs/emailJobs.js';
 import {
   consumeEmailVerificationToken,
   issueEmailVerificationToken,
@@ -110,8 +110,31 @@ const resetPasswordSchema = z.object({
 
 const loginOtpSettingsSchema = z.object({
   enabled: z.boolean(),
-  password: z.string().min(1, 'Current password is required'),
+  password: z.string().min(1, 'Current password is required').optional(),
+  challengeId: z.string().min(1).optional(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits').optional(),
 });
+
+const loginOtpSetupSchema = z
+  .object({
+    password: z.string().min(1).optional(),
+    currentPassword: z.string().min(1).optional(),
+  })
+  .refine((data) => Boolean(data.password || data.currentPassword), {
+    message: 'Current password is required',
+  });
+
+const loginOtpVerifySchema = z.object({
+  challengeId: z.string().min(1, 'Challenge ID is required'),
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+const loginOtpResendSchema = z.object({
+  challengeId: z.string().min(1, 'Challenge ID is required'),
+});
+
+const EMAIL_VERIFICATION_REQUIRED_FOR_OTP_ERROR =
+  'يلزم تأكيد ملكية البريد الإلكتروني عبر رمز التحقق لتفعيل التحقق بخطوتين / Email ownership verification is required to enable two-step verification';
 
 const OTP_EXPIRED_ERROR = 'رمز التحقق منتهي الصلاحية أو تم استخدامه، يرجى طلب رمز جديد / Verification code has expired or was already used, please request a new one';
 const OTP_INVALID_ERROR = 'رمز التحقق غير صحيح / Invalid verification code';
@@ -1541,12 +1564,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // Turn email OTP on or off for the signed-in admin (current password required)
-  fastify.patch(
-    '/me/login-otp',
-    { onRequest: [authenticate], preValidation: [validateBody(loginOtpSettingsSchema)] },
+  // Step 1 of enabling login OTP: requires current password, issues challenge, emails 6-digit code
+  fastify.post(
+    '/me/login-otp/setup',
+    { onRequest: [authenticate], preValidation: [validateBody(loginOtpSetupSchema)] },
     async (request, reply) => {
-      const { enabled, password } = loginOtpSettingsSchema.parse(request.body ?? {});
+      const body = loginOtpSetupSchema.parse(request.body ?? {});
+      const password = body.password ?? body.currentPassword!;
 
       const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
       if (!user) {
@@ -1558,20 +1582,149 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(401).send({ error: 'Current password is incorrect' });
       }
 
-      const loginOtpEnabled = user.loginOtpEnabled !== enabled ? enabled : user.loginOtpEnabled;
-      if (loginOtpEnabled !== user.loginOtpEnabled) {
+      const { challengeId, code } = await issueChallenge(user.id, 'login_otp_activation');
+      await dispatch(sendLoginOtpActivationCodeJob, { to: user.email, name: user.name, code });
+
+      return { challengeId, emailHint: emailHint(user.email) };
+    }
+  );
+
+  // Resend the activation code for enabling login OTP
+  fastify.post(
+    '/me/login-otp/resend',
+    { onRequest: [authenticate], preValidation: [validateBody(loginOtpResendSchema)] },
+    async (request, reply) => {
+      const { challengeId } = loginOtpResendSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      const verdict = await resendChallenge(challengeId, 'login_otp_activation');
+      if (!verdict.ok) {
+        if (verdict.reason === 'throttled') {
+          return reply.status(429).send({ error: RESEND_TOO_SOON_ERROR, retryAfterSeconds: verdict.retryAfterSeconds });
+        }
+        return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+      }
+
+      if (verdict.adminUserId !== user.id) {
+        return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+      }
+
+      await dispatch(sendLoginOtpActivationCodeJob, { to: user.email, name: user.name, code: verdict.code });
+      return { sent: true };
+    }
+  );
+
+  // Step 2 of enabling login OTP: verifies code, confirms email ownership, enables OTP
+  fastify.post(
+    '/me/login-otp/verify',
+    { onRequest: [authenticate], preValidation: [validateBody(loginOtpVerifySchema)] },
+    async (request, reply) => {
+      const { challengeId, code } = loginOtpVerifySchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      const verdict = await verifyChallenge(challengeId, code, 'login_otp_activation');
+      if (!verdict.ok) {
+        if (verdict.reason === 'invalid') {
+          return reply.status(400).send({ error: OTP_INVALID_ERROR, attemptsLeft: verdict.attemptsLeft });
+        }
+        return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+      }
+
+      if (verdict.adminUserId !== user.id) {
+        return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+      }
+
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: {
+          loginOtpEnabled: true,
+          emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+          status: user.status === 'pending' ? 'active' : user.status,
+        },
+      });
+
+      await clearChallenges(user.id, 'login_otp_activation');
+      return { loginOtpEnabled: true };
+    }
+  );
+
+  // Turn email OTP on or off for the signed-in admin.
+  // When disabling (`enabled: false`), current password is required.
+  // When enabling (`enabled: true`), email ownership must be verified via challengeId + code.
+  fastify.patch(
+    '/me/login-otp',
+    { onRequest: [authenticate], preValidation: [validateBody(loginOtpSettingsSchema)] },
+    async (request, reply) => {
+      const { enabled, password, challengeId, code } = loginOtpSettingsSchema.parse(request.body ?? {});
+
+      const user = await prisma.adminUser.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      if (enabled) {
+        if (!challengeId || !code) {
+          return reply.status(400).send({
+            error: EMAIL_VERIFICATION_REQUIRED_FOR_OTP_ERROR,
+            code: 'EMAIL_VERIFICATION_REQUIRED',
+          });
+        }
+
+        const verdict = await verifyChallenge(challengeId, code, 'login_otp_activation');
+        if (!verdict.ok) {
+          if (verdict.reason === 'invalid') {
+            return reply.status(400).send({ error: OTP_INVALID_ERROR, attemptsLeft: verdict.attemptsLeft });
+          }
+          return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+        }
+
+        if (verdict.adminUserId !== user.id) {
+          return reply.status(400).send({ error: OTP_EXPIRED_ERROR });
+        }
+
         await prisma.adminUser.update({
           where: { id: user.id },
-          data: { loginOtpEnabled },
+          data: {
+            loginOtpEnabled: true,
+            emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+            status: user.status === 'pending' ? 'active' : user.status,
+          },
+        });
+
+        await clearChallenges(user.id, 'login_otp_activation');
+        return { loginOtpEnabled: true };
+      }
+
+      // Disabling OTP: requires current password
+      if (!password) {
+        return reply.status(400).send({ error: 'Current password is required' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        return reply.status(401).send({ error: 'Current password is incorrect' });
+      }
+
+      if (user.loginOtpEnabled) {
+        await prisma.adminUser.update({
+          where: { id: user.id },
+          data: { loginOtpEnabled: false },
         });
       }
 
       // Switching OTP off must not leave a usable login code behind.
-      if (!loginOtpEnabled) {
-        await clearChallenges(user.id, 'login');
-      }
+      await clearChallenges(user.id, 'login');
+      await clearChallenges(user.id, 'login_otp_activation');
 
-      return { loginOtpEnabled };
+      return { loginOtpEnabled: false };
     }
   );
 

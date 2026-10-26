@@ -87,6 +87,7 @@ export interface AdminUser {
   lastLogin?: string;
   status: AdminStatus;
   loginOtpEnabled?: boolean;
+  emailVerifiedAt?: string | null;
   /** Authenticator-app (TOTP) 2FA is switched on for this account. */
   totpEnabled?: boolean;
   /** Unused recovery codes remaining; shown on the profile 2FA card. */
