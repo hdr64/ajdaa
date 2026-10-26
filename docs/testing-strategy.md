@@ -1,6 +1,6 @@
 # Ajda Real Estate Platform — Testing Strategy
 
-> **Last Updated**: 2026-10-01
+> **Last Updated**: 2026-10-26 (44 files, 428 tests, all passing)
 > **Framework**: Vitest (server), Manual E2E (frontend)
 
 ---
@@ -9,15 +9,17 @@
 
 ### Server Tests (`server/test/`)
 
-**21 test files** covering critical paths:
+**44 test files, 428 tests** (`cd server && npx vitest run`, about 70 s):
 
 | Category | Files | Coverage |
 |----------|-------|----------|
-| Authentication | `authz.test.ts`, `email-otp.test.ts`, `sessions.test.ts` | Login, OTP, sessions |
-| Security | `security.test.ts`, `escalation.test.ts`, `security-settings.test.ts` | Permissions, escalation |
-| Core CRUD | `floors.test.ts`, `publish.test.ts`, `duplicate-project.test.ts` | Projects, floors, units |
-| Features | `newsletter.test.ts`, `notification-listeners.test.ts`, `preferences.test.ts` | Newsletter, notifications |
-| Infrastructure | `media.test.ts`, `realtime.test.ts`, `exports.test.ts` | Uploads, WebSocket, CSV |
+| Authentication | `authz`, `email-otp`, `otp-mail-failure`, `email-verification`, `totp-auth`, `totpService`, `passkeys`, `sessions`, `token-hardening`, `admin-password-policy`, `seed-password` | Login, email codes, verification, TOTP and recovery codes, passkeys, sessions, password rules |
+| Security | `security`, `security-headers`, `escalation`, `security-settings`, `hardening-fixes`, `logs-guard`, `env-config`, `request-log` | Permissions, privilege escalation, headers, production config checks, log access |
+| Core CRUD | `floors`, `publish`, `duplicate-project`, `projects-model3d`, `permissions`, `roles`, `admin-extensions`, `user-phone`, `avatar`, `devUser` | Projects, floors, units, roles, users |
+| Features | `newsletter`, `notification-listeners`, `preferences`, `pastProjects`, `careers`, `careersSettings`, `site-careers`, `mail-settings`, `mail-failure`, `developer-notes`, `queue` | Newsletter, past projects, careers, settings, mail, queue |
+| Infrastructure | `media`, `realtime`, `exports`, `harness` | Uploads, WebSocket, CSV, test runner |
+
+Frontend has no automated tests; UI work is verified in the browser (both languages).
 
 ### Test Infrastructure
 
@@ -69,7 +71,7 @@ server/test/
 | Inquiries | ⚠️ Basic | 80%+ | More edge cases |
 | Media | ✅ Good | 80%+ | — |
 | Settings | ⚠️ Basic | 75%+ | Expand |
-| CMS (Phase 9) | ❌ None | 85%+ | To be written |
+| CMS | ⚠️ Minimal (only touched in `hardening-fixes`) | 85%+ | Route, versioning and rollback tests to be written |
 | Frontend | ❌ None | 70%+ | To be written |
 
 ---
@@ -241,40 +243,9 @@ test('admin can create project', async ({ page }) => {
 
 ## Continuous Integration
 
-### Recommended Pipeline
+### Current Pipeline
 
-```yaml
-# .github/workflows/test.yml (example)
-name: Tests
-
-on: [push, pull_request]
-
-jobs:
-  server-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: cd server && npm ci
-      - run: cd server && npm test
-
-  frontend-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm ci
-      - run: npm run build
-      - run: npm run lint
-
-  frontend-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm ci
-      - run: npm test  # When implemented
-```
+`.github/workflows/deploy.yml` runs, before deploying the **test instance** (never production): `npm ci`, `npm run lint`, `npm run build`, `npm --prefix server ci`, `npm --prefix server run build`, `npm --prefix server test`. There is no separate PR workflow yet; run the same gates locally (see the README).
 
 ---
 

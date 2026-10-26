@@ -510,9 +510,14 @@ the dump above.
 
 ### 6.1 Production deploy runbook (manual, owner only)
 
-> There is **no script** for production. These are the commands the owner runs
-> by hand, in this order, after the users have tested the test instance and
-> the owner has approved the release. CI never runs any of them.
+> No automation ever runs production: CI has no production target. The steps
+> below are what the owner runs, in this order, after the users have tested the
+> test instance and the owner has approved the release. `reload.sh` (on the
+> server, `/srv/ajda/app/reload.sh`) performs everything except the git
+> checkout (backup, install, migration check and run, build, restart, health
+> check, smoke test) in one go and asks for confirmation; `npm run deploy:prod` on the owner's PC checks out the
+> pushed commit on the server over SSH and runs it. Both are manual and
+> interactive. Read the steps once so you know what they do.
 
 **Step 1 — a verified backup of production** (read + write to the backup
 directory only):

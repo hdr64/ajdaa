@@ -9,7 +9,7 @@ Run this any time, and always after a major update (a merged lane, a new feature
 ## Where and what
 - Repository: the folder you were started in (normally `D:\projects\html\ajda`, branch `feat/backend-admin`; a worktree under `D:\projects\html\ajda-wt\` is also fine). Review the **committed state plus any uncommitted changes**, and record which in the report header.
 - Stack: Vite + React 19 + Tailwind v4 SPA (`src/`), Fastify + Prisma API (`server/`), SQLite in dev and tests, PostgreSQL 16 + Redis in production, Caddy in front, systemd unit `ajda-api`. Admin dashboard Arabic first with an AR/EN i18n system (`src/i18n/admin/`, `docs/ADMIN-I18N.md`). Public site AR/EN (`src/i18n/translations.ts`).
-- Read first: `CLAUDE.md` (project rules; skip its "FIRST ACTION" section), `README.md`, `docs/architecture.md`, `docs/MASTER-PLAN.md`, `docs/TODO.md`, `docs/api-reference.md`, `docs/testing-strategy.md`, `refactor.md`, `deploy/README-deploy.md`, `server/prisma/schema.prisma`, `server/src/app.ts`, `server/src/config/env.ts`, `server/src/middleware/*`, then the areas below.
+- Read first: `CLAUDE.md` (project rules; skip its "FIRST ACTION" section), `README.md`, `docs/architecture.md`, `docs/TODO.md`, `docs/api-reference.md`, `docs/testing-strategy.md`, `refactor.md`, `deploy/README-deploy.md`, `server/prisma/schema.prisma`, `server/src/app.ts`, `server/src/config/env.ts`, `server/src/middleware/*`, then the areas below.
 
 ## Mandatory skills
 Load each by name with your skill tool; if it is not offered, read the file directly.

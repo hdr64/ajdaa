@@ -1,9 +1,9 @@
 # 🌐 Ajda Real Estate Platform — Full Content Management System (CMS) & Dynamic Architecture Plan (v2.1 Final)
 
 > **Document Purpose**: Comprehensive, production-grade architectural specification and implementation roadmap for the full-site Content Management System (CMS), granular permissions system, and high-performance caching engine for the Ajda Real Estate Platform.
-> **Status**: Approved & Implementation-Ready (Refined with all Post-Review Feedback).
+> **Status**: Approved design, **implemented and shipped** (2026-10-01). This file is the design record; where it differs from the code, the code and `architecture.md` win (route paths are `/api/cms/content/:key`, permissions are `manageCms`, `manageClients`, `rollbackCms`).
 > **Date**: 2026-09-30
-> **Target Branch**: `feat/backend-admin` (Worktree: `feat/opencode-worker`)
+> **Target Branch**: merged into `main` (was `feat/backend-admin`)
 
 ---
 

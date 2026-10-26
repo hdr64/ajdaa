@@ -5,6 +5,34 @@
 
 ---
 
+## [Unreleased] — 2026-10-21 to 2026-10-26 (production deploy pending, per `salah-tasks.md`)
+
+Package versions at this point: root 1.2.2, server 1.2.3, `/api/health` 1.2.2 (to be aligned at release). Production needs the migrations listed at the end, run by the owner after a backup.
+
+### Added
+- **Past projects** ("our previous work"): admin CRUD, public `/past-works` page, gallery and publish switch.
+- **Careers**: public application form with optional CV (PDF, stored privately), admin Applications page, configurable required fields, email notification to configurable recipients, floating "Jobs" button and footer item, each switchable in Settings.
+- **Project page**: 3D model link, project profile PDF button, admin editing of all project fields, project duplication.
+- **Users**: create wizard, invite by link or admin-set password verified by email (link or 6-digit code), `verifyUsers` permission, "send password in the email" option, avatars, profile redesign.
+- **Sign-in security**: authenticator-app TOTP with recovery codes and forced enrolment; passkeys (WebAuthn) as a full sign-in alternative; two-step password change by emailed code; show/hide password button.
+- **Inquiries**: detail page `/admin/inquiries/:id` linked from the list, the notification email and the desktop notification.
+- **Admin i18n**: the whole admin dashboard in Arabic and English (`src/i18n/admin/`), typed toasts, translated login.
+- **Admin UX**: skeleton loaders instead of spinners, error boundary, deep-link fix for `/admin/pastProjects`.
+- **Deploy**: test-instance deploy by GitHub Actions (forced SSH command, test only), `reload.sh` for the manual production deploy, `scripts/deploy-*.mjs`, test-database sanitizer, `deploy/mkuser.sh` and a developer-user CLI.
+
+### Security and hardening
+- Logs and developer-notes access now needs a super admin session **and** a key in a header (`x-logs-key`, `x-dev-notes-key`); `?key=` is gone; both secrets plus `SETTINGS_ENCRYPTION_KEY` are required in production and no longer have default values.
+- Dependency upgrades (server audit 12 high down to 4 accepted: zod 3, Prisma CLI chain), `TRUST_PROXY` and `HOST` guidance, production config validation at boot.
+- Fixes found by reviews: dead "Register Interest" button on project pages, `manageNotifications` could re-route every lead, recovery codes rejected on disable, account-suspension enumeration at login, mojibake Arabic defaults in the init migration, raw translation keys, and others (see `docs/reviews/`).
+
+### Tests
+- Server suite grew from 146 to 428 tests in 44 files.
+
+### Migrations to run on production (by hand, after a backup)
+`20261022000000_foundation_past_projects_applications`, `20261022100000_email_verification`, `20261024000000_totp`, `20261025000000_defaults_and_indexes`, `20261025120000_passkeys`, `20261026000000_user_avatar`.
+
+---
+
 ## [1.2.1] — 2026-10-01
 
 ### ⚡ Performance: Route-Level Code Splitting & Dynamic Chunking

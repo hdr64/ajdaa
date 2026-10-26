@@ -1,6 +1,6 @@
 # Ajda Real Estate Platform — Gap Analysis
 
-> **Last Updated**: 2026-10-01  
+> **Last Updated**: 2026-10-26 (statuses re-checked against the code; the current prioritised backlog is [admin-audit.md](admin-audit.md))  
 > **Purpose**: Track platform capabilities, identify feature gaps against enterprise real estate & content management standards, and outline the upcoming product roadmap.
 
 ---
@@ -14,10 +14,10 @@
 | Forgot/reset password | ✅ Done | — | Secure email delivery with TTL verification |
 | Login failure lockout | ✅ Done | — | Automatic temporary lockout after consecutive failed attempts |
 | Granular Role & Action Permissions | ✅ Done | — | `manage_cms`, `manage_cms_content`, `manage_cms_clients`, plus core admin permissions |
-| 2FA (TOTP) | 📋 Planned | High | Authenticator app QR code setup & emergency recovery codes |
-| Passkeys (WebAuthn) | 📋 Planned | Medium | Passwordless biometric sign-in |
+| 2FA (TOTP) | ✅ Done | — | Authenticator-app setup with QR code, recovery codes, forced enrolment, admin reset (2026-10-24) |
+| Passkeys (WebAuthn) | ✅ Done | — | Full sign-in alternative to password plus code (2026-10-26); needs the `WEBAUTHN_RP_ID` decision before production |
 | Session management | 📋 Planned | Medium | Active sessions viewer with remote revocation |
-| Password complexity policy | 📋 Planned | Low | Enforce character variety and entropy rules |
+| Password complexity policy | ✅ Done | — | `passwordPolicy.ts`, enforced on create, change and reset |
 | Comprehensive Audit Log | 📋 Planned | High | System-wide admin activity trail (CMS versions already tracked) |
 
 ---
@@ -30,7 +30,7 @@
 | Dynamic CMS Menu Management | ✅ Done | — | Reorder, enable/disable, and customize public navbar items |
 | Notifications bell | ✅ Done | — | Real-time WebSocket notifications with unread counter |
 | User profile menu | ✅ Done | — | Profile viewing, settings, and secure sign-out |
-| Bilingual Admin Interface | 📋 Planned | Medium | English toggle (currently Arabic-first admin) |
+| Bilingual Admin Interface | ✅ Done (client) | — | AR/EN via `src/i18n/admin/`; API messages still English only; browser pass of all routes outstanding |
 | Command palette | 📋 Planned | Low | `Ctrl+K` quick search and shortcut actions |
 | Admin breadcrumbs | 📋 Planned | Low | Deep nested route navigation |
 | Keyboard shortcuts | 📋 Planned | Low | Power-user navigation bindings |

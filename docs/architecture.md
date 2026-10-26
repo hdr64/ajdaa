@@ -1,7 +1,7 @@
 # Ajda Real Estate Platform — System Architecture
 
-> **Last Updated**: 2026-10-01  
-> **Status**: Production Architecture (Backend + Frontend + Realtime + CMS Engine)
+> **Last Updated**: 2026-10-26  
+> **Status**: Production Architecture (Backend + Frontend + Realtime + CMS Engine + Auth + Admin i18n)
 
 ---
 
@@ -46,14 +46,15 @@ graph TD
 ### Backend
 | Layer | Technology | Details |
 |---|---|---|
-| **Runtime** | Node.js (v20+ LTS) | Native TypeScript (`tsx` dev / `tsc` build) |
+| **Runtime** | Node.js (24 in production and CI; 20+ works) | Native TypeScript (`tsx` dev / `tsc` build) |
 | **Framework** | Fastify v5 | High throughput, asynchronous schema validation, lifecycle hooks |
 | **Database** | PostgreSQL 16 (Prod) / SQLite (Dev) | Native installation, zero Docker overhead |
 | **ORM** | Prisma v6 | Type-safe schema, migrations, automated seeders |
 | **Media Processing** | Sharp | Automatic WebP conversion, EXIF stripping, size compression |
-| **Auth & Security** | `@fastify/jwt` + bcrypt | JWT authentication, email OTP, rate-limiting, granular RBAC |
+| **Auth & Security** | `@fastify/jwt` + bcrypt, `@simplewebauthn/server` | JWT sessions, email verification and login codes, authenticator-app TOTP with recovery codes, passkeys, rate-limiting, granular RBAC (see section 10) |
 | **Realtime** | Socket.io Server | Real-time unit availability, new inquiry alerts, CMS push updates |
-| **Testing** | Vitest | 21+ backend test suites for security, authorization, and CRUD |
+| **Queue** | BullMQ + Redis, `sync` fallback | Mail and notification jobs (section 8) |
+| **Testing** | Vitest | 44 backend test files, 428 tests (security, authorization, CRUD, auth factors) |
 
 ### Production Infrastructure (No Docker)
 | Component | Technology | Management |
@@ -61,7 +62,7 @@ graph TD
 | **Reverse Proxy** | Caddy 2 | systemd service, Cloudflare Origin CA TLS termination, gzip/zstd |
 | **API Process** | Node.js Fastify | systemd service (`Restart=always`), journald logging |
 | **Database** | PostgreSQL 16 | systemd service, daily automated `pg_dump` cron |
-| **Static Media** | Local filesystem | `/opt/ajda/server/uploads/` served directly by Caddy & Fastify static |
+| **Static Media** | Local filesystem | `/srv/ajda/app/server/uploads/` (production) served by Fastify static; CVs live in the private `server/private/` folder and are never served directly |
 
 ---
 
@@ -69,14 +70,18 @@ graph TD
 
 ```
 ajda/
-├── deploy/                      # Production deployment configurations (Caddyfile, systemd units)
+├── deploy/                      # Deployment playbook (README-deploy.md), Caddyfiles, systemd units, deploy scripts
 ├── docs/                        # Project documentation suite
 │   ├── archive/                 # Historical reference (original refactor.md, Kimi reviews)
 │   ├── README.md                # Documentation navigation hub
 │   ├── architecture.md          # System design and specifications (this file)
 │   ├── cms-architecture.md      # Approved CMS v2.1 architectural plan
 │   ├── api-reference.md         # Comprehensive REST & WebSocket API catalog
-│   ├── deployment.md            # Production deployment guide
+│   ├── ADMIN-I18N.md            # Admin AR/EN translation spec and rules
+│   ├── admin-audit.md           # Admin dashboard audit (P0-P3 backlog)
+│   ├── github-actions-deploy.md # CI deploy of the test instance
+│   ├── reviews/                 # Dated review reports
+│   ├── prompts/                 # Task prompts and reports for implementing agents
 │   ├── testing-strategy.md      # Testing matrix and test suites
 │   ├── gap-analysis.md          # Modern admin feature comparison
 │   ├── CHANGELOG.md             # Chronological release and feature changelog
@@ -93,7 +98,9 @@ ajda/
 │   ├── pages/                   # Public and admin route pages
 │   ├── services/                # API client services
 │   └── types/                   # TypeScript interfaces (cms.ts, property.ts, admin.ts)
-└── a.txt                        # User notes file (strictly preserved)
+├── CLAUDE.md                    # Planner context (read first by Claude Code)
+├── refactor.md                  # Owner requests log
+└── salah-tasks.md               # Owner's own actions (secrets, servers, first deploy)
 ```
 
 ---
@@ -114,12 +121,22 @@ ajda/
 - **`CmsClient`**: Relational partner/client directory (`nameAr/En`, `sectorAr/En`, `logo`, `tagsAr/En`, `websiteUrl`, `order`, `visible`).
 
 ### 4.3 Administration, HR & Security Models
-- **`AdminUser`**: Backoffice administrator (`email`, `passwordHash`, `role`, `permissions` JSON, `departmentId`).
-- **`Role`**: Team access role grouping (`slug`, `nameAr/En`, `permissions` JSON).
-- **`Department`**: Corporate team department (`nameAr/En`).
-- **`EmailOtp`**: 6-digit verification tokens for login and password recovery.
-- **`LoginFailure`**: Anti-brute-force rate limiting and lockout state.
-- **`NotificationListener`**: Subscription rules for email and in-app alerts on new inquiries.
+- **`AdminUser`**: Backoffice administrator (`email`, `passwordHash`, `role`, `permissions` JSON, `departmentId`, `emailVerifiedAt`, TOTP secret, avatar).
+- **`Role`**, **`Department`**: Access role grouping (`slug`, `nameAr/En`, `permissions` JSON) and team department.
+- **`OtpChallenge`**: Emailed 6-digit codes for login, password reset and password change.
+- **`EmailVerificationToken`**: Invite and email-verification links and codes.
+- **`RecoveryCode`**: Hashed one-time recovery codes for TOTP.
+- **`Passkey`**, **`WebauthnChallenge`**: WebAuthn credentials and short-lived registration/login challenges.
+- **`NotificationListener`**: Subscription rules for email alerts (new inquiry, new job application).
+- **`AppSetting`**: Key/value settings (site contact details, security policy, encrypted SMTP credentials, careers form).
+- **`DeveloperNote`**: Bug reports from the floating feedback pet, isolated from CRM data.
+- **`NewsletterSubscriber`**: Newsletter sign-ups.
+
+### 4.4 Past Projects and Careers
+- **`PastProject`**: "Our previous work" showcase entries (AR/EN title and description, category, image, gallery, publish flag, sort order).
+- **`JobApplication`**: Applications from the public careers form (name, phone, email, optional CV stored in `server/private/`).
+
+Failed-login counting is in-process (`loginFailureService.ts`), not a table.
 
 ---
 
@@ -190,6 +207,23 @@ Permissions are evaluated through an inheritance and direct-override algorithm:
 
 | Permission Key | Scope | Description |
 |---|---|---|
+| `manageProjects` | Projects | Create, edit, delete, duplicate and publish projects, floors and categories (this is the key the routes check) |
+| `viewProjects`, `createProject`, `editProject`, `deleteProject`, `publishProject` | Projects | Finer-grained keys kept in the catalogue; `manageProjects` implies them (see `server/src/middleware/auth.ts`) |
+| `manageUnits` | Units | Floor plan editor, unit CRUD and live unit status toggles |
+| `managePastProjects` | Past projects | Manage the "previous work" showcase and its uploads |
+| `manageCms` | CMS | Edit page copy, navbar items, footer identity, CMS export/import |
+| `manageClients` | CMS | CRUD partners directory, logo uploads, and reordering (`manageCms` implies it) |
+| `rollbackCms` | CMS | Revert any CMS section to a previous point-in-time snapshot (`manageCms` implies it) |
+| `viewInquiries` | CRM | View inquiries (currently also edit and close them; a separate write permission is open item P0 #1 in `admin-audit.md`) |
+| `viewApplications`, `manageApplications` | Careers | Read job applications and CVs; change status, delete, edit the form settings |
+| `exportData` | Reports | CSV exports, newsletter list |
+| `manageUsers` | HR / Admin | User, role and department administration |
+| `verifyUsers` | HR / Admin | Mark a user's email as verified by hand |
+| `manageNotifications` | Settings | Notification listeners |
+
+Mail, security and site settings and the developer tools (logs, developer notes) are **super admin only**.
+
+---|---|---|
 | `viewProjects` | Projects | View all projects (including drafts/hidden) |
 | `createProject` | Projects | Create new property records |
 | `editProject` | Projects | Update existing properties, pricing, and media |
@@ -293,3 +327,19 @@ To deliver optimal Core Web Vitals (CWV) and under 1-second First Contentful Pai
 - **Administrative Suite (`/admin/*`)**: Code-split into a separate **521 kB** chunk (`AdminDashboardPage`) and **18 kB** chunk (`AdminLoginPage`). Public visitors never download administrative dashboards, CMS editors, or management logic.
 - **Secondary Public Routes**: `WorksPage` (21 kB), `ProjectDetailPage` (33 kB), `InterestRegistrationView` (14 kB), `ContactPage` (13 kB), and `ClientsPage` (6 kB) load on-demand wrapped in branded `RouteLoadingFallback` skeletons.
 - **Performance Impact**: Main entry bundle reduced by **64.4%** (from 1,083 kB down to **385 kB** raw / 115 kB gzipped).
+
+---
+
+## 10. Authentication & Second Factors
+
+Sign-in paths, all ending in the same JWT session:
+
+1. **Password** (`POST /api/auth/login`), then one of: email login code (when the user or the site policy requires it), authenticator-app code, or a forced TOTP enrolment.
+2. **Passkey** (WebAuthn, `@simplewebauthn/server`): full alternative to password plus code. The relying-party id is `WEBAUTHN_RP_ID` (default: the host of `APP_URL`); changing the domain later invalidates every registered passkey.
+3. **Invite link**: a new user sets their own password (`/api/auth/accept-invite`), or a password set by an admin must first be verified by emailed link or 6-digit code. Super admins are exempt.
+
+Supporting rules: password changes are two-step (emailed code); TOTP secrets are encrypted with `SETTINGS_ENCRYPTION_KEY` (required in production, never change it after anyone enrols); recovery codes are hashed and single-use; per-IP and per-account rate limits and lockouts; a super admin can clear another user's TOTP or passkeys.
+
+## 11. Admin Dashboard Internationalisation
+
+Every admin string lives in `src/i18n/admin/*.ts` as an Arabic/English pair created with `defineStrings`, read through `useAdminT()` and driven by the site language. Rules, glossary and the review checklist are in [ADMIN-I18N.md](ADMIN-I18N.md). API error messages are still English only.

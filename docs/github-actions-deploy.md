@@ -113,7 +113,7 @@ The workflow file must be committed and pushed first.
 git push origin HEAD:refs/heads/deploy-test
 ```
 
-Every later push to the `deploy-test` branch deploys the test instance. To run it
+Every later push to the `deploy-test` branch deploys the test instance. `npm run deploy:test` does this for you: it refuses a dirty working tree and pushes `HEAD` to `deploy-test` with `--force-with-lease`. To run it
 by hand: GitHub, Actions, Deploy, Run workflow (optional input `ref`: a branch or a
 commit; empty means the triggering ref).
 

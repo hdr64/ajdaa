@@ -4,6 +4,95 @@
 > **Base URL**: `/api`  
 > **Content-Type**: `application/json`
 
+## Route index
+
+Guards: **public** (no session; most are rate limited), **JWT** (any signed-in admin), **`perm`** (JWT plus that permission; `super_admin` always passes), **super admin** (role `super_admin`). Permission names are the ones in the `permissions` catalogue (`GET /api/permissions`).
+
+### Auth (`/api/auth`)
+
+| Route | Guard | Purpose |
+|---|---|---|
+| `POST /login` | public | Password login. Returns a session, or a challenge (email code, TOTP, enrol-TOTP, email verification). |
+| `POST /login/verify-otp`, `POST /login/resend-otp` | public | Email login code (challenge id + code). |
+| `POST /login/verify-totp` | public | Authenticator code or recovery code. |
+| `POST /login/enroll-totp/setup`, `POST /login/enroll-totp/verify` | enrolment token | Forced TOTP enrolment during login. |
+| `POST /passkeys/login/options`, `POST /passkeys/login/verify` | public | Passkey (WebAuthn) sign-in. |
+| `POST /password/forgot`, `POST /password/reset` | public | Password reset by emailed code. |
+| `POST /accept-invite` | public | Invited user sets their own password (link token). |
+| `POST /verify-email`, `POST /verify-email-code`, `POST /verify-email-code/resend` | public | Confirm an email address by link token or 6-digit code. |
+| `GET /me`, `PATCH /me` | JWT | Current profile and permissions; update name, email, phone. |
+| `POST /me/avatar`, `DELETE /me/avatar` | JWT | Upload (images only) or remove the profile picture. |
+| `POST /me/password/request`, `POST /me/password` | JWT | Two-step password change: request an emailed code, then submit it with the new password. |
+| `GET /me/preferences`, `PUT /me/preferences` | JWT | Per-user UI preferences. |
+| `PATCH /me/login-otp` | JWT | Turn the personal email login code on or off. |
+| `POST /me/totp/setup`, `/enable`, `/disable`, `/recovery-codes` | JWT | Authenticator-app 2FA and recovery codes (disable and regenerate need the password plus a code). |
+| `GET /passkeys`, `PATCH /passkeys/:id`, `DELETE /passkeys/:id` | JWT | List, rename, remove own passkeys. |
+| `POST /passkeys/register/options`, `POST /passkeys/register/verify` | JWT | Register a passkey. |
+| `GET /users`, `GET /users/export`, `POST /users`, `PUT /users/:id`, `DELETE /users/:id` | `manageUsers` (export also `exportData`) | Admin user management. |
+| `POST /users/:id/resend-verification` | `manageUsers` | Re-send the verification email. |
+| `POST /users/:id/mark-verified` | `verifyUsers` | Mark an email as verified by hand. |
+| `POST /users/:id/reset-totp`, `POST /users/:id/reset-passkeys` | `manageUsers` | Clear another admin's second factor. |
+
+### Projects, floors, units, categories
+
+| Route | Guard |
+|---|---|
+| `GET /projects`, `GET /projects/:id` | public (published only; `?scope=admin` needs a session) |
+| `GET /projects/export` | `exportData` |
+| `POST /projects`, `PUT /projects/:id`, `DELETE /projects/:id`, `PATCH /projects/:id/publish`, `POST /projects/:id/duplicate` | `manageProjects` |
+| `POST /projects/:id/floors`, `PUT /projects/:id/floors/:floorNumber`, `DELETE /projects/:id/floors/:floorNumber` | `manageProjects` |
+| `POST /units`, `PUT /units/:id`, `DELETE /units/:id`, `PATCH /units/:id/status` | `manageUnits` |
+| `GET /units/export` | `exportData` |
+| `GET /categories` | public |
+| `POST /categories`, `PUT /categories/:id`, `DELETE /categories/:id` | `manageProjects` |
+| `POST /media/upload` | `manageProjects` or `managePastProjects` (images re-encoded to WebP, PDFs accepted) |
+
+### Past projects, careers, newsletter, inquiries
+
+| Route | Guard |
+|---|---|
+| `GET /past-projects` | public |
+| `GET /past-projects/admin`, `POST /past-projects`, `PUT /past-projects/:id`, `PATCH /past-projects/:id/published`, `DELETE /past-projects/:id` | `managePastProjects` |
+| `GET /careers/form` | public (form configuration) |
+| `POST /careers/applications` | public (multipart, optional CV PDF) |
+| `GET /careers/applications`, `GET /careers/applications/:id`, `GET /careers/applications/:id/cv` | `viewApplications` |
+| `PATCH /careers/applications/:id`, `DELETE /careers/applications/:id`, `GET /careers/settings`, `PUT /careers/settings` | `manageApplications` |
+| `POST /newsletter` | public (idempotent) |
+| `GET /newsletter`, `GET /newsletter/export`, `DELETE /newsletter/:id` | `exportData` |
+| `POST /inquiries` | public (spam fields, rate limited; queues the notification email) |
+| `GET /inquiries`, `GET /inquiries/:id`, `PATCH /inquiries/:id`, `PATCH /inquiries/:id/status` | `viewInquiries` (known gap: writes should need their own permission, see `docs/admin-audit.md` P0 #1) |
+| `GET /inquiries/export` | `exportData` |
+| `DELETE /inquiries/:id` | super admin |
+
+### Roles, departments, settings, notifications
+
+| Route | Guard |
+|---|---|
+| `GET /permissions` | JWT |
+| `GET/POST /roles`, `PUT/DELETE /roles/:id`, `GET/POST /departments`, `PUT/DELETE /departments/:id` | `manageUsers` |
+| `GET /settings/site` | public (contact details, careers switches) |
+| `PUT /settings/site`, `GET/PUT /settings/security`, `GET/PUT/DELETE /settings/mail`, `POST /settings/mail/test` | super admin |
+| `GET/POST /notifications/listeners`, `PUT/DELETE /notifications/listeners/:id` | `manageNotifications` |
+
+### CMS (`/api/cms`)
+
+| Route | Guard |
+|---|---|
+| `GET /content`, `GET /content/:key`, `GET /clients` | public (ETag, HTTP 304) |
+| `PUT /content/:key`, `GET /content/:key/versions`, `GET /export`, `POST /import` | `manageCms` |
+| `POST /content/:key/rollback/:version` | `rollbackCms` |
+| `GET /clients/all`, `POST /clients`, `PUT /clients/:id`, `DELETE /clients/:id`, `PUT /clients/reorder`, `DELETE /clients/bulk`, `PATCH /clients/bulk-visibility` | `manageClients` |
+
+### Logs, developer notes, health
+
+| Route | Guard |
+|---|---|
+| `GET /logs/view` (HTML console), `POST /logs/client-error` (browser crash beacon) | public (the console itself asks for the key and a session) |
+| `GET /logs`, `GET /logs/raw`, `GET /logs/errors`, `GET /logs/stats`, `POST /logs/clear`, `POST /logs/errors/clear` | super admin session plus `x-logs-key` header (unless `LOGS_PUBLIC=true`) |
+| `POST /developer/notes` | JWT (any admin) |
+| `GET /developer/notes`, `GET /developer/notes/export`, `GET/PATCH/DELETE /developer/notes/:id` | super admin session plus `x-dev-notes-key` header |
+| `GET /health` | public (`{ status, version }`) |
+
 ---
 
 ## 1. Authentication & Security (`/api/auth`)
@@ -44,7 +133,7 @@ Authenticates an administrator with email and password. Returns a JWT or indicat
 
 ---
 
-### POST `/api/auth/verify-otp`
+### POST `/api/auth/login/verify-otp`
 Validates a 6-digit email verification code for login or password reset.
 
 **Request:**
@@ -354,10 +443,11 @@ Accepts `multipart/form-data` with `file`. Sharp automatically validates magic b
 Production diagnostic endpoints allow real-time log streaming, system metrics inspection, and error debugging remotely from any browser or terminal.
 
 ### Authentication & Access Control
-Allowed if any of the following is true:
-1. `LOGS_PUBLIC=true` in `server/.env` (unrestricted public access).
-2. Request passes `?key=<LOGS_SECRET_KEY>` query param or `x-logs-key` header (default key: `ajda-logs-secret-2026`).
-3. Request includes a valid JWT token (`Authorization: Bearer <token>`) belonging to an admin user (`super_admin` or `admin`).
+A request is allowed when `LOGS_PUBLIC=true` (explicit opt-out, off by default) or when **both** hold:
+1. a valid admin session (`Authorization: Bearer <token>`) of an active `super_admin`, and
+2. the shared key in the `x-logs-key` header (`LOGS_SECRET_KEY`, required in production, at least 24 characters).
+
+The key is **not** accepted as a `?key=` query parameter (it would land in access logs and browser history). `GET /api/logs/view` and `POST /api/logs/client-error` are reachable without a session; the HTML console asks for the key and the session itself and sends them as headers.
 
 ### GET `/api/logs`
 Returns structured JSON logs from the in-memory ring buffer (up to 2,000 entries) or physical log file (`prod.log`).
@@ -411,15 +501,12 @@ Interactive dark-mode live terminal viewer in HTML. Features:
 - Stats telemetry banner (Uptime, Memory RSS, Heap, Error counter).
 - Quick actions: Raw log link, Clear logs button.
 
-**Browser Access:**
-```
-https://yourdomain.com/api/logs/view?key=YOUR_SECRET_KEY
-```
+**Browser Access:** open `https://yourdomain.com/api/logs/view`, sign in as a super admin and enter the log key in the console.
 
 ### GET `/api/logs/raw`
 Returns plain text log output formatted line-by-line, suitable for `curl` or terminal piping:
 ```bash
-curl -s "https://yourdomain.com/api/logs/raw?key=YOUR_SECRET_KEY&lines=200"
+curl -s -H "Authorization: Bearer $TOKEN" -H "x-logs-key: $LOGS_SECRET_KEY" "https://yourdomain.com/api/logs/raw?lines=200"
 ```
 
 ### GET `/api/logs/stats`
@@ -433,7 +520,7 @@ Clears the in-memory ring buffer and truncates the physical `prod.log` on disk.
 ### GET `/api/logs/errors`
 Streams the raw plain-text content of `server/errors.log`:
 ```bash
-curl -s "https://yourdomain.com/api/logs/errors?key=YOUR_SECRET_KEY&lines=100"
+curl -s -H "Authorization: Bearer $TOKEN" -H "x-logs-key: $LOGS_SECRET_KEY" "https://yourdomain.com/api/logs/errors?lines=100"
 ```
 
 ---
@@ -459,16 +546,14 @@ Public telemetry beacon allowing browser frontend to report unhandled JavaScript
 
 ---
 
-## 7. Developer Notes & Feedback (Isolated Channel)
+## 8. Developer Notes & Feedback (Isolated Channel)
 
 Dedicated administrative feedback channel strictly decoupled from customer CRM inquiries.
 
 ### Authentication & Access Control
-Access to reading and exporting developer notes requires:
-1. Header `x-developer-key: <DEVELOPER_NOTES_SECRET>` or query param `?key=...`, OR
-2. Admin JWT with `super_admin` role.
+Reading, exporting, updating and deleting developer notes requires **both** an active `super_admin` session and the header `x-dev-notes-key: <DEVELOPER_NOTES_SECRET>` (required in production, at least 24 characters; no query-parameter form).
 
-*Note: Submission (`POST /api/developer/notes`) is open to authenticated dashboard users via the floating Pet assistant.*
+*Note: Submission (`POST /api/developer/notes`) is open to any authenticated dashboard user via the floating Pet assistant.*
 
 ### POST `/api/developer/notes`
 Submits a bug report, improvement suggestion, or developer note from the Admin Feedback Pet. Dispatches an immediate HTML alert email to `DEVELOPER_EMAIL` (`cloud.data.sa@gmail.com`).
@@ -517,10 +602,10 @@ Lists developer notes with filtering and pagination.
 Exports all developer notes as Markdown or JSON:
 ```bash
 # Export as clean Markdown
-curl -H "x-developer-key: ajda-dev-notes-2026" "https://yourdomain.com/api/developer/notes/export?format=markdown" > notes.md
+curl -H "Authorization: Bearer $TOKEN" -H "x-dev-notes-key: $DEVELOPER_NOTES_SECRET" "https://yourdomain.com/api/developer/notes/export?format=markdown" > notes.md
 
 # Export as JSON
-curl -H "x-developer-key: ajda-dev-notes-2026" "https://yourdomain.com/api/developer/notes/export?format=json" > notes.json
+curl -H "Authorization: Bearer $TOKEN" -H "x-dev-notes-key: $DEVELOPER_NOTES_SECRET" "https://yourdomain.com/api/developer/notes/export?format=json" > notes.json
 ```
 
 ---

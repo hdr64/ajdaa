@@ -1,69 +1,40 @@
 # Ajda Real Estate Platform — Documentation Index
 
-> **Last Updated**: 2026-10-01  
-> **Platform Version**: 1.2.1 (Route-Level Code Splitting & Performance Optimization)
+> **Last updated**: 2026-10-26. Setup and commands are in the root [README.md](../README.md).
 
-Welcome to the comprehensive documentation suite for the **Ajda Real Estate Platform**. This directory contains the complete technical architecture, API specifications, operations guides, roadmap, and historical design records.
+## Where things live
 
----
+| Document | Purpose |
+|---|---|
+| [TODO.md](TODO.md) | **Open tasks and the order to do them in** (source of truth). Start here. |
+| [architecture.md](architecture.md) | System design, data models, caching, permissions, queue, auth factors, admin i18n |
+| [cms-architecture.md](cms-architecture.md) | Approved CMS v2.1 design (schemas, versions, validation); the shipped behaviour is in `architecture.md` |
+| [api-reference.md](api-reference.md) | Route index with guards for every endpoint, plus detail for the older ones |
+| [../deploy/README-deploy.md](../deploy/README-deploy.md) | Deployment playbook: instances, test instance, CI, backups, production runbook, Caddy, passkeys |
+| [github-actions-deploy.md](github-actions-deploy.md) | How the GitHub Actions workflow deploys the test instance and how it is locked to test |
+| [testing-strategy.md](testing-strategy.md) | Server test suites, gates, manual checklist |
+| [ADMIN-I18N.md](ADMIN-I18N.md) | Rules for the admin AR/EN translation (read before touching admin strings) |
+| [admin-audit.md](admin-audit.md) | Admin dashboard audit with the P0-P3 improvement backlog |
+| [gap-analysis.md](gap-analysis.md) | Feature status against modern real-estate admin platforms |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes |
+| [reviews/](reviews/) | Dated review reports (whole-project review, bug hunts) |
+| [prompts/](prompts/README.md) | Task prompts and reports for implementing agents; archive of finished ones |
+| [archive/](archive/) | Superseded plans kept for history (original refactor plan, waves 1-2 plan, CMS plan reviews, content inventory, resume note) |
 
-## 📚 Documentation Catalog
+Outside `docs/`: `CLAUDE.md` (planner context), `refactor.md` (owner requests log, every request is recorded there), `salah-tasks.md` (owner's own actions: secrets, servers, first production deploy).
 
-| Document | Purpose | Target Audience |
-|----------|---------|-----------------|
-| [architecture.md](architecture.md) | High-level system architecture, data models, CMS design, caching, ETags, and security | Developers, Architects |
-| [cms-architecture.md](cms-architecture.md) | In-depth v2.1 CMS specification (Kimi-reviewed), covering schemas, versions, and validation | CMS & Backend Engineers |
-| [api-reference.md](api-reference.md) | Complete REST endpoint and WebSocket event documentation, schemas, and status codes | Frontend Devs, Integrators |
-| [deployment.md](deployment.md) | Production infrastructure setup on Ubuntu 24.04 (Native PostgreSQL 16 + Caddy 2 + systemd, No Docker) | DevOps, System Admins |
-| [testing-strategy.md](testing-strategy.md) | Vitest backend test suites, mock strategies, and quality gate workflows | QA, Developers |
-| [TODO.md](TODO.md) | Active sprint tasks, remaining backlog, and decision registers | Project Managers, Devs |
-| [CHANGELOG.md](CHANGELOG.md) | Detailed version history, chronological releases, and migration notes | All Stakeholders |
-| [gap-analysis.md](gap-analysis.md) | Feature audit against modern real estate platforms and prioritized roadmap | Product Owners, Leads |
+## Documentation rules
 
----
+- One home per fact. Route lists live in `api-reference.md`, environment variables in `server/.env.example` and `deploy/README-deploy.md`, task status in `TODO.md`; other files link instead of copying.
+- Never write real secrets or default secret values into docs. Show variable names only.
+- Finished task prompts and reports move to `docs/prompts/_archive/<wave>/`; review outputs go to `docs/reviews/<date>-<topic>.md`.
+- When a task changes routes, permissions, env variables or the schema, update `api-reference.md`, `architecture.md` and the changelog in the same change.
 
-## 📦 Archive Directory (`docs/archive/`)
+## Core principles
 
-Historical source documents and review records are preserved in full integrity under [`docs/archive/`](archive/):
-
-- [`archive/original-refactor.md`](archive/original-refactor.md) — The complete, unedited original 45KB refactoring master plan.
-- [`archive/original-content-inventory.md`](archive/original-content-inventory.md) — Initial site content inventory and assets baseline.
-- [`archive/cms-plan-kimi-review.md`](archive/cms-plan-kimi-review.md) — First external architectural review by Kimi.
-- [`archive/cms-plan-kimi-review-v2.md`](archive/cms-plan-kimi-review-v2.md) — Second external architectural review by Kimi approving v2.1.
-- Task prompts and agent reports (active and finished, including the early agy/OpenCode hand-offs) live in [`prompts/`](prompts/README.md).
-- [`archive/RESUME.md`](archive/RESUME.md) — Context preservation record.
-
----
-
-## 🚀 Quick Navigation by Role
-
-### For Frontend Developers
-1. Start with [architecture.md](architecture.md) for data flow and component hierarchy.
-2. Review [api-reference.md](api-reference.md) for REST endpoints and Socket.io events.
-3. Check `src/context/CmsContext.tsx` and `src/hooks/useCmsSection.ts` for public CMS consumption.
-4. Run validation checks: `npm run build` and `npx oxlint`.
-
-### For Backend Developers
-1. Review [cms-architecture.md](cms-architecture.md) for the CMS entity model and LWW concurrency strategy.
-2. See [api-reference.md](api-reference.md) for route schemas, ETags, and rate limits.
-3. Review [testing-strategy.md](testing-strategy.md) and run `npx vitest run` in `server/`.
-
-### For DevOps & Infrastructure
-1. Follow the step-by-step instructions in [deployment.md](deployment.md).
-2. Note the strict architectural policy: **No Docker** — native PostgreSQL 16 + Caddy 2 reverse proxy + systemd.
-
-### For Product & Project Managers
-1. Review [TODO.md](TODO.md) for current sprint items and open questions.
-2. Check [gap-analysis.md](gap-analysis.md) for the prioritized future roadmap.
-3. Review [CHANGELOG.md](CHANGELOG.md) for recent release notes.
-
----
-
-## 🏛️ Core Architectural Principles
-
-1. **No Docker**: Production runs bare-metal on Ubuntu with native PostgreSQL and Caddy 2 for simplicity and performance.
-2. **Deterministic ETags**: Section-level (`W/"sec-..."`) and aggregated (`W/"cms-agg-..."`) ETags allow instant HTTP 304 responses, eliminating redundant data transfer.
-3. **Multi-Tier CMS Caching**: Fastify in-memory `Map` cache delivers near-instant public reads, invalidated precisely by section key on writes.
-4. **Real-Time Synchronization**: Backend broadcasts `cms:section:updated` and `cms:clients:updated` via Socket.io to keep all client browser sessions fresh without manual polling.
-5. **Audited Versioning**: Up to 10 historical snapshots are automatically maintained per CMS section with instant diff and rollback capabilities.
-6. **Action-Level RBAC**: Granular permissions (`manage_cms`, `manage_cms_content`, `manage_cms_clients`) ensure strict administrative security.
+1. **No Docker**: bare-metal Ubuntu with native PostgreSQL, Redis and Caddy 2.
+2. **Database is the source of truth**: nothing the site shows is hard-coded in `src/data`.
+3. **Deterministic ETags** on CMS reads give instant HTTP 304 responses; writes evict the cache and push a Socket.io update.
+4. **Audited versioning**: the last 10 snapshots of every CMS section can be diffed and rolled back.
+5. **Action-level RBAC** with role inheritance; mail, security, logs and developer tools are super admin only.
+6. **CI deploys the test instance only**; production deploys and production database commands are manual.

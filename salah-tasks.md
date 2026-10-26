@@ -1,14 +1,13 @@
-# Salah's tasks (owner actions, updated 2026-10-22)
+# Salah's tasks (owner actions, updated 2026-10-26)
 
-## A. Wave 1 and Wave 2 in OpenCode: done
-- [x] Wave 1 lanes (foundation, sec0, deploy) ran, reviewed and merged into `integration/wave1`
-- [x] Wave 2 lanes (projects, users wizard, past projects, careers) ran, reviewed, fixed, committed and merged into `integration/wave1` (all gates green: lint, builds, 273 server tests)
+## A. Done
+- [x] Waves 1 and 2, the auth chain (email verification, email code, authenticator 2FA, passkeys), admin AR/EN translation, careers/past-works, hardening and production-readiness tasks: reviewed, committed and merged into `main`. Details: `docs/CHANGELOG.md`, `docs/TODO.md` section 5.
 
 ## B. Decisions for you now
-- [ ] Approve merging `integration/wave1` into `feat/backend-admin` (Claude will do it when you say so)
-- [ ] Decide when to run the next OpenCode prompt: `docs/prompts/task-w2-monitoring-prompt.md` (monitoring; needs `MONITOR_ALLOWED_IPS` and `MONITOR_EXTERNAL_UNTIL` below)
-- [ ] Monitoring: set `MONITOR_ALLOWED_IPS` to your own IP (recommended) and `MONITOR_EXTERNAL_UNTIL` = go-live + 30 days
-- [ ] Open the merged app once and look at: `/careers`, `/past-works`, a project page (3D + PDF buttons), admin "Users" create wizard, admin "Applications", admin "Past projects" (Claude will also check these in the browser)
+- [ ] Open the app once with Claude's browser pass (TODO item 1) and tell Claude what you approve
+- [ ] Decide the passkey domain `WEBAUTHN_RP_ID` (default = the host of `APP_URL`; passkeys stop working if the domain changes later)
+- [ ] Monitoring (`docs/prompts/task-w2-monitoring-prompt.md`): set `MONITOR_ALLOWED_IPS` to your own IP (recommended) and `MONITOR_EXTERNAL_UNTIL` = go-live + 30 days, then say when to run it
+- [ ] Delete merged branches and clean the repo root (see `docs/TODO.md` section 3)
 
 ## C. On the production server (independent of the code, still pending)
 - [ ] Rotate the Gmail app password (myaccount.google.com/apppasswords) and update `MAIL_PASSWORD`
@@ -41,11 +40,8 @@
 - [ ] Confirm the production backup copy on D:\backups\ajda-2026-10-21 matches the checksums
 - [ ] Backups now also copy `server/private` (CVs): check the backup folder permissions after the first run
 
-## G. Auth work (new, 2026-10-22): run in OpenCode, one after the other
-- [x] Login eye button: done, reviewed, committed (archived in `docs/prompts/_archive/wave3/`)
-- [x] Auth A (email verification): done and reviewed, waiting for your browser check and commit approval (archived in `docs/prompts/_archive/wave3/`)
-- [ ] `docs/prompts/task-w3-auth-a2-prompt.md`, run in `D:\projects\html\ajda-wt\auth` (email code, `verifyUsers` permission, send-password checkbox). The report lands in `docs/prompts/`
-- [ ] After I review and commit A2: `docs/prompts/task-w3-auth-b-prompt.md` (authenticator-app 2FA + recovery codes)
-- [ ] After I review and commit B: `docs/prompts/task-w3-auth-c-prompt.md` (passkeys)
-- [ ] Before the production deploy of these: decide the passkey domain (`WEBAUTHN_RP_ID`, default = the site host; passkeys stop working if the domain changes later) and run the three new migrations by hand
-
+## G. Before the production deploy of the auth work
+- [ ] Decide `WEBAUTHN_RP_ID` (see B)
+- [ ] Set `SETTINGS_ENCRYPTION_KEY`, `LOGS_SECRET_KEY`, `DEVELOPER_NOTES_SECRET` in production `.env` (the server refuses to boot without them), plus `TRUST_PROXY=1` and `HOST=127.0.0.1`
+- [ ] After the backup, run all six pending migrations by hand: `20261022000000_foundation_past_projects_applications`, `20261022100000_email_verification`, `20261024000000_totp`, `20261025000000_defaults_and_indexes`, `20261025120000_passkeys`, `20261026000000_user_avatar`
+- [ ] Production deploy is `npm run deploy:prod` (or `reload.sh` on the server), never CI

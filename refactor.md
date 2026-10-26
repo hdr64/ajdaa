@@ -28,25 +28,28 @@ Owner request (2026-10-22): admin login convenience and security.
 
 Owner request (2026-10-22): UI review of the admin (details, dialogs, toasts, feedback) plus: translate the whole admin dashboard to English, translate and improve the login.
 - Spec: `docs/ADMIN-I18N.md`. Order: `task-w4-i18n-core-prompt.md` (infrastructure, shell, typed toasts, deep-link fix) -> then lanes `task-w4-i18n-l1/l2/l3-prompt.md` in parallel. `task-w4-i18n-server-prompt.md` (localised API messages) can run in parallel with core.
-- Login translate + improve: NOT started on purpose; it rewrites the same files as the auth lane (`ajda-wt/auth`, tasks A/B/C: email verification, TOTP, passkeys). Write its prompt after the auth lane merges.
+- Login translate + improve: done on `main` (2026-10-26, `src/i18n/admin/auth.ts` and `src/components/admin/auth/*`) after the auth lane merged; needs the browser pass listed in `docs/TODO.md` item 1.
 - Review findings fixed by these tasks: `/admin/pastProjects` deep link, past-project dialog (Esc loses data, raw "Invalid URL", native alert, no success toast), native `window.confirm` in 3 dialogs, toast has no error kind, uneven toasts, past-works empty text hard-coded Arabic, empty dashboard chart. Public-site minor items (careers file input, title spacing, past-works empty text): `task-w4-public-polish-prompt.md`.
 
 ## Auth follow-ups (owner, 2026-10-23)
 - Verification email also carries a 6-digit code; a pending user can open the admin login page and verify with the code.
 - New permission: mark a user as verified from admin Users (super admin always has it).
 - Create-user form: checkbox "send the password in the email".
-(Prompt: `docs/prompts/task-w3-auth-a2-prompt.md`)
+(Prompt, done: `docs/prompts/_archive/w3/task-w3-auth-a2-prompt.md`)
 
 ## Code-quality review (owner, 2026-10-23)
 - Reusable full review prompt (security, bugs, clean code, UI, perf, tests, ops, docs, i18n): `docs/prompts/code-quality-review-prompt.md`. Output `code-quality-review.md` (previous reports archived in `docs/reviews/`). Run any time and after every major update.
 
 ## Inquiry detail page (owner, 2026-10-25)
-- In admin Inquiries the owner cannot open an item. Add `/admin/inquiries/:id` showing one inquiry (list rows open it; notification email and desktop notification link to it). Prompt: `docs/prompts/task-w5-inquiry-detail-prompt.md`.
+- In admin Inquiries the owner cannot open an item. Add `/admin/inquiries/:id` showing one inquiry (list rows open it; notification email and desktop notification link to it). Done; prompt and report in `docs/prompts/_archive/w5/`.
 
 ## Production readiness (Claude check, 2026-10-25)
-- Prompts `docs/prompts/task-w5-ready-a-prompt.md` (dependency security upgrades: `@fastify/jwt`/`fast-jwt`, `@fastify/static`, patches) and `task-w5-ready-b-prompt.md` (dedicated `SETTINGS_ENCRYPTION_KEY` required in production, proxy-trust warning, React error boundary, migration for the mojibake defaults and indexes). Owner checklist items found: set `TRUST_PROXY=1` and `HOST=127.0.0.1` in production `.env`; set `SETTINGS_ENCRYPTION_KEY` before anyone enrols TOTP.
+- Done; prompts in `docs/prompts/_archive/w5/`: `task-w5-ready-a-prompt.md` (dependency security upgrades: `@fastify/jwt`/`fast-jwt`, `@fastify/static`, patches) and `task-w5-ready-b-prompt.md` (dedicated `SETTINGS_ENCRYPTION_KEY` required in production, proxy-trust warning, React error boundary, migration for the mojibake defaults and indexes). Owner checklist items found: set `TRUST_PROXY=1` and `HOST=127.0.0.1` in production `.env`; set `SETTINGS_ENCRYPTION_KEY` before anyone enrols TOTP.
 
 ## Careers visibility (owner, 2026-10-25)
-- Floating "Jobs" button on the public site (label renamed from "Apply for a job" to "Jobs" / "الوظائف", owner 2026-10-25); admin can show/hide the footer item and the floating button independently (site settings `careers.showFooterLink`, `careers.showFloatingButton`). Prompt: `docs/prompts/task-w5-careers-toggle-prompt.md`.
+- Floating "Jobs" button on the public site (label renamed from "Apply for a job" to "Jobs" / "الوظائف", owner 2026-10-25); admin can show/hide the footer item and the floating button independently (site settings `careers.showFooterLink`, `careers.showFloatingButton`). Done; prompt in `docs/prompts/_archive/w5/`.
 
 Owner request (2026-10-25): production-grade improvements to the admin dashboard. Audit done: `docs/admin-audit.md` (P0 security/data safety, P1 reliability, P2 usefulness, P3 design/a11y, split into w6 tasks). Browser pass still to do.
+
+## Docs cleanup (owner, 2026-10-26)
+- "Review the project and clean up the docs": docs re-checked against the code; the stale deployment guide and the duplicate DB-copy note removed, README reduced to setup and gates, API route index added, finished prompts and review reports archived, TODO rewritten. See `docs/README.md` for the documentation rules.

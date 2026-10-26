@@ -12,7 +12,7 @@ After this task there is **one** schema (`server/prisma/schema.prisma`, `provide
 - `server/test/global-setup.ts`, `server/test/env.ts`, `server/test/setup-env.ts`, `server/vitest.config.ts`, `server/test/harness.test.ts`, `server/test/env-config.test.ts`
 - `server/src/config/env.ts` (the `DATABASE_URL` default), `server/src/routes/careers.routes.ts` (~line 300, SQLite/Postgres branch)
 - `docker-compose.dev.yml`, `server/.env.example`
-- `reload.sh`, `deploy/remote-deploy.sh`, `.github/workflows/deploy.yml`, `deploy/README-deploy.md`, `docs/deployment.md`, `README.md`
+- `reload.sh`, `deploy/remote-deploy.sh`, `.github/workflows/deploy.yml`, `deploy/README-deploy.md`, `README.md`
 - `docs/archive/**` and old `task-*` files are history: do **not** edit them.
 
 ## Decided design (no open choices)
@@ -59,7 +59,7 @@ The migrations were hand-written and never checked against the schema. With Post
 ### 6. Deploy scripts and docs
 - `reload.sh`, `deploy/remote-deploy.sh`: remove the `db:gen:prod` calls and `--schema prisma/schema.postgresql.prisma` arguments; `prisma migrate status` and `db:migrate` use the default schema. **Behaviour must stay identical otherwise** (the pending-migration safety stop in `reload.sh`, the owner-only production migration rule): do not weaken or reorder any guard. Keep the production deploy order: install, generate client, (migrate only as the script already decides), build, restart.
 - `.github/workflows/deploy.yml`: remove any `db:gen:prod` / SQLite step. If a CI job runs the server tests, add a `postgres:16` service container and `TEST_DATABASE_URL`. If CI runs no tests, change nothing else.
-- Update `README.md` (the SQLite-vs-PostgreSQL table and the setup sections), `docs/deployment.md`, `deploy/README-deploy.md`, `server/.env.example`, `salah-tasks.md` is out of scope. Document: how to start PostgreSQL (docker or native), first-time setup (`npm --prefix server run db:migrate && npm --prefix server run db:seed`), how to change the schema (`db:migrate:dev --name <what>`, commit the generated folder), how to reset (`db:reset`), how to run tests, and that **`db:migrate` on production stays a manual owner step after a backup**.
+- Update `README.md` (the Database section of the Quick start), `deploy/README-deploy.md`, `server/.env.example`, `salah-tasks.md` is out of scope. Document: how to start PostgreSQL (docker or native), first-time setup (`npm --prefix server run db:migrate && npm --prefix server run db:seed`), how to change the schema (`db:migrate:dev --name <what>`, commit the generated folder), how to reset (`db:reset`), how to run tests, and that **`db:migrate` on production stays a manual owner step after a backup**.
 - Delete `server/prisma/dev.db` and any `*.db` files from the working tree only if they are untracked/ignored; if `dev.db` is tracked by git, leave it and mention it in the report.
 
 ## Out of scope
