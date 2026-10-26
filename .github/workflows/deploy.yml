@@ -70,6 +70,26 @@ jobs:
 
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
+      - name: Show what will be deployed
+        env:
+          SHA: ${{ steps.context.outputs.sha }}
+          TRIGGER: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          {
+            echo "### Deploy to the test instance"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`$(git rev-parse --short "$SHA")\` $(git log -1 --format=%s "$SHA") |"
+            echo "| Author | $(git log -1 --format=%an "$SHA") |"
+            echo "| Triggered by | $ACTOR ($TRIGGER) |"
+            echo "| Target | test instance only (ajda.weghetk.com) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Deploying $SHA ($(git log -1 --format=%s "$SHA")) triggered by $ACTOR via $TRIGGER"
+          echo "Files changed in this commit:"
+          git show --stat --format= "$SHA" | tail -15
+
       - name: Install dependencies
         run: npm ci
 
@@ -86,7 +106,14 @@ jobs:
         run: npm --prefix server run build
 
       - name: Test server
-        run: npm --prefix server test
+        run: npm --prefix server test -- --reporter=verbose
+
+      - name: Gate summary
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          echo "- Verify gate (lint, build, server build, server tests): **$RESULT**" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     needs: verify
@@ -98,35 +125,72 @@ jobs:
       group: deploy-test
       cancel-in-progress: false
     steps:
-      - name: Deploy over SSH
+      - name: Prepare SSH
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
           SSH_KEY: ${{ secrets.SSH_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          SHA: ${{ needs.verify.outputs.sha }}
         run: |
           set -euo pipefail
+          for name in SSH_HOST SSH_KEY SSH_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is empty. Add it to the 'test' environment (docs/github-actions-deploy.md)."
+              exit 1
+            fi
+          done
           install -m 700 -d "$RUNNER_TEMP/ssh"
           printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/ssh/id_ed25519"
           chmod 600 "$RUNNER_TEMP/ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/ssh/known_hosts"
+          echo "SSH key and known_hosts written (host key entries: $(grep -c . "$RUNNER_TEMP/ssh/known_hosts"))."
+
+      - name: Deploy over SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SHA: ${{ needs.verify.outputs.sha }}
+        run: |
+          set -uo pipefail
+          echo "Sending 'test ${SHA}' to the server's forced command (install, migrate, build, restart, health check)."
+          started=$SECONDS
 
           # The server-side forced command ignores everything except the two
           # arguments: the target (always "test") and the full commit SHA.
-          ssh -i "$RUNNER_TEMP/ssh/id_ed25519" \
-            -o IdentitiesOnly=yes \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
-            "${SSH_USER}@${SSH_HOST}" \
-            "test ${SHA}" | tee "$RUNNER_TEMP/deploy.log"
+          # stderr is merged so that server-side errors show up in this log.
+          ssh -i "$RUNNER_TEMP/ssh/id_ed25519"             -o IdentitiesOnly=yes             -o BatchMode=yes             -o StrictHostKeyChecking=yes             -o ConnectTimeout=20             -o ServerAliveInterval=30             -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts"             "${SSH_USER}@${SSH_HOST}"             "test ${SHA}" 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          ssh_status=${PIPESTATUS[0]}
+          echo
+          echo "ssh exited with status ${ssh_status} after $((SECONDS - started)) s."
 
           # Without the forced command on the server, "test <sha>" is the shell
           # builtin: it exits 0 and deploys nothing. Only the deploy script's
           # own success line proves the deploy ran.
-          grep -q "event=deploy.success" "$RUNNER_TEMP/deploy.log" || {
-            echo "::error::The server did not report event=deploy.success. Check the forced command in authorized_keys (deploy/README-deploy.md 4.2)."
+          if [ "$ssh_status" -ne 0 ] || ! grep -q "event=deploy.success" "$RUNNER_TEMP/deploy.log"; then
+            echo "::error::Deploy failed (ssh status ${ssh_status}); the server did not report event=deploy.success."
+            if ! grep -q "event=ssh.accept" "$RUNNER_TEMP/deploy.log"; then
+              echo "::error::The forced command never ran: check authorized_keys and /srv/ajda/deploy/ssh-entry.sh (deploy/README-deploy.md 4.2)."
+            fi
+            grep -E "level=error" "$RUNNER_TEMP/deploy.log" | sed 's/^/::error::/' || true
             exit 1
-          }
+          fi
+
+      - name: Deploy summary
+        if: always()
+        env:
+          SHA: ${{ needs.verify.outputs.sha }}
+          RESULT: ${{ job.status }}
+        run: |
+          {
+            echo "### Server deploy of \`${SHA:0:8}\`: **$RESULT**"
+            if [ -f "$RUNNER_TEMP/deploy.log" ]; then
+              echo
+              echo "Server events:"
+              echo '```'
+              grep -E "event=|level=error" "$RUNNER_TEMP/deploy.log" | cut -c1-220 || true
+              echo '```'
+            else
+              echo
+              echo "No server output was captured."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
