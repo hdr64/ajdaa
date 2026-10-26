@@ -121,4 +121,12 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
             "${SSH_USER}@${SSH_HOST}" \
-            "test ${SHA}"
+            "test ${SHA}" | tee "$RUNNER_TEMP/deploy.log"
+
+          # Without the forced command on the server, "test <sha>" is the shell
+          # builtin: it exits 0 and deploys nothing. Only the deploy script's
+          # own success line proves the deploy ran.
+          grep -q "event=deploy.success" "$RUNNER_TEMP/deploy.log" || {
+            echo "::error::The server did not report event=deploy.success. Check the forced command in authorized_keys (deploy/README-deploy.md 4.2)."
+            exit 1
+          }
