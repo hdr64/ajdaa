@@ -151,6 +151,8 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SHA: ${{ needs.verify.outputs.sha }}
         run: |
+          # GitHub starts steps with `bash -e`; the status is checked by hand below.
+          set +e
           set -uo pipefail
           echo "Sending 'test ${SHA}' to the server's forced command (install, migrate, build, restart, health check)."
           started=$SECONDS
