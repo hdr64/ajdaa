@@ -55,7 +55,7 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
           <div className="min-w-0">
             <h4 className="text-xs font-black text-heading">{t('users.customPermissions')}</h4>
             <p className="text-[10px] text-neutral-text/60 mt-0.5">
-              {isEn ? 'Super admin accounts effectively have all permissions.' : 'حساب المدير العام يملك كل الصلاحيات فعلياً.'}
+              {t('users.superAdminPermsNotice')}
             </p>
           </div>
         </div>
@@ -95,20 +95,18 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
               type="button"
               onClick={onRestoreRolePermissions}
               disabled={!role}
-              title={role ? t('users.restoreRolePermissions') : (isEn ? 'Select a role first' : 'اختر دوراً أولاً')}
+              title={role ? t('users.restoreRolePermissions') : t('users.selectRoleFirst')}
               className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              {isEn ? 'Match role' : 'مطابقة الدور'}
+              {t('users.matchRole')}
             </button>
             <button
               type="button"
               onClick={toggleAll}
               className="px-2.5 py-1.5 rounded-xl brand-btn-secondary text-[11px] font-bold cursor-pointer"
             >
-              {allChecked
-                ? (isEn ? 'Deselect All' : 'إلغاء تحديد الكل')
-                : (isEn ? 'Select All' : 'تحديد الكل')}
+              {allChecked ? t('users.deselectAll') : t('users.selectAll')}
             </button>
           </div>
         )}
@@ -116,9 +114,7 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
 
       {groups.length === 0 ? (
         <p className="text-[11px] text-neutral-text/55 text-center py-4">
-          {isEn
-            ? 'Could not load permissions list; role defaults will be used.'
-            : 'تعذر تحميل قائمة الصلاحيات، سيتم اعتماد صلاحيات الدور.'}
+          {t('users.loadPermsError')}
         </p>
       ) : (
         <div className={`
@@ -171,9 +167,7 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
           className="w-full px-3 py-2 rounded-xl brand-btn-secondary text-[11px] font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
         >
           <AlertCircle className="w-3.5 h-3.5" />
-          {isExpanded
-            ? (isEn ? 'Collapse custom permissions (Advanced)' : 'طي تخصيص الصلاحيات (متقدم)')
-            : (isEn ? 'Customize permissions (Advanced)' : 'تخصيص الصلاحيات (متقدم)')}
+          {isExpanded ? t('users.collapseCustomPerms') : t('users.expandCustomPerms')}
         </button>
       )}
 

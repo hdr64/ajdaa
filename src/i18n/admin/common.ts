@@ -60,6 +60,8 @@ export const common = defineStrings(
     'table.page': 'صفحة {current} من {pages}',
     'table.prevPage': 'الصفحة السابقة',
     'table.nextPage': 'الصفحة التالية',
+    'table.expandRow': 'توسيع الصف',
+    'table.collapseRow': 'طي الصف',
 
     'entity.project': 'مشروع',
     'entity.unit': 'وحدة',
@@ -147,6 +149,8 @@ export const common = defineStrings(
     'table.page': 'Page {current} of {pages}',
     'table.prevPage': 'Previous page',
     'table.nextPage': 'Next page',
+    'table.expandRow': 'Expand row',
+    'table.collapseRow': 'Collapse row',
 
     'entity.project': 'Project',
     'entity.unit': 'Unit',

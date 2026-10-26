@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 
+import { useAdminT } from '../../../i18n/admin';
+
 interface PasswordInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -8,7 +10,7 @@ interface PasswordInputProps {
   autoComplete?: string;
   required?: boolean;
   id?: string;
-  isAr: boolean;
+  isAr?: boolean;
 }
 
 export const PasswordInput: React.FC<PasswordInputProps> = ({
@@ -18,15 +20,13 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
   autoComplete = 'current-password',
   required = false,
   id,
-  isAr,
 }) => {
   const [visible, setVisible] = useState(false);
+  const { t } = useAdminT();
 
   const toggleVisibility = () => setVisible((v) => !v);
 
-  const ariaLabel = visible
-    ? (isAr ? 'إخفاء كلمة المرور' : 'Hide password')
-    : (isAr ? 'إظهار كلمة المرور' : 'Show password');
+  const ariaLabel = visible ? t('auth.hidePassword') : t('auth.showPassword');
 
   return (
     <div className="relative flex items-center">

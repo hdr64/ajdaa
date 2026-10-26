@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, AlertCircle, CheckCircle2, KeyRound, type LucideIcon } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin';
 import { PasswordInput } from './PasswordInput';
 
 interface LoginCredentialsStepProps {
@@ -13,7 +14,7 @@ interface LoginCredentialsStepProps {
   loading: boolean;
   error: string | null;
   notice: string | null;
-  isAr: boolean;
+  isAr?: boolean;
   ArrowIcon: LucideIcon;
   supportsPasskeys?: boolean;
   passkeyLoading?: boolean;
@@ -31,12 +32,13 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
   loading,
   error,
   notice,
-  isAr,
   ArrowIcon,
   supportsPasskeys = false,
   passkeyLoading = false,
   onPasskeyLogin,
 }) => {
+  const { t } = useAdminT();
+
   return (
     <>
       {notice && (
@@ -56,7 +58,7 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-            {isAr ? 'البريد الإلكتروني للإدارة' : 'Admin Email'}
+            {t('auth.emailLabel')}
           </label>
           <div className="relative flex items-center">
             <Mail className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -74,14 +76,13 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
 
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-            {isAr ? 'كلمة المرور' : 'Password'}
+            {t('auth.passwordLabel')}
           </label>
           <PasswordInput
             value={password}
             onChange={setPassword}
             placeholder="••••••••"
             required
-            isAr={isAr}
           />
           <div className="flex justify-end pt-1.5">
             <button
@@ -89,7 +90,7 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
               onClick={onForgotPassword}
               className="text-[11px] font-bold text-accent hover:underline cursor-pointer transition-colors"
             >
-              {isAr ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
+              {t('auth.forgotPasswordBtn')}
             </button>
           </div>
         </div>
@@ -100,10 +101,10 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
           className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50 mt-2"
         >
           {loading ? (
-            <span>{isAr ? 'جاري التحقق...' : 'Signing in...'}</span>
+            <span>{t('auth.signingIn')}</span>
           ) : (
             <>
-              <span>{isAr ? 'تسجيل الدخول إلى النظام' : 'Sign In to Dashboard'}</span>
+              <span>{t('auth.signInToDashboard')}</span>
               <ArrowIcon className="w-4 h-4" />
             </>
           )}
@@ -119,12 +120,8 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
             <KeyRound className="w-4 h-4 text-accent" />
             <span>
               {passkeyLoading
-                ? isAr
-                  ? 'جاري التحقق من مفتاح المرور...'
-                  : 'Checking passkey...'
-                : isAr
-                ? 'الدخول بمفتاح مرور'
-                : 'Sign In with Passkey'}
+                ? t('auth.passkeySigningIn')
+                : t('auth.loginWithPasskey')}
             </span>
           </button>
         )}
@@ -136,7 +133,7 @@ export const LoginCredentialsStep: React.FC<LoginCredentialsStepProps> = ({
           onClick={onNavigateHome}
           className="text-xs font-bold text-neutral-text/60 hover:text-accent transition cursor-pointer"
         >
-          {isAr ? '← العودة للموقع الرئيسي' : '← Return to Main Website'}
+          {t('auth.returnToMainWebsite')}
         </button>
       </div>
     </>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, KeyRound, AlertCircle, Info, type LucideIcon } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin';
 import { PasswordInput } from './PasswordInput';
 import { passwordPolicyError } from '../users/usersModel';
 
@@ -10,7 +11,7 @@ interface ResetPasswordStepProps {
   loading: boolean;
   error: string | null;
   notice: string | null;
-  isAr: boolean;
+  isAr?: boolean;
   ArrowIcon: LucideIcon;
 }
 
@@ -21,13 +22,13 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
   loading,
   error,
   notice,
-  isAr,
   ArrowIcon,
 }) => {
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [clientError, setClientError] = useState<string | null>(null);
+  const { t, isAr } = useAdminT();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +36,7 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
 
     const trimmedCode = code.trim();
     if (!trimmedCode) {
-      setClientError(isAr ? 'يرجى إدخال رمز التحقق' : 'Please enter the verification code');
+      setClientError(t('auth.enterVerificationCode'));
       return;
     }
 
@@ -46,7 +47,7 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
     }
 
     if (newPassword !== confirmPassword) {
-      setClientError(isAr ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
+      setClientError(t('auth.passwordsDoNotMatch'));
       return;
     }
 
@@ -62,12 +63,10 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
           <Lock className="w-6 h-6" />
         </div>
         <h2 className="text-lg font-black text-heading">
-          {isAr ? 'تعيين كلمة المرور الجديدة' : 'Set New Password'}
+          {t('auth.resetPasswordTitle')}
         </h2>
         <p className="text-xs text-neutral-text/60 mt-1 leading-relaxed">
-          {isAr
-            ? `أدخل رمز التحقق المرسل للحساب `
-            : `Enter the verification code sent to `}
+          {t('auth.resetPasswordDesc')}{' '}
           <span className="font-mono font-bold text-heading inline-block" dir="ltr">{email}</span>
         </p>
       </div>
@@ -89,7 +88,7 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-            {isAr ? 'رمز التحقق (6 أرقام)' : 'Verification Code (6 digits)'}
+            {t('auth.verificationCodeLabel')}
           </label>
           <div className="relative flex items-center">
             <KeyRound className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -111,7 +110,7 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
 
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-            {isAr ? 'كلمة المرور الجديدة (10 أحرف على الأقل)' : 'New Password (min 10 chars)'}
+            {t('auth.newPasswordLabel')}
           </label>
           <PasswordInput
             value={newPassword}
@@ -119,13 +118,12 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
             placeholder="••••••••"
             required
             autoComplete="new-password"
-            isAr={isAr}
           />
         </div>
 
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-            {isAr ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password'}
+            {t('auth.confirmNewPasswordLabel')}
           </label>
           <PasswordInput
             value={confirmPassword}
@@ -133,7 +131,6 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
             placeholder="••••••••"
             required
             autoComplete="new-password"
-            isAr={isAr}
           />
         </div>
 
@@ -143,10 +140,10 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
           className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
         >
           {loading ? (
-            <span>{isAr ? 'جاري تعيين كلمة المرور...' : 'Resetting password...'}</span>
+            <span>{t('auth.resettingPassword')}</span>
           ) : (
             <>
-              <span>{isAr ? 'تأكيد تغيير كلمة المرور' : 'Confirm Password Reset'}</span>
+              <span>{t('auth.confirmPasswordReset')}</span>
               <ArrowIcon className="w-4 h-4" />
             </>
           )}
@@ -159,7 +156,7 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
           onClick={onBack}
           className="text-xs font-bold text-neutral-text/60 hover:text-heading cursor-pointer transition-colors"
         >
-          {isAr ? '← إلغاء والعودة لتسجيل الدخول' : '← Cancel and Back to Sign In'}
+          {t('auth.cancelAndBackToSignIn')}
         </button>
       </div>
     </div>

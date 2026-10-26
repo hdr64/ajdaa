@@ -13,24 +13,17 @@ interface PermissionSummaryProps {
   permissions: PermissionDef[];
 }
 
-const GROUP_AR_LABELS: Record<string, string> = {
-  projects: 'المشاريع',
-  units: 'الوحدات والأدوار',
-  inquiries: 'طلبات الاهتمام',
-  reports: 'التقارير',
-  users: 'المستخدمون',
-  settings: 'الإعدادات',
-  cms: 'محتوى الموقع (CMS)',
-};
-
-const GROUP_EN_LABELS: Record<string, string> = {
-  projects: 'Projects',
-  units: 'Units & Floors',
-  inquiries: 'Inquiries',
-  reports: 'Reports',
-  users: 'Users',
-  settings: 'Settings',
-  cms: 'Website Content (CMS)',
+const getGroupLabel = (group: string, t: (key: string) => string): string => {
+  const map: Record<string, string> = {
+    projects: t('users.groupProjects'),
+    units: t('users.groupUnits'),
+    inquiries: t('users.groupInquiries'),
+    reports: t('users.groupReports'),
+    users: t('users.groupUsers'),
+    settings: t('users.groupSettings'),
+    cms: t('users.groupCms'),
+  };
+  return map[group] ?? group;
 };
 
 export const PermissionSummary: React.FC<PermissionSummaryProps> = ({ role, permissions }) => {
@@ -49,13 +42,12 @@ export const PermissionSummary: React.FC<PermissionSummaryProps> = ({ role, perm
     } else {
       groups.set(def.group, {
         key: def.group,
-        label: def.group,
+        label: getGroupLabel(def.group, t),
         items: [def],
       });
     }
   }
 
-  const groupLabels = isEn ? GROUP_EN_LABELS : GROUP_AR_LABELS;
   const grantedKeys = new Set(role.permissions);
 
   if (grantedKeys.size === 0) {
@@ -79,7 +71,7 @@ export const PermissionSummary: React.FC<PermissionSummaryProps> = ({ role, perm
           .map((group) => (
             <div key={group.key} className="flex flex-wrap gap-1.5">
               <span className="text-[10px] font-bold text-neutral-text/50 px-2 py-0.5">
-                {groupLabels[group.key] ?? group.key}
+                {group.label}
               </span>
               {group.items
                 .filter((item) => grantedKeys.has(item.key))

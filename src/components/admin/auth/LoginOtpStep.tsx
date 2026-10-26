@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, AlertCircle, RotateCw, type LucideIcon } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin';
 
 interface LoginOtpStepProps {
   emailHint: string;
@@ -8,7 +9,7 @@ interface LoginOtpStepProps {
   onBack: () => void;
   loading: boolean;
   error: string | null;
-  isAr: boolean;
+  isAr?: boolean;
   ArrowIcon: LucideIcon;
 }
 
@@ -19,12 +20,12 @@ export const LoginOtpStep: React.FC<LoginOtpStepProps> = ({
   onBack,
   loading,
   error,
-  isAr,
   ArrowIcon,
 }) => {
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(60);
   const [resending, setResending] = useState(false);
+  const { t } = useAdminT();
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -58,12 +59,10 @@ export const LoginOtpStep: React.FC<LoginOtpStepProps> = ({
           <KeyRound className="w-6 h-6" />
         </div>
         <h2 className="text-lg font-black text-heading">
-          {isAr ? 'التحقق بخطوتين' : 'Two-Step Verification'}
+          {t('auth.twoStepTitle')}
         </h2>
         <p className="text-xs text-neutral-text/60 mt-1 leading-relaxed">
-          {isAr
-            ? `تم إرسال رمز التحقق المكون من 6 أرقام إلى `
-            : `We sent a 6-digit verification code to `}
+          {t('auth.twoStepDesc')}{' '}
           <span className="font-mono font-bold text-heading inline-block" dir="ltr">{emailHint}</span>
         </p>
       </div>
@@ -78,7 +77,7 @@ export const LoginOtpStep: React.FC<LoginOtpStepProps> = ({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5 text-center">
-            {isAr ? 'رمز التحقق (6 أرقام)' : 'Verification Code (6 digits)'}
+            {t('auth.verificationCodeLabel')}
           </label>
           <input
             type="text"
@@ -101,10 +100,10 @@ export const LoginOtpStep: React.FC<LoginOtpStepProps> = ({
           className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
         >
           {loading ? (
-            <span>{isAr ? 'جاري التحقق من الرمز...' : 'Verifying code...'}</span>
+            <span>{t('auth.verifyingCode')}</span>
           ) : (
             <>
-              <span>{isAr ? 'تأكيد الرمز والمتابعة' : 'Verify and Continue'}</span>
+              <span>{t('auth.verifyAndContinue')}</span>
               <ArrowIcon className="w-4 h-4" />
             </>
           )}
@@ -117,7 +116,7 @@ export const LoginOtpStep: React.FC<LoginOtpStepProps> = ({
           onClick={onBack}
           className="text-neutral-text/60 hover:text-heading font-bold cursor-pointer transition-colors"
         >
-          {isAr ? '← العودة لتسجيل الدخول' : '← Back to Login'}
+          {t('auth.backToLogin')}
         </button>
 
         <button
@@ -129,10 +128,10 @@ export const LoginOtpStep: React.FC<LoginOtpStepProps> = ({
           <RotateCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
           {cooldown > 0 ? (
             <span>
-              {isAr ? `إعادة الإرسال بعد ${cooldown} ثانية` : `Resend code in ${cooldown}s`}
+              {t('auth.resendIn', { count: cooldown })}
             </span>
           ) : (
-            <span>{isAr ? 'إعادة إرسال الرمز' : 'Resend Code'}</span>
+            <span>{t('auth.resendCode')}</span>
           )}
         </button>
       </div>

@@ -74,7 +74,7 @@ export const PasswordField: React.FC<{
         <button
           type="button"
           onClick={() => setShowPassword((visible) => !visible)}
-          aria-label={showPassword ? (isEn ? 'Hide password' : 'إخفاء كلمة المرور') : (isEn ? 'Show password' : 'إظهار كلمة المرور')}
+          aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
           className="absolute end-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-neutral-text/50 hover:text-heading cursor-pointer"
         >
           {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -106,7 +106,7 @@ export const PasswordField: React.FC<{
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                {isEn ? 'Copy' : 'نسخ'}
+                {t('users.copyPassword')}
               </>
             )}
           </button>
@@ -122,7 +122,7 @@ export const PasswordField: React.FC<{
       {showPolicyChecklist && (
         <div className="space-y-1.5 pt-1">
           <p className="text-[10px] font-bold text-neutral-text/70">
-            {isEn ? 'Password policy:' : 'سياسة كلمة المرور:'}
+            {t('users.passwordPolicyTitle')}:
           </p>
           {checks.map((check) => (
             <div key={check.label} className="flex items-center gap-1.5 text-[10px]">
@@ -139,7 +139,7 @@ export const PasswordField: React.FC<{
           {allPassed && value.length > 0 && (
             <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              {isEn ? 'Password satisfies policy' : 'كلمة المرور تفي بالسياسة'}
+              {t('users.passwordPolicyMet')}
             </p>
           )}
         </div>

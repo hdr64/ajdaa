@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, Check, Copy, KeyRound, ShieldCheck, type LucideIcon } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin';
 import { getErrorMessage } from '../../../services/api';
 import { TotpQrCode } from '../common/TotpQrCode';
 
@@ -11,7 +12,7 @@ interface EnrollTotpStepProps {
   onBack: () => void;
   loading: boolean;
   error: string | null;
-  isAr: boolean;
+  isAr?: boolean;
   ArrowIcon: LucideIcon;
 }
 
@@ -26,13 +27,13 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
   onBack,
   loading,
   error,
-  isAr,
   ArrowIcon,
 }) => {
   const [setup, setSetup] = useState<{ otpauthUri: string; secret: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
+  const { t } = useAdminT();
 
   useEffect(() => {
     let active = true;
@@ -42,7 +43,7 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
         if (active) setSetup(result);
       })
       .catch((caught) => {
-        if (active) setLoadError(getErrorMessage(caught, isAr ? 'تعذر بدء الإعداد' : 'Could not start setup'));
+        if (active) setLoadError(getErrorMessage(caught, t('auth.enrollTotpStartError')));
       });
     return () => {
       active = false;
@@ -78,12 +79,10 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
           <ShieldCheck className="w-6 h-6" />
         </div>
         <h2 className="text-lg font-black text-heading">
-          {isAr ? 'تفعيل التحقق بتطبيق المصادقة' : 'Set Up Authenticator Verification'}
+          {t('auth.enrollTotpTitle')}
         </h2>
         <p className="text-xs text-neutral-text/60 mt-1 leading-relaxed">
-          {isAr
-            ? 'هذا الحساب يتطلب التحقق بخطوتين. امسح الرمز بتطبيق مصادقة (Google Authenticator أو ما شابه) ثم أدخل الرمز الظاهر.'
-            : 'This account requires two-step verification. Scan the code with an authenticator app (Google Authenticator or similar), then enter the code it shows.'}
+          {t('auth.enrollTotpDesc')}
         </p>
       </div>
 
@@ -95,7 +94,7 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
       )}
 
       {!setup && !loadError && (
-        <p className="text-center text-xs text-neutral-text/60">{isAr ? 'جاري تحضير الرمز...' : 'Preparing the code...'}</p>
+        <p className="text-center text-xs text-neutral-text/60">{t('auth.enrollTotpPreparing')}</p>
       )}
 
       {setup && (
@@ -103,13 +102,13 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
           <div className="flex justify-center">
             <TotpQrCode
               uri={setup.otpauthUri}
-              alt={isAr ? 'رمز QR لإعداد تطبيق المصادقة' : 'QR code to set up the authenticator app'}
+              alt={t('auth.enrollTotpQrAlt')}
             />
           </div>
 
           <div className="rounded-xl bg-canvas border border-muted-border/40 p-3 space-y-2">
             <p className="text-[11px] font-bold text-neutral-text/70 text-center">
-              {isAr ? 'أو أدخل المفتاح يدوياً في التطبيق' : 'Or enter this key manually in the app'}
+              {t('auth.enrollTotpManualKey')}
             </p>
             <div className="flex items-center gap-2">
               <code dir="ltr" className="flex-1 text-center text-xs font-mono font-bold text-heading break-all">
@@ -119,7 +118,7 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
                 type="button"
                 onClick={() => void copySecret()}
                 className="shrink-0 p-2 rounded-lg bg-surface border border-muted-border/40 text-neutral-text/70 hover:text-heading cursor-pointer"
-                title={isAr ? 'نسخ المفتاح' : 'Copy key'}
+                title={t('auth.enrollTotpCopyKey')}
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -129,7 +128,7 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
           <form onSubmit={submit} className="space-y-4">
             <div>
               <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5 text-center">
-                {isAr ? 'رمز التطبيق (6 أرقام)' : 'App code (6 digits)'}
+                {t('auth.appCodeLabel')}
               </label>
               <input
                 type="text"
@@ -151,11 +150,11 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
               className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
             >
               {loading ? (
-                <span>{isAr ? 'جاري التفعيل...' : 'Enabling...'}</span>
+                <span>{t('auth.enrollTotpEnabling')}</span>
               ) : (
                 <>
                   <KeyRound className="w-4 h-4" />
-                  <span>{isAr ? 'تفعيل والمتابعة' : 'Enable and Continue'}</span>
+                  <span>{t('auth.enrollTotpEnableAndContinue')}</span>
                   <ArrowIcon className="w-4 h-4" />
                 </>
               )}
@@ -170,7 +169,7 @@ export const EnrollTotpStep: React.FC<EnrollTotpStepProps> = ({
           onClick={onBack}
           className="text-neutral-text/60 hover:text-heading font-bold cursor-pointer transition-colors"
         >
-          {isAr ? '← العودة لتسجيل الدخول' : '← Back to Login'}
+          {t('auth.backToLogin')}
         </button>
       </div>
     </div>

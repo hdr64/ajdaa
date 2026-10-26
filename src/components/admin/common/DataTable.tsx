@@ -554,7 +554,7 @@ export function DataTable<T>({
             <tr className="bg-canvas text-[11px] text-neutral-text/50">
               {renderExpandedRow && (
                 <th scope="col" className="sticky start-0 top-0 z-20 bg-canvas w-8 px-2 py-2.5 text-center">
-                  <span className="sr-only">توسيع / Expand</span>
+                  <span className="sr-only">{t('common.table.expandRow')}</span>
                 </th>
               )}
 
@@ -682,7 +682,7 @@ export function DataTable<T>({
                           <button
                             type="button"
                             onClick={() => toggleRowExpanded(id)}
-                            aria-label={isExpanded ? 'طي الصف' : 'توسيع الصف'}
+                            aria-label={isExpanded ? t('common.table.collapseRow') : t('common.table.expandRow')}
                             className="p-1 rounded-lg text-neutral-text/50 hover:text-heading hover:bg-surface-hover transition cursor-pointer"
                           >
                             <ChevronDown

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, KeyRound, AlertCircle, type LucideIcon } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin';
 
 interface ForgotPasswordStepProps {
   email: string;
@@ -8,7 +9,7 @@ interface ForgotPasswordStepProps {
   onBack: () => void;
   loading: boolean;
   error: string | null;
-  isAr: boolean;
+  isAr?: boolean;
   ArrowIcon: LucideIcon;
 }
 
@@ -19,9 +20,10 @@ export const ForgotPasswordStep: React.FC<ForgotPasswordStepProps> = ({
   onBack,
   loading,
   error,
-  isAr,
   ArrowIcon,
 }) => {
+  const { t } = useAdminT();
+
   return (
     <div className="space-y-5">
       <div className="text-center">
@@ -29,12 +31,10 @@ export const ForgotPasswordStep: React.FC<ForgotPasswordStepProps> = ({
           <KeyRound className="w-6 h-6" />
         </div>
         <h2 className="text-lg font-black text-heading">
-          {isAr ? 'استعادة كلمة المرور' : 'Reset Password'}
+          {t('auth.forgotPasswordTitle')}
         </h2>
         <p className="text-xs text-neutral-text/60 mt-1 leading-relaxed">
-          {isAr
-            ? 'أدخل بريدك الإلكتروني لإرسال رمز استعادة كلمة المرور'
-            : 'Enter your admin email address to receive a verification code'}
+          {t('auth.forgotPasswordDesc')}
         </p>
       </div>
 
@@ -48,7 +48,7 @@ export const ForgotPasswordStep: React.FC<ForgotPasswordStepProps> = ({
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
-            {isAr ? 'البريد الإلكتروني للإدارة' : 'Admin Email'}
+            {t('auth.emailLabel')}
           </label>
           <div className="relative flex items-center">
             <Mail className="absolute start-3.5 w-4 h-4 text-neutral-text/40 pointer-events-none" />
@@ -71,10 +71,10 @@ export const ForgotPasswordStep: React.FC<ForgotPasswordStepProps> = ({
           className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
         >
           {loading ? (
-            <span>{isAr ? 'جاري الإرسال...' : 'Sending code...'}</span>
+            <span>{t('auth.sendingCode')}</span>
           ) : (
             <>
-              <span>{isAr ? 'إرسال رمز الاستعادة' : 'Send Reset Code'}</span>
+              <span>{t('auth.sendResetCode')}</span>
               <ArrowIcon className="w-4 h-4" />
             </>
           )}
@@ -87,7 +87,7 @@ export const ForgotPasswordStep: React.FC<ForgotPasswordStepProps> = ({
           onClick={onBack}
           className="text-xs font-bold text-neutral-text/60 hover:text-heading cursor-pointer transition-colors"
         >
-          {isAr ? '← العودة لتسجيل الدخول' : '← Back to Sign In'}
+          {t('auth.backToSignIn')}
         </button>
       </div>
     </div>

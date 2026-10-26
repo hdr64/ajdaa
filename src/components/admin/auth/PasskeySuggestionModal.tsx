@@ -32,7 +32,7 @@ export const PasskeySuggestionModal: React.FC<PasskeySuggestionModalProps> = ({
   const { t, language } = useAdminT();
   const isAr = language === 'ar';
 
-  const defaultDeviceName = `${isAr ? 'جهاز' : 'Device'} (${new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-US')})`;
+  const defaultDeviceName = `${t('auth.defaultDevice')} (${new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-US')})`;
   const [name, setName] = useState(defaultDeviceName);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,7 +58,7 @@ export const PasskeySuggestionModal: React.FC<PasskeySuggestionModalProps> = ({
     }
 
     if (!password) {
-      setError(isAr ? 'يرجى إدخال كلمة المرور الحالية للتأكيد' : 'Please enter your current password to confirm');
+      setError(t('auth.enterCurrentPasswordToConfirm'));
       return;
     }
 
@@ -93,7 +93,7 @@ export const PasskeySuggestionModal: React.FC<PasskeySuggestionModalProps> = ({
         onClose();
       }, 1500);
     } catch (caught: unknown) {
-      setError(getErrorMessage(caught, isAr ? 'تعذر إنشاء مفتاح المرور' : 'Failed to create passkey'));
+      setError(getErrorMessage(caught, t('auth.failedToCreatePasskey')));
     } finally {
       setLoading(false);
     }

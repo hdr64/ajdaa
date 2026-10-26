@@ -125,24 +125,24 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     const errors: Record<string, string> = {};
 
     if (stepToValidate === 1) {
-      if (form.name.trim() === '') errors.name = isEn ? 'Full name is required' : 'الاسم الكامل مطلوب';
-      if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = isEn ? 'Enter a valid email address' : 'أدخل بريداً إلكترونياً صحيحاً';
+      if (form.name.trim() === '') errors.name = t('users.valNameRequired');
+      if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = t('users.valEmailInvalid');
     }
 
     if (stepToValidate === 2) {
-      if (!form.roleId) errors.roleId = isEn ? 'A role must be selected' : 'يجب اختيار دور';
+      if (!form.roleId) errors.roleId = t('users.valRoleRequired');
     }
 
     if (stepToValidate === 3) {
       // Invite mode has no admin-set password: the user picks one from the emailed link.
       if (mode === 'create') {
-        const policyError = passwordPolicyError(form.password);
+        const policyError = passwordPolicyError(form.password, isAr);
         if (policyError) errors.password = policyError;
       }
     }
 
     return errors;
-  }, [form, mode, isEn]);
+  }, [form, mode, isAr, t]);
 
   // Check if step is valid
   const isStepValid = useCallback((stepToCheck: WizardStep): boolean => {
@@ -264,16 +264,16 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         onClose();
         showToast(
           mode === 'invite'
-            ? 'تم إنشاء الحساب، لكن تعذّر إرسال بريد الدعوة. يمكنك إعادة الإرسال من قائمة المستخدمين'
-            : 'تم إنشاء الحساب، لكن تعذّر إرسال بريد التفعيل. يمكنك إعادة الإرسال من قائمة المستخدمين'
+            ? t('users.mailSentFailedInvite')
+            : t('users.mailSentFailedActivation')
         );
       } else {
-        showToast(`تمت إضافة المستخدم ${form.name.trim()} بنجاح`);
+        showToast(t('users.createdSuccess', { name: form.name.trim() }));
         await onSaved();
         onClose();
       }
     } catch (error) {
-      const message = getErrorMessage(error, 'تعذر حفظ بيانات المستخدم');
+      const message = getErrorMessage(error, t('users.toastSaveError'));
       showToast(message);
 
       // Map server errors to steps
@@ -298,7 +298,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       if (event.key === 'Escape') {
         // Check if user typed something
         const hasInput = form.name || form.email || form.phone || form.password;
-        if (hasInput && !window.confirm('لديك بيانات غير محفوظة. هل تريد إغلاق النافذة دون إنشاء الحساب؟')) {
+        if (hasInput && !window.confirm(t('users.confirmUnsaved'))) {
           return;
         }
         onClose();
@@ -326,9 +326,9 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     <div className="space-y-5" role="tabpanel" aria-labelledby="step1-label">
       <div>
         <span className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-          {isEn ? 'Creation Method' : 'طريقة الإضافة'}
+          {t('users.creationMethod')}
         </span>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-label={isEn ? 'Creation Method' : 'طريقة الإضافة'}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-label={t('users.creationMethod')}>
           {modeOptions.map((option) => {
             const isActive = mode === option.value;
             return (
@@ -373,7 +373,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           />
           {touchedFields.name && !form.name.trim() && (
             <p id="name-error" role="alert" className="mt-1 text-[10px] font-bold text-red-500">
-              {isEn ? 'Full name is required' : 'الاسم الكامل مطلوب'}
+              {t('users.valNameRequired')}
             </p>
           )}
         </div>
@@ -398,7 +398,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           />
           {touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) && (
             <p id="email-error" role="alert" className="mt-1 text-[10px] font-bold text-red-500">
-              {isEn ? 'Enter a valid email address' : 'أدخل بريداً إلكترونياً صحيحاً'}
+              {t('users.valEmailInvalid')}
             </p>
           )}
         </div>
@@ -456,7 +456,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           <option value={NO_DEPARTMENT}>{t('users.noDepartment')}</option>
         </select>
         <p className="mt-1 text-[10px] text-neutral-text/55">
-          {isEn ? '"No department" for members not associated with a specific department.' : '«بدون قسم» للأعضاء غير المرتبطين بإدارة.'}
+          {t('users.noDeptHint')}
         </p>
       </div>
 
@@ -486,9 +486,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     <div className="space-y-5" role="tabpanel" aria-labelledby="step3-label">
       {mode === 'invite' ? (
         <p className="text-[11px] text-neutral-text/60">
-          {isEn
-            ? 'The user will receive an email invitation link to set their password.'
-            : 'سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره'}
+          {t('users.inviteDesc')}
         </p>
       ) : (
         <PasswordField
@@ -498,7 +496,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           showPolicyChecklist={true}
           onGenerate={handleGeneratePassword}
           generatedPassword={form.generatedPassword}
-          hint={<>{isEn ? 'At least 14 characters, with a letter and digit, used upon first sign in.' : '14 حرفاً على الأقل، مع حرف ورقم، تُستخدم عند أول دخول للحساب.'}</>}
+          hint={<>{t('users.newPasswordHint')}</>}
         />
       )}
 
@@ -514,16 +512,14 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             <span className="min-w-0 leading-relaxed">
               <span className="block font-bold text-heading">{t('users.sendPasswordEmail')}</span>
               <span className="block text-[10px] text-neutral-text/60">
-                {isEn
-                  ? 'Sends the password in the activation email. Email is not fully secure — user should change password after first sign in.'
-                  : 'يُرسل كلمة المرور التي حددتها داخل بريد التفعيل. البريد ليس قناة آمنة — على المستخدم تغيير كلمة المرور بعد أول دخول.'}
+                {t('users.sendPasswordEmailNotice')}
               </span>
             </span>
           </label>
         </div>
       )}
 
-      {/* حالة الحساب تُعرض لمدير عام فقط: هو الوحيد الذي يُنشأ نشطاً فوراً، وباقي الأدوار تبدأ بانتظار التفعيل. */}
+      {/* Account status for super admin */}
       {selectedRoleIsSuperAdmin && (
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('users.fieldStatus')}</label>
@@ -536,7 +532,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             <option value="suspended">{t('users.statusSuspended')}</option>
           </select>
           <p className="mt-1 text-[10px] text-neutral-text/55">
-            {isEn ? 'New accounts are created active by default.' : 'تُنشأ الحسابات الجديدة بحالة نشطة افتراضياً.'}
+            {t('users.defaultActiveNotice')}
           </p>
         </div>
       )}
@@ -545,7 +541,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       <div className="p-4 rounded-xl bg-canvas/60 border border-muted-border/30 space-y-3">
         <h4 className="text-xs font-black text-heading flex items-center gap-1.5">
           <User className="w-3.5 h-3.5" />
-          {isEn ? 'Account Review' : 'مراجعة الحساب'}
+          {t('users.accountReview')}
         </h4>
         <div className="space-y-2 text-[11px]">
           <div className="flex justify-between">
@@ -590,9 +586,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
 
       {!selectedRoleIsSuperAdmin && (
         <p className="text-[10px] text-neutral-text/55">
-          {mode === 'invite'
-            ? (isEn ? 'The user will receive an email invitation to choose their password.' : 'سيصل المستخدم رابط دعوة على بريده ليختار كلمة مروره.')
-            : (isEn ? 'The account will be activated after the user confirms their email.' : 'سيُفعَّل الحساب بعد أن يؤكد المستخدم بريده.')}
+          {mode === 'invite' ? t('users.inviteDesc') : t('users.activateEmailDesc')}
         </p>
       )}
 
@@ -644,7 +638,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
-            {step === 3 ? (isEn ? 'Create Account' : 'إنشاء الحساب') : t('users.next')}
+            {step === 3 ? t('users.createAccount') : t('users.next')}
             {step < 3 && <ChevronLeft className="w-3.5 h-3.5" />}
           </button>
         </div>

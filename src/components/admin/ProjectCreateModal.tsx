@@ -7,6 +7,7 @@ import { uploadMedia, isAcceptedMedia, MAX_UPLOAD_BYTES } from '../../services/m
 import { isHttpsUrl } from '../../utils/urlValidation';
 import { useAdmin } from '../../pages/admin/adminContextDef';
 import { useAdminT } from '../../i18n/admin/useAdminT';
+import { PROJECT_TYPE_LABELS_AR } from '../../pages/admin/projectLabels';
 
 type PriceType = 'إيجار' | 'بيع' | 'استثمار';
 
@@ -183,8 +184,7 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
 
     setUploadingField(target);
     try {
-      const folder = target === 'image' ? 'projects' : 'brochures';
-      const uploaded = await uploadMedia(file, folder);
+      const uploaded = await uploadMedia(file);
       setForm((current) => ({
         ...current,
         [target === 'image' ? 'imageUrl' : 'brochureUrl']: uploaded.url,
@@ -218,24 +218,27 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
     setCreating(true);
     try {
       const floors = generateFloors(form, isEn);
-      const payload: Partial<Property> = {
-        titleAr: trimmedTitle,
+      const draft: Property = {
+        id: 0,
+        title: trimmedTitle,
         titleEn: trimmedTitle,
         type: form.type,
-        city: form.city.trim() || (isEn ? 'Riyadh' : 'الرياض'),
-        area: form.area,
-        status: 'متاح',
+        typeAr: PROJECT_TYPE_LABELS_AR[form.type],
         priceType: form.priceType,
-        descriptionAr: form.description.trim(),
-        descriptionEn: form.description.trim(),
-        imageUrl: form.imageUrl,
+        city: form.city.trim() || (isEn ? 'Riyadh' : 'الرياض'),
+        area: Math.max(0, form.area),
+        status: 'متاح',
+        image: form.imageUrl,
+        gallery: [form.imageUrl],
         brochureUrl: form.brochureUrl.trim() || undefined,
+        description: form.description.trim() || undefined,
+        descriptionEn: form.description.trim() || undefined,
         model3dUrl: trimmed3d || undefined,
         publishStatus: 'draft',
         floors,
       };
 
-      const created = await AdminStorage.createProject(payload);
+      const created = await AdminStorage.createProject(draft, floors);
       onShowToast(t('projects.modal.toastCreatedSuccess'));
       await onCreated(created);
       onClose();

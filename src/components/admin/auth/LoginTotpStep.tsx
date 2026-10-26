@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { KeyRound, AlertCircle, Smartphone, LifeBuoy, type LucideIcon } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin';
 
 interface LoginTotpStepProps {
   emailHint: string;
@@ -9,7 +10,7 @@ interface LoginTotpStepProps {
   onModeChange: () => void;
   loading: boolean;
   error: string | null;
-  isAr: boolean;
+  isAr?: boolean;
   ArrowIcon: LucideIcon;
 }
 
@@ -25,11 +26,11 @@ export const LoginTotpStep: React.FC<LoginTotpStepProps> = ({
   onModeChange,
   loading,
   error,
-  isAr,
   ArrowIcon,
 }) => {
   const [mode, setMode] = useState<'app' | 'recovery'>('app');
   const [code, setCode] = useState('');
+  const { t } = useAdminT();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,10 +48,10 @@ export const LoginTotpStep: React.FC<LoginTotpStepProps> = ({
           <KeyRound className="w-6 h-6" />
         </div>
         <h2 className="text-lg font-black text-heading">
-          {isAr ? 'التحقق بتطبيق المصادقة' : 'Authenticator App Verification'}
+          {t('auth.totpTitle')}
         </h2>
         <p className="text-xs text-neutral-text/60 mt-1 leading-relaxed">
-          {isAr ? 'أدخل الرمز الظاهر في تطبيق المصادقة لحساب ' : 'Enter the code shown in your authenticator app for '}
+          {t('auth.totpDesc')}{' '}
           <span className="font-mono font-bold text-heading inline-block" dir="ltr">{emailHint}</span>
         </p>
       </div>
@@ -66,7 +67,7 @@ export const LoginTotpStep: React.FC<LoginTotpStepProps> = ({
         {mode === 'app' ? (
           <div>
             <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5 text-center">
-              {isAr ? 'رمز التطبيق (6 أرقام)' : 'App Code (6 digits)'}
+              {t('auth.appCodeLabel')}
             </label>
             <input
               type="text"
@@ -85,7 +86,7 @@ export const LoginTotpStep: React.FC<LoginTotpStepProps> = ({
         ) : (
           <div>
             <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5 text-center">
-              {isAr ? 'رمز الاسترداد' : 'Recovery Code'}
+              {t('auth.recoveryCodeLabel')}
             </label>
             <input
               type="text"
@@ -108,10 +109,10 @@ export const LoginTotpStep: React.FC<LoginTotpStepProps> = ({
           className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
         >
           {loading ? (
-            <span>{isAr ? 'جاري التحقق...' : 'Verifying...'}</span>
+            <span>{t('auth.verifying')}</span>
           ) : (
             <>
-              <span>{isAr ? 'تأكيد الرمز والمتابعة' : 'Verify and Continue'}</span>
+              <span>{t('auth.verifyAndContinue')}</span>
               <ArrowIcon className="w-4 h-4" />
             </>
           )}
@@ -124,7 +125,7 @@ export const LoginTotpStep: React.FC<LoginTotpStepProps> = ({
           onClick={onBack}
           className="text-neutral-text/60 hover:text-heading font-bold cursor-pointer transition-colors"
         >
-          {isAr ? '← العودة لتسجيل الدخول' : '← Back to Login'}
+          {t('auth.backToLogin')}
         </button>
 
         <button
@@ -139,12 +140,8 @@ export const LoginTotpStep: React.FC<LoginTotpStepProps> = ({
           {mode === 'app' ? <LifeBuoy className="w-3.5 h-3.5" /> : <Smartphone className="w-3.5 h-3.5" />}
           <span>
             {mode === 'app'
-              ? isAr
-                ? 'استخدام رمز استرداد'
-                : 'Use a recovery code'
-              : isAr
-                ? 'استخدام رمز التطبيق'
-                : 'Use the app code'}
+              ? t('auth.useRecoveryCode')
+              : t('auth.useAppCode')}
           </span>
         </button>
       </div>

@@ -29,7 +29,7 @@ export const SuggestPasskeyStep: React.FC<SuggestPasskeyStepProps> = ({
   const { t, language } = useAdminT();
   const isAr = language === 'ar';
 
-  const defaultDeviceName = `${isAr ? 'جهاز' : 'Device'} (${new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-US')})`;
+  const defaultDeviceName = `${t('auth.defaultDevice')} (${new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-US')})`;
   const [name, setName] = useState(defaultDeviceName);
   const [enteredPassword, setEnteredPassword] = useState(password);
   const [loading, setLoading] = useState(false);
@@ -51,7 +51,7 @@ export const SuggestPasskeyStep: React.FC<SuggestPasskeyStepProps> = ({
 
     const currentPwd = enteredPassword || password;
     if (!currentPwd) {
-      setError(isAr ? 'يرجى إدخال كلمة المرور لتفعيل المفتاح' : 'Please enter your password to enable the passkey');
+      setError(t('auth.enterPasswordEnable'));
       return;
     }
 
@@ -85,7 +85,7 @@ export const SuggestPasskeyStep: React.FC<SuggestPasskeyStepProps> = ({
         onContinue();
       }, 1500);
     } catch (caught: unknown) {
-      setError(getErrorMessage(caught, isAr ? 'تعذر إنشاء مفتاح المرور' : 'Failed to create passkey'));
+      setError(getErrorMessage(caught, t('auth.createPasskeyFailed')));
     } finally {
       setLoading(false);
     }

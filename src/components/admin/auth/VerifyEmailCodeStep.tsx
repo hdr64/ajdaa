@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, AlertCircle, RotateCw, type LucideIcon } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin';
 
 interface VerifyEmailCodeStepProps {
   /** The page holds the typed credentials (never storage or the URL) and sends them with the code. */
@@ -8,7 +9,7 @@ interface VerifyEmailCodeStepProps {
   onBack: () => void;
   loading: boolean;
   error: string | null;
-  isAr: boolean;
+  isAr?: boolean;
   ArrowIcon: LucideIcon;
 }
 
@@ -18,12 +19,12 @@ export const VerifyEmailCodeStep: React.FC<VerifyEmailCodeStepProps> = ({
   onBack,
   loading,
   error,
-  isAr,
   ArrowIcon,
 }) => {
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(60);
   const [resending, setResending] = useState(false);
+  const { t } = useAdminT();
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -57,12 +58,10 @@ export const VerifyEmailCodeStep: React.FC<VerifyEmailCodeStepProps> = ({
           <KeyRound className="w-6 h-6" />
         </div>
         <h2 className="text-lg font-black text-heading">
-          {isAr ? 'تأكيد البريد الإلكتروني' : 'Verify your email'}
+          {t('auth.verifyEmailTitle')}
         </h2>
         <p className="text-xs text-neutral-text/60 mt-1 leading-relaxed">
-          {isAr
-            ? 'لم يتم تأكيد بريدك بعد، أدخل الرمز المرسل إلى بريدك أو افتح الرابط.'
-            : "Your email isn't confirmed yet. Enter the code sent to your email, or open the link."}
+          {t('auth.verifyEmailDesc')}
         </p>
       </div>
 
@@ -76,7 +75,7 @@ export const VerifyEmailCodeStep: React.FC<VerifyEmailCodeStepProps> = ({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5 text-center">
-            {isAr ? 'رمز التأكيد (6 أرقام)' : 'Confirmation code (6 digits)'}
+            {t('auth.confirmationCodeLabel')}
           </label>
           <input
             type="text"
@@ -99,10 +98,10 @@ export const VerifyEmailCodeStep: React.FC<VerifyEmailCodeStepProps> = ({
           className="w-full brand-btn-primary font-black text-xs py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-lg disabled:opacity-50"
         >
           {loading ? (
-            <span>{isAr ? 'جاري التحقق من الرمز...' : 'Verifying code...'}</span>
+            <span>{t('auth.verifyingCode')}</span>
           ) : (
             <>
-              <span>{isAr ? 'تأكيد الرمز' : 'Verify code'}</span>
+              <span>{t('auth.verifyCodeBtn')}</span>
               <ArrowIcon className="w-4 h-4" />
             </>
           )}
@@ -115,7 +114,7 @@ export const VerifyEmailCodeStep: React.FC<VerifyEmailCodeStepProps> = ({
           onClick={onBack}
           className="text-neutral-text/60 hover:text-heading font-bold cursor-pointer transition-colors"
         >
-          {isAr ? '← العودة لتسجيل الدخول' : '← Back to login'}
+          {t('auth.backToLogin')}
         </button>
 
         <button
@@ -126,9 +125,9 @@ export const VerifyEmailCodeStep: React.FC<VerifyEmailCodeStepProps> = ({
         >
           <RotateCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
           {cooldown > 0 ? (
-            <span>{isAr ? `إعادة الإرسال بعد ${cooldown} ثانية` : `Resend code in ${cooldown}s`}</span>
+            <span>{t('auth.resendIn', { count: cooldown })}</span>
           ) : (
-            <span>{isAr ? 'إرسال رمز جديد' : 'Send new code'}</span>
+            <span>{t('auth.sendNewCode')}</span>
           )}
         </button>
       </div>
