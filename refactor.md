@@ -53,3 +53,6 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
 
 ## Docs cleanup (owner, 2026-10-26)
 - "Review the project and clean up the docs": docs re-checked against the code; the stale deployment guide and the duplicate DB-copy note removed, README reduced to setup and gates, API route index added, finished prompts and review reports archived, TODO rewritten. See `docs/README.md` for the documentation rules.
+
+## Nav: Past Works missing, "Book a Viewing" shown as a button (owner, 2026-10-26)
+- Code defaults were already right (`DEFAULT_NAV_ITEMS`, `defaultCmsContent.ts`); the stored `nav` row in older databases overrides them. Fixed with the data migration `20261026100000_nav_past_works_booking_link` (adds the Past Works entry if missing, sets booking `isCta:false`). Run on the test instance first, then production after a backup.
