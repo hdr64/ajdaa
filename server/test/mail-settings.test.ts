@@ -47,7 +47,9 @@ describe('secretBox', () => {
 
   it('returns null for a tampered or malformed box instead of throwing', () => {
     const box = encryptSecret(SMTP_PASSWORD);
-    const tampered = box.slice(0, -2) + (box.endsWith('A') ? 'B' : 'A') + box.slice(-1);
+    // Swap the character just before the last one for a different base64 character.
+    const swapped = box.at(-2) === 'A' ? 'B' : 'A';
+    const tampered = box.slice(0, -2) + swapped + box.slice(-1);
     expect(decryptSecret(tampered)).toBeNull();
     expect(decryptSecret('not-a-box')).toBeNull();
   });
