@@ -13,7 +13,18 @@ export const SiteSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const controller = new AbortController();
     siteSettingsApi
       .get(controller.signal)
-      .then(setSettings)
+      // Merge over the defaults so a field an older API does not send yet
+      // (for example `careers`) can never be undefined and crash the render.
+      .then((remote) =>
+        setSettings({
+          ...SITE_DEFAULTS,
+          ...remote,
+          socials: { ...SITE_DEFAULTS.socials, ...remote.socials },
+          announcement: { ...SITE_DEFAULTS.announcement, ...remote.announcement },
+          maintenance: { ...SITE_DEFAULTS.maintenance, ...remote.maintenance },
+          careers: { ...SITE_DEFAULTS.careers, ...remote.careers },
+        })
+      )
       .catch(() => {
         // Keep the defaults; the site stays usable without the API.
       });
