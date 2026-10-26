@@ -1,5 +1,5 @@
 // Test deploy, run from the owner's PC: `npm run deploy:test`.
-// Pushes the current commit to the deploy-test branch; GitHub Actions
+// Pushes HEAD plus an empty "chore: redeploy" commit to the deploy-test branch (dirty files stay out); GitHub Actions
 // (.github/workflows/deploy.yml) lints, builds, tests and deploys it.
 // Then follows the run with the GitHub CLI and exits 0 on success, 1 on failure.
 import { spawnSync } from 'node:child_process'
@@ -9,12 +9,21 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const dirty = run('git', ['status', '--porcelain']).stdout.trim()
 if (dirty) {
-  console.error('Working tree is not clean. Only committed code is deployed; commit or stash first.')
-  process.exit(1)
+  console.log('Note: uncommitted changes are NOT deployed. Only the last commit (HEAD) is.\n')
 }
 
-const sha = run('git', ['rev-parse', 'HEAD']).stdout.trim()
-const push = run('git', ['push', '--force-with-lease', 'origin', 'HEAD:refs/heads/deploy-test'], { stdio: 'inherit' })
+// An empty "chore: redeploy" commit on top of HEAD is what gets pushed, so every run starts a new
+// workflow run even when HEAD is already on deploy-test. It is created with commit-tree: the
+// index, the working tree and the current branch stay untouched (staged or dirty files are
+// never included).
+const head = run('git', ['rev-parse', 'HEAD']).stdout.trim()
+const commit = run('git', ['commit-tree', `${head}^{tree}`, '-p', head, '-m', 'chore: redeploy'])
+const sha = commit.stdout.trim()
+if (commit.status !== 0 || !/^[0-9a-f]{40}$/.test(sha)) {
+  console.error(`Could not create the redeploy commit: ${commit.stderr.trim()}`)
+  process.exit(1)
+}
+const push = run('git', ['push', '--force-with-lease', 'origin', `${sha}:refs/heads/deploy-test`], { stdio: 'inherit' })
 if (push.status !== 0) process.exit(push.status ?? 1)
 
 if (run('gh', ['--version']).status !== 0) {
