@@ -5,21 +5,23 @@ import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useSiteSettings } from '../../../hooks/useSiteSettings';
 import { SectionError, SectionLoading } from '../common/SectionState';
+import { useAdminT } from '../../../i18n/admin';
 
 const inputClass =
   'w-full px-3 py-2 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
 
-function problemIn(announcement: Announcement, maintenance: Maintenance): string | null {
+function problemIn(announcement: Announcement, maintenance: Maintenance, t: (key: any) => string): string | null {
   if (announcement.enabled && !announcement.textAr.trim() && !announcement.textEn.trim()) {
-    return 'أدخل نص الإعلان قبل تفعيله';
+    return t('settings.announcement.errorEmpty');
   }
-  if (announcement.link && !announcement.link.startsWith('https://')) return 'رابط الإعلان يجب أن يبدأ بـ https://';
-  if (!maintenance.messageAr.trim() || !maintenance.messageEn.trim()) return 'رسالة الصيانة مطلوبة بالعربية والإنجليزية';
+  if (announcement.link && !announcement.link.startsWith('https://')) return t('settings.announcement.errorLink');
+  if (!maintenance.messageAr.trim() || !maintenance.messageEn.trim()) return t('settings.maintenance.errorRequired');
   return null;
 }
 
 /** Announcement strip and maintenance mode for the public site. Super admin only. */
 export const AnnouncementPanel: React.FC = () => {
+  const { t } = useAdminT();
   const { showToast, confirm } = useAdmin();
   const { setSettings } = useSiteSettings();
   const [saved, setSaved] = useState<SiteSettings | null>(null);
@@ -40,10 +42,10 @@ export const AnnouncementPanel: React.FC = () => {
         setMaintenance(settings.maintenance);
       })
       .catch((caught) => {
-        if (!controller.signal.aborted) setError(getErrorMessage(caught, 'تعذر تحميل إعدادات الإعلان والصيانة'));
+        if (!controller.signal.aborted) setError(getErrorMessage(caught, t('settings.announcement.loadError')));
       });
     return () => controller.abort();
-  }, [reloadToken]);
+  }, [reloadToken, t]);
 
   const dirty = useMemo(
     () =>
@@ -54,16 +56,16 @@ export const AnnouncementPanel: React.FC = () => {
   );
 
   if (error) return <SectionError message={error} onRetry={() => setReloadToken((n) => n + 1)} />;
-  if (!saved || !announcement || !maintenance) return <SectionLoading variant="form" label="جاري التحميل..." />;
+  if (!saved || !announcement || !maintenance) return <SectionLoading variant="form" label={t('settings.announcement.loading')} />;
 
   const save = async () => {
-    const problem = problemIn(announcement, maintenance);
+    const problem = problemIn(announcement, maintenance, t);
     if (problem) return showToast(problem);
     if (maintenance.enabled && !saved.maintenance.enabled) {
       const ok = await confirm({
-        title: 'تفعيل وضع الصيانة؟',
-        message: 'سيرى زوار الموقع صفحة الصيانة بدلاً من الموقع حتى تُلغي التفعيل. لوحة التحكم تبقى متاحة.',
-        confirmLabel: 'تفعيل الصيانة',
+        title: t('settings.maintenance.confirmTitle'),
+        message: t('settings.maintenance.confirmMessage'),
+        confirmLabel: t('settings.maintenance.confirmBtn'),
         danger: true,
       });
       if (!ok) return;
@@ -77,9 +79,9 @@ export const AnnouncementPanel: React.FC = () => {
       setAnnouncement(updated.announcement);
       setMaintenance(updated.maintenance);
       setSettings(updated);
-      showToast('تم الحفظ وتحديث الموقع');
+      showToast(t('settings.announcement.saveSuccess'));
     } catch (caught) {
-      showToast(getErrorMessage(caught, 'تعذر الحفظ'));
+      showToast(getErrorMessage(caught, t('settings.announcement.saveError')));
     } finally {
       setSaving(false);
     }
@@ -96,32 +98,32 @@ export const AnnouncementPanel: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-black text-heading flex items-center gap-2">
             <Megaphone className="w-4 h-4 text-accent" />
-            شريط الإعلان
+            {t('settings.announcement.title')}
           </h3>
           <label className="flex items-center gap-2 text-xs font-bold text-heading cursor-pointer">
             <input type="checkbox" checked={announcement.enabled} onChange={(e) => setA('enabled', e.target.checked)} className="w-4 h-4 cursor-pointer" />
-            مفعّل
+            {t('settings.announcement.enabled')}
           </label>
         </div>
-        <p className="text-[11px] text-neutral-text/60">شريط رفيع أعلى كل صفحات الموقع، يمكن للزائر إخفاؤه.</p>
+        <p className="text-[11px] text-neutral-text/60">{t('settings.announcement.desc')}</p>
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label htmlFor="ann-ar" className="block text-xs font-bold text-neutral-text/70">النص (عربي)</label>
+            <label htmlFor="ann-ar" className="block text-xs font-bold text-neutral-text/70">{t('settings.announcement.textAr')}</label>
             <input id="ann-ar" value={announcement.textAr} onChange={(e) => setA('textAr', e.target.value)} maxLength={200} className={inputClass} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="ann-en" className="block text-xs font-bold text-neutral-text/70">النص (إنجليزي)</label>
+            <label htmlFor="ann-en" className="block text-xs font-bold text-neutral-text/70">{t('settings.announcement.textEn')}</label>
             <input id="ann-en" value={announcement.textEn} onChange={(e) => setA('textEn', e.target.value)} maxLength={200} dir="ltr" className={inputClass} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="ann-tone" className="block text-xs font-bold text-neutral-text/70">النمط</label>
+            <label htmlFor="ann-tone" className="block text-xs font-bold text-neutral-text/70">{t('settings.announcement.tone')}</label>
             <select id="ann-tone" value={announcement.tone} onChange={(e) => setA('tone', e.target.value as Announcement['tone'])} className={`${inputClass} cursor-pointer`}>
-              <option value="info">معلومة (ألوان الموقع)</option>
-              <option value="warning">تنبيه (كهرماني)</option>
+              <option value="info">{t('settings.announcement.toneInfo')}</option>
+              <option value="warning">{t('settings.announcement.toneWarning')}</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="ann-link" className="block text-xs font-bold text-neutral-text/70">رابط (اختياري)</label>
+            <label htmlFor="ann-link" className="block text-xs font-bold text-neutral-text/70">{t('settings.announcement.link')}</label>
             <input id="ann-link" value={announcement.link} onChange={(e) => setA('link', e.target.value.trim())} placeholder="https://" dir="ltr" className={inputClass} />
           </div>
         </div>
@@ -133,23 +135,23 @@ export const AnnouncementPanel: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-black text-heading flex items-center gap-2">
             <Wrench className="w-4 h-4 text-amber-500" />
-            وضع الصيانة
+            {t('settings.maintenance.title')}
           </h3>
           <label className="flex items-center gap-2 text-xs font-bold text-heading cursor-pointer">
             <input type="checkbox" checked={maintenance.enabled} onChange={(e) => setM('enabled', e.target.checked)} className="w-4 h-4 cursor-pointer" />
-            مفعّل
+            {t('settings.maintenance.enabled')}
           </label>
         </div>
         <p className="text-[11px] text-neutral-text/60">
-          يرى الزوار صفحة صيانة بدلاً من الموقع. لوحة التحكم وتسجيل الدخول يبقيان متاحين، والمسؤول المسجّل يرى الموقع مع تنبيه.
+          {t('settings.maintenance.desc')}
         </p>
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label htmlFor="mnt-ar" className="block text-xs font-bold text-neutral-text/70">الرسالة (عربي)</label>
+            <label htmlFor="mnt-ar" className="block text-xs font-bold text-neutral-text/70">{t('settings.maintenance.messageAr')}</label>
             <textarea id="mnt-ar" rows={3} value={maintenance.messageAr} onChange={(e) => setM('messageAr', e.target.value)} maxLength={500} className={inputClass} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="mnt-en" className="block text-xs font-bold text-neutral-text/70">الرسالة (إنجليزي)</label>
+            <label htmlFor="mnt-en" className="block text-xs font-bold text-neutral-text/70">{t('settings.maintenance.messageEn')}</label>
             <textarea id="mnt-en" rows={3} value={maintenance.messageEn} onChange={(e) => setM('messageEn', e.target.value)} maxLength={500} dir="ltr" className={inputClass} />
           </div>
         </div>
@@ -162,7 +164,7 @@ export const AnnouncementPanel: React.FC = () => {
         className="brand-btn-primary font-black px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Save className="w-4 h-4" />
-        {saving ? 'جاري الحفظ...' : 'حفظ'}
+        {saving ? t('settings.announcement.saving') : t('settings.announcement.saveBtn')}
       </button>
     </div>
   );

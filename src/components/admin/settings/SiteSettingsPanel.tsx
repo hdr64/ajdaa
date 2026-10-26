@@ -5,25 +5,26 @@ import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useSiteSettings } from '../../../hooks/useSiteSettings';
 import { SectionError, SectionLoading } from '../common/SectionState';
+import { useAdminT } from '../../../i18n/admin';
 
 const SOCIAL_LABELS: Record<SocialKey, string> = {
-  x: 'X (تويتر)',
-  instagram: 'إنستغرام',
-  tiktok: 'تيك توك',
-  snapchat: 'سناب شات',
-  linkedin: 'لينكدإن',
-  youtube: 'يوتيوب',
+  x: 'X (Twitter)',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  snapchat: 'Snapchat',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function validate(form: SiteSettings): string | null {
+function validate(form: SiteSettings, t: (key: any, params?: any) => string): string | null {
   if (form.whatsapp && !/^\d{8,15}$/.test(form.whatsapp)) {
-    return 'رقم واتساب: أرقام دولية فقط بدون + أو مسافات، مثل 966580484528';
+    return t('settings.site.whatsappError');
   }
-  if (form.email && !EMAIL_REGEX.test(form.email)) return 'البريد الإلكتروني غير صحيح';
+  if (form.email && !EMAIL_REGEX.test(form.email)) return t('settings.site.emailError');
   const badSocial = SOCIAL_KEYS.find((key) => form.socials[key] && !form.socials[key].startsWith('https://'));
-  if (badSocial) return `رابط ${SOCIAL_LABELS[badSocial]} يجب أن يبدأ بـ https://`;
+  if (badSocial) return t('settings.site.socialError', { network: SOCIAL_LABELS[badSocial] });
   return null;
 }
 
@@ -59,6 +60,7 @@ const Field: React.FC<FieldProps> = ({ id, label, value, onChange, dir, placehol
 
 /** Contact details and social links shown across the public site. Super admin only. */
 export const SiteSettingsPanel: React.FC = () => {
+  const { t } = useAdminT();
   const { showToast } = useAdmin();
   const { setSettings } = useSiteSettings();
   const [saved, setSaved] = useState<SiteSettings | null>(null);
@@ -77,15 +79,15 @@ export const SiteSettingsPanel: React.FC = () => {
         setForm(settings);
       })
       .catch((caught) => {
-        if (!controller.signal.aborted) setError(getErrorMessage(caught, 'تعذر تحميل معلومات التواصل'));
+        if (!controller.signal.aborted) setError(getErrorMessage(caught, t('settings.site.loadError')));
       });
     return () => controller.abort();
-  }, [reloadToken]);
+  }, [reloadToken, t]);
 
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(saved), [form, saved]);
 
   if (error) return <SectionError message={error} onRetry={() => setReloadToken((n) => n + 1)} />;
-  if (!form) return <SectionLoading variant="form" label="جاري تحميل معلومات التواصل..." />;
+  if (!form) return <SectionLoading variant="form" label={t('settings.site.loading')} />;
 
   const set = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) =>
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -99,7 +101,7 @@ export const SiteSettingsPanel: React.FC = () => {
       whatsapp: form.whatsapp.trim(),
       email: form.email.trim(),
     };
-    const problem = validate(trimmed);
+    const problem = validate(trimmed, t);
     if (problem) return showToast(problem);
     setSaving(true);
     try {
@@ -119,9 +121,9 @@ export const SiteSettingsPanel: React.FC = () => {
       setSaved(updated);
       setForm(updated);
       setSettings(updated);
-      showToast('تم حفظ معلومات التواصل وتحديث الموقع');
+      showToast(t('settings.site.saveSuccess'));
     } catch (caught) {
-      showToast(getErrorMessage(caught, 'تعذر حفظ معلومات التواصل'));
+      showToast(getErrorMessage(caught, t('settings.site.saveError')));
     } finally {
       setSaving(false);
     }
@@ -130,32 +132,32 @@ export const SiteSettingsPanel: React.FC = () => {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-surface border border-muted-border/40 p-5 space-y-4">
-        <h3 className="text-sm font-black text-heading">بيانات التواصل</h3>
+        <h3 className="text-sm font-black text-heading">{t('settings.site.contactData')}</h3>
         <div className="grid sm:grid-cols-3 gap-4">
-          <Field id="site-phone" label="رقم الهاتف (كما يظهر)" value={form.phone} onChange={(v) => set('phone', v)} dir="ltr" placeholder="+966 58 048 4528" />
+          <Field id="site-phone" label={t('settings.site.phoneLabel')} value={form.phone} onChange={(v) => set('phone', v)} dir="ltr" placeholder="+966 58 048 4528" />
           <Field
             id="site-whatsapp"
-            label="رقم واتساب"
+            label={t('settings.site.whatsappLabel')}
             value={form.whatsapp}
             onChange={(v) => set('whatsapp', v)}
             dir="ltr"
             placeholder="966580484528"
-            hint="أرقام دولية فقط؛ اتركه فارغاً لإخفاء أزرار واتساب"
+            hint={t('settings.site.whatsappHint')}
           />
-          <Field id="site-email" label="البريد الإلكتروني" value={form.email} onChange={(v) => set('email', v)} dir="ltr" placeholder="info@example.com" />
+          <Field id="site-email" label={t('settings.site.emailLabel')} value={form.email} onChange={(v) => set('email', v)} dir="ltr" placeholder="info@example.com" />
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field id="site-address-ar" label="العنوان (عربي)" value={form.addressAr} onChange={(v) => set('addressAr', v)} />
-          <Field id="site-address-en" label="العنوان (إنجليزي)" value={form.addressEn} onChange={(v) => set('addressEn', v)} dir="ltr" />
-          <Field id="site-hours-ar" label="ساعات العمل (عربي)" value={form.hoursAr} onChange={(v) => set('hoursAr', v)} />
-          <Field id="site-hours-en" label="ساعات العمل (إنجليزي)" value={form.hoursEn} onChange={(v) => set('hoursEn', v)} dir="ltr" />
+          <Field id="site-address-ar" label={t('settings.site.addressArLabel')} value={form.addressAr} onChange={(v) => set('addressAr', v)} />
+          <Field id="site-address-en" label={t('settings.site.addressEnLabel')} value={form.addressEn} onChange={(v) => set('addressEn', v)} dir="ltr" />
+          <Field id="site-hours-ar" label={t('settings.site.hoursArLabel')} value={form.hoursAr} onChange={(v) => set('hoursAr', v)} />
+          <Field id="site-hours-en" label={t('settings.site.hoursEnLabel')} value={form.hoursEn} onChange={(v) => set('hoursEn', v)} dir="ltr" />
         </div>
       </div>
 
       <div className="rounded-2xl bg-surface border border-muted-border/40 p-5 space-y-4">
         <div>
-          <h3 className="text-sm font-black text-heading">روابط التواصل الاجتماعي</h3>
-          <p className="text-[11px] text-neutral-text/60 mt-1">اترك الحقل فارغاً لإخفاء الأيقونة من الموقع.</p>
+          <h3 className="text-sm font-black text-heading">{t('settings.site.socialTitle')}</h3>
+          <p className="text-[11px] text-neutral-text/60 mt-1">{t('settings.site.socialHint')}</p>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           {SOCIAL_KEYS.map((key) => (
@@ -179,7 +181,7 @@ export const SiteSettingsPanel: React.FC = () => {
         className="brand-btn-primary font-black px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Save className="w-4 h-4" />
-        {saving ? 'جاري الحفظ...' : 'حفظ معلومات التواصل'}
+        {saving ? t('settings.site.saving') : t('settings.site.saveBtn')}
       </button>
     </div>
   );

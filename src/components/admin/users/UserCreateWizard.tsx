@@ -49,6 +49,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
 }) => {
   const { t, language } = useAdminT();
   const isEn = language === 'en';
+  const isAr = language === 'ar';
 
   const modeOptions: Array<{ value: 'invite' | 'create'; title: string; hint: string }> = [
     {

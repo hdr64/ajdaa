@@ -74,6 +74,7 @@ export const inquiries = defineStrings('inquiries', {
   'expanded.fullDetails': 'تفاصيل الطلب الكاملة',
   'expanded.fullMessage': 'نص الرسالة الكامل',
   'expanded.noMessage': 'لا توجد رسالة مرفقة مع الطلب',
+  'expanded.charCount': '{count} حرف',
   'detail.notes': 'الملاحظات',
 }, {
   'status.new': 'New',
@@ -149,5 +150,6 @@ export const inquiries = defineStrings('inquiries', {
   'expanded.fullDetails': 'Full inquiry details',
   'expanded.fullMessage': 'Full message text',
   'expanded.noMessage': 'No message attached to inquiry',
+  'expanded.charCount': '{count} chars',
   'detail.notes': 'Notes',
 });

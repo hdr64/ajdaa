@@ -4,9 +4,10 @@ import type { Property } from '../../../types/property';
 import { DataTable } from '../common/DataTable';
 import type { Column } from '../common/dataTableTypes';
 import { formatAdminDate } from '../../../pages/admin/adminFormat';
-import { publishStatusOf } from '../../../pages/admin/projectLabels';
+import { PROJECT_TYPE_KEYS, publishStatusOf } from '../../../pages/admin/projectLabels';
 import { projectSearchText, unitStats } from './projectsModel';
 import { ProjectImage, ProjectStatusBadge } from './projectsUi';
+import { useAdminT } from '../../../i18n/admin';
 
 export const PROJECTS_TABLE_STORAGE_KEY = 'ajda.admin.projects';
 
@@ -35,11 +36,13 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
   onDuplicate,
   onDelete,
 }) => {
+  const { t } = useAdminT();
+
   const columns = useMemo<Column<Property>[]>(
     () => [
       {
         id: 'project',
-        header: 'المشروع',
+        header: t('projects.table.colProject'),
         width: '260px',
         sortValue: (project) => project.title,
         cell: (project) => (
@@ -62,18 +65,18 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
       },
       {
         id: 'type',
-        header: 'التصنيف',
+        header: t('projects.table.colCategory'),
         width: '140px',
         sortValue: (project) => project.typeAr || project.type,
         cell: (project) => (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 truncate">
-            {project.typeAr || project.type}
+            {project.type && PROJECT_TYPE_KEYS[project.type] ? t(PROJECT_TYPE_KEYS[project.type]) : (project.typeAr || project.type)}
           </span>
         ),
       },
       {
         id: 'city',
-        header: 'المدينة / الموقع',
+        header: t('projects.table.colCityLocation'),
         width: '150px',
         sortValue: (project) => project.city,
         cell: (project) => (
@@ -82,7 +85,7 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
             <span className="truncate">{project.city}</span>
             {project.lat == null && (
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 font-bold shrink-0">
-                بلا خريطة
+                {t('projects.table.noMap')}
               </span>
             )}
           </div>
@@ -90,20 +93,20 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
       },
       {
         id: 'status',
-        header: 'الحالة',
+        header: t('projects.table.colStatus'),
         width: '110px',
         sortValue: (project) => publishStatusOf(project),
         cell: (project) => <ProjectStatusBadge status={publishStatusOf(project)} />,
       },
       {
         id: 'units',
-        header: 'الوحدات (إجمالي / متاح / مباع)',
+        header: t('projects.table.colUnits'),
         width: '180px',
         sortValue: (project) => unitStats(project).total,
         cell: (project) => {
           const { total, available, sold } = unitStats(project);
           return (
-            <div className="flex items-center gap-1.5 text-xs tabular-nums" title={`إجمالي: ${total} | متاح: ${available} | مباع أو مؤجر: ${sold}`}>
+            <div className="flex items-center gap-1.5 text-xs tabular-nums" title={t('projects.table.unitsBreakdownTitle', { total, available, sold })}>
               <span className="font-bold text-heading">{total}</span>
               <span className="text-neutral-text/40">/</span>
               <span className="text-emerald-500 font-bold">{available}</span>
@@ -115,18 +118,18 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
       },
       {
         id: 'area',
-        header: 'المساحة',
+        header: t('projects.table.colArea'),
         width: '120px',
         sortValue: (project) => project.area,
         cell: (project) => (
           <span className="text-xs tabular-nums font-bold text-heading">
-            {project.area.toLocaleString('en-US')} م²
+            {project.area.toLocaleString('en-US')} {t('projects.table.sqm')}
           </span>
         ),
       },
       {
         id: 'updatedAt',
-        header: 'آخر تحديث',
+        header: t('projects.table.colLastUpdated'),
         width: '130px',
         sortValue: (project) => ((project as unknown as { updatedAt?: string }).updatedAt ?? project.publishedAt ?? ''),
         cell: (project) => {
@@ -135,7 +138,7 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
         },
       },
     ],
-    []
+    [t]
   );
 
   return (
@@ -152,8 +155,8 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
           <button
             onClick={() => onManageUnits(project)}
             className="p-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition cursor-pointer"
-            title="إدارة الوحدات"
-            aria-label={`إدارة وحدات ${project.title}`}
+            title={t('projects.manageUnits')}
+            aria-label={t('projects.manageUnitsAria', { title: project.title })}
           >
             <Layers className="w-3.5 h-3.5" />
           </button>
@@ -164,8 +167,8 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
                   onClick={() => onHide(project)}
                   disabled={busyId === project.id}
                   className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading hover:bg-surface transition cursor-pointer disabled:opacity-50"
-                  title="إخفاء من الموقع"
-                  aria-label={`إخفاء ${project.title} من الموقع`}
+                  title={t('projects.hideTitle')}
+                  aria-label={t('projects.hideAria', { title: project.title })}
                 >
                   <EyeOff className="w-3.5 h-3.5" />
                 </button>
@@ -174,8 +177,8 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
                   onClick={() => onPublish(project)}
                   disabled={busyId === project.id}
                   className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-500/10 transition cursor-pointer disabled:opacity-50"
-                  title="نشر في الموقع"
-                  aria-label={`نشر ${project.title} في الموقع`}
+                  title={t('projects.publishTitle')}
+                  aria-label={t('projects.publishAria', { title: project.title })}
                 >
                   <Eye className="w-3.5 h-3.5" />
                 </button>
@@ -183,8 +186,8 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
               <button
                 onClick={() => onEdit(project)}
                 className="p-1.5 rounded-lg text-accent hover:bg-accent/10 transition cursor-pointer"
-                title="تعديل المشروع"
-                aria-label={`تعديل ${project.title}`}
+                title={t('projects.editTitle')}
+                aria-label={t('projects.editAria', { title: project.title })}
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
@@ -192,16 +195,16 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
                 onClick={() => onDuplicate(project)}
                 disabled={busyId === project.id}
                 className="p-1.5 rounded-lg text-accent hover:bg-accent/10 transition cursor-pointer disabled:opacity-50"
-                title="نسخ المشروع"
-                aria-label="نسخ المشروع"
+                title={t('projects.duplicateTitle')}
+                aria-label={t('projects.duplicateAria')}
               >
                 <Copy className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => onDelete(project)}
                 className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition cursor-pointer"
-                title="حذف المشروع"
-                aria-label={`حذف ${project.title}`}
+                title={t('projects.deleteTitle')}
+                aria-label={t('projects.deleteAria', { title: project.title })}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

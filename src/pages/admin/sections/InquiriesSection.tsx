@@ -518,7 +518,7 @@ export const InquiriesSection: React.FC = () => {
                 <a
                   href={`mailto:${inq.email}`}
                   className="p-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent transition inline-flex items-center"
-                  title="البريد الإلكتروني"
+                  title={t('inquiries.detail.email')}
                 >
                   <Mail className="w-3 h-3" />
                 </a>
@@ -580,7 +580,7 @@ export const InquiriesSection: React.FC = () => {
           </span>
           {inq.message && (
             <span className="text-[10px] text-neutral-text/50 font-normal">
-              {inq.message.length} حرف
+              {t('inquiries.expanded.charCount', { count: inq.message.length })}
             </span>
           )}
         </div>

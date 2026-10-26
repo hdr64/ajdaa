@@ -9,15 +9,7 @@ import {
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { SectionError, SectionLoading } from '../common/SectionState';
-
-const EVENT_LABELS: Record<string, string> = {
-  'inquiry.created': 'عند وصول طلب اهتمام جديد',
-  'job_application': 'عند وصول طلب توظيف جديد',
-};
-
-const CHANNEL_LABELS: Record<string, string> = {
-  email: 'بريد إلكتروني',
-};
+import { useAdminT } from '../../../i18n/admin';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAILS = 20;
@@ -44,16 +36,16 @@ function viewerFlags(event: string, enabled: boolean): Pick<ListenerInput['confi
   return { toInquiryViewers: flag === 'toInquiryViewers' && enabled, toApplicationViewers: flag === 'toApplicationViewers' && enabled };
 }
 
-function recipientsSummary(listener: ListenerInput): string {
+function recipientsSummary(listener: ListenerInput, t: (key: any) => string): string {
   const parts: string[] = [];
   if (listener.config[viewersFlagFor(listener.event)]) {
     parts.push(
       viewersFlagFor(listener.event) === 'toApplicationViewers'
-        ? 'كل من يملك صلاحية طلبات التوظيف'
-        : 'كل من يملك صلاحية استعراض الطلبات'
+        ? t('settings.notifications.toAllApplicationViewers')
+        : t('settings.notifications.toAllInquiryViewers')
     );
   }
-  if (listener.config.emails.length > 0) parts.push(listener.config.emails.join('، '));
+  if (listener.config.emails.length > 0) parts.push(listener.config.emails.join(', '));
   return parts.join(' + ');
 }
 
@@ -67,20 +59,32 @@ interface ListenerFormProps {
 }
 
 const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, saving, onSubmit, onCancel }) => {
+  const { t } = useAdminT();
   const [form, setForm] = useState<ListenerInput>(initial);
   const [emailsText, setEmailsText] = useState(initial.config.emails.join('\n'));
   const [error, setError] = useState<string | null>(null);
 
   const viewersFlag = viewersFlagFor(form.event);
 
+  const eventLabel = (event: string) => {
+    if (event === 'inquiry.created') return t('settings.notifications.eventInquiry');
+    if (event === 'job_application') return t('settings.notifications.eventJobApplication');
+    return event;
+  };
+
+  const channelLabel = (channel: string) => {
+    if (channel === 'email') return t('settings.notifications.channelEmail');
+    return channel;
+  };
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const emails = parseEmails(emailsText);
     const invalid = emails.filter((email) => !EMAIL_REGEX.test(email));
-    if (!form.name.trim()) return setError('أدخل اسماً للمستمع');
-    if (invalid.length > 0) return setError(`عناوين غير صحيحة: ${invalid.join('، ')}`);
-    if (emails.length > MAX_EMAILS) return setError(`الحد الأقصى ${MAX_EMAILS} عنواناً لكل مستمع`);
-    if (!form.config[viewersFlag] && emails.length === 0) return setError('اختر مستلماً واحداً على الأقل');
+    if (!form.name.trim()) return setError(t('settings.notifications.errorNameRequired'));
+    if (invalid.length > 0) return setError(t('settings.notifications.errorInvalidEmails', { invalid: invalid.join(', ') }));
+    if (emails.length > MAX_EMAILS) return setError(t('settings.notifications.errorMaxEmails', { max: MAX_EMAILS }));
+    if (!form.config[viewersFlag] && emails.length === 0) return setError(t('settings.notifications.errorNoRecipients'));
     setError(null);
     // Only the flag of the chosen event means anything to the server; never store the other.
     onSubmit({
@@ -98,20 +102,20 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
       <div className="grid sm:grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <label htmlFor="listener-name" className="block text-xs font-bold text-neutral-text/70">
-            اسم المستمع
+            {t('settings.notifications.nameLabel')}
           </label>
           <input
             id="listener-name"
             value={form.name}
             onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-            placeholder="مثال: فريق المبيعات"
+            placeholder={t('settings.notifications.namePlaceholder')}
             maxLength={100}
             className={inputClass}
           />
         </div>
         <div className="space-y-1.5">
           <label htmlFor="listener-event" className="block text-xs font-bold text-neutral-text/70">
-            الحدث
+            {t('settings.notifications.eventLabel')}
           </label>
           <select
             id="listener-event"
@@ -124,14 +128,14 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
           >
             {events.map((event) => (
               <option key={event} value={event}>
-                {EVENT_LABELS[event] ?? event}
+                {eventLabel(event)}
               </option>
             ))}
           </select>
         </div>
         <div className="space-y-1.5">
           <label htmlFor="listener-channel" className="block text-xs font-bold text-neutral-text/70">
-            طريقة الإشعار
+            {t('settings.notifications.channelLabel')}
           </label>
           <select
             id="listener-channel"
@@ -141,7 +145,7 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
           >
             {channels.map((channel) => (
               <option key={channel} value={channel}>
-                {CHANNEL_LABELS[channel] ?? channel}
+                {channelLabel(channel)}
               </option>
             ))}
           </select>
@@ -158,13 +162,13 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
           className="w-3.5 h-3.5 cursor-pointer"
         />
         {viewersFlag === 'toApplicationViewers'
-          ? 'إرسال إلى كل مستخدم نشط يملك صلاحية «طلبات التوظيف»'
-          : 'إرسال إلى كل مستخدم نشط يملك صلاحية «استعراض الطلبات»'}
+          ? t('settings.notifications.sendToApplicationViewers')
+          : t('settings.notifications.sendToInquiryViewers')}
       </label>
 
       <div className="space-y-1.5">
         <label htmlFor="listener-emails" className="block text-xs font-bold text-neutral-text/70">
-          عناوين بريد إضافية (عنوان في كل سطر أو مفصولة بفواصل، حتى {MAX_EMAILS})
+          {t('settings.notifications.extraEmailsLabel', { max: MAX_EMAILS })}
         </label>
         <textarea
           id="listener-emails"
@@ -184,7 +188,7 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
           onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
           className="w-3.5 h-3.5 cursor-pointer"
         />
-        مفعّل
+        {t('settings.notifications.enabled')}
       </label>
 
       {error && <p className="text-xs font-bold text-red-500">{error}</p>}
@@ -195,14 +199,14 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
           disabled={saving}
           className="brand-btn-primary font-black px-4 py-2 rounded-xl text-xs cursor-pointer disabled:opacity-50"
         >
-          {saving ? 'جاري الحفظ...' : 'حفظ المستمع'}
+          {saving ? t('settings.notifications.saving') : t('settings.notifications.saveListenerBtn')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="brand-btn-secondary font-bold px-4 py-2 rounded-xl text-xs cursor-pointer"
         >
-          إلغاء
+          {t('settings.notifications.cancel')}
         </button>
       </div>
     </form>
@@ -214,6 +218,7 @@ const ListenerForm: React.FC<ListenerFormProps> = ({ initial, events, channels, 
  * `manageNotifications` permission (the server enforces it too).
  */
 export const NotificationListenersPanel: React.FC = () => {
+  const { t } = useAdminT();
   const { confirm, showToast, confirmDelete } = useAdmin();
   const [data, setData] = useState<ListenersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -226,9 +231,9 @@ export const NotificationListenersPanel: React.FC = () => {
       setData(await notificationsService.list(signal));
     } catch (caught) {
       if (signal?.aborted) return;
-      setError(getErrorMessage(caught, 'تعذر تحميل إعدادات الإشعارات'));
+      setError(getErrorMessage(caught, t('settings.notifications.loadError')));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -242,20 +247,21 @@ export const NotificationListenersPanel: React.FC = () => {
       if (id) await notificationsService.update(id, input);
       else await notificationsService.create(input);
       setEditing(null);
-      showToast('تم حفظ المستمع');
+      showToast(t('settings.notifications.saveSuccess'));
       await load();
     } catch (caught) {
-      showToast(getErrorMessage(caught, 'تعذر حفظ المستمع'));
+      showToast(getErrorMessage(caught, t('settings.notifications.saveError')));
     } finally {
       setSaving(false);
     }
   };
 
   const toggle = async (listener: NotificationListener) => {
+    const action = listener.enabled ? t('settings.notifications.actionDisable') : t('settings.notifications.actionEnable');
     const ok = await confirm({
-      title: listener.enabled ? `إيقاف المستمع «${listener.name}»؟` : `تفعيل المستمع «${listener.name}»؟`,
-      message: listener.enabled ? 'لن يتلقى مستلموه إشعارات حتى تعيد تفعيله.' : undefined,
-      confirmLabel: listener.enabled ? 'إيقاف' : 'تفعيل',
+      title: t('settings.notifications.toggleTitle', { action, name: listener.name }),
+      message: listener.enabled ? t('settings.notifications.toggleMessage') : undefined,
+      confirmLabel: action,
       rememberKey: 'listener.enabled',
     });
     if (!ok) return;
@@ -265,25 +271,36 @@ export const NotificationListenersPanel: React.FC = () => {
 
   const remove = async (listener: NotificationListener) => {
     const ok = await confirmDelete({
-      title: `حذف المستمع «${listener.name}»؟`,
+      title: t('settings.notifications.deleteConfirmTitle', { name: listener.name }),
       message:
         data && data.listeners.length === 1
-          ? 'هذا آخر مستمع: بعد حذفه لن يُرسل أي بريد عند وصول طلب جديد.'
-          : 'لن يتلقى مستلمو هذا المستمع إشعارات بعد الآن.',
-      confirmLabel: 'حذف',
+          ? t('settings.notifications.deleteConfirmLastMessage')
+          : t('settings.notifications.deleteConfirmMessage'),
+      confirmLabel: t('settings.notifications.deleteConfirmBtn'),
     });
     if (!ok) return;
     try {
       await notificationsService.remove(listener.id);
-      showToast('تم حذف المستمع');
+      showToast(t('settings.notifications.deleteSuccess'));
       await load();
     } catch (caught) {
-      showToast(getErrorMessage(caught, 'تعذر حذف المستمع'));
+      showToast(getErrorMessage(caught, t('settings.notifications.deleteError')));
     }
   };
 
+  const eventLabel = (event: string) => {
+    if (event === 'inquiry.created') return t('settings.notifications.eventInquiry');
+    if (event === 'job_application') return t('settings.notifications.eventJobApplication');
+    return event;
+  };
+
+  const channelLabel = (channel: string) => {
+    if (channel === 'email') return t('settings.notifications.channelEmail');
+    return channel;
+  };
+
   if (error) return <SectionError message={error} onRetry={() => void load()} />;
-  if (!data) return <SectionLoading variant="form" label="جاري تحميل إعدادات الإشعارات..." />;
+  if (!data) return <SectionLoading variant="form" label={t('settings.notifications.loading')} />;
 
   return (
     <div className="space-y-4">
@@ -291,26 +308,24 @@ export const NotificationListenersPanel: React.FC = () => {
         <div className="p-4 rounded-2xl bg-accent/5 border border-accent/30 text-xs text-heading flex flex-col sm:flex-row sm:items-center gap-3">
           <Info className="w-4 h-4 text-accent shrink-0" />
           <p className="flex-1 leading-relaxed">
-            لم يُضبط أي مستمع بعد، لذلك يُرسل بريد الطلب الجديد حالياً حسب الإعداد الافتراضي: عناوين
-            <span dir="ltr" className="font-mono mx-1">NOTIFY_INQUIRY_EMAILS</span>
-            في الخادم إن وُجدت، وإلا كل من يملك صلاحية استعراض الطلبات. بعد إضافة أول مستمع تُطبَّق المستمعات فقط.
+            {t('settings.notifications.notConfiguredHint')}
           </p>
           <button
             type="button"
             disabled={saving}
             onClick={() =>
-              void save({ ...EMPTY_FORM, name: 'مسؤولو الطلبات', config: { toInquiryViewers: true, toApplicationViewers: false, emails: [] } })
+              void save({ ...EMPTY_FORM, name: t('settings.notifications.defaultName'), config: { toInquiryViewers: true, toApplicationViewers: false, emails: [] } })
             }
             className="brand-btn-secondary font-bold px-3 py-2 rounded-xl text-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
           >
-            إنشاء المستمع الافتراضي
+            {t('settings.notifications.createDefaultBtn')}
           </button>
         </div>
       )}
 
       {data.configured && data.listeners.every((listener) => !listener.enabled) && (
         <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 text-xs font-bold">
-          لا يوجد مستمع مفعّل: لن يُرسل أي بريد عند وصول طلب اهتمام جديد.
+          {t('settings.notifications.noActiveWarning')}
         </div>
       )}
 
@@ -339,13 +354,13 @@ export const NotificationListenersPanel: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-black text-heading">{listener.name}</span>
                 <span className="px-2 py-0.5 rounded-full bg-canvas border border-muted-border/40 text-[10px] text-neutral-text/70">
-                  {EVENT_LABELS[listener.event] ?? listener.event}
+                  {eventLabel(listener.event)}
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-canvas border border-muted-border/40 text-[10px] text-neutral-text/70">
-                  {CHANNEL_LABELS[listener.channel] ?? listener.channel}
+                  {channelLabel(listener.channel)}
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-text/70 break-words">{recipientsSummary(listener)}</p>
+              <p className="text-[11px] text-neutral-text/70 break-words">{recipientsSummary(listener, t)}</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
@@ -354,12 +369,12 @@ export const NotificationListenersPanel: React.FC = () => {
                 disabled={saving}
                 className="px-2.5 py-1.5 rounded-lg border border-muted-border/40 text-[11px] font-bold cursor-pointer hover:border-accent disabled:opacity-50"
               >
-                {listener.enabled ? 'إيقاف' : 'تفعيل'}
+                {listener.enabled ? t('settings.notifications.actionDisable') : t('settings.notifications.actionEnable')}
               </button>
               <button
                 type="button"
                 onClick={() => setEditing(listener)}
-                aria-label={`تعديل ${listener.name}`}
+                aria-label={t('settings.notifications.editAria', { name: listener.name })}
                 className="p-2 rounded-lg border border-muted-border/40 cursor-pointer hover:border-accent"
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -367,7 +382,7 @@ export const NotificationListenersPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void remove(listener)}
-                aria-label={`حذف ${listener.name}`}
+                aria-label={t('settings.notifications.deleteAria', { name: listener.name })}
                 className="p-2 rounded-lg bg-red-500/10 text-red-500 cursor-pointer hover:bg-red-500/20"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -393,7 +408,7 @@ export const NotificationListenersPanel: React.FC = () => {
           className="w-full p-3 rounded-2xl border border-dashed border-muted-border/60 text-xs font-bold text-accent hover:border-accent hover:bg-accent/5 cursor-pointer flex items-center justify-center gap-2"
         >
           {data.listeners.length === 0 ? <BellPlus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          إضافة مستمع
+          {t('settings.notifications.addListener')}
         </button>
       )}
     </div>

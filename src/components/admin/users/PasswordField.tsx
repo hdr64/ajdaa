@@ -30,8 +30,7 @@ export const PasswordField: React.FC<{
   onGenerate,
   generatedPassword,
 }) => {
-  const { t, language } = useAdminT();
-  const isEn = language === 'en';
+  const { t } = useAdminT();
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
 

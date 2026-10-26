@@ -65,6 +65,7 @@ export const auth = defineStrings(
     recoveryCodeLabel: 'رمز الاسترداد',
     useRecoveryCode: 'استخدام رمز استرداد',
     useAppCode: 'استخدام رمز التطبيق',
+    verifying: 'جاري التحقق...',
 
     // TOTP Enrollment
     enrollTotpTitle: 'تفعيل التحقق بتطبيق المصادقة',
@@ -108,8 +109,10 @@ export const auth = defineStrings(
     passkeyDirectSetupTip: 'تم التحقق من هويتك بنجاح — يمكنك تفعيل مفتاح المرور الآن بلمسة واحدة دون إعادة إدخال كلمة المرور.',
     defaultDevice: 'جهاز',
     enterPasswordConfirm: 'يرجى إدخال كلمة المرور الحالية للتأكيد',
+    enterCurrentPasswordToConfirm: 'يرجى إدخال كلمة المرور الحالية للتأكيد',
     enterPasswordEnable: 'يرجى إدخال كلمة المرور لتفعيل المفتاح',
     createPasskeyFailed: 'تعذر إنشاء مفتاح المرور',
+    failedToCreatePasskey: 'تعذر إنشاء مفتاح المرور',
   },
   {
     // Portal General
@@ -173,6 +176,7 @@ export const auth = defineStrings(
     recoveryCodeLabel: 'Recovery Code',
     useRecoveryCode: 'Use recovery code',
     useAppCode: 'Use authenticator app code',
+    verifying: 'Verifying...',
 
     // TOTP Enrollment
     enrollTotpTitle: 'Set Up Authenticator Verification',
@@ -216,7 +220,9 @@ export const auth = defineStrings(
     passkeyDirectSetupTip: 'You are authenticated — you can enable a passkey now with one touch without retyping your password.',
     defaultDevice: 'Device',
     enterPasswordConfirm: 'Please enter your current password to confirm',
+    enterCurrentPasswordToConfirm: 'Please enter your current password to confirm',
     enterPasswordEnable: 'Please enter your password to enable the passkey',
     createPasskeyFailed: 'Failed to create passkey',
+    failedToCreatePasskey: 'Failed to create passkey',
   }
 );

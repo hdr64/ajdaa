@@ -32,7 +32,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   onQuickView,
   onFavToast,
 }) => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const isAr = language === 'ar';
   const [fav, setFav] = useState(false);
 
@@ -45,15 +45,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     const nextState = !fav;
     setFav(nextState);
     if (onFavToast) {
-      onFavToast(
-        nextState
-          ? isAr
-            ? 'تمت إضافة المشروع للمفضلة ❤️'
-            : 'Project added to favorites ❤️'
-          : isAr
-          ? 'تمت إزالة المشروع من المفضلة'
-          : 'Project removed from favorites',
-      );
+      onFavToast(nextState ? t.propertyCard.favAddedToast : t.propertyCard.favRemovedToast);
     }
   };
 
@@ -98,15 +90,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
 
             <button
               onClick={toggleFav}
-              aria-label={
-                fav
-                  ? isAr
-                    ? 'إزالة من المفضلة'
-                    : 'Remove from favorites'
-                  : isAr
-                  ? 'إضافة إلى المفضلة'
-                  : 'Add to favorites'
-              }
+              aria-label={fav ? t.propertyCard.removeFav : t.propertyCard.addFav}
               className="w-8 h-8 rounded-xl bg-canvas/80 backdrop-blur-md flex items-center justify-center border border-muted-border/40 hover:border-accent/80 hover:bg-surface transition-all duration-300 cursor-pointer"
             >
               <Heart
@@ -124,7 +108,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         <div className="absolute inset-0 z-[2] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-canvas/40 backdrop-blur-[2px]">
           <span className="brand-btn-secondary font-bold text-xs px-4 py-2 rounded-full inline-flex items-center gap-1.5">
             <Eye className="w-3.5 h-3.5 text-accent" />
-            {isAr ? 'عرض صفحة وتفاصيل المشروع' : 'View Project Page & Details'}
+            {t.propertyCard.viewDetails}
           </span>
         </div>
       </div>
@@ -147,47 +131,47 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           <div className="flex items-center justify-between text-xs text-neutral-text/70 mb-4 border-y border-muted-border/20 py-2.5">
             <span className="flex items-center gap-1.5 font-semibold">
               <Maximize2 className="w-3.5 h-3.5 text-accent" />{' '}
-              {property.area.toLocaleString(isAr ? 'ar-SA' : 'en-US')} {isAr ? 'م²' : 'm²'}
+              {property.area.toLocaleString(isAr ? 'ar-SA' : 'en-US')} {t.propertyCard.sqm}
             </span>
             {property.rooms && property.rooms > 0 ? (
               <>
                 <span className="flex items-center gap-1.5 font-semibold">
                   <BedDouble className="w-3.5 h-3.5 text-accent" /> {property.rooms}{' '}
-                  {isAr ? 'غرف' : 'Rooms'}
+                  {t.propertyCard.rooms}
                 </span>
                 <span className="flex items-center gap-1.5 font-semibold">
                   <Bath className="w-3.5 h-3.5 text-accent" /> {property.bathrooms}{' '}
-                  {isAr ? 'حمام' : 'Baths'}
+                  {t.propertyCard.baths}
                 </span>
               </>
             ) : property.type === 'logistics' ? (
               <>
                 <span className="flex items-center gap-1.5 font-semibold">
                   <Warehouse className="w-3.5 h-3.5 text-accent" />{' '}
-                  {isAr ? 'سعات تخزين كبرى' : 'High-Capacity Storage'}
+                  {t.propertyCard.storage}
                 </span>
                 <span className="flex items-center gap-1.5 font-semibold">
-                  {isAr ? 'بوابات شحن' : 'Loading Docks'}
+                  {t.propertyCard.loadingDocks}
                 </span>
               </>
             ) : property.type === 'commercial' ? (
               <>
                 <span className="flex items-center gap-1.5 font-semibold">
                   <Store className="w-3.5 h-3.5 text-accent" />{' '}
-                  {isAr ? 'واجهات زجاجية' : 'Glass Facades'}
+                  {t.propertyCard.glassFacades}
                 </span>
                 <span className="flex items-center gap-1.5 font-semibold">
-                  {isAr ? 'مواقف للزوار' : 'Visitor Parking'}
+                  {t.propertyCard.visitorParking}
                 </span>
               </>
             ) : (
               <>
                 <span className="flex items-center gap-1.5 font-semibold">
                   <Building2 className="w-3.5 h-3.5 text-accent" />{' '}
-                  {isAr ? 'مشروع استراتيجي' : 'Strategic Hub'}
+                  {t.propertyCard.strategicHub}
                 </span>
                 <span className="flex items-center gap-1.5 font-semibold">
-                  {isAr ? 'موقع حيوي' : 'Prime Location'}
+                  {t.propertyCard.primeLocation}
                 </span>
               </>
             )}
@@ -202,7 +186,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
               className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-accent hover:underline rounded-lg px-1 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <FileText className="w-3.5 h-3.5" />
-              {isAr ? 'تحميل ملف المشروع (PDF)' : 'Download project profile (PDF)'}
+              {t.propertyCard.downloadBrochure}
             </a>
           )}
         </div>
@@ -210,7 +194,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         <div className="flex items-center justify-between pt-1">
           <div>
             <div className="text-[10px] text-neutral-text/50 font-medium">
-              {isAr ? 'حالة المشروع' : 'Project Status'}
+              {t.propertyCard.projectStatus}
             </div>
             <div
               className={`text-xs sm:text-sm font-black transition-colors ${
@@ -230,13 +214,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             }}
             className="brand-btn-primary font-extrabold text-xs px-4 py-2.5 rounded-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
           >
-            {display.isBooked
-              ? isAr
-                ? 'طلب استفسار'
-                : 'Inquire Now'
-              : isAr
-              ? 'سجل اهتمامك'
-              : 'Register Interest'}
+            {display.isBooked ? t.propertyCard.inquireNow : t.propertyCard.registerInterest}
             {isAr ? (
               <ArrowLeft className="w-3.5 h-3.5" />
             ) : (

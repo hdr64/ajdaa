@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, MapPin, Search, X } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import {
   findSaudiCityByName,
   getPopularSaudiCities,
@@ -32,6 +33,7 @@ export const CitySelect: React.FC<CitySelectProps> = ({
   id,
   className = '',
 }) => {
+  const { t, isAr } = useAdminT();
   const generatedId = useId();
   const inputId = id ?? `${generatedId}-city`;
   const listboxId = `${generatedId}-city-listbox`;
@@ -132,7 +134,7 @@ export const CitySelect: React.FC<CitySelectProps> = ({
 
   return (
     <div className={className}>
-      <div role="group" aria-label="مدن شائعة" className="mb-2 flex flex-wrap items-center gap-1.5">
+      <div role="group" aria-label={t('projects.city.popular')} className="mb-2 flex flex-wrap items-center gap-1.5">
         {popular.map((city) => {
           const isActive = valueAr.trim() === city.nameAr || draft.trim() === city.nameAr;
           return (
@@ -151,7 +153,7 @@ export const CitySelect: React.FC<CitySelectProps> = ({
                   : 'bg-canvas border-muted-border/50 text-neutral-text hover:border-accent hover:text-accent'
               }`}
             >
-              {city.nameAr}
+              {isAr ? city.nameAr : (city.nameEn || city.nameAr)}
             </button>
           );
         })}
@@ -168,7 +170,7 @@ export const CitySelect: React.FC<CitySelectProps> = ({
           spellCheck={false}
           disabled={disabled}
           value={draft}
-          placeholder="اكتب اسم المدينة…"
+          placeholder={t('projects.city.typePlaceholder')}
           aria-expanded={open}
           aria-controls={listboxId}
           aria-autocomplete="list"
@@ -185,7 +187,7 @@ export const CitySelect: React.FC<CitySelectProps> = ({
             type="button"
             onClick={clear}
             disabled={disabled}
-            aria-label="مسح المدينة"
+            aria-label={t('projects.city.clear')}
             className="absolute end-2 top-1/2 -translate-y-1/2 p-1 text-neutral-text/55 hover:text-red-500 cursor-pointer disabled:opacity-50"
           >
             <X className="h-3.5 w-3.5" />
@@ -199,7 +201,7 @@ export const CitySelect: React.FC<CitySelectProps> = ({
 
         {open && (
           <div className="absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-muted-border/40 bg-surface shadow-lg">
-            <ul ref={listRef} id={listboxId} role="listbox" aria-label="قائمة المدن" className="max-h-60 overflow-y-auto overscroll-contain py-1">
+            <ul ref={listRef} id={listboxId} role="listbox" aria-label={t('projects.city.listAria')} className="max-h-60 overflow-y-auto overscroll-contain py-1">
               {results.map((city, index) => {
                 const isSelected = selected?.id === city.id;
                 return (
@@ -218,13 +220,13 @@ export const CitySelect: React.FC<CitySelectProps> = ({
                   >
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
-                        <span className="truncate text-xs font-bold text-heading">{city.nameAr}</span>
+                        <span className="truncate text-xs font-bold text-heading">{isAr ? city.nameAr : city.nameEn}</span>
                         <span dir="ltr" className="truncate text-[10px] text-neutral-text/70">
-                          {city.nameEn}
+                          {isAr ? city.nameEn : city.nameAr}
                         </span>
                       </span>
                       <span className="mt-0.5 inline-block rounded-full bg-canvas px-1.5 py-px text-[9px] font-bold text-neutral-text/70">
-                        {city.regionAr}
+                        {isAr ? city.regionAr : city.regionEn}
                       </span>
                     </span>
                     {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />}
@@ -235,7 +237,7 @@ export const CitySelect: React.FC<CitySelectProps> = ({
 
             {results.length === 0 && (
               <p className="px-3 py-4 text-center text-[11px] font-bold text-neutral-text/70">
-                لا توجد مدينة مطابقة — سيُحفظ الاسم كما هو.
+                {t('projects.city.noMatch')}
               </p>
             )}
           </div>
@@ -246,22 +248,22 @@ export const CitySelect: React.FC<CitySelectProps> = ({
         {selected ? (
           <>
             <span dir="ltr" className="font-bold text-heading">
-              {selected.nameEn}
+              {isAr ? selected.nameEn : selected.nameAr}
             </span>
             <span aria-hidden="true">·</span>
-            <span>{selected.regionAr}</span>
+            <span>{isAr ? selected.regionAr : selected.regionEn}</span>
             <span className="ms-auto inline-flex items-center gap-1 font-mono" dir="ltr">
               <MapPin className="h-3 w-3 text-accent" aria-hidden="true" />
               {selected.center.lat.toFixed(4)}, {selected.center.lng.toFixed(4)}
             </span>
           </>
         ) : valueAr.trim() ? (
-          <span>اسم مخصص خارج قائمة المدن — سيُحفظ كما هو.</span>
+          <span>{t('projects.city.customNotice')}</span>
         ) : null}
       </p>
 
       <p aria-live="polite" className="sr-only">
-        {open ? `${results.length} نتيجة` : ''}
+        {open ? t('projects.city.resultsCount', { count: results.length }) : ''}
       </p>
 
       {error && (

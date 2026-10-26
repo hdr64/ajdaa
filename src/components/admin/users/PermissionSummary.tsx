@@ -7,13 +7,14 @@ import { CheckCircle2 } from 'lucide-react';
 import type { Role, PermissionDef } from '../../../types/admin';
 import { PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_EN_LABELS } from './usersModel';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
+import type { AdminKey } from '../../../i18n/admin';
 
 interface PermissionSummaryProps {
   role: Role | null;
   permissions: PermissionDef[];
 }
 
-const getGroupLabel = (group: string, t: (key: string) => string): string => {
+const getGroupLabel = (group: string, t: (key: AdminKey) => string): string => {
   const map: Record<string, string> = {
     projects: t('users.groupProjects'),
     units: t('users.groupUnits'),

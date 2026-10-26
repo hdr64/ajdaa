@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
+import { useLanguage } from '../../hooks/useLanguage';
 
 interface ThemeToggleProps {
   className?: string;
@@ -9,7 +10,9 @@ interface ThemeToggleProps {
 
 export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', variant = 'navbar' }) => {
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const isDark = theme === 'dark';
+  const toggleLabel = isDark ? t.theme.switchToLight : t.theme.switchToDark;
 
   if (variant === 'compact') {
     return (
@@ -17,8 +20,8 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', varian
         type="button"
         onClick={toggleTheme}
         className={`w-9 h-9 rounded-xl flex items-center justify-center text-heading hover:text-accent hover:bg-surface-hover transition-colors cursor-pointer ${className}`}
-        title={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
-        aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
+        title={toggleLabel}
+        aria-label={toggleLabel}
       >
         {isDark ? (
           <Sun className="w-4 h-4 text-amber-300" />
@@ -39,7 +42,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', varian
             ? 'bg-surface/50 border-muted-border/30 hover:bg-surface/80 text-heading'
             : 'bg-surface/90 border-muted-border/40 hover:bg-surface-hover text-heading shadow-sm'
         } ${className}`}
-        aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
+        aria-label={toggleLabel}
       >
         <div className="flex items-center gap-3">
           <div
@@ -57,10 +60,10 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', varian
           </div>
           <div className="text-right">
             <span className="block text-xs font-bold text-heading">
-              {isDark ? 'الوضع الليلي (مفعّل)' : 'الوضع النهاري (مفعّل)'}
+              {isDark ? t.theme.darkActive : t.theme.lightActive}
             </span>
             <span className="block text-[10px] text-neutral-text/70">
-              {isDark ? 'اضغط للتحويل إلى الوضع النهاري' : 'اضغط للتحويل إلى الوضع الليلي'}
+              {isDark ? t.theme.clickForLight : t.theme.clickForDark}
             </span>
           </div>
         </div>
@@ -91,8 +94,8 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', varian
           ? 'bg-surface/50 border-muted-border/30 hover:border-amber-400/50 hover:bg-surface-hover/80 text-amber-300 shadow-xs'
           : 'bg-surface/90 border-muted-border/40 hover:border-accent/60 hover:bg-surface-hover text-accent shadow-xs'
       } ${className}`}
-      title={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
-      aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
+      title={toggleLabel}
+      aria-label={toggleLabel}
     >
       <div className="relative w-5 h-5 flex items-center justify-center">
         <Sun
@@ -111,7 +114,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '', varian
         />
       </div>
       <span className="sr-only">
-        {isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
+        {toggleLabel}
       </span>
     </button>
   );

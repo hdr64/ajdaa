@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MapPin, Navigation, X, AlertTriangle, Loader2, Check } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { loadGoogleMaps, type GoogleMapsBundle, MapsConfigError } from '../../../services/googleMaps';
 
 export interface MapLocationPickerProps {
@@ -25,6 +26,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   disabled = false,
   className = '',
 }) => {
+  const { t } = useAdminT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
@@ -81,7 +83,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         if (err instanceof MapsConfigError) {
           setLoadError(err.message);
         } else {
-          setLoadError('تعذر تحميل خريطة جوجل، يمكنك إدخال الإحداثيات يدوياً.');
+          setLoadError(t('projects.map.loadError'));
         }
       }
     }
@@ -131,7 +133,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         map,
         position,
         gmpDraggable: !disabled,
-        title: 'موقع المشروع المحدد',
+        title: t('projects.map.selectedLocation'),
         content: pinElement,
       });
 
@@ -201,7 +203,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         {loading && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-canvas/80 backdrop-blur-xs">
             <Loader2 className="w-6 h-6 text-accent animate-spin" />
-            <span className="text-xs font-bold text-neutral-text/70">جاري تحميل الخريطة...</span>
+            <span className="text-xs font-bold text-neutral-text/70">{t('projects.map.loading')}</span>
           </div>
         )}
 
@@ -210,7 +212,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           <div className="absolute inset-0 z-10 p-6 flex flex-col items-center justify-center text-center gap-2 bg-canvas/95">
             <AlertTriangle className="w-8 h-8 text-amber-500" />
             <p className="text-xs font-bold text-heading max-w-sm">{loadError}</p>
-            <p className="text-[11px] text-neutral-text/60">يمكنك تحديد الإحداثيات يدوياً من الحقول أدناه.</p>
+            <p className="text-[11px] text-neutral-text/60">{t('projects.map.manualHint')}</p>
           </div>
         )}
 
@@ -219,7 +221,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           <div className="absolute top-2.5 start-2.5 z-5 pointer-events-none">
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-canvas/90 backdrop-blur-sm text-[10px] font-bold text-neutral-text border border-muted-border/40 shadow-xs">
               <MapPin className="w-3 h-3 text-accent" />
-              انقر على الخريطة لتثبيت الموقع أو اسحب الدبوس
+              {t('projects.map.clickOrDragHint')}
             </span>
           </div>
         )}
@@ -228,13 +230,13 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         {hasCoords && !loading && (
           <div className="absolute bottom-2.5 inset-x-2.5 z-5 flex items-center justify-between gap-2 pointer-events-none">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-canvas/95 backdrop-blur-sm border border-muted-border/50 shadow-md text-xs text-heading font-mono pointer-events-auto">
-              <span className="text-[10px] font-sans font-bold text-neutral-text/60">الإحداثيات:</span>
+              <span className="text-[10px] font-sans font-bold text-neutral-text/60">{t('projects.map.coordsLabel')}</span>
               <span>{lat.toFixed(5)}, {lng.toFixed(5)}</span>
               <button
                 type="button"
                 onClick={handleCopy}
                 className="ms-1 p-1 hover:text-accent cursor-pointer transition text-neutral-text/60"
-                title="نسخ الإحداثيات"
+                title={t('projects.map.copyCoords')}
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <MapPin className="w-3.5 h-3.5" />}
               </button>
@@ -245,7 +247,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                 type="button"
                 onClick={handleRecenter}
                 className="p-2 rounded-xl bg-canvas/95 hover:bg-surface border border-muted-border/50 shadow-md text-neutral-text hover:text-heading cursor-pointer transition"
-                title="التركيز على موقع المشروع"
+                title={t('projects.map.focusLocation')}
               >
                 <Navigation className="w-4 h-4 text-accent" />
               </button>
@@ -254,7 +256,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                   type="button"
                   onClick={onClear}
                   className="p-2 rounded-xl bg-canvas/95 hover:bg-surface border border-muted-border/50 shadow-md text-red-500 hover:text-red-600 cursor-pointer transition"
-                  title="مسح الموقع من الخريطة"
+                  title={t('projects.map.clearLocation')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -268,7 +270,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label htmlFor="manual-lat" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-            خط العرض (Latitude)
+            {t('projects.map.latitude')}
           </label>
           <input
             id="manual-lat"
@@ -284,7 +286,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         </div>
         <div>
           <label htmlFor="manual-lng" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-            خط الطول (Longitude)
+            {t('projects.map.longitude')}
           </label>
           <input
             id="manual-lng"
