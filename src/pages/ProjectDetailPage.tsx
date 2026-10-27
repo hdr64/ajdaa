@@ -8,6 +8,7 @@ import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
 import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
 import { isHttpsUrl, isDownloadableMediaUrl } from '../utils/urlValidation';
+import { detectProjectStatus } from '../data/properties';
 import {
   MapPin,
   Play,
@@ -551,7 +552,9 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 </div>
                 <div>
                   <span className="text-[11px] text-neutral-text/60 block">{isAr ? 'حالة المشروع' : 'Status'}</span>
-                  <span className="text-xs font-bold text-heading">{project.status || 'متاح'}</span>
+                  <span className={`text-xs font-black ${detectProjectStatus({ ...project, floors }).isBooked ? 'text-amber-400' : 'text-heading'}`}>
+                    {isAr ? detectProjectStatus({ ...project, floors }).statusAr : detectProjectStatus({ ...project, floors }).statusEn}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[11px] text-neutral-text/60 block">{isAr ? 'عدد الأدوار والوحدات' : 'Floors & Units'}</span>
@@ -1041,7 +1044,9 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 <span>•</span>
                 <span>
                   <strong className="text-white font-bold">{isAr ? 'الحالة: ' : 'Status: '}</strong>
-                  {project.status || 'متاح'}
+                  <span className={detectProjectStatus({ ...project, floors }).isBooked ? 'text-amber-400 font-bold' : ''}>
+                    {isAr ? detectProjectStatus({ ...project, floors }).statusAr : detectProjectStatus({ ...project, floors }).statusEn}
+                  </span>
                 </span>
               </div>
 

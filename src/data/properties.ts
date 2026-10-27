@@ -836,16 +836,125 @@ export const properties: Property[] = [
   }
 ];
 
+export interface DetectedProjectStatus {
+  isBooked: boolean;
+  statusAr: string;
+  statusEn: string;
+  isAuto: boolean;
+}
+
+/**
+ * Automatically detects whether a project is "محجوز" (Booked/Reserved),
+ * "محجوز بالكامل" (Totally/Fully Booked), or "متاح" (Available) based on the
+ * live status of all its units across all floors.
+ */
+export function detectProjectStatus(project?: {
+  floors?: { units?: { status: string }[] }[];
+  status?: string | null;
+  statusEn?: string | null;
+  priceType?: string | null;
+  badge?: string | null;
+  badgeEn?: string | null;
+} | null): DetectedProjectStatus {
+  if (!project) {
+    return {
+      isBooked: false,
+      statusAr: 'متاح للتأجير والاستثمار',
+      statusEn: 'Available for Lease & Investment',
+      isAuto: false,
+    };
+  }
+
+  const units = (project.floors ?? []).flatMap((f) => f.units ?? []);
+  if (units.length > 0) {
+    const total = units.length;
+    const available = units.filter((u) => u.status === 'available').length;
+    const reserved = units.filter((u) => u.status === 'reserved').length;
+    const rented = units.filter((u) => u.status === 'rented').length;
+    const sold = units.filter((u) => u.status === 'sold').length;
+
+    // Zero units available: The project is booked / fully booked
+    if (available === 0) {
+      if (total === 1) {
+        if (reserved === 1) {
+          return { isBooked: true, statusAr: 'محجوز', statusEn: 'Reserved', isAuto: true };
+        }
+        if (rented === 1) {
+          return { isBooked: true, statusAr: 'مؤجر', statusEn: 'Rented', isAuto: true };
+        }
+        if (sold === 1) {
+          return { isBooked: true, statusAr: 'مباع', statusEn: 'Sold', isAuto: true };
+        }
+        return { isBooked: true, statusAr: 'محجوز', statusEn: 'Reserved', isAuto: true };
+      }
+
+      // Multi-unit projects:
+      if (sold === total) {
+        return { isBooked: true, statusAr: 'مباع بالكامل', statusEn: 'Fully Sold', isAuto: true };
+      }
+      if (rented === total) {
+        return { isBooked: true, statusAr: 'مؤجر بالكامل', statusEn: 'Fully Leased', isAuto: true };
+      }
+      if (reserved === total) {
+        return { isBooked: true, statusAr: 'محجوز بالكامل', statusEn: 'Fully Booked', isAuto: true };
+      }
+      return { isBooked: true, statusAr: 'محجوز بالكامل', statusEn: 'Fully Booked', isAuto: true };
+    }
+
+    // Units are available:
+    const priceType = project.priceType;
+    let statusAr = 'متاح للتأجير والاستثمار';
+    let statusEn = 'Available for Lease & Investment';
+
+    if (priceType === 'إيجار') {
+      statusAr = 'متاح للتأجير';
+      statusEn = 'Available for Lease';
+    } else if (priceType === 'بيع') {
+      statusAr = 'متاح للبيع';
+      statusEn = 'Available for Sale';
+    } else if (priceType === 'استثمار') {
+      statusAr = 'متاح للاستثمار';
+      statusEn = 'Available for Investment';
+    }
+
+    return { isBooked: false, statusAr, statusEn, isAuto: true };
+  }
+
+  // Fallback when project has no units in database:
+  const raw = (project.status || '').trim();
+  const rawEn = (project.statusEn || '').trim();
+  const badge = (project.badge || '').trim();
+  const badgeEn = (project.badgeEn || '').trim();
+
+  const isBooked =
+    raw === 'محجوز' ||
+    raw === 'محجوز بالكامل' ||
+    raw === 'مؤجر بالكامل' ||
+    raw === 'مباع بالكامل' ||
+    badge === 'محجوز' ||
+    badge === 'محجوز بالكامل' ||
+    badge === 'مؤجر بالكامل' ||
+    badge === 'مباع بالكامل' ||
+    rawEn.toLowerCase() === 'reserved' ||
+    rawEn.toLowerCase() === 'booked' ||
+    rawEn.toLowerCase() === 'fully booked' ||
+    rawEn.toLowerCase() === 'fully leased' ||
+    rawEn.toLowerCase() === 'fully sold' ||
+    badgeEn.toLowerCase() === 'reserved' ||
+    badgeEn.toLowerCase() === 'booked' ||
+    badgeEn.toLowerCase() === 'fully booked' ||
+    badgeEn.toLowerCase() === 'fully leased' ||
+    badgeEn.toLowerCase() === 'fully sold';
+
+  const statusAr = raw || (isBooked ? 'محجوز' : 'متاح للتأجير والاستثمار');
+  const statusEn = rawEn || (isBooked ? 'Reserved' : 'Available for Lease & Investment');
+
+  return { isBooked, statusAr, statusEn, isAuto: false };
+}
+
 export const isPropertyBooked = (prop?: Property | null): boolean => {
   if (!prop) return false;
-  return (
-    prop.status === 'محجوز بالكامل' ||
-    prop.badge === 'محجوز بالكامل' ||
-    prop.statusEn === 'Fully Booked' ||
-    prop.statusEn === 'Fully Leased' ||
-    prop.badgeEn === 'Fully Booked' ||
-    prop.badgeEn === 'Fully Leased'
-  );
+  return detectProjectStatus(prop).isBooked;
 };
 
 export interface PropertyDisplayData {
@@ -862,7 +971,8 @@ export interface PropertyDisplayData {
 
 export const getPropertyDisplay = (prop: Property, language: 'ar' | 'en' | string): PropertyDisplayData => {
   const isAr = language === 'ar';
-  const isBooked = isPropertyBooked(prop);
+  const detected = detectProjectStatus(prop);
+  const isBooked = detected.isBooked;
 
   const title = isAr ? prop.title : prop.titleEn || prop.title;
   const city = isAr ? prop.city : prop.cityEn || prop.city;
@@ -871,14 +981,9 @@ export const getPropertyDisplay = (prop: Property, language: 'ar' | 'en' | strin
   const description = isAr ? (prop.description || '') : (prop.descriptionEn || prop.description || '');
   const features = isAr ? (prop.features || []) : (prop.featuresEn || prop.features || []);
 
-  const status = isBooked
-    ? (isAr ? 'محجوز بالكامل' : 'Fully Booked')
-    : isAr
-    ? prop.status || prop.badge || 'متاح للتأجير والاستثمار'
-    : prop.statusEn || prop.badgeEn || 'Available for Lease & Investment';
-
+  const status = isAr ? detected.statusAr : detected.statusEn;
   const badge = isBooked
-    ? (isAr ? 'محجوز بالكامل' : 'Fully Booked')
+    ? (isAr ? detected.statusAr : detected.statusEn)
     : isAr
     ? prop.badge || prop.priceType
     : prop.badgeEn || prop.priceTypeEn || prop.priceType;

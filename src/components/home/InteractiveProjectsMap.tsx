@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Property } from '../../types/property';
+import { detectProjectStatus } from '../../data/properties';
 import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { loadGoogleMaps, MapsConfigError, type GoogleMapsBundle } from '../../services/googleMaps';
@@ -1066,8 +1067,8 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                     <span className="text-[10px] text-white/50 block">
                       {isAr ? 'حالة المشروع' : 'Status'}
                     </span>
-                    <span className="text-xs font-bold text-white/90">
-                      {selectedProject.status || 'متاح للتأجير'}
+                    <span className={`text-xs font-bold ${detectProjectStatus(selectedProject).isBooked ? 'text-amber-400' : 'text-white/90'}`}>
+                      {isAr ? detectProjectStatus(selectedProject).statusAr : detectProjectStatus(selectedProject).statusEn}
                     </span>
                   </div>
                   <div>

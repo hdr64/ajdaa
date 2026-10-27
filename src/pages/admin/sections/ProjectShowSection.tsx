@@ -17,6 +17,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { Property, UnitStatus } from '../../../types/property';
+import { detectProjectStatus } from '../../../data/properties';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
@@ -66,7 +67,7 @@ function Fact({ label, value, dir }: { label: string; value?: React.ReactNode; d
 
 const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
   const { can, navigate, showToast, projects, inquiries, confirmDelete } = useAdmin();
-  const { t } = useAdminT();
+  const { t, isAr } = useAdminT();
   const canManage = can('manageProjects');
   const [activeImage, setActiveImage] = useState(project.image);
   const [tab, setTab] = useState<ProjectTab>('overview');
@@ -392,7 +393,24 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
           <Panel title={t('projects.show.panel.info')}>
             <Fact label={t('projects.show.fact.city')} value={[project.city, project.cityEn].filter(Boolean).join(' · ')} />
             <Fact label={t('projects.show.fact.area')} value={`${project.area.toLocaleString('en-US')} m²`} />
-            <Fact label={t('projects.show.fact.status')} value={project.status} />
+            <Fact
+              label={t('projects.show.fact.status')}
+              value={(() => {
+                const detected = detectProjectStatus(project);
+                return (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={detected.isBooked ? 'text-amber-500 font-black' : 'text-heading font-bold'}>
+                      {isAr ? detected.statusAr : detected.statusEn}
+                    </span>
+                    {detected.isAuto && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
+                        {isAr ? 'تلقائي من الوحدات' : 'Auto from units'}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
+            />
             <Fact label={t('projects.show.fact.floors')} value={project.floors?.length ?? 0} />
             <Fact label={t('projects.show.fact.virtualTour')} value={project.virtualTour3dAvailable ? t('projects.show.available') : t('projects.show.notAvailable')} />
             <Fact

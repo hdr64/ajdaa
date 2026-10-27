@@ -27,6 +27,7 @@ import { MapLocationPicker } from '../../../components/admin/projects/MapLocatio
 import { CitySelect } from '../../../components/admin/projects/CitySelect';
 import { findSaudiCityByName } from '../../../data/saudiCities';
 import { isHttpsUrl } from '../../../utils/urlValidation';
+import { detectProjectStatus } from '../../../data/properties';
 
 const INPUT_CLASS =
   'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
@@ -185,6 +186,13 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const brochureInputRef = useRef<HTMLInputElement>(null);
+
+  const autoStatus = useMemo(() => {
+    return detectProjectStatus({
+      floors: project.floors,
+      priceType: form.priceType,
+    });
+  }, [project.floors, form.priceType]);
 
   const patch = useCallback((changes: Partial<EditorForm>) => {
     setForm((current) => ({ ...current, ...changes }));
@@ -548,11 +556,63 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 <Field label={t('projectEdit.field.cityEn')} htmlFor="pe-cityEn">
                   <input id="pe-cityEn" type="text" dir="ltr" value={form.cityEn} onChange={(e) => patch({ cityEn: e.target.value })} className={INPUT_CLASS} />
                 </Field>
+                <div className="sm:col-span-2">
+                  <div className="rounded-xl border border-primary-500/20 bg-primary-500/5 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="font-semibold text-foreground">
+                        حالة المشروع التلقائية (من واقع الوحدات):
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-md font-bold text-xs ${
+                          autoStatus.isBooked
+                            ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                            : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                        }`}
+                      >
+                        {autoStatus.statusAr}
+                      </span>
+                      <span className="text-muted-foreground text-[11px]">
+                        (تُكتشف تلقائياً مثل "محجوز" أو "محجوز بالكامل" دون الحاجة للإدخال اليدوي)
+                      </span>
+                    </div>
+                    {(form.status.trim() || form.statusEn.trim()) && (
+                      <button
+                        type="button"
+                        onClick={() => patch({ status: '', statusEn: '' })}
+                        className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 underline cursor-pointer shrink-0"
+                      >
+                        الاعتماد على الحالة التلقائية (تفريغ الحقل)
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <Field label={t('projectEdit.field.status')} htmlFor="pe-status">
-                  <input id="pe-status" type="text" placeholder={t('projectEdit.statusPlaceholder')} value={form.status} onChange={(e) => patch({ status: e.target.value })} className={INPUT_CLASS} />
+                  <input
+                    id="pe-status"
+                    type="text"
+                    placeholder={autoStatus.isAuto ? `تلقائي: ${autoStatus.statusAr}` : t('projectEdit.statusPlaceholder')}
+                    value={form.status}
+                    onChange={(e) => patch({ status: e.target.value })}
+                    className={INPUT_CLASS}
+                  />
+                  {form.status.trim() === 'محجوز' && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                      ملاحظة: لست بحاجة لكتابة "محجوز" يدوياً؛ النظام يكتشفها تلقائياً من حالة الوحدات.
+                    </p>
+                  )}
                 </Field>
                 <Field label={t('projectEdit.field.statusEn')} htmlFor="pe-statusEn">
-                  <input id="pe-statusEn" type="text" dir="ltr" value={form.statusEn} onChange={(e) => patch({ statusEn: e.target.value })} className={INPUT_CLASS} />
+                  <input
+                    id="pe-statusEn"
+                    type="text"
+                    dir="ltr"
+                    placeholder={autoStatus.isAuto ? `Auto: ${autoStatus.statusEn}` : 'Available'}
+                    value={form.statusEn}
+                    onChange={(e) => patch({ statusEn: e.target.value })}
+                    className={INPUT_CLASS}
+                  />
                 </Field>
                 <Field label={t('projectEdit.field.badge')} htmlFor="pe-badge">
                   <input id="pe-badge" type="text" placeholder={t('projectEdit.badgePlaceholder')} value={form.badge} onChange={(e) => patch({ badge: e.target.value })} className={INPUT_CLASS} />

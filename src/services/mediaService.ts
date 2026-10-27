@@ -21,8 +21,64 @@ export function isAcceptedMedia(file: File): boolean {
 }
 
 /**
- * Uploads one image or PDF. Images are converted to WebP server-side, so the
- * returned URL is what must be persisted on the project record.
+ * Compresses oversized raster images in-browser before upload to minimize network usage
+ * and speed up uploads ("upload less data as possible").
+ */
+async function compressImageBeforeUpload(file: File): Promise<File> {
+  if (
+    typeof window === 'undefined' ||
+    typeof document === 'undefined' ||
+    !file.type.startsWith('image/') ||
+    file.type === 'image/gif' ||
+    file.type === 'image/svg+xml' ||
+    file.size <= 400 * 1024
+  ) {
+    return file;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxDimension = 2048;
+    let { width, height } = bitmap;
+
+    if (width > maxDimension || height > maxDimension) {
+      if (width > height) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      } else {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close?.();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/webp', 0.82);
+    });
+
+    if (blob && blob.size < file.size) {
+      const newName = file.name.replace(/\.[^.]+$/, '') + '.webp';
+      return new File([blob], newName, { type: 'image/webp', lastModified: Date.now() });
+    }
+    return file;
+  } catch {
+    return file;
+  }
+}
+
+/**
+ * Uploads one image or PDF. Images are optimized before upload and converted
+ * to WebP server-side, so the returned URL is what must be persisted on the project record.
  */
 export async function uploadMedia(file: File, options: UploadOptions = {}): Promise<UploadedMedia> {
   if (!isAcceptedMedia(file)) {
@@ -32,8 +88,9 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
     throw new Error('File is larger than the 50 MB limit.');
   }
 
+  const fileToUpload = await compressImageBeforeUpload(file);
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', fileToUpload);
 
   const result = await api.upload<UploadedMedia>('/api/media/upload', formData, {
     signal: options.signal,

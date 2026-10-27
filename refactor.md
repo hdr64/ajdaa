@@ -73,3 +73,26 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
     - **Security & Access (الأمان والتحقق)**: Security health banner (emerald protected status or amber recommendation), Two-Step Login OTP (with 2-step email verification modal), Authenticator App (TOTP), Passkeys (WebAuthn), and Change Password.
     - **Preferences (التفضيلات)**: Integrated confirmation dialog choices (`ConfirmChoicesCard`).
 
+## Automatic Project Booking Detection & Lightweight Data Upload (owner, 2026-10-27)
+- **Automatic "محجوز" / "محجوز بالكامل" Detection**:
+  - The booking and availability status under a project is now detected automatically from the live state of its units across all floors, eliminating manual entry of "محجوز" in the project edit form:
+    - If `totalUnits === 1` and the unit is `reserved` -> status is automatically `محجوز` (Reserved) with `isBooked: true`. If `rented` -> `مؤجر`, if `sold` -> `مباع`.
+    - If `totalUnits > 1` and all units are unavailable (`available === 0`) -> status is automatically `محجوز بالكامل` (Fully Booked) with `isBooked: true` (or `مؤجر بالكامل` / `مباع بالكامل` when all rented / sold).
+    - If units are available -> status reflects availability (`متاح للتأجير`, `متاح للبيع`, or `متاح للتأجير والاستثمار`).
+    - Fallback: when a project has no unit breakdown in the database, `detectProjectStatus` and `isPropertyBooked` recognize `'محجوز'` as `isBooked: true` (previously only checked `'محجوز بالكامل'`).
+  - Implemented and wired across:
+    - Server: `server/src/services/serializers.ts` (`detectProjectStatus` and `serializeProject`).
+    - Server routes: `server/src/routes/units.routes.ts` (`syncParentProjectStatus` auto-updates `Project.status` & `statusEn` on unit patch, create, put, and delete).
+    - Client data layer: `src/data/properties.ts` (`detectProjectStatus`, `isPropertyBooked`, and `getPropertyDisplay`).
+    - Client realtime: `src/hooks/useRealtimeUnits.ts` (`applyUnitStatus` and `removeUnit` recalculate project status live on WebSocket updates).
+    - Admin UI:
+      - `src/pages/admin/sections/ProjectUnitsPanel.tsx`: optimistic status update recalculates project status immediately.
+      - `src/pages/admin/sections/ProjectShowSection.tsx`: displays auto-detected status with `(تلقائي من الوحدات)` indicator.
+      - `src/pages/admin/sections/ProjectEditSection.tsx`: displays auto-detected status banner, placeholders, and a button to reset/empty manual status to rely on automatic detection.
+    - Public UI: `src/components/common/PropertyCard.tsx`, `src/pages/ProjectDetailPage.tsx`, and `src/components/home/InteractiveProjectsMap.tsx`.
+- **Minimal Data Upload Optimization ("Upload less data as possible")**:
+  - In `src/services/mediaService.ts`, added in-browser canvas-based image optimization (`compressImageBeforeUpload`):
+    - Oversized raster images (> 400KB) are resized to max 2048px dimension and converted to WebP (0.82 quality) before transmission, reducing 10MB-20MB camera uploads down to ~200KB-300KB (up to 98% bandwidth reduction).
+    - GIFs, SVGs, and PDFs remain unaltered.
+  - Status updates (`PATCH /api/units/:id/status`) transfer only the minimal payload `{ status }` (< 30 bytes) while automatically synchronizing the parent project's state.
+

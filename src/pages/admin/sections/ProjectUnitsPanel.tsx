@@ -7,6 +7,7 @@ import { useAdmin } from '../adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { EmptyState } from '../../../components/admin/common/EmptyState';
 import { useFloorPlanEditor } from '../../../components/admin/floorplan/useFloorPlanEditor';
+import { detectProjectStatus } from '../../../data/properties';
 import { UNIT_STATUS_LABELS_AR, UNIT_STATUS_KEYS } from '../projectLabels';
 
 const STATUSES: UnitStatus[] = ['available', 'reserved', 'rented', 'sold'];
@@ -126,21 +127,24 @@ export const ProjectUnitsPanel: React.FC<{ project: Property }> = ({ project }) 
     const previousStatus = unit.status;
     const setUnitStatus = (next: UnitStatus) =>
       projects.setData((list) =>
-        list.map((p) =>
-          p.id !== project.id
-            ? p
-            : {
-                ...p,
-                floors: (p.floors ?? []).map((f) => ({
-                  ...f,
-                  units: f.units.map((u) =>
-                    u.id === unit.id
-                      ? { ...u, status: next, statusAr: UNIT_STATUS_LABELS_AR[next], statusEn: STATUS_EN[next] }
-                      : u
-                  ),
-                })),
-              }
-        )
+        list.map((p) => {
+          if (p.id !== project.id) return p;
+          const nextFloors = (p.floors ?? []).map((f) => ({
+            ...f,
+            units: f.units.map((u) =>
+              u.id === unit.id
+                ? { ...u, status: next, statusAr: UNIT_STATUS_LABELS_AR[next], statusEn: STATUS_EN[next] }
+                : u
+            ),
+          }));
+          const autoStatus = detectProjectStatus({ floors: nextFloors, priceType: p.priceType });
+          return {
+            ...p,
+            status: autoStatus.statusAr,
+            statusEn: autoStatus.statusEn,
+            floors: nextFloors,
+          };
+        })
       );
     // Optimistic; the server's realtime broadcast confirms it for every other tab.
     setUnitStatus(status);

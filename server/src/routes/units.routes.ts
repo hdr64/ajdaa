@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
-import { serializeUnit } from '../services/serializers.js';
+import { serializeUnit, detectProjectStatus } from '../services/serializers.js';
 import { buildCsv, sendCsv } from '../services/csv.js';
 import { UNIT_STATUSES, UNIT_STATUS_AR, UNIT_STATUS_EN, type UnitStatus } from '../config/constants.js';
 import { ADMINS_ROOM } from '../sockets/index.js';
@@ -119,6 +119,34 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  const syncParentProjectStatus = async (projectId: number) => {
+    try {
+      const parentProject = await prisma.project.findUnique({
+        where: { id: projectId },
+        include: {
+          floors: {
+            include: {
+              units: true,
+            },
+          },
+        },
+      });
+      if (!parentProject) return;
+      const detected = detectProjectStatus(parentProject);
+      if (parentProject.status !== detected.status || parentProject.statusEn !== detected.statusEn) {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: {
+            status: detected.status,
+            statusEn: detected.statusEn,
+          },
+        });
+      }
+    } catch (err) {
+      fastify.log.warn({ err, projectId }, 'Failed to sync project status after unit change');
+    }
+  };
+
   // Update unit status & broadcast live to all clients (Admin)
   fastify.patch(
     '/:id/status',
@@ -129,7 +157,7 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
 
       const existing = await prisma.propertyUnit.findUnique({
         where: { id },
-        include: { floor: { select: { project: { select: { publishStatus: true } } } } },
+        include: { floor: { select: { projectId: true, project: { select: { publishStatus: true } } } } },
       });
       if (!existing) {
         return reply.status(404).send({ error: 'Unit not found' });
@@ -143,6 +171,10 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
           statusEn: UNIT_STATUS_EN[status],
         },
       });
+
+      if (existing.floor?.projectId) {
+        await syncParentProjectStatus(existing.floor.projectId);
+      }
 
       const isPublished = existing.floor?.project?.publishStatus === 'published';
       broadcastStatus(updated, isPublished);
@@ -196,6 +228,10 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
+      if (floor.projectId) {
+        await syncParentProjectStatus(floor.projectId);
+      }
+
       const isPublished = floor.project?.publishStatus === 'published';
       broadcastStatus(created, isPublished);
 
@@ -213,7 +249,7 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
 
       const existing = await prisma.propertyUnit.findUnique({
         where: { id },
-        include: { floor: { select: { project: { select: { publishStatus: true } } } } },
+        include: { floor: { select: { projectId: true, project: { select: { publishStatus: true } } } } },
       });
       if (!existing) {
         return reply.status(404).send({ error: 'Unit not found' });
@@ -241,7 +277,8 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
-      if (status && status !== existing.status) {
+      if (status && status !== existing.status && existing.floor?.projectId) {
+        await syncParentProjectStatus(existing.floor.projectId);
         const isPublished = existing.floor?.project?.publishStatus === 'published';
         broadcastStatus(updated, isPublished);
       }
@@ -254,12 +291,19 @@ export const unitRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/:id', { onRequest: [authenticate, requirePermission('manageUnits')] }, async (request, reply) => {
     const { id } = statusParamsSchema.parse(request.params);
 
-    const existing = await prisma.propertyUnit.findUnique({ where: { id } });
+    const existing = await prisma.propertyUnit.findUnique({
+      where: { id },
+      include: { floor: { select: { projectId: true } } },
+    });
     if (!existing) {
       return reply.status(404).send({ error: 'Unit not found' });
     }
 
     await prisma.propertyUnit.delete({ where: { id } });
+
+    if (existing.floor?.projectId) {
+      await syncParentProjectStatus(existing.floor.projectId);
+    }
 
     // Other tabs still hold the unit in their local project state.
     fastify.io?.emit('unit_removed', { unitId: id, floorId: existing.floorId });

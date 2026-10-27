@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Property } from '../types/property';
 import type { UnitRemovedEvent, UnitStatusEvent } from '../services/propertyService';
 import { acquireSocket, releaseSocket } from '../services/realtimeSocket';
+import { detectProjectStatus } from '../data/properties';
 
 export interface RealtimeHandlers {
   onUnitStatus?: (event: UnitStatusEvent) => void;
@@ -50,26 +51,30 @@ export function useRealtimeUnits(handlers: RealtimeHandlers = {}): void {
 
 /**
  * Applies a realtime status event to a project list held in React state,
- * without refetching the whole portfolio.
+ * and automatically recalculates the project's booking status from its units.
  */
 export function applyUnitStatus(projects: Property[], event: UnitStatusEvent): Property[] {
   return projects.map((project) => {
     if (!project.floors?.some((floor) => floor.id === event.floorId)) return project;
 
+    const nextFloors = project.floors.map((floor) =>
+      floor.id !== event.floorId
+        ? floor
+        : {
+            ...floor,
+            units: floor.units.map((unit) =>
+              unit.id === event.unitId
+                ? { ...unit, status: event.status, statusAr: event.statusAr, statusEn: event.statusEn ?? undefined }
+                : unit
+            ),
+          }
+    );
+    const autoStatus = detectProjectStatus({ floors: nextFloors, priceType: project.priceType });
     return {
       ...project,
-      floors: project.floors.map((floor) =>
-        floor.id !== event.floorId
-          ? floor
-          : {
-              ...floor,
-              units: floor.units.map((unit) =>
-                unit.id === event.unitId
-                  ? { ...unit, status: event.status, statusAr: event.statusAr, statusEn: event.statusEn ?? undefined }
-                  : unit
-              ),
-            }
-      ),
+      status: autoStatus.statusAr,
+      statusEn: autoStatus.statusEn,
+      floors: nextFloors,
     };
   });
 }
@@ -78,13 +83,17 @@ export function removeUnit(projects: Property[], event: UnitRemovedEvent): Prope
   return projects.map((project) => {
     if (!project.floors?.some((floor) => floor.id === event.floorId)) return project;
 
+    const nextFloors = project.floors.map((floor) =>
+      floor.id !== event.floorId
+        ? floor
+        : { ...floor, units: floor.units.filter((unit) => unit.id !== event.unitId) }
+    );
+    const autoStatus = detectProjectStatus({ floors: nextFloors, priceType: project.priceType });
     return {
       ...project,
-      floors: project.floors.map((floor) =>
-        floor.id !== event.floorId
-          ? floor
-          : { ...floor, units: floor.units.filter((unit) => unit.id !== event.unitId) }
-      ),
+      status: autoStatus.statusAr,
+      statusEn: autoStatus.statusEn,
+      floors: nextFloors,
     };
   });
 }
