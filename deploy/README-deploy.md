@@ -524,12 +524,13 @@ directory only):
 
 ```bash
 cd /srv/ajda/app
-sudo -u postgres pg_dump -Fc -d ajda --file=/var/backups/ajda/ajda-manual-$(date -u +%Y%m%dT%H%M%SZ).dump
+mkdir -p backup
+sudo -u postgres pg_dump -Fc -d ajda > backup/ajda-manual-$(date -u +%Y%m%dT%H%M%SZ).dump
 # the dump must be readable and not empty
-sudo -u postgres pg_restore --list /var/backups/ajda/ajda-manual-*.dump | head
-ls -l /var/backups/ajda/ajda-manual-*.dump      # must be far bigger than 1 KB
+pg_restore --list backup/ajda-manual-*.dump | head
+ls -l backup/ajda-manual-*.dump      # must be far bigger than 1 KB
 # the uploads, mirrored without --delete
-sudo -u salah rsync -a /srv/ajda/app/server/uploads/ /var/backups/ajda/uploads/
+rsync -a server/uploads/ backup/uploads/
 ```
 
 **Step 2 — check out the approved commit:**

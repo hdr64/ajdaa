@@ -157,14 +157,27 @@ if [ "$TARGET" = prod ]; then
   step "Backup of production"
   confirm "Take a fresh backup now (pg_dump is read-only)?" backup
   STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-  DUMP="/var/backups/ajda/ajda-manual-$STAMP.dump"
-  sudo -u postgres pg_dump -Fc -d "$DB_NAME" --file="$DUMP"
-  sudo -u postgres pg_restore --list "$DUMP" | head -5
-  SIZE="$(stat -c %s "$DUMP")"
-  [ "$SIZE" -gt 10240 ] || { echo "Dump is suspiciously small ($SIZE bytes)." >&2; exit 1; }
+  # Backups live inside the project directory (gitignored "backup" folder) so the
+  # deploy user can write them without depending on /var/backups permissions.
+  BACKUP_DIR="$DIR/backup"
+  mkdir -p "$BACKUP_DIR"
+  DUMP="$BACKUP_DIR/ajda-manual-$STAMP.dump"
+  # pg_dump runs as the postgres OS user (peer auth, no password) but the dump file
+  # is created by THIS shell (the deploy user), so ownership stays with the deploy
+  # user. Writing through stdout plus an atomic rename avoids a half-written dump.
+  TMPDUMP="$DUMP.tmp.$$"
+  rm -f "$TMPDUMP"
+  trap 'rm -f "${TMPDUMP:-}"' EXIT
+  sudo -u postgres pg_dump -Fc -d "$DB_NAME" > "$TMPDUMP"
+  pg_restore --list "$TMPDUMP" | head -5
+  SIZE="$(stat -c %s "$TMPDUMP")"
+  [ "$SIZE" -gt 10240 ] || { rm -f "$TMPDUMP"; echo "Dump is suspiciously small ($SIZE bytes)." >&2; exit 1; }
+  mv "$TMPDUMP" "$DUMP"
+  chmod 600 "$DUMP"
   echo "Dump OK: $DUMP ($SIZE bytes)"
-  rsync -a server/uploads/ /var/backups/ajda/uploads/
-  [ -d server/private ] && rsync -a server/private/ /var/backups/ajda/private/
+  mkdir -p "$BACKUP_DIR/uploads" "$BACKUP_DIR/private"
+  rsync -a server/uploads/ "$BACKUP_DIR/uploads/"
+  [ -d server/private ] && rsync -a server/private/ "$BACKUP_DIR/private/"
 fi
 
 # --- 2. install + prisma schema (no database access) -----------------------
