@@ -12,7 +12,7 @@
  * working unchanged.
  */
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { AlertCircle, LoaderCircle, RefreshCw, X, User, Shield, Lock, Key, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, LoaderCircle, RefreshCw, X, User, Shield, Lock, Key, CheckCircle2, Pencil } from 'lucide-react';
 import type {
   AdminPermissions,
   AdminRole,
@@ -37,6 +37,7 @@ import {
   permissionsFromRole,
   toAdminRole,
   userStatusLabel,
+  calculatePermissionDiff,
 } from './usersModel';
 import type { UserRights } from './usersModel';
 import { UserCreateWizard } from './UserCreateWizard';
@@ -300,17 +301,32 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
     );
   }, [form, user, initialRoleId, initialDepartmentId]);
 
+  const [isChangingRole, setIsChangingRole] = useState(false);
   const selectedRoleOption = roleOptions.find((option) => option.value === form.roleId) ?? null;
   const selectedRole = selectedRoleOption?.role ?? null;
 
   const pickRole = (roleId: string) => {
-    if (roleId === form.roleId) return;
-    const role = roleOptions.find((option) => option.value === roleId)?.role ?? null;
+    if (roleId === form.roleId) {
+      setIsChangingRole(false);
+      return;
+    }
+    const nextRole = roleOptions.find((option) => option.value === roleId)?.role ?? null;
+    if (selectedRole && !isPermissionsEqual(form.permissions, permissionsFromRole(selectedRole))) {
+      const diff = calculatePermissionDiff(form.permissions, selectedRole);
+      const count = diff.added.length + diff.removed.length;
+      const confirmMsg = isEn
+        ? `Changing role will reset your ${count} custom permission adjustment(s) to the defaults for "${nextRole?.nameEn || nextRole?.nameAr}". Continue?`
+        : `تغيير الدور سيؤدي إلى إلغاء ${count} تعديل مخصص على الصلاحيات واستعادة الصلاحيات الافتراضية لدور "${nextRole?.nameAr || nextRole?.nameEn}". هل ترغب بالاستمرار؟`;
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+    }
     setForm((current) => ({
       ...current,
       roleId,
-      permissions: role ? permissionsFromRole(role) : current.permissions,
+      permissions: nextRole ? permissionsFromRole(nextRole) : current.permissions,
     }));
+    setIsChangingRole(false);
   };
 
   const handleRestoreRolePermissions = () => {
@@ -569,13 +585,69 @@ const UserEditTabs: React.FC<UserEditTabsProps> = ({
           </div>
         )}
 
-        <RoleCards
-          roles={roles}
-          selectedRoleId={form.roleId}
-          onSelect={pickRole}
-          canAssignSuperAdmin={canAssignSuperAdmin}
-          disabled={accessLocked}
-        />
+        <div>
+          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1.5">
+            {t('users.fieldRole')}
+          </label>
+
+          {!isChangingRole ? (
+            <div className="p-3.5 rounded-2xl bg-canvas/70 border border-muted-border/40 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black text-heading truncate">
+                      {(isEn && selectedRole?.nameEn ? selectedRole.nameEn : selectedRole?.nameAr) || user.roleAr || user.role}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20 shrink-0">
+                      {isEn ? 'Current Role' : 'الدور الحالي'}
+                    </span>
+                  </div>
+                  {selectedRole?.description && (
+                    <p className="text-[11px] text-neutral-text/60 mt-0.5 truncate">
+                      {selectedRole.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {!accessLocked && (
+                <button
+                  type="button"
+                  onClick={() => setIsChangingRole(true)}
+                  className="px-3 py-1.5 rounded-xl brand-btn-secondary text-xs font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>{isEn ? 'Change Role' : 'تغيير الدور'}</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-2xl bg-canvas/70 border border-accent/30 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-heading">
+                  {isEn ? 'Select New Role:' : 'اختر الدور الجديد:'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsChangingRole(false)}
+                  className="text-xs font-bold text-neutral-text/60 hover:text-heading cursor-pointer underline"
+                >
+                  {isEn ? 'Cancel change' : 'إلغاء التغيير'}
+                </button>
+              </div>
+              <RoleCards
+                roles={roles}
+                selectedRoleId={form.roleId}
+                onSelect={pickRole}
+                canAssignSuperAdmin={canAssignSuperAdmin}
+                disabled={accessLocked}
+              />
+            </div>
+          )}
+        </div>
 
         <div>
           <label htmlFor="edit-department" className="block text-[11px] font-bold text-neutral-text/70 mb-1">

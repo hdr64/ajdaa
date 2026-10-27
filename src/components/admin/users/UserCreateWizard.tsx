@@ -4,7 +4,7 @@
  * Step 2: Role & permissions (role cards, department, permission summary, advanced grid)
  * Step 3: Password & review (password field, generator, policy checklist, status, review card)
  */
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { LoaderCircle, AlertCircle, User, ChevronLeft } from 'lucide-react';
 import type { Role, Department, PermissionDef, AdminStatus, AdminPermissions } from '../../../types/admin';
 import { AdminStorage, type AdminUserInput } from '../../../services/adminStorage';
@@ -70,8 +70,9 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   const [serverError, setServerError] = useState<string | null>(null);
   const [serverErrorStep, setServerErrorStep] = useState<WizardStep | null>(null);
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
-  // 'invite' lets the user choose their own password from an emailed link; 'create' keeps the admin-set-password flow.
-  const [mode, setMode] = useState<'invite' | 'create'>('create');
+  // Default to 'invite' (safer default: user sets own password from emailed link)
+  const [mode, setMode] = useState<'invite' | 'create'>('invite');
+  const [duplicateEmailError, setDuplicateEmailError] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -121,6 +122,31 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     setCompletedSteps(newCompleted);
   }, [step]);
 
+  // Check email uniqueness on blur
+  const handleEmailBlur = async () => {
+    setTouchedFields((prev) => ({ ...prev, email: true }));
+    const trimmed = form.email.trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(trimmed)) {
+      setDuplicateEmailError(null);
+      return;
+    }
+    try {
+      const allUsers = await AdminStorage.getUsers();
+      const exists = allUsers.some((u) => u.email.toLowerCase() === trimmed);
+      if (exists) {
+        setDuplicateEmailError(
+          isEn
+            ? 'This email address is already registered to another user.'
+            : 'هذا البريد الإلكتروني مسجل مسبقاً لمستخدم آخر.'
+        );
+      } else {
+        setDuplicateEmailError(null);
+      }
+    } catch {
+      // Ignore background check failure
+    }
+  };
+
   // Validation per step
   const validateStep = useCallback((stepToValidate: WizardStep): Record<string, string> => {
     const errors: Record<string, string> = {};
@@ -128,6 +154,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     if (stepToValidate === 1) {
       if (form.name.trim() === '') errors.name = t('users.valNameRequired');
       if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = t('users.valEmailInvalid');
+      else if (duplicateEmailError) errors.email = duplicateEmailError;
     }
 
     if (stepToValidate === 2) {
@@ -143,12 +170,33 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     }
 
     return errors;
-  }, [form, mode, isAr, t]);
+  }, [form, mode, isAr, t, duplicateEmailError]);
 
   // Check if step is valid
   const isStepValid = useCallback((stepToCheck: WizardStep): boolean => {
     return Object.keys(validateStep(stepToCheck)).length === 0;
   }, [validateStep]);
+
+  // Dynamic helper text for footer
+  const stepHint = useMemo(() => {
+    if (step === 1) {
+      if (!form.name.trim()) return isEn ? 'Enter the full name to continue' : 'أدخل الاسم الثلاثي للمتابعة';
+      if (!EMAIL_PATTERN.test(form.email.trim())) return isEn ? 'Enter a valid email address to continue' : 'أدخل بريداً إلكترونياً صحيحاً للمتابعة';
+      if (duplicateEmailError) return duplicateEmailError;
+      return isEn ? 'Step 1 of 3: Account information' : 'الخطوة 1 من 3: البيانات الأساسية للحساب';
+    }
+    if (step === 2) {
+      if (!form.roleId) return isEn ? 'Choose a role to continue' : 'اختر دوراً وظيفياً للمتابعة';
+      return isEn ? 'Step 2 of 3: Role & permissions' : 'الخطوة 2 من 3: الدور الوظيفي والصلاحيات';
+    }
+    if (step === 3) {
+      if (mode === 'create' && !form.password) return isEn ? 'Enter a password meeting policy' : 'أدخل كلمة مرور مطابقة لسياسة الأمان';
+      return mode === 'invite'
+        ? (isEn ? 'Review details and click Send Invitation' : 'راجع البيانات ثم انقر على إرسال رابط الدعوة')
+        : (isEn ? 'Review details and click Create Account' : 'راجع البيانات ثم انقر على إنشاء الحساب');
+    }
+    return '';
+  }, [step, form.name, form.email, form.roleId, form.password, mode, duplicateEmailError, isEn]);
 
   // Handle next/back
   const goNext = useCallback(() => {
@@ -388,18 +436,27 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             type="email"
             dir="ltr"
             value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            onBlur={() => setTouchedFields((prev) => ({ ...prev, email: true }))}
-            aria-invalid={Boolean(touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()))}
-            aria-describedby={touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) ? 'email-error' : undefined}
+            onChange={(e) => {
+              setForm({ ...form, email: e.target.value });
+              if (duplicateEmailError) setDuplicateEmailError(null);
+            }}
+            onBlur={handleEmailBlur}
+            aria-invalid={Boolean((touchedFields.email && !EMAIL_PATTERN.test(form.email.trim())) || duplicateEmailError)}
+            aria-describedby={
+              (touchedFields.email && !EMAIL_PATTERN.test(form.email.trim())) || duplicateEmailError
+                ? 'email-error'
+                : undefined
+            }
             placeholder={t('users.fieldEmailPlaceholder')}
             className={`w-full px-3 py-2.5 rounded-xl bg-canvas border text-xs text-heading outline-none transition text-start ${
-              touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) ? 'border-red-500/60' : 'border-muted-border/50 focus:border-accent'
+              (touchedFields.email && !EMAIL_PATTERN.test(form.email.trim())) || duplicateEmailError
+                ? 'border-red-500/60'
+                : 'border-muted-border/50 focus:border-accent'
             }`}
           />
-          {touchedFields.email && !EMAIL_PATTERN.test(form.email.trim()) && (
+          {((touchedFields.email && !EMAIL_PATTERN.test(form.email.trim())) || duplicateEmailError) && (
             <p id="email-error" role="alert" className="mt-1 text-[10px] font-bold text-red-500">
-              {t('users.valEmailInvalid')}
+              {duplicateEmailError || t('users.valEmailInvalid')}
             </p>
           )}
         </div>
@@ -608,6 +665,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         currentStep={step}
         completedSteps={completedSteps}
         onStepClick={goToStep}
+        step3Label={mode === 'invite' ? (isEn ? 'Review & Invite' : 'مراجعة وإرسال الدعوة') : t('users.step3')}
         disabledSteps={new Set(
           [1, 2, 3].filter((s) => s > step && !completedSteps.has(s as WizardStep)) as WizardStep[]
         )}
@@ -618,8 +676,8 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       </div>
 
       <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-muted-border/30 bg-surface rounded-b-3xl">
-        <p className="text-[10px] text-neutral-text/55 hidden sm:block">
-          {t('users.dialogCreateSubtitle')}
+        <p className={`text-[11px] font-medium hidden sm:block ${!isStepValid(step) ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-text/60'}`}>
+          {stepHint}
         </p>
         <div className="flex items-center gap-2 ms-auto">
           {step > 1 && (
@@ -639,8 +697,10 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
             className="brand-btn-primary px-5 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
-            {step === 3 ? t('users.createAccount') : t('users.next')}
-            {step < 3 && <ChevronLeft className="w-3.5 h-3.5" />}
+            {step === 3
+              ? (mode === 'invite' ? (isEn ? 'Send Invitation' : 'إرسال رابط الدعوة') : t('users.createAccount'))
+              : t('users.next')}
+            {step < 3 && <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />}
           </button>
         </div>
       </div>

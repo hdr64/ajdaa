@@ -15,6 +15,7 @@ interface StepperProps {
   completedSteps: Set<WizardStep>;
   onStepClick: (step: WizardStep) => void;
   disabledSteps?: Set<WizardStep>;
+  step3Label?: string;
 }
 
 export const Stepper: React.FC<StepperProps> = ({
@@ -22,13 +23,14 @@ export const Stepper: React.FC<StepperProps> = ({
   completedSteps,
   onStepClick,
   disabledSteps = new Set(),
+  step3Label,
 }) => {
   const { t } = useAdminT();
   const steps: WizardStep[] = [1, 2, 3];
   const stepLabels: Record<WizardStep, string> = {
     1: t('users.step1'),
     2: t('users.step2'),
-    3: t('users.step3'),
+    3: step3Label || t('users.step3'),
   };
 
   return (

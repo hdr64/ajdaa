@@ -270,6 +270,55 @@ export const permissionsFromRole = (role: Role | null): AdminPermissions => {
   return permissions;
 };
 
+export const SENSITIVE_PERMISSION_KEYS = new Set<keyof AdminPermissions>([
+  'deleteProject',
+  'manageUsers',
+  'verifyUsers',
+  'exportData',
+  'manageNotifications',
+  'rollbackCms',
+]);
+
+export function isSensitivePermission(key: keyof AdminPermissions): boolean {
+  return SENSITIVE_PERMISSION_KEYS.has(key);
+}
+
+/** When a parent permission is toggled, it cascades to child permissions */
+export const PERMISSION_DEPENDENCIES: Partial<Record<keyof AdminPermissions, (keyof AdminPermissions)[]>> = {
+  manageProjects: ['viewProjects', 'createProject', 'editProject', 'deleteProject', 'publishProject', 'manageUnits'],
+  editProject: ['viewProjects'],
+  manageApplications: ['viewApplications'],
+  manageCms: ['rollbackCms', 'manageClients', 'managePastProjects'],
+};
+
+export interface PermissionDiff {
+  added: (keyof AdminPermissions)[];
+  removed: (keyof AdminPermissions)[];
+  isModified: boolean;
+}
+
+export function calculatePermissionDiff(current: AdminPermissions, role: Role | null): PermissionDiff {
+  if (!role) {
+    return { added: [], removed: [], isModified: false };
+  }
+  const rolePerms = new Set(role.permissions);
+  const isSuperAdmin = role.key === SUPER_ADMIN_ROLE_KEY;
+
+  if (isSuperAdmin) {
+    const removed = PERMISSION_KEYS.filter((key) => !current[key]);
+    return { added: [], removed, isModified: removed.length > 0 };
+  }
+
+  const added = PERMISSION_KEYS.filter((key) => current[key] && !rolePerms.has(key));
+  const removed = PERMISSION_KEYS.filter((key) => !current[key] && rolePerms.has(key));
+
+  return {
+    added,
+    removed,
+    isModified: added.length > 0 || removed.length > 0,
+  };
+}
+
 export interface PermissionGroup {
   key: string;
   label: string;
@@ -291,6 +340,32 @@ export function groupPermissions(definitions: PermissionDef[]): PermissionGroup[
     label: groupLabelMap[key] ?? key,
     items,
   }));
+}
+
+export function summarizePermissions(
+  permissions: AdminPermissions,
+  definitions: PermissionDef[],
+  isEn: boolean
+): { totalCount: number; categoryBreakdown: string } {
+  const activeKeys = PERMISSION_KEYS.filter((key) => permissions[key]);
+  const totalCount = activeKeys.length;
+  if (totalCount === 0) {
+    return { totalCount: 0, categoryBreakdown: isEn ? 'No permissions granted' : 'لا توجد أي صلاحيات' };
+  }
+
+  const groups = groupPermissions(definitions);
+  const parts: string[] = [];
+  for (const group of groups) {
+    const activeInGroup = group.items.filter((item) => permissions[item.key as keyof AdminPermissions]).length;
+    if (activeInGroup > 0) {
+      parts.push(`${group.label} (${activeInGroup})`);
+    }
+  }
+
+  return {
+    totalCount,
+    categoryBreakdown: parts.join(' · '),
+  };
 }
 
 /* ------------------------------------------------------------------ *

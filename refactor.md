@@ -96,3 +96,32 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
     - GIFs, SVGs, and PDFs remain unaltered.
   - Status updates (`PATCH /api/units/:id/status`) transfer only the minimal payload `{ status }` (< 30 bytes) while automatically synchronizing the parent project's state.
 
+## Admin User & Role Management UI/UX Redesign (from tmp/user, 2026-10-27)
+- **Role Cards (`RoleCards.tsx`)**:
+  - Converted the layout to a balanced 2×2 grid (`grid-cols-1 sm:grid-cols-2`), eliminating orphan cards.
+  - Replaced the repetitive "م" avatar with distinctive, role-specific icons:
+    - Super Admin: gold `ShieldCheck`.
+    - Project & Development Manager: blue `Building2`.
+    - Sales & Leasing Agent: emerald `TrendingUp`.
+    - Investment Analyst / Viewer: purple `BarChart3`.
+  - Allowed role names to wrap naturally over up to 2 lines without truncation ellipsis.
+  - Super Admin counter now accurately shows "كل الـ 18 صلاحية" ("All 18 permissions") on one line.
+  - Added integrated capability previews ("✓ Can / ✕ Cannot") directly on each role card so admins don't need to open advanced permissions to understand a role.
+  - Added confirmation guard when selecting the Super Admin role.
+- **Permissions Grid (`PermissionGrid.tsx`)**:
+  - Moved the expand/collapse toggle from a floating pill at the bottom into the section header, eliminating card overlap and bottom clipping.
+  - Replaced the large collapsed-state blank space with a clean, informative summary card displaying active count and category breakdown (e.g. `4 من 18: المشاريع (3) · طلبات الاهتمام (1)`).
+  - Added group-level checkboxes with indeterminate states and `(x/y)` counts for instant group selection.
+  - Added parent-child cascading logic (`manageProjects` automatically selects and enforces all project sub-permissions; edit implies view).
+  - Added `حساس` (`Sensitive`) indicator badges for critical actions (`deleteProject`, `manageUsers`, `exportData`, etc.).
+  - Added detailed diff tags showing `+X مضافة` and `-Y مستبعدة عن الدور` with a direct "استعادة الافتراضي" (Reset to role defaults) action.
+- **Creation Wizard (`UserCreateWizard.tsx` & `Stepper.tsx`)**:
+  - Defaulted creation mode to `invite` (safer security posture: users set their own password via emailed link).
+  - Added dynamic Step 3 label: "مراجعة وإرسال الدعوة" ("Review & Invite") when in invite mode.
+  - Added instant duplicate email validation on field blur (`handleEmailBlur`), warning admins immediately instead of waiting for final submit.
+  - Added dynamic footer helper text (`stepHint`) that clearly explains why the "Next" button is disabled on each step.
+- **Edit Dialog (`UserFormDialog.tsx`)**:
+  - Replaced two rows of role cards in edit mode with a compact current role card and a "تغيير الدور" (Change Role) toggle, preventing Department and Permissions from being pushed off-screen.
+  - Added confirmation guard when switching roles if custom permissions exist, warning how many modifications will be reset.
+  - Updated footer copy to accurately state that changes take effect when saved and are recorded in the audit log.
+
