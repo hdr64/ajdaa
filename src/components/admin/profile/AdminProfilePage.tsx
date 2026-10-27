@@ -19,8 +19,8 @@ import {
   Clock,
   Shield,
   Sparkles,
-  Fingerprint,
-  Smartphone,
+  // Fingerprint,
+  // Smartphone,
   Copy,
   Check,
 } from 'lucide-react';
