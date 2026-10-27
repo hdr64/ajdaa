@@ -41,7 +41,7 @@ const createNoteSchema = z.object({
     }),
   adminName: z.string().trim().max(MAX_TITLE_LENGTH).optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']).optional().default('medium'),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const updateNoteSchema = z.object({

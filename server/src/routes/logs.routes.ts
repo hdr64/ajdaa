@@ -596,7 +596,7 @@ export const logsRoutes: FastifyPluginAsync = async (fastify) => {
     source: z.string().trim().max(100).optional().default('frontend'),
     url: z.string().trim().max(1000).optional(),
     stack: z.string().trim().max(5000).optional(),
-    context: z.record(z.unknown()).optional(),
+    context: z.record(z.string(), z.unknown()).optional(),
   });
 
   fastify.post(

@@ -1,7 +1,7 @@
-import type { ZodType, ZodTypeDef } from 'zod';
+import type { ZodType } from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
-export function validateBody<S extends ZodType<unknown, ZodTypeDef, unknown>>(
+export function validateBody<S extends ZodType>(
   schema: S
 ) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | void> => {

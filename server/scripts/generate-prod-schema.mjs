@@ -8,12 +8,12 @@ const prodSchemaPath = path.join(__dirname, '..', 'prisma', 'schema.postgresql.p
 
 const schema = readFileSync(schemaPath, 'utf8');
 
-const prodSchema = schema
-  .replace(
-    // `[^\n]*` also swallows the carriage return of a CRLF checkout.
-    /provider = "sqlite" \/\/[^\n]*\n/,
-    'provider = "postgresql"    // GENERATED for production (npm run db:gen:prod)\n'
-  )
+// Dev schema uses the SQLite provider; production needs PostgreSQL. The dev
+// schema has no trailing comment, so match the bare provider line as well.
+const prodSchema = schema.replace(
+  /provider = "sqlite"/,
+  'provider = "postgresql"'
+);
 
 writeFileSync(prodSchemaPath, prodSchema);
 

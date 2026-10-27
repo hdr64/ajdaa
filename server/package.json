@@ -24,7 +24,9 @@
     "@fastify/multipart": "^9.0.1",
     "@fastify/rate-limit": "^11.2.0",
     "@fastify/static": "^10.1.7",
-    "@prisma/client": "^6.19.3",
+    "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "@simplewebauthn/server": "^14.0.3",
     "bcryptjs": "^3.0.2",
     "bullmq": "^6.3.10",
@@ -32,15 +34,16 @@
     "fastify": "^5.2.1",
     "ioredis": "^6.0.0",
     "nodemailer": "^10.0.12",
+    "pg": "^8.13.1",
     "sharp": "^0.35.5",
     "socket.io": "^4.8.1",
-    "zod": "^3.24.2"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.13.4",
     "@types/nodemailer": "^8.0.2",
-    "prisma": "^6.19.3",
+    "prisma": "^7.10.1",
     "socket.io-client": "^4.8.4",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
@@ -48,10 +51,11 @@
   },
   "allowScripts": {
     "sharp@0.33.5": true,
-    "@prisma/engines@6.19.3": true,
     "esbuild@0.28.2": true,
-    "@prisma/client@6.19.3": true,
+    "@prisma/client@7.10.1": true,
+    "better-sqlite3@12.11.1": true,
     "msgpackr-extract@3.0.4": true,
-    "prisma@6.19.3": true
+    "@prisma/engines@7.10.1": true,
+    "prisma@7.10.1": true
   }
 }

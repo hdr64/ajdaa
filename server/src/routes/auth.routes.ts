@@ -63,13 +63,13 @@ const passkeyRegisterOptionsSchema = z.object({
 });
 
 const passkeyRegisterVerifySchema = z.object({
-  response: z.record(z.unknown()),
+  response: z.record(z.string(), z.unknown()),
   name: z.string().trim().max(60).optional(),
 });
 
 const passkeyLoginVerifySchema = z.object({
   challengeId: z.string().trim().min(1),
-  response: z.record(z.unknown()),
+  response: z.record(z.string(), z.unknown()),
 });
 
 const passkeyRenameSchema = z.object({
@@ -237,7 +237,7 @@ const createUserSchema = z.object({
   roleAr: z.string().optional(),
   department: z.string().nullish(),
   departmentId: z.string().nullish(),
-  permissions: z.record(z.boolean()).optional(),
+  permissions: z.record(z.string(), z.boolean()).optional(),
   // Create mode only: the admin-typed password is emailed in a separated block
   // and never written to the queue or any log. Rejected with `invite`.
   sendPasswordInEmail: z.boolean().optional().default(false),
@@ -254,7 +254,7 @@ const updateUserSchema = z
     roleAr: z.string().optional(),
     department: z.string().nullish(),
     departmentId: z.string().nullish(),
-    permissions: z.record(z.boolean()).optional(),
+    permissions: z.record(z.string(), z.boolean()).optional(),
     status: z.enum(['active', 'suspended']).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
@@ -2296,7 +2296,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       let resolvedRoleKey: string = body.role ?? 'sales_agent';
       let resolvedRoleAr: string = body.roleAr ?? 'مسؤول مبيعات';
       let resolvedRoleId: string | null = null;
-      let resolvedPermissions: Record<string, boolean> = body.permissions ?? {};
+      let resolvedPermissions: Record<string, boolean> = (body.permissions ?? {}) as Record<string, boolean>;
 
       if (body.roleId) {
         const roleRecord = await prisma.role.findUnique({ where: { id: body.roleId } });
@@ -2528,7 +2528,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       let resolvedRoleKey: string | undefined = body.role;
       let resolvedRoleAr: string | undefined = body.roleAr;
       let resolvedRoleId: string | null | undefined = body.roleId;
-      let resolvedPermissions: Record<string, boolean> | undefined = body.permissions;
+      let resolvedPermissions: Record<string, boolean> | undefined = body.permissions as Record<string, boolean> | undefined;
 
       if (body.roleId !== undefined) {
         if (body.roleId) {
