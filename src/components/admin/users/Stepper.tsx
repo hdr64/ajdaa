@@ -80,7 +80,7 @@ export const Stepper: React.FC<StepperProps> = ({
             {showConnector && (
               <div
                 className={`
-                  hidden sm:block w-16 h-0.5 shrink-0 self-center mx-1 transition-colors
+                  hidden sm:block w-8 h-0.5 rounded-full shrink-0 self-center mx-1.5 transition-colors
                   ${completedSteps.has(steps[index + 1]) || (isCompleted && index < steps.length - 1)
                     ? 'bg-emerald-500'
                     : 'bg-muted-border/30'}

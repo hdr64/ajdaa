@@ -1,9 +1,12 @@
 /**
  * Role cards for selecting a role in the wizard/edit dialog.
- * Shows distinct role icons, wrapped names, role description, permission count,
- * and a clear summary of what the role can and cannot do.
+ * Redesigned as sleek, minimal, expandable cards:
+ * - Default/collapsed state shows minimal data: radio indicator, role icon,
+ *   concise title, 1-line summary tagline, permission count pill, and expand toggle.
+ * - Hidden details (full description, symmetrical highlights, scope) are tucked
+ *   inside and smoothly revealed upon expanding.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Check,
   ShieldCheck,
@@ -11,6 +14,7 @@ import {
   TrendingUp,
   BarChart3,
   UserCheck,
+  ChevronDown,
 } from 'lucide-react';
 import type { Role } from '../../../types/admin';
 import { PERMISSION_KEYS, SUPER_ADMIN_ROLE_KEY } from './usersModel';
@@ -24,46 +28,105 @@ interface RoleCardsProps {
   disabled?: boolean;
 }
 
+const ROLE_TITLES: Record<string, { ar: string; en: string }> = {
+  super_admin: {
+    ar: 'مدير عام النظام',
+    en: 'Super Admin',
+  },
+  project_manager: {
+    ar: 'مدير التطوير والمشاريع',
+    en: 'Development & Projects Manager',
+  },
+  sales_agent: {
+    ar: 'مسؤول تأجير ومبيعات',
+    en: 'Sales & Leasing Agent',
+  },
+  viewer: {
+    ar: 'محلل استثماري ومتابع',
+    en: 'Investment & Reports Analyst',
+  },
+};
+
+const ROLE_SUBTITLES: Record<string, { ar: string; en: string }> = {
+  super_admin: {
+    ar: 'صلاحيات كاملة وشاملة للنظام',
+    en: 'Full unrestricted system access',
+  },
+  project_manager: {
+    ar: 'إدارة المشاريع والمخططات والوحدات',
+    en: 'Manage projects, floors & units',
+  },
+  sales_agent: {
+    ar: 'متابعة الطلبات وتحديث حالات الوحدات',
+    en: 'Handle inquiries & unit statuses',
+  },
+  viewer: {
+    ar: 'استعراض المشاريع والتقارير (قراءة فقط)',
+    en: 'Read-only access to projects & reports',
+  },
+};
+
+const ROLE_DESCRIPTIONS: Record<string, { ar: string; en: string }> = {
+  super_admin: {
+    ar: 'صلاحيات كاملة وشاملة لإدارة النظام والإعدادات والمستخدمين',
+    en: 'Full unrestricted access to system settings, users, and audit logs',
+  },
+  project_manager: {
+    ar: 'إدارة دورة حياة المشاريع والمخططات المعمارية والوحدات العقارية',
+    en: 'Manage development projects, floor plans, and real estate units',
+  },
+  sales_agent: {
+    ar: 'متابعة وتحديث حالات الوحدات والتعامل مع طلبات واستفسارات العملاء',
+    en: 'Handle inquiries, track leads, and update leasing or sale statuses',
+  },
+  viewer: {
+    ar: 'استعراض المشاريع ومتابعة التقارير ومؤشرات الأداء دون تعديل',
+    en: 'Read-only access to view projects, analytics, and performance reports',
+  },
+};
+
 function getRoleBadge(roleKey: string, isSuperAdmin: boolean) {
   if (isSuperAdmin || roleKey === 'super_admin') {
     return {
-      icon: <ShieldCheck className="w-5 h-5 text-amber-500 shrink-0" />,
+      icon: <ShieldCheck className="w-4.5 h-4.5 text-amber-500 shrink-0" />,
       bg: 'bg-amber-500/15 border-amber-500/30 text-amber-500',
     };
   }
   if (roleKey === 'project_manager') {
     return {
-      icon: <Building2 className="w-5 h-5 text-blue-500 shrink-0" />,
+      icon: <Building2 className="w-4.5 h-4.5 text-blue-500 shrink-0" />,
       bg: 'bg-blue-500/15 border-blue-500/30 text-blue-500',
     };
   }
   if (roleKey === 'sales_agent') {
     return {
-      icon: <TrendingUp className="w-5 h-5 text-emerald-500 shrink-0" />,
+      icon: <TrendingUp className="w-4.5 h-4.5 text-emerald-500 shrink-0" />,
       bg: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500',
     };
   }
   if (roleKey === 'viewer') {
     return {
-      icon: <BarChart3 className="w-5 h-5 text-purple-500 shrink-0" />,
+      icon: <BarChart3 className="w-4.5 h-4.5 text-purple-500 shrink-0" />,
       bg: 'bg-purple-500/15 border-purple-500/30 text-purple-500',
     };
   }
   return {
-    icon: <UserCheck className="w-5 h-5 text-accent shrink-0" />,
+    icon: <UserCheck className="w-4.5 h-4.5 text-accent shrink-0" />,
     bg: 'bg-accent/15 border-accent/30 text-accent',
   };
 }
 
-function getRoleHighlights(roleKey: string, isEn: boolean): { can: string; cant?: string } {
+function getRoleHighlights(roleKey: string, isEn: boolean): { can: string; cant: string; isPositiveSecond?: boolean } {
   if (roleKey === 'super_admin') {
     return {
       can: isEn ? 'Full unrestricted access to all data and system settings' : 'صلاحيات كاملة وغير محدودة للنظام والإعدادات',
+      cant: isEn ? 'No restrictions or permission limits applied' : 'لا توجد أي قيود أو حدود لصلاحيات هذا الدور',
+      isPositiveSecond: true,
     };
   }
   if (roleKey === 'project_manager') {
     return {
-      can: isEn ? 'Create, edit & manage projects and units' : 'إضافة وتعديل المشاريع والوحدات والأدوار',
+      can: isEn ? 'Create, edit & manage projects, units and floors' : 'إضافة وتعديل المشاريع والوحدات والأدوار',
       cant: isEn ? 'Cannot manage users or system security' : 'لا يمكنه إدارة المستخدمين أو أمان النظام',
     };
   }
@@ -75,12 +138,13 @@ function getRoleHighlights(roleKey: string, isEn: boolean): { can: string; cant?
   }
   if (roleKey === 'viewer') {
     return {
-      can: isEn ? 'Read-only access to projects and reports' : 'استعراض المشاريع والتقارير (قراءة فقط)',
+      can: isEn ? 'Read-only access to projects and analytical reports' : 'استعراض المشاريع والتقارير (قراءة فقط)',
       cant: isEn ? 'Cannot edit or modify any system data' : 'لا يملك أي صلاحيات تعديل أو إضافة',
     };
   }
   return {
     can: isEn ? 'Standard role permissions' : 'الصلاحيات المحددة للدور',
+    cant: isEn ? 'Limited to assigned role' : 'محدود بمهام الدور المحدد',
   };
 }
 
@@ -93,6 +157,19 @@ export const RoleCards: React.FC<RoleCardsProps> = ({
 }) => {
   const { t, language } = useAdminT();
   const isEn = language === 'en';
+  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (roleId: string) => {
+    setExpandedCardIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(roleId)) {
+        next.delete(roleId);
+      } else {
+        next.add(roleId);
+      }
+      return next;
+    });
+  };
 
   const filteredRoles = roles.filter((role) => {
     if (role.key === SUPER_ADMIN_ROLE_KEY && !canAssignSuperAdmin) return false;
@@ -117,90 +194,176 @@ export const RoleCards: React.FC<RoleCardsProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5" role="radiogroup" aria-label={t('users.selectRoleAria')}>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label={t('users.selectRoleAria')}>
       {filteredRoles.map((role) => {
         const isSelected = selectedRoleId === role.id;
         const isSuperAdmin = role.key === SUPER_ADMIN_ROLE_KEY;
+        const isExpanded = expandedCardIds.has(role.id);
         const permissionCount = isSuperAdmin ? PERMISSION_KEYS.length : getPermissionCount(role);
-        const roleDisplayName = isEn && role.nameEn ? role.nameEn : role.nameAr;
+
+        // Clean role title without parenthetical text
+        const roleDisplayName = ROLE_TITLES[role.key]
+          ? (isEn ? ROLE_TITLES[role.key].en : ROLE_TITLES[role.key].ar)
+          : (isEn && role.nameEn ? role.nameEn : role.nameAr.replace(/\s*\([^)]*\)/g, ''));
+
+        // One-line subtitle for minimal view
+        const roleSubtitle = ROLE_SUBTITLES[role.key]
+          ? (isEn ? ROLE_SUBTITLES[role.key].en : ROLE_SUBTITLES[role.key].ar)
+          : null;
+
+        // Localized detailed description for expanded view
+        const roleDescription = ROLE_DESCRIPTIONS[role.key]
+          ? (isEn ? ROLE_DESCRIPTIONS[role.key].en : ROLE_DESCRIPTIONS[role.key].ar)
+          : role.description;
+
         const badge = getRoleBadge(role.key, isSuperAdmin);
         const highlights = getRoleHighlights(role.key, isEn);
 
         return (
-          <button
+          <div
             key={role.id}
-            type="button"
             role="radio"
             aria-checked={isSelected}
             aria-label={roleDisplayName}
+            aria-expanded={isExpanded}
             onClick={() => handleSelectRole(role)}
-            disabled={disabled}
             className={`
-              relative p-3.5 rounded-2xl border-2 transition-all text-start flex flex-col justify-between
+              group relative p-3 sm:p-3.5 rounded-2xl border-2 transition-all text-start flex flex-col justify-between
               ${isSelected
-                ? 'border-accent bg-accent/5 shadow-sm shadow-accent/10 ring-2 ring-accent/20'
+                ? 'border-accent bg-accent/5 shadow-xs ring-2 ring-accent/20'
                 : 'border-muted-border/40 bg-surface hover:border-accent/40 hover:bg-accent/5'}
               ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             `}
           >
-            {isSelected && (
-              <div className="absolute top-3 end-3 w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center shadow-xs">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
-              </div>
-            )}
+            {/* Minimal Surface Row */}
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {/* Radio Circle Indicator */}
+                <div className="shrink-0">
+                  {isSelected ? (
+                    <div className="w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center shadow-xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 rounded-full border-2 border-muted-border/50 group-hover:border-accent/50 transition-colors" />
+                  )}
+                </div>
 
-            <div>
-              <div className="flex items-start gap-3">
+                {/* Role Icon */}
                 <div
                   className={`
-                    w-10 h-10 rounded-xl flex items-center justify-center border shrink-0
+                    w-8 h-8 rounded-xl flex items-center justify-center border shrink-0
                     ${badge.bg}
                   `}
                 >
                   {badge.icon}
                 </div>
 
-                <div className="min-w-0 flex-1 pe-5">
-                  <h4 className="text-sm font-black text-heading leading-snug">
+                {/* Title & Short Subtitle */}
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs sm:text-sm font-black text-heading leading-tight truncate">
                     {roleDisplayName}
                   </h4>
-                  {role.description && (
-                    <p className="text-[11px] text-neutral-text/70 mt-1 line-clamp-2 leading-relaxed">
-                      {role.description}
+                  {roleSubtitle && (
+                    <p className="text-[10px] text-neutral-text/60 truncate mt-0.5">
+                      {roleSubtitle}
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Role Highlights (Can / Cannot do) */}
-              <div className="mt-3 text-[10px] space-y-1 bg-canvas/60 p-2.5 rounded-xl border border-muted-border/30">
-                <div className="text-emerald-700 dark:text-emerald-400 font-medium flex items-start gap-1.5">
-                  <span className="font-bold text-emerald-600">✓</span>
-                  <span className="leading-snug">{highlights.can}</span>
-                </div>
-                {highlights.cant && (
-                  <div className="text-neutral-text/60 font-medium flex items-start gap-1.5 pt-0.5">
-                    <span className="font-bold text-amber-600">✕</span>
-                    <span className="leading-snug">{highlights.cant}</span>
-                  </div>
-                )}
+              {/* End side: Permission Badge + Expand Chevron */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${
+                    isSuperAdmin
+                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                      : 'bg-canvas text-neutral-text/60 border-muted-border/30'
+                  }`}
+                >
+                  {isSuperAdmin
+                    ? t('users.allPermissionsShort')
+                    : `${permissionCount} / ${PERMISSION_KEYS.length}`}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExpand(role.id);
+                  }}
+                  title={isExpanded ? (isEn ? 'Hide details' : 'إخفاء التفاصيل') : (isEn ? 'Show details' : 'عرض التفاصيل')}
+                  aria-label={isExpanded ? (isEn ? 'Hide details' : 'إخفاء التفاصيل') : (isEn ? 'Show details' : 'عرض التفاصيل')}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    isExpanded
+                      ? 'bg-accent/10 border-accent/30 text-accent'
+                      : 'bg-canvas/60 border-muted-border/40 text-neutral-text/60 hover:text-heading hover:bg-canvas'
+                  }`}
+                >
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
               </div>
             </div>
 
-            {/* Permission count footer */}
-            <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-muted-border/25 text-[11px]">
-              <span className="font-bold text-neutral-text/80 whitespace-nowrap">
-                {isSuperAdmin
-                  ? (isEn ? `All ${PERMISSION_KEYS.length} permissions` : `كل الـ ${PERMISSION_KEYS.length} صلاحية`)
-                  : t('users.permissionsCountOf', { count: permissionCount, total: PERMISSION_KEYS.length })}
-              </span>
-              {isSuperAdmin && (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 border border-amber-500/30 whitespace-nowrap">
-                  {t('users.allPermissionsRole')}
-                </span>
-              )}
-            </div>
-          </button>
+            {/* Hidden Details (Smoothly revealed when expanded) */}
+            {isExpanded && (
+              <div
+                className="mt-3 pt-2.5 border-t border-muted-border/30 space-y-2.5 animate-in fade-in duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {roleDescription && (
+                  <p className="text-[11px] text-neutral-text/75 leading-relaxed">
+                    {roleDescription}
+                  </p>
+                )}
+
+                {/* Symmetrical Role Highlights */}
+                <div className="text-[10px] space-y-1.5 bg-canvas/60 p-2.5 rounded-xl border border-muted-border/30">
+                  <div className="text-emerald-700 dark:text-emerald-400 font-medium flex items-start gap-1.5">
+                    <span className="font-bold text-emerald-600 shrink-0">✓</span>
+                    <span className="leading-snug">{highlights.can}</span>
+                  </div>
+                  <div
+                    className={`font-medium flex items-start gap-1.5 ${
+                      highlights.isPositiveSecond
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-neutral-text/60'
+                    }`}
+                  >
+                    <span
+                      className={`font-bold shrink-0 ${
+                        highlights.isPositiveSecond ? 'text-emerald-600' : 'text-amber-600'
+                      }`}
+                    >
+                      {highlights.isPositiveSecond ? '✓' : '✕'}
+                    </span>
+                    <span className="leading-snug">{highlights.cant}</span>
+                  </div>
+                </div>
+
+                {/* Expanded Scope Footer */}
+                <div className="flex items-center justify-between text-[10px] text-neutral-text/60 pt-0.5">
+                  <span>
+                    {isSuperAdmin
+                      ? (isEn ? 'Full unrestricted access' : 'صلاحيات كاملة غير مقيدة')
+                      : (isEn ? `${permissionCount} assigned permissions` : `${permissionCount} صلاحية معتمدة للدور`)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpand(role.id);
+                    }}
+                    className="text-accent font-bold hover:underline cursor-pointer"
+                  >
+                    {isEn ? 'Collapse' : 'طي التفاصيل'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         );
       })}
     </div>

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Menu, RefreshCw } from 'lucide-react';
+import { Menu, RefreshCw, Clock } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
+import { formatRelativeTime, formatAdminDateTime } from '../../../pages/admin/adminFormat';
 import { NotificationsBell } from './NotificationsBell';
 
 interface AdminPageHeaderProps {
@@ -18,7 +19,7 @@ interface AdminPageHeaderProps {
  * squeezed on long pages.
  */
 export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitle, onOpenMenu, actionsSlotRef }) => {
-  const { realtimeConnected, refreshAll, projects, inquiries } = useAdmin();
+  const { realtimeConnected, refreshAll, projects, inquiries, lastUpdated } = useAdmin();
   const { t } = useAdminT();
   const refreshing = projects.loading || inquiries.loading;
 
@@ -50,6 +51,16 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitl
           <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
           <span className="hidden lg:inline">{realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}</span>
         </div>
+
+        {lastUpdated && (
+          <div
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-muted-border/40 bg-canvas/60 text-[11px] font-bold text-neutral-text/75"
+            title={formatAdminDateTime(lastUpdated)}
+          >
+            <Clock className="w-3.5 h-3.5 text-neutral-text/50" />
+            <span>{formatRelativeTime(lastUpdated)}</span>
+          </div>
+        )}
 
         <button
           onClick={() => void refreshAll()}

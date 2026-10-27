@@ -124,9 +124,19 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
 
   /** A number shown next to the label; `alert` ones are coloured and survive in rail mode as a dot. */
   const badgeFor = (section: AdminSection): { value: number; alert?: boolean; title?: string } | null => {
-    if (section === 'projects') return drafts > 0 ? { value: drafts, alert: true, title: t('layout.badge.drafts', { count: drafts }) } : { value: projects.data.length };
-    if (section === 'units') return totalUnits ? { value: totalUnits } : null;
-    if (section === 'inquiries') return newInquiries ? { value: newInquiries, alert: true, title: t('layout.badge.newInquiries', { count: newInquiries }) } : null;
+    if (section === 'projects') {
+      return drafts > 0
+        ? { value: drafts, alert: true, title: t('layout.badge.drafts', { count: drafts }) }
+        : { value: projects.data.length, title: `${projects.data.length} ${t('layout.nav.projects')}` };
+    }
+    if (section === 'units') {
+      return totalUnits ? { value: totalUnits, title: `${totalUnits} ${t('layout.nav.units')}` } : null;
+    }
+    if (section === 'inquiries') {
+      return newInquiries
+        ? { value: newInquiries, alert: true, title: t('layout.badge.newInquiries', { count: newInquiries }) }
+        : null;
+    }
     return null;
   };
 
@@ -203,8 +213,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
                         <span className={`flex-1 text-start truncate ${rail ? 'md:hidden' : ''}`}>{item.label}</span>
                         {badge && (
                           <span
+                            title={badge.title}
                             className={`${rail ? 'md:hidden' : ''} min-w-6 px-1.5 py-0.5 rounded-full text-[10px] font-black tabular-nums text-center ${
-                              badge.alert ? 'bg-amber-500 text-neutral-950' : 'bg-canvas border border-muted-border/40 text-neutral-text/60'
+                              badge.alert ? 'bg-amber-500 text-neutral-950 ring-1 ring-amber-400' : 'bg-canvas border border-muted-border/40 text-neutral-text/75 font-bold'
                             }`}
                           >
                             {badge.value}

@@ -154,6 +154,28 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
     onChange(next);
   };
 
+  if (!role) {
+    return (
+      <div className="pt-2 border-t border-muted-border/30">
+        <div className="p-4 rounded-2xl bg-canvas/50 border border-dashed border-muted-border/60 flex items-center gap-3 text-neutral-text/60">
+          <div className="w-8 h-8 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-muted-border/40">
+            <SlidersHorizontal className="w-4 h-4 text-neutral-text/40" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs font-bold text-heading">
+              {t('users.customPermissions')}
+            </h4>
+            <p className="text-[11px] text-neutral-text/60 mt-0.5">
+              {isEn
+                ? 'Select a job role above to view and customize its permissions'
+                : 'اختر دوراً وظيفياً أعلاه لعرض الصلاحيات الممنوحة وإمكانية تخصيصها'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isSuperAdminRole) {
     return (
       <div className="pt-2 border-t border-muted-border/30 space-y-3">
@@ -276,9 +298,8 @@ export const PermissionGrid: React.FC<PermissionGridProps> = ({
           </div>
 
           {!accessLocked && (
-            <span className="text-[11px] font-bold text-accent inline-flex items-center gap-1 shrink-0 ms-auto">
-              <span>{isEn ? 'Edit permissions' : 'تعديل الصلاحيات'}</span>
-              <ChevronDown className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-surface border border-muted-border/40 text-neutral-text/70 shrink-0 ms-auto">
+              {isEn ? 'Click to customize' : 'انقر للتخصيص'}
             </span>
           )}
         </div>

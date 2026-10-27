@@ -68,7 +68,7 @@ export const InquiriesTrendChart: React.FC<{ inquiries: CustomerInquiry[] }> = (
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h3 className="text-sm font-black text-heading">{t('charts.inquiriesTrend.title')}</h3>
-          <p className="text-[11px] text-neutral-text/60 mt-0.5">
+          <p className="text-xs text-neutral-text/75 mt-0.5">
             {t('charts.inquiriesTrend.subtitle', { weeks: WEEKS, total, thisWeek, lastWeek })}
           </p>
         </div>
@@ -86,7 +86,7 @@ export const InquiriesTrendChart: React.FC<{ inquiries: CustomerInquiry[] }> = (
       ) : (
         <div className="flex gap-2" dir="ltr">
           {/* Y axis: recessive, three ticks */}
-          <div className="flex flex-col justify-between h-44 text-[10px] text-neutral-text/50 text-end w-6 shrink-0 -mt-1.5 pb-5">
+          <div className="flex flex-col justify-between h-44 text-[11px] font-bold text-neutral-text/70 text-end w-6 shrink-0 -mt-1.5 pb-5">
             {ticks.map((tick) => (
               <span key={tick}>{tick}</span>
             ))}
@@ -128,7 +128,7 @@ export const InquiriesTrendChart: React.FC<{ inquiries: CustomerInquiry[] }> = (
                     />
                     {/* Every third week, anchored on the current one, so labels never collide on phones. */}
                     {(WEEKS - 1 - index) % 3 === 0 && (
-                      <span className="absolute -bottom-0.5 translate-y-full text-[9px] text-neutral-text/50 whitespace-nowrap">
+                      <span className="absolute -bottom-0.5 translate-y-full text-[10px] font-bold text-neutral-text/70 whitespace-nowrap">
                         {shortDate(bucket.start)}
                       </span>
                     )}
@@ -138,7 +138,7 @@ export const InquiriesTrendChart: React.FC<{ inquiries: CustomerInquiry[] }> = (
                         dir="rtl"
                       >
                         <div className="text-xs font-black text-heading">{t('charts.inquiriesTrend.requests', { count: bucket.count })}</div>
-                        <div className="text-[10px] text-neutral-text/60">{t('charts.inquiriesTrend.weekStarting', { date: shortDate(bucket.start) })}</div>
+                        <div className="text-[11px] text-neutral-text/75">{t('charts.inquiriesTrend.weekStarting', { date: shortDate(bucket.start) })}</div>
                       </div>
                     )}
                   </div>

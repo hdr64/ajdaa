@@ -125,3 +125,65 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
   - Added confirmation guard when switching roles if custom permissions exist, warning how many modifications will be reset.
   - Updated footer copy to accurately state that changes take effect when saved and are recorded in the audit log.
 
+---
+
+### Dashboard & Analytics Overhaul (`tmp/dashboard`)
+- **Action Before Analysis**:
+  - Added new `NeedsAttentionStrip` component at the very top of `OverviewSection`: immediately surfaces leads untouched for >24 hours with an alert badge and 1-click action ("متابعة الطلبات"), flags unpublished draft projects ("مراجعة المسودة"), and provides an "All clear" reassurance state when everything is on track.
+  - Reorganized dashboard layout to place the actionable Inquiries list side-by-side with the Unit Status Chart (`7:5` column ratio on large screens): leads are front and center rather than tucked away below the fold.
+  - On each inquiry row, added direct `PhoneCallLink` (`tel:`) in addition to `WhatsAppLink`, clickable project badge linking to project details, and human-readable relative time ("منذ ساعتين", "منذ 3 أيام") with full datetime tooltip. Added high-visibility warning badge for leads awaiting follow-up.
+  - Moved weekly inquiries trend chart to a dedicated bottom analytics row, eliminating stretched cards and awkward empty space.
+- **Unified & Clickable KPI Row**:
+  - Standardized structure across all 4 KPI cards: Category label with icon container, headline metric with explicit Arabic/English units ("مشروع", "وحدة", "طلب"), secondary sub-metric, and interactive micro-visual footer.
+  - Made every KPI card directly clickable with hover lift and cursor pointer (`projects`, `units`, `inquiries`).
+  - **Resolved Green Meaning Conflict**: Decoupled the occupancy card theme to Indigo/Brand while implementing a multi-status segmented progress bar (Available = Emerald, Reserved = Amber, Rented = Sky, Sold = Slate). Green now exclusively and consistently represents "Available" across all cards, charts, and maps.
+- **Unit Status & Vacancy Chart (`UnitStatusChart.tsx`)**:
+  - **Bar Total Placement**: Placed project totals directly adjacent to the end of each bar, eliminating hundreds of pixels of blank whitespace that previously separated counts on shorter bars.
+  - **Interactive Sorting**: Added sort mode switcher allowing leasing/sales teams to sort by "الأكثر شواغر (الوحدات المتاحة)" (Vacancy first), "إجمالي الوحدات", or "نسبة الإشغال".
+  - **Interactive Status Filtering**: Clicking any status badge in the legend highlights that status across all project bars and dims others.
+  - **Table View Enhancements**: Added `% المتاح` (Vacancy rate) and `% الإشغال` (Occupancy rate) per project row with direct click-through links to project details.
+- **Legibility & Contrast**:
+  - Increased font sizes and contrast for subtitles, axes, legends, and secondary text from 10px light gray to 12px/13px bold and high-contrast tokens.
+  - Simplified and clarified metadata lines.
+- **Header & Navigation Polish**:
+  - Added live "آخر تحديث" (Last updated) relative timestamp indicator with Clock icon and full datetime tooltip in `AdminPageHeader.tsx`, automatically synchronized with data refreshes and realtime updates.
+  - Added explicit tooltips and accessible labels for all 5 sidebar footer buttons (Theme, Identity Variant, Collapse/Expand, Open Live Site, Logout).
+  - Clarified sidebar badge tooltips to explain draft counts vs total units vs new inquiries.
+- **Unit Card Status Accent (`BuildingVisualizer.tsx`)**:
+  - Reduced the unit card status accent border width from `border-s-4` (4px) to `border-s-2` (2px), halving its thickness for a cleaner, modern, and sleeker appearance that eliminates the heavy visual dominance.
+
+### User Creation Wizard UI/UX Polish (`UserCreateWizard.tsx`, `RoleCards.tsx`, `Stepper.tsx`, `UserFormDialog.tsx`)
+- **Stepper Connector Line Width Halved (`Stepper.tsx`)**:
+  - Reduced the connector bar between wizard steps from `w-16` (64px) to `w-8` (32px) and added `rounded-full`, halving its width to create a proportional, balanced, and elegant stepper header.
+- **Role Cards Polish & Layout Collision Fix (`RoleCards.tsx`)**:
+  - **Clean Title Normalization**: Removed the embedded English parentheticals (e.g. `(Super Admin)`) from Arabic role names (`مدير عام النظام`) that previously caused ugly two-line wrapping like `مدير عام النظام (Super` and `(Admin`.
+  - **Bilingual Descriptions**: Replaced raw seeded English descriptions with curated, professional Arabic and English descriptions for all 4 roles.
+  - **Symmetrical 2-Row Highlights**: Balanced the highlights container across all 4 cards so that Super Admin and regular roles have exactly two harmonious rows, eliminating uneven heights.
+  - **Footer Overlap Resolution**: Replaced the 30-character badge (`تملك كل الصلاحيات بحكم الدور`) with a concise badge (`شاملة تلقائياً` / `Full Access`), completely eliminating text collision with the permission counts.
+  - **Radio Choice Indicator**: Added explicit unselected radio rings that transition to filled checkmarks upon selection for clear affordance.
+- **Department Selector Redesign (`UserCreateWizard.tsx`)**:
+  - Transformed the department selector from an awkward, vertically stacked bare input into a cohesive settings card with a `Briefcase` icon, clean title, helpful hint, and compact dropdown.
+- **Permission Customization & Guidance State (`PermissionGrid.tsx` & `UserCreateWizard.tsx`)**:
+  - Removed duplicate `<PermissionSummary>` component that previously rendered redundant summaries and chevrons.
+  - Added an informative placeholder state when no role is selected (`اختر دوراً وظيفياً أعلاه لعرض الصلاحيات الممنوحة وإمكانية تخصيصها`), preventing confusing `0 من 18 صلاحية مفعلة [✓]` displays before a role is picked.
+  - Deduplicated customize buttons so that the collapsed card acts as a single clean toggle.
+- **Strict Wizard Submission Guard (`UserCreateWizard.tsx`)**:
+  - Fixed a critical premature creation issue: previously, if the outer `<form>` triggered a submission on Step 1 or Step 2 (e.g. pressing Enter or click propagation), `handleSubmit` checked all step errors across the board; since Step 3 in invite mode required no password, all steps passed validation and immediately created the user and sent the invitation without reaching Step 3.
+  - Added an explicit guard: `if (step < 3) { goNext(); return; }` in `handleSubmit` and intercepted Enter key across all elements so premature submission is impossible.
+- **Account Setup Method Switcher in Step 3 (`UserCreateWizard.tsx`)**:
+  - Empowered the admin to choose or switch between **"إرسال رابط دعوة" (Send Invitation Link via Email)** and **"تعيين كلمة مرور الآن" (Set Account Password Now)** directly on Step 3, rather than hiding this choice exclusively in Step 1.
+  - In Password mode: renders password field, password generator, copy button, strength checklist, and optional email password checkbox.
+  - In Invite mode: displays a clean informational alert explaining that the user will set their own password via the email link.
+  - Updated the final action button: explicitly says `إرسال رابط الدعوة وإنشاء الحساب` (Send Invitation & Create Account) or `إنشاء الحساب بكلمة المرور` (Create Account with Password), ensuring user creation ONLY occurs upon explicitly clicking this final button.
+- **Expandable Role Cards Redesign (`RoleCards.tsx`)**:
+  - Redesigned role cards into compact, modern cards showing minimal data in their collapsed default state (radio selection ring, role icon, title, 1-line subtitle, permission count pill, and expand toggle chevron).
+  - Reduced default card height from ~180px to ~58px, saving over 240px of vertical modal space and keeping the entire Step 2 neatly in viewport without awkward modal scrolling.
+  - Full details (expanded description, symmetrical 2-row capability highlights, and scope footer) are cleanly revealed when clicking the expand chevron.
+  - Added `items-start` to grid container so expanding one card does not stretch or deform its neighbor.
+  - Stopped click propagation on expand toggles so admins can inspect role capabilities without inadvertently changing their selection or triggering confirmation prompts.
+- **Complete Removal of `super_admin` Role from User Creation (`UserCreateWizard.tsx`, `RoleCards.tsx`, `UserFormDialog.tsx`)**:
+  - Filtered out `super_admin` completely from assignable roles in the User Creation Wizard (`assignableRoles = useMemo(() => roles.filter((r) => r.key !== 'super_admin'), [roles])`).
+  - Enforced `canAssignSuperAdmin={false}` and removed all dead `selectedRoleIsSuperAdmin` code paths from the creation wizard (status selectors, email overrides).
+  - Added step validation and selection guards in `UserCreateWizard` so that `super_admin` cannot be selected or submitted under any circumstance.
+  - Cleaned up `UserCreateWizardProps` and `UserFormDialog.tsx` to eliminate unused props and resolve all TypeScript lint/build warnings.
+

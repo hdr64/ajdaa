@@ -180,10 +180,11 @@ export const users = defineStrings(
     groupUsers: 'المستخدمون',
     groupSettings: 'الإعدادات',
     groupCms: 'محتوى الموقع (CMS)',
-    roleSuperAdmin: 'مدير عام النظام (Super Admin)',
+    roleSuperAdmin: 'مدير عام النظام',
     roleProjectManager: 'مدير التطوير والمشاريع',
     roleSalesAgent: 'مسؤول تأجير ومبيعات',
     roleViewer: 'محلل استثماري ومتابع',
+    allPermissionsShort: 'شاملة تلقائياً',
 
     // Validation & Edit Dialog
     valNameRequired: 'الاسم الكامل مطلوب',
@@ -399,6 +400,7 @@ export const users = defineStrings(
     roleProjectManager: 'Project & Development Manager',
     roleSalesAgent: 'Sales & Leasing Agent',
     roleViewer: 'Investment Analyst / Viewer',
+    allPermissionsShort: 'Full Access',
 
     // Validation & Edit Dialog
     valNameRequired: 'Full name is required',

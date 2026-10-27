@@ -107,7 +107,7 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label={user ? t('users.dialogEditTitle', { name: user.name }) : t('users.dialogCreateTitle')}
-        className="relative w-full max-w-xl my-4 bg-surface rounded-3xl border border-muted-border/40 shadow-2xl"
+        className="relative w-full max-w-2xl my-4 bg-surface rounded-3xl border border-muted-border/40 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-muted-border/30">
           <div className="min-w-0">
@@ -164,7 +164,6 @@ export const UserFormDialog: React.FC<UserFormDialogProps> = ({
             roles={roles}
             departments={departments}
             permissions={permissions}
-            canAssignSuperAdmin={canAssignSuperAdmin}
             showToast={showToast}
             onClose={onClose}
             onSaved={onSaved}

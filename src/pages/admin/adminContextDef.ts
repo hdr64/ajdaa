@@ -51,6 +51,7 @@ export interface AdminContextValue {
   projects: AsyncResource<Property[]>;
   inquiries: AsyncResource<CustomerInquiry[]>;
   realtimeConnected: boolean;
+  lastUpdated: Date;
 
   location: AdminLocation;
   navigate: (location: AdminLocation, options?: { replace?: boolean }) => void;

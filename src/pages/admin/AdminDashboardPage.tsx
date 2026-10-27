@@ -200,10 +200,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     onConnectionChange: useCallback((connected) => setRealtimeConnected(connected), []),
   });
 
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
+
   const reloadProjects = projects.reload;
   const refreshAll = useCallback(async () => {
     try {
       await Promise.all([reloadProjects(), canViewInquiries ? reloadInquiries() : Promise.resolve()]);
+      setLastUpdated(new Date());
       showToast(t('dashboard.toast.refreshed'));
     } catch (error) {
       showToast(getErrorMessage(error, t('dashboard.toast.refreshFailed')), 'error');
@@ -317,6 +320,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       projects,
       inquiries,
       realtimeConnected,
+      lastUpdated,
       location,
       navigate,
       showToast,
@@ -328,7 +332,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       refreshUser,
       setCurrentUser,
     }),
-    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, location, navigate, showToast, confirm, confirmDelete, skipConfirm, setSkipConfirm, refreshAll, refreshUser]
+    [currentUser, can, isSuperAdmin, projects, inquiries, realtimeConnected, lastUpdated, location, navigate, showToast, confirm, confirmDelete, skipConfirm, setSkipConfirm, refreshAll, refreshUser]
   );
 
   const renderSection = () => {

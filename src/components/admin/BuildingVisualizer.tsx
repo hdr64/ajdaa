@@ -409,7 +409,7 @@ export const BuildingVisualizer: React.FC<BuildingVisualizerProps> = ({
             return (
               <div
                 key={unit.id}
-                className="p-4 rounded-2xl border border-muted-border/40 bg-canvas/50 hover:border-accent/40 transition flex flex-col justify-between min-w-0 border-s-4"
+                className="p-4 rounded-2xl border border-muted-border/40 bg-canvas/50 hover:border-accent/40 transition flex flex-col justify-between min-w-0 border-s-2"
                 style={{ borderInlineStartColor: STATUS_VAR[unit.status] }}
               >
                 <div>

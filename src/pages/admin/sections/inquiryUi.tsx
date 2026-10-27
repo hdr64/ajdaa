@@ -1,7 +1,7 @@
 // Registers every admin string area first: module-scope translateAdmin calls below need them.
 import '../../../i18n/admin';
 import React, { useState } from 'react';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Phone } from 'lucide-react';
 import type { CustomerInquiry } from '../../../types/property';
 import type { InquiryStatus } from '../../../services/inquiryService';
 import { AdminStorage } from '../../../services/adminStorage';
@@ -127,6 +127,22 @@ export const WhatsAppLink: React.FC<{ phone?: string | null }> = ({ phone }) => 
       aria-label={t('inquiries.whatsapp.aria')}
     >
       <MessageCircle className="w-3.5 h-3.5" />
+    </a>
+  );
+};
+
+export const PhoneCallLink: React.FC<{ phone?: string | null }> = ({ phone }) => {
+  const { t } = useAdminT();
+  if (!phone) return null;
+  const cleanPhone = phone.replace(/[^\d+]/g, '');
+  return (
+    <a
+      href={`tel:${cleanPhone}`}
+      className="p-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 transition inline-flex items-center justify-center"
+      title={t('inquiries.action.call')}
+      aria-label={t('inquiries.action.call')}
+    >
+      <Phone className="w-3.5 h-3.5" />
     </a>
   );
 };

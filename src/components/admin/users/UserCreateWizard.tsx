@@ -5,7 +5,7 @@
  * Step 3: Password & review (password field, generator, policy checklist, status, review card)
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { LoaderCircle, AlertCircle, User, ChevronLeft } from 'lucide-react';
+import { LoaderCircle, AlertCircle, User, ChevronLeft, Briefcase, Mail, KeyRound, Check } from 'lucide-react';
 import type { Role, Department, PermissionDef, AdminStatus, AdminPermissions } from '../../../types/admin';
 import { AdminStorage, type AdminUserInput } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
@@ -23,7 +23,6 @@ import {
 } from './usersModel';
 import { Stepper, type WizardStep } from './Stepper';
 import { RoleCards } from './RoleCards';
-import { PermissionSummary } from './PermissionSummary';
 import { PermissionGrid } from './PermissionGrid';
 import { PasswordField } from './PasswordField';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
@@ -32,7 +31,6 @@ interface UserCreateWizardProps {
   roles: Role[];
   departments: Department[];
   permissions: PermissionDef[];
-  canAssignSuperAdmin: boolean;
   showToast: (message: string) => void;
   onClose: () => void;
   onSaved: () => Promise<void>;
@@ -42,7 +40,6 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   roles,
   departments,
   permissions,
-  canAssignSuperAdmin,
   showToast,
   onClose,
   onSaved,
@@ -100,14 +97,15 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     sendPasswordInEmail: false,
   });
 
+  // No one can create new super admin accounts
+  const assignableRoles = useMemo(() => {
+    return roles.filter((r) => r.key !== 'super_admin');
+  }, [roles]);
+
   // Derived state
-  const selectedRole = roles.find((r) => r.id === form.roleId) ?? null;
+  const selectedRole = assignableRoles.find((r) => r.id === form.roleId) ?? null;
   const selectedDepartment = departments.find((d) => d.id === form.departmentId) ?? null;
-  // Only super-admin accounts can be created active immediately; every other role starts pending.
-  const selectedRoleIsSuperAdmin = selectedRole?.key === 'super_admin';
-  const accountStatusLabel = selectedRoleIsSuperAdmin
-    ? (form.status === 'active' ? t('users.statusActive') : t('users.statusSuspended'))
-    : t('users.statusPending');
+  const accountStatusLabel = t('users.statusPending');
 
   // Focus first input on step change
   useEffect(() => {
@@ -159,6 +157,9 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
 
     if (stepToValidate === 2) {
       if (!form.roleId) errors.roleId = t('users.valRoleRequired');
+      else if (selectedRole?.key === 'super_admin') {
+        errors.roleId = isEn ? 'Super Admin accounts cannot be created' : 'لا يمكن إنشاء حساب مدير عام جديد';
+      }
     }
 
     if (stepToValidate === 3) {
@@ -170,7 +171,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     }
 
     return errors;
-  }, [form, mode, isAr, t, duplicateEmailError]);
+  }, [form, mode, isAr, isEn, selectedRole?.key, t, duplicateEmailError]);
 
   // Check if step is valid
   const isStepValid = useCallback((stepToCheck: WizardStep): boolean => {
@@ -221,13 +222,14 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
 
   // Handle role selection
   const handleRoleSelect = useCallback((roleId: string) => {
-    const role = roles.find((r) => r.id === roleId) ?? null;
+    const role = assignableRoles.find((r) => r.id === roleId) ?? null;
+    if (!role || role.key === 'super_admin') return;
     setForm((prev) => ({
       ...prev,
       roleId,
-      permissions: role ? permissionsFromRole(role) : prev.permissions,
+      permissions: permissionsFromRole(role),
     }));
-  }, [roles]);
+  }, [assignableRoles]);
 
   // Handle permission change
   const handlePermissionChange = useCallback((newPermissions: AdminPermissions) => {
@@ -253,6 +255,13 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   // Submit handler
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    // STRICT GUARD: Must be on Step 3 to create a user!
+    // If Enter was pressed or continue was clicked while on Step 1 or 2, advance to next step only.
+    if (step < 3) {
+      goNext();
+      return;
+    }
 
     // Validate all steps
     const allErrors: Record<string, string> = {};
@@ -299,11 +308,8 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         departmentId,
         permissions: form.permissions,
         // Create mode only: email the typed password in a separated block. Never
-        // sent for invite mode or for a super-admin target (no mail goes to them).
-        sendPasswordInEmail:
-          mode === 'create' && !selectedRoleIsSuperAdmin ? form.sendPasswordInEmail : false,
-        // Status is only meaningful for super admins; everyone else starts pending.
-        ...(selectedRoleIsSuperAdmin ? { status: form.status } : {}),
+        // sent for invite mode.
+        sendPasswordInEmail: mode === 'create' ? form.sendPasswordInEmail : false,
       };
 
       const { mailSent } = await AdminStorage.createUser(input);
@@ -352,8 +358,9 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         }
         onClose();
       }
-      if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
-        if (!event.shiftKey && step < 3) {
+      if (event.key === 'Enter') {
+        // Prevent accidental form submission on enter key
+        if (step < 3) {
           event.preventDefault();
           goNext();
         }
@@ -361,7 +368,7 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [form, step, onClose, goNext]);
+  }, [form, step, onClose, goNext, t]);
 
   // Clear password on close
   useEffect(() => {
@@ -490,35 +497,41 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
   const renderStep2 = () => (
     <div className="space-y-5" role="tabpanel" aria-labelledby="step2-label">
       <RoleCards
-        roles={roles}
+        roles={assignableRoles}
         selectedRoleId={form.roleId}
         onSelect={handleRoleSelect}
-        canAssignSuperAdmin={canAssignSuperAdmin}
+        canAssignSuperAdmin={false}
       />
 
-      <div>
-        <label htmlFor="department" className="block text-[11px] font-bold text-neutral-text/70 mb-1">
-          {t('users.fieldDepartment')}
-        </label>
-        <select
-          id="department"
-          value={form.departmentId}
-          onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-          className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent cursor-pointer"
-        >
-          {departments.map((dept) => (
-            <option key={dept.id} value={dept.id}>
-              {isEn && dept.nameEn ? dept.nameEn : dept.nameAr}
-            </option>
-          ))}
-          <option value={NO_DEPARTMENT}>{t('users.noDepartment')}</option>
-        </select>
-        <p className="mt-1 text-[10px] text-neutral-text/55">
-          {t('users.noDeptHint')}
-        </p>
+      {/* Department Selector Card */}
+      <div className="p-3.5 rounded-2xl bg-canvas/60 border border-muted-border/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Briefcase className="w-4 h-4 text-accent shrink-0" />
+            <label htmlFor="department" className="text-xs font-black text-heading">
+              {t('users.fieldDepartment')}
+            </label>
+          </div>
+          <p className="text-[10px] text-neutral-text/60 mt-0.5">
+            {t('users.noDeptHint')}
+          </p>
+        </div>
+        <div className="sm:w-64 shrink-0">
+          <select
+            id="department"
+            value={form.departmentId}
+            onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+            className="w-full px-3 py-2 rounded-xl bg-surface border border-muted-border/50 text-xs font-bold text-heading outline-none focus:border-accent cursor-pointer transition-all shadow-xs"
+          >
+            {departments.map((dept) => (
+              <option key={dept.id} value={dept.id}>
+                {isEn && dept.nameEn ? dept.nameEn : dept.nameAr}
+              </option>
+            ))}
+            <option value={NO_DEPARTMENT}>{t('users.noDepartment')}</option>
+          </select>
+        </div>
       </div>
-
-      <PermissionSummary role={selectedRole} permissions={permissions} />
 
       <PermissionGrid
         permissions={form.permissions}
@@ -539,26 +552,88 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
     </div>
   );
 
-  // Step 3: Password & Review
+  // Step 3: Password / Invite & Review
   const renderStep3 = () => (
     <div className="space-y-5" role="tabpanel" aria-labelledby="step3-label">
+      {/* Account Setup Method Switcher: Send Invitation vs Set Password */}
+      <div>
+        <label className="block text-xs font-black text-heading mb-2">
+          {isEn ? 'Account Setup & Access Method' : 'طريقة إعداد الحساب وتسجيل الدخول'}
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label={t('users.creationMethod')}>
+          {modeOptions.map((option) => {
+            const isActive = mode === option.value;
+            const Icon = option.value === 'invite' ? Mail : KeyRound;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                onClick={() => setMode(option.value)}
+                className={`p-3.5 rounded-2xl border-2 text-start transition-all cursor-pointer flex items-start gap-3 ${
+                  isActive
+                    ? 'border-accent bg-accent/5 shadow-sm shadow-accent/10 ring-2 ring-accent/20'
+                    : 'border-muted-border/40 bg-surface hover:border-accent/40 hover:bg-accent/5'
+                }`}
+              >
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                    isActive ? 'bg-accent/15 border-accent/30 text-accent' : 'bg-canvas border-muted-border/30 text-neutral-text/60'
+                  }`}
+                >
+                  <Icon className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="block text-xs font-black text-heading">{option.title}</span>
+                    {isActive && (
+                      <span className="w-4 h-4 rounded-full bg-accent text-white flex items-center justify-center shrink-0">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <span className="block text-[10px] text-neutral-text/60 mt-1 leading-relaxed">{option.hint}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {mode === 'invite' ? (
-        <p className="text-[11px] text-neutral-text/60">
-          {t('users.inviteDesc')}
-        </p>
+        <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-start gap-3 text-sky-700 dark:text-sky-300">
+          <Mail className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="text-[11px] leading-relaxed">
+            <span className="font-bold block">
+              {isEn ? 'Invitation link will be emailed to the user' : 'سيتم إرسال رابط دعوة إلى بريد المستخدم'}
+            </span>
+            <span className="text-sky-700/80 dark:text-sky-300/80 text-[10px] mt-0.5 block">
+              {isEn
+                ? `An invitation will be sent to "${form.email || 'the user'}". They will click the link to choose and set their password upon first login.`
+                : `سيتم إرسال رابط دعوة فوري إلى «${form.email || 'بريد المستخدم'}»، ليقوم باختيار وتعيين كلمة مروره بنفسه عند أول تسجيل دخول.`}
+            </span>
+          </div>
+        </div>
       ) : (
-        <PasswordField
-          value={form.password}
-          onChange={(value) => setForm({ ...form, password: value })}
-          error={serverErrorStep === 3 ? serverError ?? undefined : undefined}
-          showPolicyChecklist={true}
-          onGenerate={handleGeneratePassword}
-          generatedPassword={form.generatedPassword}
-          hint={<>{t('users.newPasswordHint')}</>}
-        />
+        <div className="p-3.5 rounded-2xl bg-canvas/60 border border-muted-border/30 space-y-3">
+          <h4 className="text-xs font-black text-heading flex items-center gap-1.5">
+            <KeyRound className="w-3.5 h-3.5 text-accent" />
+            {isEn ? 'Set Account Password' : 'تعيين كلمة مرور الحساب'}
+          </h4>
+          <PasswordField
+            value={form.password}
+            onChange={(value) => setForm({ ...form, password: value })}
+            error={serverErrorStep === 3 ? serverError ?? undefined : undefined}
+            showPolicyChecklist={true}
+            onGenerate={handleGeneratePassword}
+            generatedPassword={form.generatedPassword}
+            hint={<>{t('users.newPasswordHint')}</>}
+          />
+        </div>
       )}
 
-      {mode === 'create' && !selectedRoleIsSuperAdmin && (
+      {mode === 'create' && (
         <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
           <label className="flex items-start gap-2 cursor-pointer">
             <input
@@ -574,24 +649,6 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
               </span>
             </span>
           </label>
-        </div>
-      )}
-
-      {/* Account status for super admin */}
-      {selectedRoleIsSuperAdmin && (
-        <div>
-          <label className="block text-[11px] font-bold text-neutral-text/70 mb-1">{t('users.fieldStatus')}</label>
-          <select
-            value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value as AdminStatus })}
-            className="w-full px-3 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent cursor-pointer"
-          >
-            <option value="active">{t('users.statusActive')}</option>
-            <option value="suspended">{t('users.statusSuspended')}</option>
-          </select>
-          <p className="mt-1 text-[10px] text-neutral-text/55">
-            {t('users.defaultActiveNotice')}
-          </p>
         </div>
       )}
 
@@ -613,6 +670,12 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           <div className="flex justify-between">
             <span className="text-neutral-text/60">{t('users.fieldPhone')}</span>
             <span className="font-bold text-heading text-start" dir="ltr">{form.phone || '—'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-text/60">{t('users.creationMethod')}</span>
+            <span className="font-bold text-heading">
+              {mode === 'invite' ? t('users.modeInviteTitle') : t('users.modeCreateTitle')}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-neutral-text/60">{t('users.fieldRole')}</span>
@@ -642,12 +705,6 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         </div>
       </div>
 
-      {!selectedRoleIsSuperAdmin && (
-        <p className="text-[10px] text-neutral-text/55">
-          {mode === 'invite' ? t('users.inviteDesc') : t('users.activateEmailDesc')}
-        </p>
-      )}
-
       {serverErrorStep === 3 && serverError && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2 text-[11px] text-red-600">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -665,7 +722,11 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
         currentStep={step}
         completedSteps={completedSteps}
         onStepClick={goToStep}
-        step3Label={mode === 'invite' ? (isEn ? 'Review & Invite' : 'مراجعة وإرسال الدعوة') : t('users.step3')}
+        step3Label={
+          mode === 'invite'
+            ? (isEn ? 'Review & Invite' : 'مراجعة وإرسال الدعوة')
+            : (isEn ? 'Password & Review' : 'كلمة المرور والمراجعة')
+        }
         disabledSteps={new Set(
           [1, 2, 3].filter((s) => s > step && !completedSteps.has(s as WizardStep)) as WizardStep[]
         )}
@@ -676,9 +737,10 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
       </div>
 
       <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-muted-border/30 bg-surface rounded-b-3xl">
-        <p className={`text-[11px] font-medium hidden sm:block ${!isStepValid(step) ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-text/60'}`}>
-          {stepHint}
-        </p>
+        <div className={`text-[11px] font-medium hidden sm:flex items-center gap-1.5 ${!isStepValid(step) ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-text/60'}`}>
+          {!isStepValid(step) && <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+          <span>{stepHint}</span>
+        </div>
         <div className="flex items-center gap-2 ms-auto">
           {step > 1 && (
             <button
@@ -698,7 +760,9 @@ export const UserCreateWizard: React.FC<UserCreateWizardProps> = ({
           >
             {saving && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
             {step === 3
-              ? (mode === 'invite' ? (isEn ? 'Send Invitation' : 'إرسال رابط الدعوة') : t('users.createAccount'))
+              ? (mode === 'invite'
+                  ? (isEn ? 'Send Invitation & Create Account' : 'إرسال رابط الدعوة وإنشاء الحساب')
+                  : (isEn ? 'Create Account with Password' : 'إنشاء الحساب بكلمة المرور'))
               : t('users.next')}
             {step < 3 && <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />}
           </button>
