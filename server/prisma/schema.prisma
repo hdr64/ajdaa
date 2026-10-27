@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite" // DEV only. Production uses postgresql via schema.postgresql.prisma (run `npm run db:gen:prod`)
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

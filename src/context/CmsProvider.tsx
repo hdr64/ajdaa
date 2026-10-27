@@ -114,10 +114,19 @@ export function CmsProvider({ children }: { children: React.ReactNode }) {
     socket.on('cms:updated', scheduleRevalidate);
     socket.on('cms:clients:updated', scheduleRevalidate);
 
+    // Listen to parent frame postMessage when in live preview iframe
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'AJDA_CMS_UPDATED') {
+        scheduleRevalidate();
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
     return () => {
       socket.off('connect', scheduleRevalidate);
       socket.off('cms:updated', scheduleRevalidate);
       socket.off('cms:clients:updated', scheduleRevalidate);
+      window.removeEventListener('message', handleMessage);
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;

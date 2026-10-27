@@ -44,13 +44,14 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
 }) => {
   const [device, setDevice] = useState<DeviceViewport>(isSplitView ? 'desktop' : 'desktop');
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
-  const [zoom, setZoom] = useState<number>(isSplitView ? 80 : 100);
+  const [zoom, setZoom] = useState<number>(100);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [justUpdated, setJustUpdated] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Handle postMessage language change to iframe
   const handleLangToggle = (nextLang: 'ar' | 'en') => {
@@ -76,25 +77,51 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Real-time flash notification when backend broadcasts CMS update
+  // Real-time flash notification & instant iframe reload when CMS is saved
   useEffect(() => {
     const socket = acquireSocket();
 
     const handleCmsUpdate = () => {
       setJustUpdated(true);
+
+      // 1. Immediately post message to the iframe to revalidate live without flicker
+      try {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: 'AJDA_CMS_UPDATED' },
+          '*'
+        );
+      } catch {
+        // Cross-origin fallback
+      }
+
+      // 2. Also increment reloadKey slightly debounced to ensure fresh server data
+      if (reloadDebounceRef.current) clearTimeout(reloadDebounceRef.current);
+      reloadDebounceRef.current = setTimeout(() => {
+        setReloadKey((k) => k + 1);
+      }, 400);
+
       if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
       updateTimerRef.current = setTimeout(() => {
         setJustUpdated(false);
       }, 2500);
     };
 
+    // Socket.io events broadcasted from backend
     socket.on('cms:updated', handleCmsUpdate);
     socket.on('cms:clients:updated', handleCmsUpdate);
+
+    // Client-side Save event broadcasted from api.ts or any CMS panel
+    const handleLocalCmsSaved = () => {
+      handleCmsUpdate();
+    };
+    window.addEventListener('ajda:cms-updated', handleLocalCmsSaved);
 
     return () => {
       socket.off('cms:updated', handleCmsUpdate);
       socket.off('cms:clients:updated', handleCmsUpdate);
+      window.removeEventListener('ajda:cms-updated', handleLocalCmsSaved);
       if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
+      if (reloadDebounceRef.current) clearTimeout(reloadDebounceRef.current);
       releaseSocket();
     };
   }, []);
@@ -106,15 +133,15 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
     switch (device) {
       case 'mobile':
         return isSplitView
-          ? 'w-[360px] h-[720px] max-h-[calc(100vh-230px)] rounded-[40px] border-[8px] border-slate-900 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto'
-          : 'w-[380px] h-[780px] max-h-[82vh] rounded-[44px] border-[10px] border-slate-900 shadow-2xl bg-canvas overflow-hidden flex flex-col relative mx-auto';
+          ? 'w-[360px] h-[720px] max-h-[calc(100vh-230px)] rounded-[40px] border-[8px] border-slate-900 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto'
+          : 'w-[380px] h-[780px] max-h-[82vh] rounded-[44px] border-[10px] border-slate-900 shadow-2xl bg-canvas overflow-hidden flex flex-col relative mx-auto my-auto';
       case 'tablet':
         return isSplitView
-          ? 'w-[720px] max-w-full h-[820px] max-h-[calc(100vh-230px)] rounded-3xl border-[8px] border-slate-900/80 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto'
-          : 'w-[768px] h-[920px] max-h-[85vh] rounded-3xl border-[8px] border-slate-900/80 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto';
+          ? 'w-[720px] max-w-full h-[820px] max-h-[calc(100vh-230px)] rounded-3xl border-[8px] border-slate-900/80 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto'
+          : 'w-[768px] h-[920px] max-h-[85vh] rounded-3xl border-[8px] border-slate-900/80 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto';
       case 'desktop':
       default:
-        return 'w-full h-full rounded-2xl border border-muted-border/40 shadow-xl bg-canvas overflow-hidden flex flex-col';
+        return 'w-full h-full rounded-none border-0 shadow-none bg-canvas overflow-hidden flex flex-col';
     }
   };
 
@@ -314,11 +341,15 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
       </header>
 
       {/* Main Preview Container */}
-      <div className="flex-1 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden relative bg-black/5 dark:bg-black/30">
+      <div
+        className={`flex-1 flex items-center justify-center overflow-hidden relative ${
+          device === 'desktop' ? 'p-0 bg-canvas' : 'p-2 sm:p-3 bg-black/5 dark:bg-black/30'
+        }`}
+      >
         <div
           className={`${getContainerStyles()} transition-all duration-300`}
           style={{
-            transform: zoom !== 100 ? `scale(${zoom / 100})` : 'none',
+            transform: zoom !== 100 && device !== 'desktop' ? `scale(${zoom / 100})` : 'none',
             transformOrigin: 'top center',
           }}
         >

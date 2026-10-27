@@ -9,6 +9,27 @@ const seedProjects = seedModule.properties;
 
 const prisma = new PrismaClient();
 
+const SUPER_ADMIN_PERMISSIONS = {
+  manageProjects: true,
+  viewProjects: true,
+  createProject: true,
+  editProject: true,
+  deleteProject: true,
+  publishProject: true,
+  manageCms: true,
+  manageClients: true,
+  managePastProjects: true,
+  rollbackCms: true,
+  manageUnits: true,
+  viewInquiries: true,
+  viewApplications: true,
+  manageApplications: true,
+  exportData: true,
+  manageUsers: true,
+  verifyUsers: true,
+  manageNotifications: true,
+};
+
 const ADMIN_USERS = [
   {
     email: 'admin@ajdaa.sa',
@@ -16,14 +37,7 @@ const ADMIN_USERS = [
     role: 'super_admin',
     roleAr: 'مدير عام النظام (Super Admin)',
     department: 'الإدارة التنفيذية',
-    permissions: {
-      manageProjects: true,
-      manageUnits: true,
-      viewInquiries: true,
-      exportData: true,
-      manageUsers: true,
-      verifyUsers: true,
-    },
+    permissions: SUPER_ADMIN_PERMISSIONS,
   },
     {
     email: 'dev@ajdaa.sa',
@@ -49,14 +63,7 @@ const FIXTURE_ADMIN_USERS = [
     role: 'super_admin',
     roleAr: 'مدير عام النظام (Super Admin)',
     department: 'الإدارة التنفيذية',
-    permissions: {
-      manageProjects: true,
-      manageUnits: true,
-      viewInquiries: true,
-      exportData: true,
-      manageUsers: true,
-      verifyUsers: true,
-    },
+    permissions: SUPER_ADMIN_PERMISSIONS,
   },
   {
     email: 'f.sudairy@ajdaa.sa',
@@ -187,17 +194,7 @@ const SEED_ROLES = [
     nameAr: 'مدير عام النظام (Super Admin)',
     nameEn: 'Super Admin',
     description: 'Full system access and user management',
-    permissions: JSON.stringify([
-      'manageProjects',
-      'manageUnits',
-      'viewInquiries',
-      'viewApplications',
-      'manageApplications',
-      'managePastProjects',
-      'exportData',
-      'manageUsers',
-      'verifyUsers',
-    ]),
+    permissions: JSON.stringify(Object.keys(SUPER_ADMIN_PERMISSIONS)),
     isSystem: true,
     sortOrder: 1,
   },
@@ -322,6 +319,7 @@ async function seedAdminUsers(adminPassword: string): Promise<void> {
         department: user.department,
         name: user.name,
         permissions: JSON.stringify(user.permissions),
+        loginOtpEnabled: false,
       },
       create: {
         email: user.email,
@@ -334,6 +332,7 @@ async function seedAdminUsers(adminPassword: string): Promise<void> {
         departmentId,
         permissions: JSON.stringify(user.permissions),
         status: 'active',
+        loginOtpEnabled: false,
         // Seeded accounts predate the email-verification flow: treat them as
         // already verified so they are not locked out by the new rule.
         emailVerifiedAt: new Date(),

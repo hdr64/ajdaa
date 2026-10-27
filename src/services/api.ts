@@ -238,6 +238,11 @@ async function request<T>(method: string, path: string, body?: unknown, options:
     throw apiError;
   }
 
+  // Broadcast client-side CMS update event when any CMS mutation succeeds
+  if (typeof window !== 'undefined' && method !== 'GET' && path.includes('/cms')) {
+    window.dispatchEvent(new CustomEvent('ajda:cms-updated', { detail: { path, method } }));
+  }
+
   if (response.status === 204) return undefined as T;
 
   const text = await response.text();

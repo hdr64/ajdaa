@@ -96,7 +96,7 @@ describe('2. Roles CRUD and validation', () => {
     expect(superAdminRole).toBeDefined();
     expect(superAdminRole?.isSystem).toBe(true);
     expect(superAdminRole?.userCount).toBeGreaterThanOrEqual(1);
-    expect(superAdminRole?.permissions).toHaveLength(9);
+    expect(superAdminRole?.permissions).toHaveLength(18);
     // The super admin role template carries the new permissions as well.
     expect(superAdminRole?.permissions).toEqual(
       expect.arrayContaining([
@@ -605,11 +605,23 @@ describe('8. Migration equivalence check', () => {
         expectedDepartment: 'الإدارة التنفيذية',
         expectedPerms: {
           manageProjects: true,
+          viewProjects: true,
+          createProject: true,
+          editProject: true,
+          deleteProject: true,
+          publishProject: true,
+          manageCms: true,
+          manageClients: true,
+          managePastProjects: true,
+          rollbackCms: true,
           manageUnits: true,
           viewInquiries: true,
+          viewApplications: true,
+          manageApplications: true,
           exportData: true,
           manageUsers: true,
           verifyUsers: true,
+          manageNotifications: true,
         },
       },
       {
