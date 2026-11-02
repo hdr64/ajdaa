@@ -1,10 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 760">
-  <style>
-    path { fill: #253746; }
-    @media (prefers-color-scheme: dark) {
-      path { fill: #ffffff; }
-    }
-  </style>
-  <path d="M205.5 273.5 L302.5 273.5 L177.5 636.5 L76.5 636.5 Z" />
-  <path d="M358.5 124.5 L456.5 124.5 L604.5 542.5 L683.5 542.5 L683.5 636.5 L537.5 636.5 Z" />
+  <rect width="760" height="760" rx="160" fill="#ffffff" stroke="rgba(0,0,0,0.08)" stroke-width="8" />
+  <path fill="#253746" d="M205.5 273.5 L302.5 273.5 L177.5 636.5 L76.5 636.5 Z" />
+  <path fill="#253746" d="M358.5 124.5 L456.5 124.5 L604.5 542.5 L683.5 542.5 L683.5 636.5 L537.5 636.5 Z" />
 </svg>
