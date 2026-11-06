@@ -2,7 +2,7 @@
 
 > You are an implementing agent (OpenCode). Skip the "FIRST ACTION" section of `CLAUDE.md`; the secrets and production rules still apply. **Never edit any `CLAUDE.md`.**
 > First action: run `Get-Date -Format "yyyy-MM-dd HH:mm:ss"` for `Started:`. Last action: the same for `Finished:`.
-> Run after `task-cms-b` is accepted (both change `cms.ts`, `cms.schema.ts`, `defaultCmsContent.ts`, `cmsService.ts`). Lowest priority of the four.
+> Run after `task-cms-b` (accepted) and before `task-seo-e` (both touch the SEO shell, `src/seo/paths.ts`, `seo.test.ts` and the docs; never run them in parallel). Admin panels use `useAdminT()` with typed AR/EN keys in `src/i18n/admin/cms.ts`, as `CmsFooterPanel`, `CmsContactPanel` and the `cms.works.featuredHint` key do; do not add Arabic literals.
 
 ## 1. Goal
 Two public pages have fixed copy: Past Works (`src/pages/PastProjectsPage.tsx` ~80-86: badge and title "أعمالنا السابقة / Past Works", subtitle, empty text) and the Careers application page (`src/pages/CareersPage.tsx` ~159-163: heading "قدّم على وظيفة" and the intro sentence, plus the success message ~140). Unlike works, clients and contact, they have no CMS section and no SEO fields. Make the copy and SEO editable, following exactly how `clientsPage` and `contact` are built.
@@ -33,7 +33,7 @@ The other three CMS prompts, career visibility settings (`CareersVisibilityPanel
 No commits, installs or `.env` edits; do not touch `deploy/`. Do not edit existing tests to fit new code. If Prisma's AI-safety guard blocks `npm --prefix server test`, stop and say so in the report; never pass a consent variable yourself. Wanted `CLAUDE.md` changes go in the report under `## CLAUDE.md proposals for Claude`. Admin UI strings must exist in Arabic and English (`docs/ADMIN-I18N.md`; follow how the panel you edit already does it).
 
 ## Gates
-`npm run lint` (baseline: 14 warnings, none new allowed), `npm run build`, `npm --prefix server run build`, `npm --prefix server test`.
+`npm run lint` (baseline: 46 warnings on 2026-11-06, none new allowed), `npm run build`, `npm --prefix server run build`, `npm --prefix server test`.
 
 ## Report
 `D:\projects\html\ajda\docs\prompts\task-cms-d-report.md`, top lines `Model:` (never guessed, `unknown` if unsure), `Started:`, `Finished:`. Then: files changed, gate results with test counts, decisions you made, what you could not verify. Claim nothing the commands did not show.

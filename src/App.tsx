@@ -88,7 +88,9 @@ interface RouteState {
 const ADMIN_PATH_RE = /\/admin(?:\/(.*))?$/i;
 
 const parsePath = (pathname: string): RouteState => {
-  const clean = pathname.replace(/\/$/, '').toLowerCase();
+  let clean = pathname.replace(/\/$/, '').toLowerCase();
+  if (clean === '/en') clean = '';
+  else if (clean.startsWith('/en/')) clean = clean.slice(3);
 
   if (clean.includes('/admin/login')) return { page: 'admin_login' };
   // Public onboarding links opened from email — no session required, so they are
@@ -115,44 +117,34 @@ const parsePath = (pathname: string): RouteState => {
   return { page: 'home' };
 };
 
-const getPathForRoute = (route: RouteState): string => {
-  const pathname = window.location.pathname;
-  // Strip any /admin/... sub-route first (it can have several segments).
-  let basePath = pathname.replace(/\/$/, '').replace(/\/admin(?:\/.*)?$/i, '');
-  ['/works', '/past-works', '/clients', '/careers', '/booking', '/register-interest', '/contact', '/admin/login', '/admin'].forEach((p) => {
-    if (basePath.endsWith(p)) {
-      basePath = basePath.slice(0, -p.length);
+const getPathForRoute = (route: RouteState, lang: 'ar' | 'en' = 'ar'): string => {
+  if (route.page.startsWith('admin')) {
+    switch (route.page) {
+      case 'admin_login':
+        return '/admin/login';
+      case 'admin_verify_email':
+        return '/admin/verify-email';
+      case 'admin_accept_invite':
+        return '/admin/accept-invite';
+      case 'admin':
+        return `/admin${route.adminPath ? `/${route.adminPath}` : ''}`;
+      default:
+        return '/admin';
     }
-  });
-
-  const projectMatch = basePath.match(/\/projects?\/[^/]+$/i);
-  if (projectMatch) {
-    basePath = basePath.replace(projectMatch[0], '');
   }
 
-  if (basePath.endsWith('/')) {
-    basePath = basePath.slice(0, -1);
-  }
-
+  const prefix = lang === 'en' ? '/en' : '';
   switch (route.page) {
     case 'home':
-      return basePath || '/';
+      return prefix || '/';
     case 'project':
-      return `${basePath}/projects/${route.projectId || 206}`;
-    case 'admin_login':
-      return `${basePath}/admin/login`;
-    case 'admin_verify_email':
-      return `${basePath}/admin/verify-email`;
-    case 'admin_accept_invite':
-      return `${basePath}/admin/accept-invite`;
-    case 'admin':
-      return `${basePath}/admin${route.adminPath ? `/${route.adminPath}` : ''}`;
+      return `${prefix}/projects/${route.projectId || 206}`;
     case 'booking':
-      return `${basePath}/booking`;
+      return `${prefix}/booking`;
     case 'pastWorks':
-      return `${basePath}/past-works`;
+      return `${prefix}/past-works`;
     default:
-      return `${basePath}/${route.page}`;
+      return `${prefix}/${route.page}`;
   }
 };
 
@@ -229,10 +221,12 @@ export function App() {
 
     if (!window.history.state?.page) {
       const initialRoute = parsePath(window.location.pathname);
+      const initialLang =
+        window.location.pathname === '/en' || window.location.pathname.startsWith('/en/') ? 'en' : 'ar';
       window.history.replaceState(
         { route: initialRoute, scrollY: window.scrollY },
         '',
-        getPathForRoute(initialRoute)
+        getPathForRoute(initialRoute, initialLang)
       );
     }
 
@@ -295,12 +289,12 @@ export function App() {
 
     const currentScrollY = window.scrollY;
     scrollPositionsRef.current[currentPage] = currentScrollY;
-    window.history.replaceState({ route, scrollY: currentScrollY }, '', getPathForRoute(route));
+    window.history.replaceState({ route, scrollY: currentScrollY }, '', getPathForRoute(route, language));
 
     runTransition(() => {
       setRoute(nextRoute);
       if (pushHistory) {
-        window.history.pushState({ route: nextRoute, scrollY: 0 }, '', getPathForRoute(nextRoute));
+        window.history.pushState({ route: nextRoute, scrollY: 0 }, '', getPathForRoute(nextRoute, language));
       }
       window.scrollTo({ top: 0, behavior: 'auto' });
     });
@@ -319,16 +313,16 @@ export function App() {
     }
   }, [route.projectId, selectedProperty]);
 
-  // Show the readable URL (`/projects/villa-riyadh-206`) once the project is known.
+  // Show the readable URL (`/projects/villa-riyadh-206` or `/en/projects/villa-riyadh-206`) once the project is known.
   // replaceState keeps the history length; the server canonical is the same path.
   useEffect(() => {
     if (currentPage !== 'project' || !selectedProperty || selectedProperty.id !== route.projectId) return;
-    const wanted = pathForPage('project', selectedProperty.id, selectedProperty.titleEn);
+    const wanted = pathForPage('project', selectedProperty.id, selectedProperty.titleEn, language);
     const here = window.location.pathname.replace(/\/$/, '');
     if (here !== wanted && /\/projects?\/[^/]+$/i.test(here)) {
-      window.history.replaceState(window.history.state, '', here.replace(/\/projects?\/[^/]+$/i, wanted));
+      window.history.replaceState(window.history.state, '', wanted);
     }
-  }, [currentPage, route.projectId, selectedProperty]);
+  }, [currentPage, route.projectId, selectedProperty, language]);
 
   // Admin sections change without the page transition; the dashboard is one screen.
   const navigateAdmin = (adminPath: string, options?: { replace?: boolean }) => {

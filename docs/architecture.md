@@ -179,6 +179,8 @@ The client-side CMS consumption pipeline is architected for zero flash of unstyl
   - **`HomePage.tsx`**: Dynamically toggles and renders 9 sections (`hero`, `about`, `services`, `process`, `projects`, `map`, `clients`, `cta`, `marquee`) based on individual `enabled` flags.
   - **`WorksPage.tsx`**: Header copy, dynamic tag filtering, process methodology cards, featured project banner, and conversion CTA.
   - **`ClientsPage.tsx`**: Hero copy, partners grouped by sector, testimonial slider/grid, and partnership CTA banner.
+  - **`PastProjectsPage.tsx`**: Header badge, title, subtitle, empty state text, and SEO metadata loaded from CMS (`pastWorks`).
+  - **`CareersPage.tsx`**: Header title, intro copy, submission success message, and SEO metadata loaded from CMS (`careers`).
 
 ---
 
@@ -358,9 +360,9 @@ The SPA has no server-side rendering, so crawlers that do not run JavaScript (Wh
 
 **Safety default:** `SEO_INDEXING` is `off` unless set to `on` (production only). Off means `Disallow: /`, an empty sitemap, `noindex, nofollow` in the meta tag and in `X-Robots-Tag`, so the test instance and local runs can never be indexed. The absolute origin always comes from `APP_URL` (production: `https://ajdaa.sa`), never from the `Host` header. All text is HTML-escaped and JSON-LD is serialised with `<`, `>`, `&` escaped, so project titles cannot inject markup (tested).
 
-**Client contract (`src/seo/`, `src/hooks/useSeo.ts`):** every tag the server injects carries `data-seo="1"`. After the first load the client hook removes all `head [data-seo]` elements and writes a fresh set on every route or language change, so there are never duplicates. Public navigation is always a real `<a href>` (`SpaLink`) that still navigates without a reload, so crawlers can follow it. English and Arabic share one URL (language lives in `localStorage`), therefore no `hreflang` is emitted.
+**Client contract (`src/seo/`, `src/hooks/useSeo.ts`):** every tag the server injects carries `data-seo="1"`. After the first load the client hook removes all `head [data-seo]` elements and writes a fresh set on every route or language change, so there are never duplicates. Public navigation is always a real `<a href>` (`SpaLink`) that still navigates without a reload, so crawlers can follow it.
 
-**Project URLs:** the canonical form is `/projects/{slug}-{id}` (e.g. `/projects/villa-riyadh-206`), or `/projects/{id}` when the project has no English title. The slug is computed at runtime from `titleEn` (`server/src/services/seo/slug.ts`, identical copy in `src/seo/slug.ts`), so **no schema change or migration is needed**. Only the trailing id selects the project; `/projects/206`, `/project/206` and a wrong slug all render the same page with the canonical tag pointing at the slug URL (no 301s). The sitemap, JSON-LD and noscript links use the canonical form, and the client rewrites the address bar with `replaceState` once the project is loaded.
+**Bilingual English routes and hreflang (`task-seo-e`):** Public English routes live at `/en` (home), `/en/{page}` (works, clients, past-works, careers, booking, contact) and `/en/projects/{slug}-{id}`. Every indexable page in both languages emits the `hreflang` trio (`ar`, `en`, `x-default` pointing to Arabic). The XML sitemap (`/sitemap.xml`) lists both languages with bidirectional `xhtml:link` entries. Admin routes are never prefixed (`/en/admin` is 404).
 
-Not done on purpose: `/en/` URLs (needs new routes, see `docs/prompts/task-seo-e-prompt.md`), build-time prerendering.
+**Project URLs:** the canonical form is `/projects/{slug}-{id}` (e.g. `/projects/villa-riyadh-206`), or `/projects/{id}` when the project has no English title. In English, it is `/en/projects/{slug}-{id}`. The slug is computed at runtime from `titleEn` (`server/src/services/seo/slug.ts`, identical copy in `src/seo/slug.ts`), so **no schema change or migration is needed**. Only the trailing id selects the project; `/projects/206`, `/project/206` and a wrong slug all render the same page with the canonical tag pointing at the slug URL (no 301s). The sitemap, JSON-LD and noscript links use the canonical form, and the client rewrites the address bar with `replaceState` once the project is loaded.
 

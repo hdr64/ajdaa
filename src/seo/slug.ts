@@ -13,7 +13,8 @@ export function slugify(titleEn: string | null | undefined): string {
   return (dash > 0 ? cut.slice(0, dash) : cut).replace(/-+$/, '');
 }
 
-export function projectPath(id: number, titleEn: string | null | undefined): string {
+export function projectPath(id: number, titleEn: string | null | undefined, lang: 'ar' | 'en' = 'ar'): string {
   const slug = slugify(titleEn);
-  return slug ? `/projects/${slug}-${id}` : `/projects/${id}`;
+  const base = slug ? `/projects/${slug}-${id}` : `/projects/${id}`;
+  return lang === 'en' ? `/en${base}` : base;
 }

@@ -56,4 +56,15 @@ Production was checked live on 2026-11-07: sitemap, robots, meta, JSON-LD and th
 - [ ] In admin, use plain searchable names: replace "أجـــدا بــــرايــــم" (stretched letters) with "أجدا برايم", and make "فلل سكنية" specific (district or project name)
 - [ ] Add an English title to projects 1, 4, 5, 7, 9, 10 for readable URLs (they currently use `/projects/<id>`)
 - [ ] Check that the project images under `/uploads/seed/...` (Al-Ahsa, Vera, Vista, Prime, Line) are the real photos, not placeholders
-- [ ] Optional: DNS record for `www.ajdaa.sa` plus a Caddy redirect to `https://ajdaa.sa` (it does not resolve now)
+- [ ] Optional: DNS record for `www.ajdaa.sa` (Caddy 301 redirect to `https://ajdaa.sa` is now configured in `deploy/Caddyfile.ajda`)
+
+## I. أسئلة للتأكيد قبل تشغيل `scripts/set-project-descriptions.sh` (2026-11-07)
+اسأل الجهة المعنية ثم أعد الإجابات لـ Claude. النصوص في `docs/seo-project-descriptions.md`، وأرقام المشاريع أُكدت من قاعدة بيانات الإنتاج (كلها موجودة).
+- [ ] **مشروع 203 (أجدا لوكس):** حقل المدينة والإحداثيات يقولان **الدمام**، لكن الوصف القديم كان يقول الرياض. أيهما الصحيح؟ (النص الجديد يستخدم الدمام)
+- [ ] **مشروع 206 (أجدا برايم):** الوصف القديم يقول إنه على **طريق الملك فهد**، وقائمة المزايا تقول قريب من **طريق أنس بن مالك**. أي طريق هو الصحيح؟ (النص الجديد لا يذكر أي طريق)
+- [ ] **مشروع 10 (الفلل):** الوصف القديم يقول **250 فيلا** بينما المساحة المسجلة **5,000 م²**. هل 250 فيلا صحيح؟ وما المساحة الصحيحة؟ وما اسم الحي أو المشروع؟ (النص الجديد يذكر 250 فيلا ولا يذكر المساحة)
+- [ ] **مشروع 207 (أجدا لاين):** المزايا تقول «قريب من مطار الملك» وهي عبارة غير واضحة. أي مطار تقصد ومتى تُذكر؟ (حُذفت من النص)
+- [ ] **كتابة الأسماء:** هل الصحيح «فندق **ألما**» أم «الما»؟ (مشروع 1) ، «عمارة السلي» بدل «عماره السلي» (مشروع 7)، «فندق **أنتور**» بدل «انتور» (مشروع 9)؟
+- [ ] **المشاريع الأقل معلومات (7 و 9 و 10):** نصوصها قصيرة. هل عندكم الحي، عدد الوحدات، سنة الإنجاز، نوع المستأجر أو المشتري إن كان معلناً؟ كلما زادت المعلومات الحقيقية أطلنا الوصف.
+- [ ] **مشروع 11 (مشروع مزدان | درايف اثرو):** مخفي ولم يُلمس. هل ينشر لاحقاً؟ إن نعم فنحتاج وصفاً له.
+- [ ] **عناوين المشاريع المقترحة بالإنجليزية** (مشاريع 1، 4، 5، 7، 9، 10): `ALMA Hotel`، `Ajda Al Kabeer Warehouses`، `Dammam Warehouses`، `Al Sulay Building`، `Antour Hotel Jazan`، `Residential Villas`. هل توافقون عليها؟

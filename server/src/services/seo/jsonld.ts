@@ -29,6 +29,7 @@ export interface ProjectSeoData {
   image: string;
   gallery: string | null;
   features: string | null;
+  featuresEn?: string | null;
   lat: number | null;
   lng: number | null;
   createdAt: Date;
@@ -71,15 +72,16 @@ export function breadcrumbs(origin: string, trail: { name: string; path: string 
   };
 }
 
-export function homeJsonLd(origin: string, site: SiteContact, description: string): Json[] {
+export function homeJsonLd(origin: string, site: SiteContact, description: string, lang: 'ar' | 'en' = 'ar'): Json[] {
   const sameAs = Object.values(site.socials).filter((url) => /^https:\/\//.test(url));
+  const isEn = lang === 'en';
   const org = compact({
     '@context': 'https://schema.org',
     '@type': 'RealEstateAgent',
     '@id': `${origin}/#org`,
-    name: BRAND_AR,
-    alternateName: BRAND_EN,
-    url: `${origin}/`,
+    name: isEn ? BRAND_EN : BRAND_AR,
+    alternateName: isEn ? BRAND_AR : BRAND_EN,
+    url: `${origin}${isEn ? '/en' : '/'}`,
     logo: `${origin}/logo.png`,
     image: `${origin}/logo.png`,
     description,
@@ -95,37 +97,43 @@ export function homeJsonLd(origin: string, site: SiteContact, description: strin
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     '@id': `${origin}/#website`,
-    url: `${origin}/`,
-    name: BRAND_AR,
+    url: `${origin}${isEn ? '/en' : '/'}`,
+    name: isEn ? BRAND_EN : BRAND_AR,
     // Spelling variants people type (no hamza, Latin): helps Google match the brand query.
-    alternateName: [BRAND_EN, 'اجدا العقارية', 'Ajda'],
-    inLanguage: 'ar',
+    alternateName: isEn ? [BRAND_AR, 'Ajda'] : [BRAND_EN, 'اجدا العقارية', 'Ajda'],
+    inLanguage: lang,
     publisher: { '@id': `${origin}/#org` },
   };
   return [org, website];
 }
 
-export function projectJsonLd(origin: string, p: ProjectSeoData, description: string): Json[] {
+export function projectJsonLd(origin: string, p: ProjectSeoData, description: string, lang: 'ar' | 'en' = 'ar'): Json[] {
   const images = [p.image, ...parseJsonArray(p.gallery).slice(0, 5)]
     .map((src) => absoluteUrl(origin, src))
     .filter((v): v is string => v !== null);
-  const path = projectPath(p.id, p.titleEn);
+  const isEn = lang === 'en';
+  const title = isEn ? (p.titleEn || p.title) : p.title;
+  const city = isEn ? (p.cityEn || p.city) : p.city;
+  const path = projectPath(p.id, p.titleEn, lang);
   const url = `${origin}${path}`;
   const hasGeo = p.lat !== null && p.lng !== null;
   const listing = compact({
     '@context': 'https://schema.org',
     '@type': 'RealEstateListing',
-    name: p.title,
+    name: title,
     description,
     url,
     image: images,
     datePosted: (p.publishedAt ?? p.createdAt).toISOString(),
     dateModified: p.updatedAt.toISOString(),
-    inLanguage: 'ar',
+    inLanguage: lang,
+    numberOfRooms: p.rooms && p.rooms > 0 ? p.rooms : undefined,
+    numberOfBathroomsTotal: p.bathrooms && p.bathrooms > 0 ? p.bathrooms : undefined,
+    floorSize: p.area > 0 ? { '@type': 'QuantitativeValue', value: p.area, unitCode: 'MTK' } : undefined,
     about: compact({
       '@type': 'Place',
-      name: p.city,
-      address: { '@type': 'PostalAddress', addressLocality: p.city, addressCountry: 'SA' },
+      name: city,
+      address: { '@type': 'PostalAddress', addressLocality: city, addressCountry: 'SA' },
       geo: hasGeo ? { '@type': 'GeoCoordinates', latitude: p.lat, longitude: p.lng } : undefined,
     }),
     offers:
@@ -136,9 +144,9 @@ export function projectJsonLd(origin: string, p: ProjectSeoData, description: st
   return [
     listing,
     breadcrumbs(origin, [
-      { name: 'الرئيسية', path: '/' },
-      { name: 'مشاريعنا', path: '/works' },
-      { name: p.title, path },
+      { name: isEn ? 'Home' : 'الرئيسية', path: isEn ? '/en' : '/' },
+      { name: isEn ? 'Our Projects' : 'مشاريعنا', path: isEn ? '/en/works' : '/works' },
+      { name: title, path },
     ]),
   ];
 }

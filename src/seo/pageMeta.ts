@@ -56,6 +56,7 @@ export interface ClientSeoMeta {
   jsonLd: Record<string, unknown>[];
   /** OpenGraph, Twitter and JSON-LD are only written for real, indexable pages. */
   social: boolean;
+  hreflang?: { ar: string; en: string; xDefault: string } | null;
 }
 
 function stripText(value: string): string {
@@ -101,6 +102,9 @@ function projectJsonLd(origin: string, project: Property, lang: Lang, name: stri
     description,
     url,
     inLanguage: lang,
+    ...(project.area > 0 ? { floorSize: { '@type': 'QuantitativeValue', value: project.area, unitCode: 'MTK' } } : {}),
+    ...(project.rooms && project.rooms > 0 ? { numberOfRooms: project.rooms } : {}),
+    ...(project.bathrooms && project.bathrooms > 0 ? { numberOfBathroomsTotal: project.bathrooms } : {}),
     about: {
       '@type': 'Place',
       name: city,
@@ -144,6 +148,7 @@ export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, proje
         canonical: null,
         robots: ROBOTS_INDEX,
         social: false,
+        hreflang: null,
       };
     }
     const isAr = lang === 'ar';
@@ -151,20 +156,29 @@ export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, proje
     const city = isAr ? project.city : project.cityEn || project.city;
     const raw = stripText((isAr ? project.description : project.descriptionEn || project.description) ?? '');
     const description = truncate(raw || `${name} — ${city}, ${project.area} m²`, 155);
+    const arPath = pathForPage('project', project.id, project.titleEn, 'ar');
+    const enPath = pathForPage('project', project.id, project.titleEn, 'en');
+    const canonical = `${origin}${isAr ? arPath : enPath}`;
+    const hreflang = {
+      ar: `${origin}${arPath}`,
+      en: `${origin}${enPath}`,
+      xDefault: `${origin}${arPath}`,
+    };
     return {
       ...base,
       title: `${name} — ${city} | ${brand}`,
       description,
-      canonical: `${origin}${pathForPage('project', project.id, project.titleEn)}`,
+      canonical,
       robots: ROBOTS_INDEX,
       image: absolute(origin, project.image) ?? image,
       imageAlt: `${name} — ${city}`,
+      hreflang,
       jsonLd: [
         projectJsonLd(origin, project, lang, name, city, description),
         breadcrumbJsonLd(origin, [
-          { name: isAr ? 'الرئيسية' : 'Home', path: '/' },
-          { name: PAGES.works[lang].title, path: '/works' },
-          { name, path: pathForPage('project', project.id, project.titleEn) },
+          { name: isAr ? 'الرئيسية' : 'Home', path: isAr ? '/' : '/en' },
+          { name: PAGES.works[lang].title, path: isAr ? '/works' : '/en/works' },
+          { name, path: isAr ? arPath : enPath },
         ]),
       ],
     };
@@ -172,18 +186,28 @@ export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, proje
 
   const copy = PAGES[page][lang];
   const isHome = page === 'home';
+  const arPath = pathForPage(page, undefined, undefined, 'ar');
+  const enPath = pathForPage(page, undefined, undefined, 'en');
+  const canonical = `${origin}${lang === 'en' ? enPath : arPath}`;
+  const hreflang = {
+    ar: `${origin}${arPath}`,
+    en: `${origin}${enPath}`,
+    xDefault: `${origin}${arPath}`,
+  };
+
   return {
     ...base,
     title: isHome ? copy.title : `${copy.title} | ${brand}`,
     description: copy.desc,
-    canonical: `${origin}${pathForPage(page)}`,
+    canonical,
     robots: ROBOTS_INDEX,
+    hreflang,
     jsonLd: isHome
       ? []
       : [
           breadcrumbJsonLd(origin, [
-            { name: lang === 'ar' ? 'الرئيسية' : 'Home', path: '/' },
-            { name: copy.title, path: pathForPage(page) },
+            { name: lang === 'ar' ? 'الرئيسية' : 'Home', path: lang === 'en' ? '/en' : '/' },
+            { name: copy.title, path: lang === 'en' ? enPath : arPath },
           ]),
         ],
   };

@@ -3,7 +3,15 @@ import { DEFAULT_CMS_CONTENT } from '../types/cms';
 import type { CmsClientItem, CmsContent, CmsSectionsPayload } from '../types/cms';
 
 /** Keys the admin can update, matching the server's `SECTION_SCHEMAS`. */
-export type CmsSectionKey = 'nav' | 'footer' | 'home' | 'works' | 'clientsPage' | 'contact';
+export type CmsSectionKey =
+  | 'nav'
+  | 'footer'
+  | 'home'
+  | 'works'
+  | 'clientsPage'
+  | 'contact'
+  | 'pastWorks'
+  | 'careers';
 
 /** Payload of the `cms:updated` socket event. */
 export interface CmsUpdatedEvent {
@@ -31,6 +39,8 @@ function withSectionDefaults(payload: Partial<CmsSectionsPayload>): CmsSectionsP
     works: payload.works ?? DEFAULT_CMS_CONTENT.works,
     clientsPage: payload.clientsPage ?? DEFAULT_CMS_CONTENT.clientsPage,
     contact: payload.contact ?? DEFAULT_CMS_CONTENT.contact,
+    pastWorks: payload.pastWorks ?? DEFAULT_CMS_CONTENT.pastWorks,
+    careers: payload.careers ?? DEFAULT_CMS_CONTENT.careers,
   };
 }
 

@@ -375,6 +375,34 @@ export interface CmsContactPageContent {
   seo?: CmsSeoMeta;
 }
 
+// -------------------------------------------------------- past works page
+
+export interface CmsPastWorksPageContent {
+  badgeAr: string;
+  badgeEn: string;
+  titleAr: string;
+  titleEn: string;
+  subtitleAr: string;
+  subtitleEn: string;
+  emptyTextAr: string;
+  emptyTextEn: string;
+  seo?: CmsSeoMeta;
+}
+
+// ----------------------------------------------------------- careers page
+
+export interface CmsCareersPageContent {
+  titleAr: string;
+  titleEn: string;
+  introAr: string;
+  introEn: string;
+  successTitleAr: string;
+  successTitleEn: string;
+  successTextAr: string;
+  successTextEn: string;
+  seo?: CmsSeoMeta;
+}
+
 // ------------------------------------------------------------- the payload
 
 /** Exactly what `GET /api/cms/content` returns. */
@@ -385,6 +413,8 @@ export interface CmsSectionsPayload {
   works: CmsWorksPageContent;
   clientsPage: CmsClientsPageContent;
   contact: CmsContactPageContent;
+  pastWorks: CmsPastWorksPageContent;
+  careers: CmsCareersPageContent;
 }
 
 /**
@@ -689,6 +719,28 @@ export const DEFAULT_CONTACT_PAGE: CmsContactPageContent = {
   ],
 };
 
+export const DEFAULT_PAST_WORKS_PAGE: CmsPastWorksPageContent = {
+  badgeAr: 'أعمالنا السابقة',
+  badgeEn: 'Past Works',
+  titleAr: 'أعمالنا السابقة',
+  titleEn: 'Our Past Works',
+  subtitleAr: 'مجموعة من المشاريع التي أنجزناها',
+  subtitleEn: 'A collection of projects we have delivered',
+  emptyTextAr: 'لا توجد أعمال سابقة حالياً',
+  emptyTextEn: 'No past works yet',
+};
+
+export const DEFAULT_CAREERS_PAGE: CmsCareersPageContent = {
+  titleAr: 'قدّم على وظيفة',
+  titleEn: 'Apply for a job',
+  introAr: 'نسعد بانضمامك إلى فريق أجدا. أرسل بياناتك وسيراجعها فريقنا.',
+  introEn: "We'd be glad to have you on the Ajda team. Send your details and our team will review them.",
+  successTitleAr: 'تم إرسال طلبك بنجاح',
+  successTitleEn: 'Application submitted successfully',
+  successTextAr: 'سنتواصل معك قريباً',
+  successTextEn: 'We will contact you soon',
+};
+
 export const DEFAULT_CLIENTS: CmsClientItem[] = [
   {
     id: 'almanea',
@@ -786,5 +838,7 @@ export const DEFAULT_CMS_CONTENT: CmsContent = {
   works: DEFAULT_WORKS_PAGE,
   clientsPage: DEFAULT_CLIENTS_PAGE,
   contact: DEFAULT_CONTACT_PAGE,
+  pastWorks: DEFAULT_PAST_WORKS_PAGE,
+  careers: DEFAULT_CAREERS_PAGE,
   clients: DEFAULT_CLIENTS,
 };

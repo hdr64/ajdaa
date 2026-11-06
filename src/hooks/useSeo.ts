@@ -41,6 +41,11 @@ export function useSeo(meta: ClientSeoMeta, origin: string, keepServerJsonLd: bo
 
     if (meta.description) add('meta', { name: 'description', content: meta.description });
     if (meta.canonical) add('link', { rel: 'canonical', href: meta.canonical });
+    if (meta.hreflang) {
+      add('link', { rel: 'alternate', hreflang: 'ar', href: meta.hreflang.ar });
+      add('link', { rel: 'alternate', hreflang: 'en', href: meta.hreflang.en });
+      add('link', { rel: 'alternate', hreflang: 'x-default', href: meta.hreflang.xDefault });
+    }
     add('meta', { name: 'robots', content: meta.robots });
 
     if (meta.social) {

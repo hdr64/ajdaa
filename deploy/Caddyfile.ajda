@@ -13,6 +13,11 @@
 #   sudo caddy validate --config /etc/caddy/Caddyfile
 #   sudo systemctl reload caddy
 
+# Redirect www to the canonical apex domain (prevents duplicate content / broken host)
+www.ajdaa.sa {
+	redir https://ajdaa.sa{uri} permanent
+}
+
 # Production. SPA served from /srv/ajda/app/dist (deploy/README-deploy.md §6.1).
 # TLS: Caddy obtains the ajdaa.sa certificate itself.
 ajdaa.sa {

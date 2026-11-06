@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Archive, X, ChevronLeft, ChevronRight, Download, AlertTriangle, Loader2 } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
+import { useCmsContent } from '../hooks/useCmsContent';
+import { useCmsText } from '../hooks/useCmsText';
 import { pastProjectService, type PastProject } from '../services/pastProjectService';
 import type { NavPageKey } from '../components/common/Navbar';
 
@@ -21,6 +23,10 @@ function pick(ar: string | null, en: string | null, language: string): string {
 
 export const PastProjectsPage: React.FC<Props> = () => {
   const { language, isRTL } = useLanguage();
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const cmsPage = content.pastWorks;
+
   const [items, setItems] = useState<PastProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,13 +83,13 @@ export const PastProjectsPage: React.FC<Props> = () => {
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
           <span className="inline-flex items-center gap-2 text-xs font-bold brand-badge px-4 py-2 rounded-full mb-4">
             <Archive className="w-3.5 h-3.5 text-accent" />
-            {t('أعمالنا السابقة', 'Past Works')}
+            {text(cmsPage.badgeAr, cmsPage.badgeEn)}
           </span>
           <h1 className="text-3xl sm:text-5xl font-black text-heading tracking-tight leading-tight">
-            {t('أعمالنا السابقة', 'Our Past Works')}
+            {text(cmsPage.titleAr, cmsPage.titleEn)}
           </h1>
           <p className="mt-4 text-sm sm:text-base text-neutral-text/75 leading-relaxed">
-            {t('مجموعة من المشاريع التي أنجزناها', 'A collection of projects we have delivered')}
+            {text(cmsPage.subtitleAr, cmsPage.subtitleEn)}
           </p>
         </div>
 
@@ -117,7 +123,7 @@ export const PastProjectsPage: React.FC<Props> = () => {
         {!loading && !error && items.length === 0 && (
           <div className="text-center py-16">
             <Archive className="w-10 h-10 text-neutral-text/40 mx-auto mb-3" />
-            <p className="text-sm text-neutral-text/75">{t('لا توجد أعمال سابقة حالياً', 'No past works yet')}</p>
+            <p className="text-sm text-neutral-text/75">{text(cmsPage.emptyTextAr, cmsPage.emptyTextEn)}</p>
           </div>
         )}
 

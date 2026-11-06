@@ -339,6 +339,34 @@ export const cmsContactSchema = z.object({
 });
 export type CmsContactPageContent = z.infer<typeof cmsContactSchema>;
 
+// 10. Past Works Page Schema
+export const cmsPastWorksPageSchema = z.object({
+  badgeAr: z.string().trim().max(100),
+  badgeEn: z.string().trim().max(100),
+  titleAr: z.string().trim().max(150),
+  titleEn: z.string().trim().max(150),
+  subtitleAr: z.string().trim().max(500),
+  subtitleEn: z.string().trim().max(500),
+  emptyTextAr: z.string().trim().max(200),
+  emptyTextEn: z.string().trim().max(200),
+  seo: cmsSeoMetaSchema.optional(),
+});
+export type CmsPastWorksPageContent = z.infer<typeof cmsPastWorksPageSchema>;
+
+// 11. Careers Page Schema
+export const cmsCareersPageSchema = z.object({
+  titleAr: z.string().trim().max(150),
+  titleEn: z.string().trim().max(150),
+  introAr: z.string().trim().max(1000),
+  introEn: z.string().trim().max(1000),
+  successTitleAr: z.string().trim().max(150),
+  successTitleEn: z.string().trim().max(150),
+  successTextAr: z.string().trim().max(500),
+  successTextEn: z.string().trim().max(500),
+  seo: cmsSeoMetaSchema.optional(),
+});
+export type CmsCareersPageContent = z.infer<typeof cmsCareersPageSchema>;
+
 export const SECTION_SCHEMAS: Record<string, z.ZodTypeAny> = {
   nav: z.array(cmsNavItemSchema),
   footer: cmsFooterSchema,
@@ -346,4 +374,6 @@ export const SECTION_SCHEMAS: Record<string, z.ZodTypeAny> = {
   works: cmsWorksSchema,
   clientsPage: cmsClientsPageSchema,
   contact: cmsContactSchema,
+  pastWorks: cmsPastWorksPageSchema,
+  careers: cmsCareersPageSchema,
 };

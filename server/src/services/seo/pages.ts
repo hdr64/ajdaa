@@ -6,8 +6,8 @@
 export type PageKey = 'home' | 'works' | 'clients' | 'pastWorks' | 'careers' | 'booking' | 'contact';
 
 export type SeoRoute =
-  | { kind: 'page'; key: PageKey; canonicalPath: string }
-  | { kind: 'project'; id: number; canonicalPath: string }
+  | { kind: 'page'; key: PageKey; canonicalPath: string; lang: 'ar' | 'en' }
+  | { kind: 'project'; id: number; canonicalPath: string; lang: 'ar' | 'en' }
   | { kind: 'admin' }
   | { kind: 'notFound' };
 
@@ -93,15 +93,26 @@ export function normalizePath(raw: unknown): string {
 export function matchRoute(raw: unknown): SeoRoute {
   const path = normalizePath(raw);
   if (path === '/admin' || path.startsWith('/admin/')) return { kind: 'admin' };
+  if (path === '/en/admin' || path.startsWith('/en/admin/')) return { kind: 'notFound' };
 
-  const key = PAGE_BY_PATH[path];
-  if (key) return { kind: 'page', key, canonicalPath: STATIC_PAGES[key].path };
+  const isEn = path === '/en' || path.startsWith('/en/');
+  const lang: 'ar' | 'en' = isEn ? 'en' : 'ar';
+  const subPath = isEn ? (path === '/en' ? '/' : path.slice(3)) : path;
+
+  const key = PAGE_BY_PATH[subPath];
+  if (key) {
+    const canonicalPath = isEn
+      ? (STATIC_PAGES[key].path === '/' ? '/en' : `/en${STATIC_PAGES[key].path}`)
+      : STATIC_PAGES[key].path;
+    return { kind: 'page', key, canonicalPath, lang };
+  }
 
   // `/projects/206`, `/project/206` and `/projects/villa-riyadh-206`: only the id selects the project.
-  const project = path.match(/^\/projects?\/(?:[a-z0-9-]*-)?(\d{1,9})$/);
+  const project = subPath.match(/^\/projects?\/(?:[a-z0-9-]*-)?(\d{1,9})$/);
   if (project) {
     const id = Number(project[1]);
-    return { kind: 'project', id, canonicalPath: `/projects/${id}` };
+    const canonicalPath = isEn ? `/en/projects/${id}` : `/projects/${id}`;
+    return { kind: 'project', id, canonicalPath, lang };
   }
   return { kind: 'notFound' };
 }

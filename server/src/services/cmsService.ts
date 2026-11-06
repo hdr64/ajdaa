@@ -8,6 +8,8 @@ import {
   type CmsWorksPageContent,
   type CmsClientsPageContent,
   type CmsContactPageContent,
+  type CmsPastWorksPageContent,
+  type CmsCareersPageContent,
 } from '../schemas/cms.schema.js';
 import {
   DEFAULT_NAV,
@@ -17,6 +19,8 @@ import {
   DEFAULT_CLIENTS_PAGE,
   DEFAULT_CLIENTS,
   DEFAULT_CONTACT,
+  DEFAULT_PAST_WORKS_PAGE,
+  DEFAULT_CAREERS_PAGE,
 } from '../config/defaultCmsContent.js';
 
 interface CacheEntry<T> {
@@ -44,6 +48,16 @@ function withFooterSectionDefaults(stored: unknown): CmsFooterSection {
   return { ...DEFAULT_FOOTER, ...(stored as Partial<CmsFooterSection>) };
 }
 
+function withPastWorksSectionDefaults(stored: unknown): CmsPastWorksPageContent {
+  if (!stored || typeof stored !== 'object') return DEFAULT_PAST_WORKS_PAGE;
+  return { ...DEFAULT_PAST_WORKS_PAGE, ...(stored as Partial<CmsPastWorksPageContent>) };
+}
+
+function withCareersSectionDefaults(stored: unknown): CmsCareersPageContent {
+  if (!stored || typeof stored !== 'object') return DEFAULT_CAREERS_PAGE;
+  return { ...DEFAULT_CAREERS_PAGE, ...(stored as Partial<CmsCareersPageContent>) };
+}
+
 export function invalidateCmsCache(key?: string) {
   if (key) {
     memoryCache.delete(key);
@@ -64,6 +78,8 @@ export async function seedCmsDefaultsIfNeeded() {
       works: DEFAULT_WORKS,
       clientsPage: DEFAULT_CLIENTS_PAGE,
       contact: DEFAULT_CONTACT,
+      pastWorks: DEFAULT_PAST_WORKS_PAGE,
+      careers: DEFAULT_CAREERS_PAGE,
     };
 
     for (const [key, content] of Object.entries(defaultSections)) {
@@ -130,6 +146,8 @@ export interface AggregatedCmsPayload {
   works: CmsWorksPageContent;
   clientsPage: CmsClientsPageContent;
   contact: CmsContactPageContent;
+  pastWorks: CmsPastWorksPageContent;
+  careers: CmsCareersPageContent;
 }
 
 export async function getAggregatedCmsContent(): Promise<{
@@ -172,6 +190,8 @@ export async function getAggregatedCmsContent(): Promise<{
     works: (sectionMap.works?.content as CmsWorksPageContent) ?? DEFAULT_WORKS,
     clientsPage: (sectionMap.clientsPage?.content as CmsClientsPageContent) ?? DEFAULT_CLIENTS_PAGE,
     contact: withContactSectionDefaults(sectionMap.contact?.content),
+    pastWorks: withPastWorksSectionDefaults(sectionMap.pastWorks?.content),
+    careers: withCareersSectionDefaults(sectionMap.careers?.content),
   };
 
   memoryCache.set('aggregated', {
@@ -209,7 +229,11 @@ export async function getSectionContent(key: string): Promise<{
       ? withContactSectionDefaults(JSON.parse(section.content))
       : key === 'footer'
         ? withFooterSectionDefaults(JSON.parse(section.content))
-        : JSON.parse(section.content);
+        : key === 'pastWorks'
+          ? withPastWorksSectionDefaults(JSON.parse(section.content))
+          : key === 'careers'
+            ? withCareersSectionDefaults(JSON.parse(section.content))
+            : JSON.parse(section.content);
 
   memoryCache.set(key, {
     data,

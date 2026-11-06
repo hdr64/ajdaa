@@ -98,8 +98,8 @@ Guards: **public** (no session; most are rate limited), **JWT** (any signed-in a
 | Route | Notes |
 |---|---|
 | `GET /robots.txt` (site root, not under `/api`) | Allows crawling and links the sitemap when `SEO_INDEXING=on`; `Disallow: /` otherwise. |
-| `GET /sitemap.xml` (site root) | Home, static pages and every **published** project (`lastmod`, main image). Empty `<urlset>` plus `X-Robots-Tag: noindex` when indexing is off. Cached 10 min. |
-| `GET /api/seo/shell?path=/projects/5` | The built `index.html` with per-page title, description, canonical, robots, OpenGraph, Twitter and JSON-LD tags and a `<noscript>` block. 200, or 404 + noindex for unknown paths and unpublished or missing projects. Admin paths are noindex. 5xx with an empty body when the template or database fails (Caddy then serves the static file). `ETag`/304, cached 60 s. Called by Caddy, not by the SPA. |
+| `GET /sitemap.xml` (site root) | Home, static pages and every **published** project (`lastmod`, main image) across both Arabic and English (`/en/...`) URLs with bidirectional `xhtml:link` alternate tags. Empty `<urlset>` plus `X-Robots-Tag: noindex` when indexing is off. Cached 10 min. |
+| `GET /api/seo/shell?path=/projects/5` | The built `index.html` with per-page title, description, self-canonical, hreflang trio (`ar`, `en`, `x-default`), robots, OpenGraph, Twitter and JSON-LD tags and a `<noscript>` block. Supports `/en` and `/en/...` URLs with English copy and `<html lang="en" dir="ltr">`. 200, or 404 + noindex for unknown paths, unpublished/missing projects and `/en/admin`. Admin paths are noindex. 5xx with an empty body when the template or database fails (Caddy then serves the static file). `ETag`/304, cached 60 s. Called by Caddy, not by the SPA. |
 
 ---
 
@@ -222,7 +222,7 @@ Retrieves current authenticated admin session data, permissions, and department 
 ## 2. Content Management System (CMS) (`/api/cms`)
 
 ### GET `/api/cms/content`
-Returns the complete aggregated website content (nav, footer, home, works, clientsPage, contact). Supports deterministic ETags and returns HTTP 304 if unchanged.
+Returns the complete aggregated website content (nav, footer, home, works, clientsPage, contact, pastWorks, careers). Supports deterministic ETags and returns HTTP 304 if unchanged.
 
 **Headers:** `If-None-Match: W/"cms-agg-v4-1727738200000"` (optional)  
 **Access:** Public  
@@ -236,7 +236,9 @@ Returns the complete aggregated website content (nav, footer, home, works, clien
   "home": {...},
   "works": {...},
   "clientsPage": {...},
-  "contact": {...}
+  "contact": {...},
+  "pastWorks": {...},
+  "careers": {...}
 }
 ```
 
@@ -253,7 +255,7 @@ Returns the complete aggregated website content (nav, footer, home, works, clien
 ---
 
 ### GET `/api/cms/content/:key`
-Returns single section content. Key options: `nav`, `footer`, `home`, `works`, `clientsPage`, `contact`.
+Returns single section content. Key options: `nav`, `footer`, `home`, `works`, `clientsPage`, `contact`, `pastWorks`, `careers`.
 
 **Access:** Public  
 **Rate Limit:** 120 req / min  

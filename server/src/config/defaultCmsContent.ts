@@ -6,6 +6,8 @@ import type {
   CmsClientsPageContent,
   CmsClientItem,
   CmsContactPageContent,
+  CmsPastWorksPageContent,
+  CmsCareersPageContent,
 } from '../schemas/cms.schema.js';
 
 export const DEFAULT_NAV: CmsNavItem[] = [
@@ -382,4 +384,26 @@ export const DEFAULT_CONTACT: CmsContactPageContent = {
     { id: 'trust-privacy', textAr: 'خصوصية وأمان لبياناتك', textEn: 'Data privacy & security guaranteed' },
     { id: 'trust-support', textAr: 'دعم استشاري واستثماري مستمر', textEn: 'Continuous advisory & investment support' },
   ],
+};
+
+export const DEFAULT_PAST_WORKS_PAGE: CmsPastWorksPageContent = {
+  badgeAr: 'أعمالنا السابقة',
+  badgeEn: 'Past Works',
+  titleAr: 'أعمالنا السابقة',
+  titleEn: 'Our Past Works',
+  subtitleAr: 'مجموعة من المشاريع التي أنجزناها',
+  subtitleEn: 'A collection of projects we have delivered',
+  emptyTextAr: 'لا توجد أعمال سابقة حالياً',
+  emptyTextEn: 'No past works yet',
+};
+
+export const DEFAULT_CAREERS_PAGE: CmsCareersPageContent = {
+  titleAr: 'قدّم على وظيفة',
+  titleEn: 'Apply for a job',
+  introAr: 'نسعد بانضمامك إلى فريق أجدا. أرسل بياناتك وسيراجعها فريقنا.',
+  introEn: "We'd be glad to have you on the Ajda team. Send your details and our team will review them.",
+  successTitleAr: 'تم إرسال طلبك بنجاح',
+  successTitleEn: 'Application submitted successfully',
+  successTextAr: 'سنتواصل معك قريباً',
+  successTextEn: 'We will contact you soon',
 };

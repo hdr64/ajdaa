@@ -7,7 +7,7 @@ import {
   type ProjectSeoData,
   type SiteContact,
 } from './jsonld.js';
-import { BRAND_AR, STATIC_PAGES, type SeoRoute } from './pages.js';
+import { BRAND_AR, BRAND_EN, STATIC_PAGES, type SeoRoute } from './pages.js';
 import { projectPath } from './slug.js';
 
 export interface PageMeta {
@@ -22,6 +22,8 @@ export interface PageMeta {
   imageAlt: string;
   jsonLd: Record<string, unknown>[];
   noscriptHtml: string;
+  lang?: 'ar' | 'en';
+  hreflang?: { ar: string; en: string; xDefault: string } | null;
 }
 
 export interface MetaContext {
@@ -37,7 +39,7 @@ export interface MetaContext {
 export const ROBOTS_INDEX = 'index, follow, max-image-preview:large, max-snippet:-1';
 export const ROBOTS_NOINDEX = 'noindex, nofollow';
 
-const NAV_LINKS: [string, string][] = [
+const NAV_LINKS_AR: [string, string][] = [
   ['/', 'الرئيسية'],
   ['/works', 'مشاريعنا'],
   ['/clients', 'عملاؤنا'],
@@ -47,27 +49,59 @@ const NAV_LINKS: [string, string][] = [
   ['/contact', 'تواصل معنا'],
 ];
 
-function noscript(heading: string, description: string, extra = ''): string {
-  const nav = NAV_LINKS.map(([href, label]) => `<li><a href="${href}">${escapeHtml(label)}</a></li>`).join('');
+const NAV_LINKS_EN: [string, string][] = [
+  ['/en', 'Home'],
+  ['/en/works', 'Our Projects'],
+  ['/en/clients', 'Our Clients and Partners'],
+  ['/en/past-works', 'Past Projects'],
+  ['/en/careers', 'Careers'],
+  ['/en/booking', 'Register Interest'],
+  ['/en/contact', 'Contact Us'],
+];
+
+function noscript(heading: string, description: string, extra = '', lang: 'ar' | 'en' = 'ar'): string {
+  const links = lang === 'en' ? NAV_LINKS_EN : NAV_LINKS_AR;
+  const nav = links.map(([href, label]) => `<li><a href="${href}">${escapeHtml(label)}</a></li>`).join('');
   return `<noscript><h1>${escapeHtml(heading)}</h1><p>${escapeHtml(description)}</p><nav><ul>${nav}</ul></nav>${extra}</noscript>`;
 }
 
-function projectList(projects: MetaContext['projects']): string {
+function projectList(projects: MetaContext['projects'], lang: 'ar' | 'en' = 'ar'): string {
   if (projects.length === 0) return '';
+  const isEn = lang === 'en';
+  const heading = isEn ? 'Our Projects' : 'مشاريعنا';
   const items = projects
     .slice(0, 50)
-    .map((p) => `<li><a href="${projectPath(p.id, p.titleEn)}">${escapeHtml(p.title)} — ${escapeHtml(p.city)}</a></li>`)
+    .map((p) => {
+      const title = isEn ? (p.titleEn || p.title) : p.title;
+      return `<li><a href="${projectPath(p.id, p.titleEn, lang)}">${escapeHtml(title)} — ${escapeHtml(p.city)}</a></li>`;
+    })
     .join('');
-  return `<h2>مشاريعنا</h2><ul>${items}</ul>`;
+  return `<h2>${escapeHtml(heading)}</h2><ul>${items}</ul>`;
 }
 
-function projectDescription(p: ProjectSeoData): string {
+function projectDescription(p: ProjectSeoData, lang: 'ar' | 'en' = 'ar'): string {
+  if (lang === 'en') {
+    const text = stripHtml(p.descriptionEn ?? '');
+    if (text) return truncate(text, 155);
+    const title = p.titleEn || p.title;
+    const city = p.cityEn || p.city;
+    return truncate(`${title} in ${city}, covering ${p.area} m².`, 155);
+  }
   const text = stripHtml(p.description ?? '');
   if (text) return truncate(text, 155);
   return truncate(`${p.typeAr} لل${p.priceType} في ${p.city}، بمساحة ${p.area} م².`, 155);
 }
 
-function projectFacts(p: ProjectSeoData): string {
+function projectFacts(p: ProjectSeoData, lang: 'ar' | 'en' = 'ar'): string {
+  if (lang === 'en') {
+    const facts: string[] = [`City: ${p.cityEn || p.city}`, `Area: ${p.area} m²`];
+    if (p.rooms) facts.push(`Rooms: ${p.rooms}`);
+    if (p.bathrooms) facts.push(`Bathrooms: ${p.bathrooms}`);
+    if (p.priceLabel) facts.push(`Price: ${p.priceLabel}`);
+    const features = parseJsonArray(p.featuresEn || p.features);
+    const list = [...facts, ...features].map((f) => `<li>${escapeHtml(f)}</li>`).join('');
+    return `<ul>${list}</ul>`;
+  }
   const facts: string[] = [`المدينة: ${p.city}`, `المساحة: ${p.area} م²`];
   if (p.rooms) facts.push(`الغرف: ${p.rooms}`);
   if (p.bathrooms) facts.push(`دورات المياه: ${p.bathrooms}`);
@@ -94,6 +128,8 @@ export function buildMeta(route: SeoRoute, ctx: MetaContext): PageMeta {
       imageAlt: BRAND_AR,
       jsonLd: [],
       noscriptHtml: '',
+      lang: 'ar',
+      hreflang: null,
     };
   }
 
@@ -109,49 +145,83 @@ export function buildMeta(route: SeoRoute, ctx: MetaContext): PageMeta {
       imageAlt: BRAND_AR,
       jsonLd: [],
       noscriptHtml: noscript('الصفحة غير موجودة', 'الصفحة التي تبحث عنها غير متاحة.'),
+      lang: 'ar',
+      hreflang: null,
     };
   }
 
   if (route.kind === 'project') {
     const p = ctx.project!;
-    const description = projectDescription(p);
-    const title = `${p.title} — ${p.city} | ${BRAND_AR}`;
+    const isEn = route.lang === 'en';
+    const brand = isEn ? BRAND_EN : BRAND_AR;
+    const titleText = isEn ? (p.titleEn || p.title) : p.title;
+    const cityText = isEn ? (p.cityEn || p.city) : p.city;
+    const description = projectDescription(p, route.lang);
+    const title = `${titleText} — ${cityText} | ${brand}`;
+    const arPath = projectPath(p.id, p.titleEn, 'ar');
+    const enPath = projectPath(p.id, p.titleEn, 'en');
+    const canonical = `${origin}${isEn ? enPath : arPath}`;
+    const hreflang = {
+      ar: `${origin}${arPath}`,
+      en: `${origin}${enPath}`,
+      xDefault: `${origin}${arPath}`,
+    };
+
     return {
       status: 200,
       title,
       description,
-      canonical: `${origin}${projectPath(p.id, p.titleEn)}`,
+      canonical,
       robots,
       social: true,
       image: absoluteUrl(origin, p.image) ?? defaultImage,
-      imageAlt: `${p.title} — ${p.city}`,
-      jsonLd: projectJsonLd(origin, p, description),
-      noscriptHtml: noscript(p.title, description, projectFacts(p)),
+      imageAlt: `${titleText} — ${cityText}`,
+      jsonLd: projectJsonLd(origin, p, description, route.lang),
+      noscriptHtml: noscript(titleText, description, projectFacts(p, route.lang), route.lang),
+      lang: route.lang,
+      hreflang,
     };
   }
 
   const page = STATIC_PAGES[route.key];
+  const isEn = route.lang === 'en';
+  const brand = isEn ? BRAND_EN : BRAND_AR;
   const isHome = route.key === 'home';
-  const title = isHome ? page.titleAr : `${page.titleAr} | ${BRAND_AR}`;
+  const title = isEn
+    ? (isHome ? page.titleEn : `${page.titleEn} | ${brand}`)
+    : (isHome ? page.titleAr : `${page.titleAr} | ${brand}`);
+  const description = isEn ? page.descEn : page.descAr;
+  const arPath = page.path;
+  const enPath = page.path === '/' ? '/en' : `/en${page.path}`;
+  const canonical = `${origin}${route.canonicalPath === '/' ? '/' : route.canonicalPath}`;
+  const hreflang = {
+    ar: `${origin}${arPath}`,
+    en: `${origin}${enPath}`,
+    xDefault: `${origin}${arPath}`,
+  };
+
   const jsonLd = isHome
-    ? homeJsonLd(origin, ctx.site, page.descAr)
+    ? homeJsonLd(origin, ctx.site, description, route.lang)
     : [
         breadcrumbs(origin, [
-          { name: 'الرئيسية', path: '/' },
-          { name: page.titleAr, path: page.path },
+          { name: isEn ? 'Home' : 'الرئيسية', path: isEn ? '/en' : '/' },
+          { name: isEn ? page.titleEn : page.titleAr, path: route.canonicalPath },
         ]),
       ];
   const withProjects = route.key === 'home' || route.key === 'works';
+  const heading = isHome ? brand : (isEn ? page.titleEn : page.titleAr);
   return {
     status: 200,
     title,
-    description: page.descAr,
-    canonical: `${origin}${route.canonicalPath === '/' ? '/' : route.canonicalPath}`,
+    description,
+    canonical,
     robots,
     social: true,
     image: defaultImage,
-    imageAlt: BRAND_AR,
+    imageAlt: brand,
     jsonLd,
-    noscriptHtml: noscript(isHome ? BRAND_AR : page.titleAr, page.descAr, withProjects ? projectList(ctx.projects) : ''),
+    noscriptHtml: noscript(heading, description, withProjects ? projectList(ctx.projects, route.lang) : '', route.lang),
+    lang: route.lang,
+    hreflang,
   };
 }

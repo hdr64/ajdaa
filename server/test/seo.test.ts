@@ -262,6 +262,57 @@ describe('robots.txt and sitemap.xml', () => {
   });
 });
 
+describe('SEO shell: English bilingual routes (task-seo-e)', () => {
+  it('renders /en with English title, html lang=en dir=ltr, self-canonical, hreflang trio, og:locale=en_US', async () => {
+    const res = await shell('/en');
+    expect(res.statusCode).toBe(200);
+    const html = res.body;
+    expect(html).toContain('lang="en" dir="ltr"');
+    expect(html).toContain(`<link data-seo="1" rel="canonical" href="${config.appUrl}/en" />`);
+    expect(html).toContain(`<link data-seo="1" rel="alternate" hreflang="ar" href="${config.appUrl}/" />`);
+    expect(html).toContain(`<link data-seo="1" rel="alternate" hreflang="en" href="${config.appUrl}/en" />`);
+    expect(html).toContain(`<link data-seo="1" rel="alternate" hreflang="x-default" href="${config.appUrl}/" />`);
+    expect(html).toContain('property="og:locale" content="en_US"');
+    expect(html).toContain('property="og:locale:alternate" content="ar_SA"');
+    expect(html).toContain('Ajda Real Estate');
+    expect(html).toContain('<a href="/en/works">');
+  });
+
+  it('renders /en/works with English static copy', async () => {
+    const res = await shell('/en/works');
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(`<link data-seo="1" rel="canonical" href="${config.appUrl}/en/works" />`);
+    expect(res.body).toContain('Our Projects | Ajda Real Estate');
+  });
+
+  it('renders /en/projects/{slug}-{id} with English fields and hreflang', async () => {
+    const res = await shell(`/en/projects/saif-tower-${publishedId}`);
+    expect(res.statusCode).toBe(200);
+    const html = res.body;
+    expect(html).toContain('lang="en" dir="ltr"');
+    expect(html).toContain(`<link data-seo="1" rel="canonical" href="${config.appUrl}/en/projects/saif-tower-${publishedId}" />`);
+    expect(html).toContain(`<link data-seo="1" rel="alternate" hreflang="ar" href="${config.appUrl}/projects/saif-tower-${publishedId}" />`);
+    expect(html).toContain(`<link data-seo="1" rel="alternate" hreflang="en" href="${config.appUrl}/en/projects/saif-tower-${publishedId}" />`);
+    expect(html).toContain('Saif Tower — Riyadh | Ajda Real Estate');
+  });
+
+  it('answers 404 + noindex for /en/admin', async () => {
+    const res = await shell('/en/admin');
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['x-robots-tag']).toBe('noindex, nofollow');
+  });
+
+  it('includes both AR and EN in sitemap with xhtml:link', async () => {
+    const res = await inject({ method: 'GET', url: '/sitemap.xml' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('xmlns:xhtml="http://www.w3.org/1999/xhtml"');
+    expect(res.body).toContain(`<loc>${config.appUrl}/</loc>`);
+    expect(res.body).toContain(`<loc>${config.appUrl}/en</loc>`);
+    expect(res.body).toContain('hreflang="ar"');
+    expect(res.body).toContain('hreflang="en"');
+  });
+});
+
 describe('seo helpers', () => {
   it('builds readable project slugs', () => {
     expect(slugify('Saif Tower')).toBe('saif-tower');

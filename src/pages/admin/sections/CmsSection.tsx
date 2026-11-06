@@ -15,6 +15,8 @@ import {
   FileJson,
   X,
   CheckCircle2,
+  Archive,
+  Briefcase,
 } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
@@ -25,11 +27,13 @@ import { CmsHomePanel } from '../../../components/admin/cms/CmsHomePanel';
 import { CmsWorksPanel } from '../../../components/admin/cms/CmsWorksPanel';
 import { CmsClientsPanel } from '../../../components/admin/cms/CmsClientsPanel';
 import { CmsContactPanel } from '../../../components/admin/cms/CmsContactPanel';
+import { CmsPastWorksPanel } from '../../../components/admin/cms/CmsPastWorksPanel';
+import { CmsCareersPanel } from '../../../components/admin/cms/CmsCareersPanel';
 import { CmsPreviewModal } from '../../../components/admin/cms/CmsPreviewModal';
 import { CmsLivePreviewPane } from '../../../components/admin/cms/CmsLivePreviewPane';
 import { api, getErrorMessage } from '../../../services/api';
 
-type CmsTab = 'nav' | 'footer' | 'home' | 'works' | 'clients' | 'contact';
+type CmsTab = 'nav' | 'footer' | 'home' | 'works' | 'clients' | 'contact' | 'pastWorks' | 'careers';
 
 interface BackupParsedData {
   version?: number;
@@ -165,6 +169,7 @@ export const CmsSection: React.FC = () => {
   const tabs = [
     { id: 'home' as CmsTab, labelKey: 'cms.section.tabHome', icon: Home, visible: canManageCms },
     { id: 'works' as CmsTab, labelKey: 'cms.section.tabWorks', icon: Building, visible: canManageCms },
+    { id: 'pastWorks' as CmsTab, labelKey: 'cms.section.tabPastWorks', icon: Archive, visible: canManageCms },
     {
       id: 'clients' as CmsTab,
       labelKey: 'cms.section.tabClients',
@@ -172,6 +177,7 @@ export const CmsSection: React.FC = () => {
       visible: canManageClients || canManageCms,
     },
     { id: 'contact' as CmsTab, labelKey: 'cms.section.tabContact', icon: Mail, visible: canManageCms },
+    { id: 'careers' as CmsTab, labelKey: 'cms.section.tabCareers', icon: Briefcase, visible: canManageCms },
     { id: 'nav' as CmsTab, labelKey: 'cms.section.tabNav', icon: Compass, visible: canManageCms },
     { id: 'footer' as CmsTab, labelKey: 'cms.section.tabFooter', icon: Footprints, visible: canManageCms },
   ].filter((t) => t.visible);
@@ -183,10 +189,14 @@ export const CmsSection: React.FC = () => {
     switch (activeTab) {
       case 'works':
         return '/works';
+      case 'pastWorks':
+        return '/past-works';
       case 'clients':
         return '/clients';
       case 'contact':
         return '/contact';
+      case 'careers':
+        return '/careers';
       default:
         return '/';
     }
@@ -307,7 +317,7 @@ export const CmsSection: React.FC = () => {
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  {t(tab.labelKey as 'cms.section.tabHome' | 'cms.section.tabWorks' | 'cms.section.tabClients' | 'cms.section.tabContact' | 'cms.section.tabNav' | 'cms.section.tabFooter')}
+                  {t(tab.labelKey as 'cms.section.tabHome' | 'cms.section.tabWorks' | 'cms.section.tabPastWorks' | 'cms.section.tabClients' | 'cms.section.tabContact' | 'cms.section.tabCareers' | 'cms.section.tabNav' | 'cms.section.tabFooter')}
                 </button>
               );
             })}
@@ -317,8 +327,10 @@ export const CmsSection: React.FC = () => {
           <div key={`${activeTab}-${cmsRefreshKey}`} className="transition-all duration-150">
             {activeTab === 'home' && <CmsHomePanel />}
             {activeTab === 'works' && <CmsWorksPanel />}
+            {activeTab === 'pastWorks' && <CmsPastWorksPanel />}
             {activeTab === 'clients' && <CmsClientsPanel />}
             {activeTab === 'contact' && <CmsContactPanel />}
+            {activeTab === 'careers' && <CmsCareersPanel />}
             {activeTab === 'nav' && <CmsNavPanel />}
             {activeTab === 'footer' && <CmsFooterPanel />}
           </div>

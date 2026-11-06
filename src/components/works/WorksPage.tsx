@@ -29,6 +29,7 @@ import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import type { Property, PropertyType, PriceType } from '../../types/property';
 import { PropertyCard } from '../common/PropertyCard';
+import { SpaLink } from '../common/SpaLink';
 import { useLanguage } from '../../hooks/useLanguage';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
@@ -686,7 +687,15 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                     </div>
 
                     <h2 className="font-bold text-lg text-heading group-hover:text-accent transition mb-3">
-                      {display.title}
+                      <SpaLink
+                        page="project"
+                        projectId={prop.id}
+                        projectTitleEn={prop.titleEn}
+                        onNavigate={() => onQuickView?.(prop)}
+                        className="hover:underline"
+                      >
+                        {display.title}
+                      </SpaLink>
                     </h2>
 
                     <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-text/70 mb-4">
@@ -727,15 +736,15 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onQuickView?.(prop);
-                        }}
-                        className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl cursor-pointer"
+                      <SpaLink
+                        page="project"
+                        projectId={prop.id}
+                        projectTitleEn={prop.titleEn}
+                        onNavigate={() => onQuickView?.(prop)}
+                        className="brand-btn-secondary text-xs font-bold px-4 py-2 rounded-xl cursor-pointer inline-flex items-center justify-center"
                       >
                         {isAr ? 'صفحة المشروع' : 'Project Page'}
-                      </button>
+                      </SpaLink>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, CheckCircle2, Upload } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
+import { useCmsContent } from '../hooks/useCmsContent';
+import { useCmsText } from '../hooks/useCmsText';
 import { careersService, type CareersFormConfig } from '../services/careersService';
 import { ApiError, getErrorMessage } from '../services/api';
 
@@ -11,6 +13,9 @@ interface CareersPageProps {
 export const CareersPage: React.FC<CareersPageProps> = () => {
   const { language } = useLanguage();
   const ar = language === 'ar';
+  const { content } = useCmsContent();
+  const { text } = useCmsText();
+  const cmsPage = content.careers;
 
   const [config, setConfig] = useState<CareersFormConfig | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -137,8 +142,8 @@ export const CareersPage: React.FC<CareersPageProps> = () => {
       <div className="pt-28 sm:pt-36 pb-24 min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
-          <h2 className="text-xl font-black text-heading">{ar ? 'تم إرسال طلبك بنجاح' : 'Application submitted successfully'}</h2>
-          <p className="text-sm text-neutral-text/70">{ar ? 'سنتواصل معك قريباً' : 'We will contact you soon'}</p>
+          <h2 className="text-xl font-black text-heading">{text(cmsPage.successTitleAr, cmsPage.successTitleEn)}</h2>
+          <p className="text-sm text-neutral-text/70">{text(cmsPage.successTextAr, cmsPage.successTextEn)}</p>
         </div>
       </div>
     );
@@ -156,12 +161,10 @@ export const CareersPage: React.FC<CareersPageProps> = () => {
     <div className="pt-28 sm:pt-36 pb-24 min-h-screen">
       <div className="max-w-2xl mx-auto px-4">
         <h1 className="text-2xl sm:text-3xl font-black text-heading mb-6 text-center">
-          {ar ? 'قدّم على وظيفة' : 'Apply for a job'}
+          {text(cmsPage.titleAr, cmsPage.titleEn)}
         </h1>
         <p className="mt-4 text-sm sm:text-base text-neutral-text/75 leading-relaxed text-center">
-          {ar
-            ? 'نسعد بانضمامك إلى فريق أجدا. أرسل بياناتك وسيراجعها فريقنا.'
-            : "We'd be glad to have you on the Ajda team. Send your details and our team will review them."}
+          {text(cmsPage.introAr, cmsPage.introEn)}
         </p>
 
         {errors.form && <div className="mb-4 p-3 rounded-xl bg-red-500/10 text-red-500 text-xs">{errors.form}</div>}

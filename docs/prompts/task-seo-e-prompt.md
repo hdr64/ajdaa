@@ -2,7 +2,7 @@
 
 > You are an implementing agent (OpenCode). Skip the "FIRST ACTION" section of `CLAUDE.md`; the secrets and production rules still apply. **Never edit any `CLAUDE.md`.**
 > First action: run `Get-Date -Format "yyyy-MM-dd HH:mm:ss"` for `Started:`. Last action: the same for `Finished:`.
-> Run **after** `task-seo-d` is accepted (it changes the same route, shell and sitemap files).
+> Run **after** `task-seo-d` (done) and `task-cms-d` are accepted: cms-d wires the new `seo` fields of the past-works and careers routes into the same shell, route and test files. Do not run in parallel with it. Already done, do not redo: footer links are `SpaLink` (`Footer.tsx`), `index.html` has a blocking font stylesheet and default description/OG tags.
 
 ## 1. Goal
 Arabic and English share one URL today (language lives in `localStorage`), so Google can only index Arabic. Give English its own URLs: `/en`, `/en/works`, `/en/projects/{slug}-{id}`, … so English pages are indexable and linked to their Arabic twins with `hreflang`. Arabic URLs stay exactly as they are (no prefix).
@@ -32,7 +32,7 @@ Auto-redirects by language, other languages, admin routes, slug schema, translat
 No commits, installs or `.env` edits. If Prisma's AI-safety guard blocks `npm --prefix server test`, **stop and say so in the report**; do not pass a consent variable. Wanted doc changes for `CLAUDE.md` go under `## CLAUDE.md proposals for Claude`.
 
 ## 8. Gates
-`npm run lint` (no new warnings beyond the baseline of 14), `npm run build`, `npm --prefix server run build`, `npm --prefix server test`.
+`npm run lint` (no new warnings beyond the baseline of 46 on 2026-11-06), `npm run build`, `npm --prefix server run build`, `npm --prefix server test`.
 
 ## 9. Report
 `D:\projects\html\ajda\docs\prompts\task-seo-e-report.md`, top lines `Model:` (never guessed, `unknown` if unsure), `Started:`, `Finished:`. Then: files changed, gate results with counts, decisions, what you could not verify. Claim nothing the commands did not show. Browser verification is done by the reviewer.
