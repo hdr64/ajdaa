@@ -313,6 +313,12 @@ export const cmsClientItemSchema = z.object({
 export type CmsClientItem = z.infer<typeof cmsClientItemSchema>;
 
 // 9. Contact Page Schema
+export const cmsTrustItemSchema = z.object({
+  id: z.string().min(1),
+  textAr: z.string().trim().min(1, 'Arabic text is required').max(120),
+  textEn: z.string().trim().min(1, 'English text is required').max(120),
+});
+
 export const cmsContactSchema = z.object({
   badgeAr: z.string().trim().max(100),
   badgeEn: z.string().trim().max(100),
@@ -324,6 +330,11 @@ export const cmsContactSchema = z.object({
   formTitleEn: z.string().trim().max(100),
   subjectsAr: z.array(z.string().trim().min(1).max(100)).max(15),
   subjectsEn: z.array(z.string().trim().min(1).max(100)).max(15),
+  // Optional on purpose: rows and clients saved before these fields existed
+  // must still validate on rollback and re-save; the service fills the
+  // defaults for a stored row that lacks them (see cmsService).
+  trustEnabled: z.boolean().optional(),
+  trustItems: z.array(cmsTrustItemSchema).max(6).optional(),
   seo: cmsSeoMetaSchema.optional(),
 });
 export type CmsContactPageContent = z.infer<typeof cmsContactSchema>;

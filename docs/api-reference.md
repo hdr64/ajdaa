@@ -240,6 +240,14 @@ Returns the complete aggregated website content (nav, footer, home, works, clien
 }
 ```
 
+**Newer optional fields** (both tolerant by design: a `CmsSection` row saved before they existed is served with the defaults, and a payload that omits them still validates):
+
+| Section | Field | Type | Default |
+|---|---|---|---|
+| `contact` | `trustEnabled` | boolean | `true` |
+| `contact` | `trustItems` | array of `{ id, textAr, textEn }`, max 6, each text max 120 chars | the three public trust bullets |
+| `footer` | `madeInKsaEnabled` | boolean | `false` (the line stays hidden until switched on) |
+
 **Response (304 Not Modified):** Empty body, 0ms latency.
 
 ---

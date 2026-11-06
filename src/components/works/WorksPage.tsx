@@ -21,7 +21,6 @@ import {
   ArrowLeft,
   ArrowRight,
   ChevronDown,
-  ShieldCheck,
   RefreshCw,
   AlertCircle,
 } from 'lucide-react';
@@ -499,16 +498,11 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                         <Bath className="w-3 h-3 text-accent" /> {featured.bathrooms} {isAr ? 'حمام' : 'Baths'}
                       </span>
                     </>
-                  ) : (
-                    <>
-                      <span className={specChip}>
-                        <Warehouse className="w-3 h-3 text-accent" /> {featuredDisplay.units || (isAr ? 'سعات تخزين كبرى' : 'High-Capacity Storage')}
-                      </span>
-                      <span className={specChip}>
-                        <ShieldCheck className="w-3 h-3 text-accent" /> {isAr ? 'معتمد ومجهز' : 'Certified & Equipped'}
-                      </span>
-                    </>
-                  )}
+                  ) : featuredDisplay.units ? (
+                    <span className={specChip}>
+                      <Warehouse className="w-3 h-3 text-accent" /> {featuredDisplay.units}
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-5">
@@ -708,16 +702,11 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                             <Bath className="w-3.5 h-3.5 text-accent" /> {prop.bathrooms} {isAr ? 'دورات مياه' : 'Bathrooms'}
                           </span>
                         </>
-                      ) : (
-                        <>
-                          <span className="flex items-center gap-1 font-semibold text-heading">
-                            {display.units}
-                          </span>
-                          <span className="flex items-center gap-1 text-accent font-semibold">
-                            {isAr ? 'جاهز ومجهز' : 'Ready & Fitted'}
-                          </span>
-                        </>
-                      )}
+                      ) : display.units ? (
+                        <span className="flex items-center gap-1 font-semibold text-heading">
+                          {display.units}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 

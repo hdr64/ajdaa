@@ -8,11 +8,12 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
+  ShieldCheck,
 } from 'lucide-react';
 import { api, getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
-import type { CmsContactPageContent } from '../../../types/cms';
+import type { CmsContactPageContent, CmsTrustItem } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
 
 const DEFAULT_CONTACT: CmsContactPageContent = {
@@ -38,12 +39,34 @@ const DEFAULT_CONTACT: CmsContactPageContent = {
     'Investment & Strategic Partnerships',
     'General Inquiry & Customer Care',
   ],
+  trustEnabled: true,
+  trustItems: [
+    { id: 'trust-response', textAr: 'رد سريع خلال 24 ساعة', textEn: 'Prompt response within 24 hours' },
+    { id: 'trust-privacy', textAr: 'خصوصية وأمان لبياناتك', textEn: 'Data privacy & security guaranteed' },
+    { id: 'trust-support', textAr: 'دعم استشاري واستثماري مستمر', textEn: 'Continuous advisory & investment support' },
+  ],
 };
+
+/** Max items the server accepts (`cmsTrustItemSchema`), mirrored here for the UI. */
+const MAX_TRUST_ITEMS = 6;
+const MAX_TRUST_TEXT = 120;
 
 interface SubjectPair {
   id: string;
   ar: string;
   en: string;
+}
+
+/** Same shape as `SubjectPair`; separate alias keeps the two editors independent. */
+type TrustPair = SubjectPair;
+
+/** Zips the stored bilingual trust list into the editable pair shape. */
+function toTrustPairs(items: CmsTrustItem[] | undefined): TrustPair[] {
+  return (items ?? []).map((item, index) => ({
+    id: item.id || `trust-${index}`,
+    ar: item.textAr,
+    en: item.textEn,
+  }));
 }
 
 export const CmsContactPanel: React.FC = () => {
@@ -52,6 +75,9 @@ export const CmsContactPanel: React.FC = () => {
   const [data, setData] = useState<CmsContactPageContent>(DEFAULT_CONTACT);
   const [subjectPairs, setSubjectPairs] = useState<SubjectPair[]>([]);
   const [subjectError, setSubjectError] = useState<string | null>(null);
+  const [trustEnabled, setTrustEnabled] = useState(true);
+  const [trustPairs, setTrustPairs] = useState<TrustPair[]>([]);
+  const [trustError, setTrustError] = useState<string | null>(null);
   const [version, setVersion] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,6 +108,8 @@ export const CmsContactPanel: React.FC = () => {
           });
         }
         setSubjectPairs(pairs);
+        setTrustEnabled(res.content.trustEnabled ?? DEFAULT_CONTACT.trustEnabled ?? true);
+        setTrustPairs(toTrustPairs(res.content.trustItems ?? DEFAULT_CONTACT.trustItems));
       }
     } catch {
       setData(DEFAULT_CONTACT);
@@ -92,6 +120,8 @@ export const CmsContactPanel: React.FC = () => {
           en: DEFAULT_CONTACT.subjectsEn[i] || '',
         }))
       );
+      setTrustEnabled(DEFAULT_CONTACT.trustEnabled ?? true);
+      setTrustPairs(toTrustPairs(DEFAULT_CONTACT.trustItems));
     } finally {
       setLoading(false);
     }
@@ -139,6 +169,51 @@ export const CmsContactPanel: React.FC = () => {
     setSubjectPairs(copy);
   };
 
+  const handleAddTrust = () => {
+    if (trustPairs.length >= MAX_TRUST_ITEMS) {
+      const msg = t('cms.contact.trustMaxReached');
+      setTrustError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    setTrustError(null);
+    setTrustPairs((prev) => [
+      ...prev,
+      { id: `trust-${Date.now()}`, ar: 'عنصر ثقة جديد', en: 'New trust bullet' },
+    ]);
+  };
+
+  const handleUpdateTrust = (index: number, patch: Partial<TrustPair>) => {
+    setTrustError(null);
+    setTrustPairs((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], ...patch };
+      return copy;
+    });
+  };
+
+  const handleDeleteTrust = async (index: number) => {
+    const pair = trustPairs[index];
+    const ok = await confirm({
+      title: t('cms.contact.trustDeleteTitle'),
+      message: t('cms.contact.trustDeleteMessage', { text: pair.ar || pair.en }),
+      confirmLabel: t('cms.contact.trustDeleteConfirm'),
+      danger: true,
+    });
+    if (!ok) return;
+    setTrustPairs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMoveTrust = (index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= trustPairs.length) return;
+    const copy = [...trustPairs];
+    const temp = copy[index];
+    copy[index] = copy[target];
+    copy[target] = temp;
+    setTrustPairs(copy);
+  };
+
   const handleSave = async () => {
     if (!canManage) {
       showToast('ليس لديك صلاحية لتعديل محتوى صفحة التواصل');
@@ -165,10 +240,32 @@ export const CmsContactPanel: React.FC = () => {
 
     setSubjectError(null);
 
+    // Trust bullets follow the subjects' bilingual rule (drop only when both
+    // sides are empty, block a one-sided pair) plus the server's item cap.
+    const trimmedTrust = trustPairs.map((p) => ({ ...p, ar: p.ar.trim(), en: p.en.trim() }));
+    const survivingTrust = trimmedTrust.filter((p) => p.ar.length > 0 || p.en.length > 0);
+
+    if (survivingTrust.length > MAX_TRUST_ITEMS) {
+      const msg = t('cms.contact.trustMaxReached');
+      setTrustError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (survivingTrust.some((p) => !p.ar || !p.en)) {
+      const msg = t('cms.contact.trustPairIncomplete');
+      setTrustError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    setTrustError(null);
+
     const payload: CmsContactPageContent = {
       ...data,
       subjectsAr: survivingPairs.map((p) => p.ar),
       subjectsEn: survivingPairs.map((p) => p.en),
+      trustEnabled,
+      trustItems: survivingTrust.map((p) => ({ id: p.id, textAr: p.ar, textEn: p.en })),
     };
 
     setSaving(true);
@@ -426,6 +523,115 @@ export const CmsContactPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleDeleteSubject(index)}
+                className="p-1.5 rounded-lg text-neutral-text/50 hover:text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Trust Bullets Manager */}
+      <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-heading font-bold text-sm">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            {t('cms.contact.trustTitle')}
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer text-[11px] text-neutral-text">
+              <input
+                type="checkbox"
+                checked={trustEnabled}
+                onChange={(e) => setTrustEnabled(e.target.checked)}
+                className="rounded text-primary focus:ring-0"
+              />
+              {t('cms.contact.trustEnabled')}
+            </label>
+            <button
+              type="button"
+              onClick={handleAddTrust}
+              disabled={trustPairs.length >= MAX_TRUST_ITEMS}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/50 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-3.5 h-3.5 text-primary" />
+              {t('cms.contact.trustAdd')}
+            </button>
+          </div>
+        </div>
+
+        <p className="text-xs text-neutral-text/70">{t('cms.contact.trustSubtitle')}</p>
+
+        <div className="space-y-3">
+          {trustPairs.map((pair, index) => (
+            <div
+              key={pair.id}
+              className="p-3 rounded-xl border bg-canvas border-muted-border/40 flex items-center gap-3"
+            >
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => handleMoveTrust(index, 'up')}
+                  className="p-1 text-neutral-text hover:text-heading disabled:opacity-20 cursor-pointer"
+                >
+                  <ArrowUp className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={index === trustPairs.length - 1}
+                  onClick={() => handleMoveTrust(index, 'down')}
+                  className="p-1 text-neutral-text hover:text-heading disabled:opacity-20 cursor-pointer"
+                >
+                  <ArrowDown className="w-3 h-3" />
+                </button>
+              </div>
+
+              <div className="w-7 h-7 rounded-lg bg-surface text-neutral-text/70 flex items-center justify-center text-xs font-mono font-bold shrink-0">
+                {index + 1}
+              </div>
+
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <input
+                    type="text"
+                    value={pair.ar}
+                    maxLength={MAX_TRUST_TEXT}
+                    onChange={(e) => handleUpdateTrust(index, { ar: e.target.value })}
+                    placeholder={t('cms.contact.trustArPlaceholder')}
+                    className={`w-full px-2.5 py-1.5 text-xs rounded-lg bg-surface border focus:border-primary focus:outline-hidden ${
+                      trustError && !pair.ar.trim() && pair.en.trim()
+                        ? 'border-red-500/60'
+                        : 'border-muted-border/40'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={pair.en}
+                    maxLength={MAX_TRUST_TEXT}
+                    onChange={(e) => handleUpdateTrust(index, { en: e.target.value })}
+                    placeholder={t('cms.contact.trustEnPlaceholder')}
+                    className={`w-full px-2.5 py-1.5 text-xs rounded-lg bg-surface border focus:border-primary focus:outline-hidden ${
+                      trustError && pair.ar.trim() && !pair.en.trim()
+                        ? 'border-red-500/60'
+                        : 'border-muted-border/40'
+                    }`}
+                  />
+                </div>
+                {trustError && (!pair.ar.trim() !== !pair.en.trim()) && (
+                  <p role="alert" className="text-[11px] text-red-500 font-medium col-span-1 sm:col-span-2">
+                    {trustError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleDeleteTrust(index)}
                 className="p-1.5 rounded-lg text-neutral-text/50 hover:text-red-500 hover:bg-red-500/10 transition cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />

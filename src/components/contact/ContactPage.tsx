@@ -10,6 +10,7 @@ import { useCmsText } from '../../hooks/useCmsText';
 import { useCmsContact } from '../../hooks/useCmsContact';
 import { SOCIAL_KEYS } from '../../services/settingsService';
 import { SOCIAL_ICONS } from '../common/socialIcons';
+import { DEFAULT_CONTACT_PAGE } from '../../types/cms';
 
 interface ContactPageProps {
   onSuccessToast?: (msg: string) => void;
@@ -38,6 +39,12 @@ const SUBJECT_INTEREST: readonly ('rent' | 'buy' | 'invest' | 'general')[] = [
   'rent',
   'invest',
 ];
+
+/**
+ * Trust-bullet icons are fixed in code, not admin-editable: they cycle with the
+ * item index so any list length keeps a stable, recognisable icon per slot.
+ */
+const TRUST_ICONS = [Zap, ShieldCheck, Headphones];
 
 const interestFor = (index: number): 'rent' | 'buy' | 'invest' | 'general' =>
   SUBJECT_INTEREST[index] ?? 'general';
@@ -138,11 +145,19 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
       : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null);
 
-  const highlights = [
-    { icon: Zap, text: isAr ? 'رد سريع خلال 24 ساعة' : 'Prompt response within 24 hours' },
-    { icon: ShieldCheck, text: isAr ? 'خصوصية وأمان لبياناتك' : 'Data privacy & security guaranteed' },
-    { icon: Headphones, text: isAr ? 'دعم استشاري واستثماري مستمر' : 'Continuous advisory & investment support' },
-  ];
+  // Trust bullets are admin copy now; the fallback keeps the first paint (and a
+  // row stored before the field existed) showing today's three bullets.
+  const trustItems = (
+    contact.trustEnabled === false
+      ? []
+      : contact.trustItems ?? DEFAULT_CONTACT_PAGE.trustItems ?? []
+  )
+    .map((item, index) => ({
+      id: item.id,
+      icon: TRUST_ICONS[index % TRUST_ICONS.length],
+      text: isAr ? item.textAr : item.textEn || item.textAr,
+    }))
+    .filter((item) => item.text.trim().length > 0);
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -303,17 +318,19 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                 </div>
               )}
 
-              <div className="flex flex-col gap-3">
-                {highlights.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.text} className="flex items-center gap-2.5 text-xs text-neutral-text/75">
-                      <Icon className="w-4 h-4 text-gold shrink-0" />
-                      {item.text}
-                    </div>
-                  );
-                })}
-              </div>
+              {trustItems.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {trustItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.id} className="flex items-center gap-2.5 text-xs text-neutral-text/75">
+                        <Icon className="w-4 h-4 text-gold shrink-0" />
+                        {item.text}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </Reveal>

@@ -19,6 +19,11 @@ import logoEnDark from '../../assets/logos/en-2.png';
 /** Only these nav targets stay inside the single-page shell. */
 const FOOTER_ROUTES: readonly NavPageKey[] = ['home', 'works', 'pastWorks', 'clients', 'booking', 'contact'];
 
+// Captured once per page load rather than during render: a new `Date()` inside
+// the component is an impure render call, and the year cannot change meaningfully
+// within one visit.
+const CURRENT_YEAR = new Date().getFullYear();
+
 interface FooterProps {
   onNavigate: (page: NavPageKey) => void;
   onToast: (msg: string) => void;
@@ -34,6 +39,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
 
   const address = text(footer.addressAr, footer.addressEn);
   const hours = text(footer.hoursAr, footer.hoursEn);
+  // Shown only when the admin switched the line on and the active language's
+  // text is not blank (the Arabic text covers the English side by fallback).
+  const madeInKsaText = text(footer.madeInKsaAr, footer.madeInKsaEn).trim();
   const phone = footer.phone.trim();
   const email = footer.email.trim();
   const whatsappHref = footer.whatsappEnabled ? whatsappUrl(footer.whatsapp) : null;
@@ -304,10 +312,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
       {/* Bottom bar */}
       <div className="relative max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-[11px] text-neutral-text/40 border-t border-muted-border/10 pt-6">
         <p>
-          © 2026 {t.nav.brandName} ({t.nav.brandSub}). {text(footer.copyrightAr, footer.copyrightEn)}
+          © {CURRENT_YEAR} {t.nav.brandName} ({t.nav.brandSub}). {text(footer.copyrightAr, footer.copyrightEn)}
         </p>
         <div className="flex items-center gap-4">
-          {footer.madeInKsaEnabled && <p>{text(footer.madeInKsaAr, footer.madeInKsaEn)}</p>}
+          {footer.madeInKsaEnabled && madeInKsaText.length > 0 && <p>{madeInKsaText}</p>}
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             aria-label={t.footer.backToTop}

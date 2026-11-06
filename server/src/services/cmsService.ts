@@ -27,6 +27,23 @@ interface CacheEntry<T> {
 
 const memoryCache = new Map<string, CacheEntry<unknown>>();
 
+/**
+ * Content stored before these fields existed simply lacks the keys (`trust*`
+ * on the contact section, `madeInKsaEnabled` on the footer). Spreading the
+ * defaults underneath the stored object fills exactly those gaps: a stored
+ * value always wins, a missing key falls back to the default, so an old row
+ * renders with the defaults instead of `undefined`.
+ */
+function withContactSectionDefaults(stored: unknown): CmsContactPageContent {
+  if (!stored || typeof stored !== 'object') return DEFAULT_CONTACT;
+  return { ...DEFAULT_CONTACT, ...(stored as Partial<CmsContactPageContent>) };
+}
+
+function withFooterSectionDefaults(stored: unknown): CmsFooterSection {
+  if (!stored || typeof stored !== 'object') return DEFAULT_FOOTER;
+  return { ...DEFAULT_FOOTER, ...(stored as Partial<CmsFooterSection>) };
+}
+
 export function invalidateCmsCache(key?: string) {
   if (key) {
     memoryCache.delete(key);
@@ -150,11 +167,11 @@ export async function getAggregatedCmsContent(): Promise<{
 
   const payload: AggregatedCmsPayload = {
     nav: (sectionMap.nav?.content as CmsNavItem[]) ?? DEFAULT_NAV,
-    footer: (sectionMap.footer?.content as CmsFooterSection) ?? DEFAULT_FOOTER,
+    footer: withFooterSectionDefaults(sectionMap.footer?.content),
     home: (sectionMap.home?.content as CmsHomePageContent) ?? DEFAULT_HOME,
     works: (sectionMap.works?.content as CmsWorksPageContent) ?? DEFAULT_WORKS,
     clientsPage: (sectionMap.clientsPage?.content as CmsClientsPageContent) ?? DEFAULT_CLIENTS_PAGE,
-    contact: (sectionMap.contact?.content as CmsContactPageContent) ?? DEFAULT_CONTACT,
+    contact: withContactSectionDefaults(sectionMap.contact?.content),
   };
 
   memoryCache.set('aggregated', {
@@ -184,7 +201,16 @@ export async function getSectionContent(key: string): Promise<{
   const section = await prisma.cmsSection.findUnique({ where: { key } });
   if (!section) return null;
 
-  const data = JSON.parse(section.content);
+  // The same new-field merge as the aggregated payload: the admin panel edits
+  // what it reads, so a stale row must not reach the form (and then be saved)
+  // without the fields the panel owns.
+  const data =
+    key === 'contact'
+      ? withContactSectionDefaults(JSON.parse(section.content))
+      : key === 'footer'
+        ? withFooterSectionDefaults(JSON.parse(section.content))
+        : JSON.parse(section.content);
+
   memoryCache.set(key, {
     data,
     version: section.version,

@@ -351,6 +351,13 @@ export interface CmsClientItem {
 
 // ------------------------------------------------------------ contact page
 
+/** One trust bullet on the contact page. Icons are fixed in `ContactPage`. */
+export interface CmsTrustItem {
+  id: string;
+  textAr: string;
+  textEn: string;
+}
+
 export interface CmsContactPageContent {
   badgeAr: string;
   badgeEn: string;
@@ -362,6 +369,9 @@ export interface CmsContactPageContent {
   formTitleEn: string;
   subjectsAr: string[];
   subjectsEn: string[];
+  /** Optional in the schema: rows saved before the trust block existed lack it. */
+  trustEnabled?: boolean;
+  trustItems?: CmsTrustItem[];
   seo?: CmsSeoMeta;
 }
 
@@ -394,8 +404,7 @@ export const DEFAULT_NAV_ITEMS: CmsNavItem[] = [
   { id: 'nav-works', labelAr: 'مشاريعنا', labelEn: 'Projects', page: 'works', order: 2, enabled: true },
   { id: 'nav-past-works', labelAr: 'أعمالنا السابقة', labelEn: 'Past Works', page: 'pastWorks', order: 3, enabled: true },
   { id: 'nav-clients', labelAr: 'عملاؤنا وشركاؤنا', labelEn: 'Clients & Partners', page: 'clients', order: 4, enabled: true },
-  { id: 'nav-booking', labelAr: 'سجل اهتمامك', labelEn: 'Register Interest', page: 'booking', order: 5, enabled: true, isCta: false },
-  { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 6, enabled: true },
+  { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 5, enabled: true },
 ];
 
 export const DEFAULT_SOCIALS: CmsSocialItem[] = [
@@ -671,6 +680,12 @@ export const DEFAULT_CONTACT_PAGE: CmsContactPageContent = {
     'Logistics & Warehousing Spaces',
     'Investment & Strategic Partnerships',
     'General Inquiry & Customer Care',
+  ],
+  trustEnabled: true,
+  trustItems: [
+    { id: 'trust-response', textAr: 'رد سريع خلال 24 ساعة', textEn: 'Prompt response within 24 hours' },
+    { id: 'trust-privacy', textAr: 'خصوصية وأمان لبياناتك', textEn: 'Data privacy & security guaranteed' },
+    { id: 'trust-support', textAr: 'دعم استشاري واستثماري مستمر', textEn: 'Continuous advisory & investment support' },
   ],
 };
 

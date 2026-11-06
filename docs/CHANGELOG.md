@@ -27,6 +27,11 @@ Package versions at this point: root 1.2.2, server 1.2.3, `/api/health` 1.2.2 (t
 - **Project page**: removed the hard-coded six-card "amenities" block (super deluxe finishing, smart security, shaded parking, central AC, landscaping, structural warranties) that was rendered on every project, could not be edited or hidden by the admin, and was false for logistics and commercial projects. The editable, per-project, bilingual `features` list is the only amenities source now. The dead `modal.amenities` translation arrays (Arabic and English) were deleted with it — nothing read them.
 - **Project page i18n**: location highlights now use the admin's `locationHighlightsEn` when the language is English and fall back to the Arabic list only when it is empty (previously always Arabic); unit cards read `typeEn` and `featuresEn` in English with an Arabic fallback; the floors count uses proper Arabic counted forms (دور واحد / دوران / N أدوار / N دورًا) and English "1 floor" / "N floors"; the units fallback reads `unitsEn` in English ("Multiple units") before defaulting.
 - **Project page honesty**: removed every unverifiable "4K" claim about the project video (tab chip, overlay badges, hover tooltip, cinema badges). The video plays at whatever resolution the admin's YouTube URL provides.
+- **Works page**: dropped the hard-coded "معتمد ومجهز / Certified & Equipped" and "جاهز ومجهز / Ready & Fitted" chips from the featured banner and the project cards, and the "سعات تخزين كبرى / High-Capacity Storage" fallback that claimed a warehouse capacity no project data states. Cards with no units text now render nothing there.
+- **Contact page trust bullets**: the three hard-coded bullets (including the "reply within 24 hours" promise) are now admin content — `trustEnabled` on/off plus up to 6 editable bilingual `trustItems` in the contact CMS panel. Icons stay fixed in code; the block hides when disabled or empty. Defaults reproduce today's three bullets, so the public page is unchanged until edited.
+- **Footer made-in-KSA**: the line was defined in every layer but never rendered; it now renders from `madeInKsaEnabled` (default `false`, so the footer is unchanged until an admin switches it on) with the two admin-editable AR/EN texts added to the footer panel. The copyright year is now `new Date().getFullYear()` instead of the literal `2026`.
+- **CMS back-compat**: rows stored before these fields existed are served with the defaults (the service merges the new fields over a stored section), and the schema keeps the fields optional so rollbacks of old versions and older admin clients still validate. No Prisma migration — the content is JSON in `CmsSection`.
+- **Nav**: the "حجز معاينة / Register Interest" entry is removed from the site menu — from both nav defaults and, by the data migration `20261106214500_remove_booking_nav_item`, from the stored nav rows. The `/booking` page itself stays (hero CTA, project interest buttons and direct URLs still reach it); nothing but the menu entry was removed.
 
 ### Security and hardening
 - Logs and developer-notes access now needs a super admin session **and** a key in a header (`x-logs-key`, `x-dev-notes-key`); `?key=` is gone; both secrets plus `SETTINGS_ENCRYPTION_KEY` are required in production and no longer have default values.
@@ -37,7 +42,7 @@ Package versions at this point: root 1.2.2, server 1.2.3, `/api/health` 1.2.2 (t
 - Server suite grew from 146 to 428 tests in 44 files.
 
 ### Migrations to run on production (by hand, after a backup)
-`20261022000000_foundation_past_projects_applications`, `20261022100000_email_verification`, `20261024000000_totp`, `20261025000000_defaults_and_indexes`, `20261025120000_passkeys`, `20261026000000_user_avatar`.
+`20261022000000_foundation_past_projects_applications`, `20261022100000_email_verification`, `20261024000000_totp`, `20261025000000_defaults_and_indexes`, `20261025120000_passkeys`, `20261026000000_user_avatar`, `20261106214500_remove_booking_nav_item` (data fix: drops the booking entry from the stored nav JSON; the `/booking` page itself is untouched).
 
 ---
 

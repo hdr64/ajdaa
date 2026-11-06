@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api, getErrorMessage } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsFooterSection, CmsSocialItem, CmsSocialIcon } from '../../../types/cms';
 import { DEFAULT_FOOTER } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
@@ -31,6 +32,7 @@ const SOCIAL_ICONS = [
 
 export const CmsFooterPanel: React.FC = () => {
   const { showToast, confirm, can } = useAdmin();
+  const { t } = useAdminT();
   const [data, setData] = useState<CmsFooterSection>(DEFAULT_FOOTER);
   const [version, setVersion] = useState<number>(1);
   const [loading, setLoading] = useState(true);
@@ -244,6 +246,36 @@ export const CmsFooterPanel: React.FC = () => {
               />
               إظهار عبارة «صمم في المملكة العربية السعودية»
             </label>
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
+                  {t('cms.footer.madeInKsaArLabel')}
+                </label>
+                <input
+                  type="text"
+                  value={data.madeInKsaAr}
+                  maxLength={100}
+                  onChange={(e) => setData({ ...data, madeInKsaAr: e.target.value })}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
+                  {t('cms.footer.madeInKsaEnLabel')}
+                </label>
+                <input
+                  type="text"
+                  dir="ltr"
+                  value={data.madeInKsaEn}
+                  maxLength={100}
+                  onChange={(e) => setData({ ...data, madeInKsaEn: e.target.value })}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden"
+                />
+              </div>
+              <p className="text-[11px] text-neutral-text/50 sm:col-span-2">
+                {t('cms.footer.madeInKsaHint')}
+              </p>
+            </div>
           </div>
         </div>
 
