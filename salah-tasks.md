@@ -45,3 +45,15 @@
 - [ ] Set `SETTINGS_ENCRYPTION_KEY`, `LOGS_SECRET_KEY`, `DEVELOPER_NOTES_SECRET` in production `.env` (the server refuses to boot without them), plus `TRUST_PROXY=1` and `HOST=127.0.0.1`
 - [ ] After the backup, run all six pending migrations by hand: `20261022000000_foundation_past_projects_applications`, `20261022100000_email_verification`, `20261024000000_totp`, `20261025000000_defaults_and_indexes`, `20261025120000_passkeys`, `20261026000000_user_avatar`
 - [ ] Production deploy is `npm run deploy:prod` (or `reload.sh` on the server), never CI
+
+## H. Google Search Console and project SEO content (2026-11-07)
+Production was checked live on 2026-11-07: sitemap, robots, meta, JSON-LD and the verification file are fine.
+- [ ] Search Console: add a URL-prefix property `https://ajdaa.sa/`, verify with the HTML file `public/googleeb9c61398accaddd.html` (leave the file in place permanently)
+- [ ] Submit `sitemap.xml` under Sitemaps (Bing: import from Search Console, submit the same URL)
+- [ ] URL Inspection > Request indexing for `/`, `/works`, `/contact` only (small daily quota)
+- [ ] Check again after 1-2 weeks: Sitemaps "Discovered pages", Pages report, and the favicon in a private window (the globe icon is Google's cache until it recrawls; if still a globe after ~3 weeks, tell Claude)
+- [ ] In admin, write a real description (120-160 characters, ideally 150+ words on the page) for projects 7 (عماره السلي), 9 (فندق انتور-جيزان), 10 (فلل سكنية); their descriptions are about 30-40 characters now
+- [ ] In admin, use plain searchable names: replace "أجـــدا بــــرايــــم" (stretched letters) with "أجدا برايم", and make "فلل سكنية" specific (district or project name)
+- [ ] Add an English title to projects 1, 4, 5, 7, 9, 10 for readable URLs (they currently use `/projects/<id>`)
+- [ ] Check that the project images under `/uploads/seed/...` (Al-Ahsa, Vera, Vista, Prime, Line) are the real photos, not placeholders
+- [ ] Optional: DNS record for `www.ajdaa.sa` plus a Caddy redirect to `https://ajdaa.sa` (it does not resolve now)
