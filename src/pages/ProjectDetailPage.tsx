@@ -7,6 +7,7 @@ import { useAsyncData } from '../hooks/useAsyncData';
 import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
 import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
+import { SpaLink } from '../components/common/SpaLink';
 import { isHttpsUrl, isDownloadableMediaUrl } from '../utils/urlValidation';
 import { detectProjectStatus } from '../data/properties';
 import {
@@ -351,19 +352,21 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb Navigation */}
         <div className="flex items-center gap-2 text-xs text-neutral-text/60 mb-6 font-medium">
-          <button
-            onClick={() => onNavigate('home')}
+          <SpaLink
+            page="home"
+            onNavigate={() => onNavigate('home')}
             className="hover:text-accent transition cursor-pointer"
           >
             {isAr ? 'الرئيسية' : 'Home'}
-          </button>
+          </SpaLink>
           <span>/</span>
-          <button
-            onClick={() => onNavigate('works')}
+          <SpaLink
+            page="works"
+            onNavigate={() => onNavigate('works')}
             className="hover:text-accent transition cursor-pointer"
           >
             {isAr ? 'المشاريع' : 'Projects'}
-          </button>
+          </SpaLink>
           <span>/</span>
           <span className="text-heading font-bold truncate max-w-xs">{project.title}</span>
         </div>
@@ -445,7 +448,11 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
               <div className="relative aspect-[16/10] rounded-3xl overflow-hidden bg-surface border border-muted-border/40 shadow-sm group">
                 <img
                   src={selectedImage || project.image}
-                  alt={project.title}
+                  alt={`${project.title} — ${project.city}`}
+                  width={1280}
+                  height={800}
+                  fetchPriority="high"
+                  decoding="async"
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
 
@@ -489,6 +496,10 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   <img
                     src={project.image}
                     alt=""
+                    width={1280}
+                    height={720}
+                    loading="lazy"
+                    decoding="async"
                     className="absolute inset-0 w-full h-full object-cover opacity-35"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
@@ -513,7 +524,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                       : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt="" width={80} height={64} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -635,7 +646,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   <Compass className="w-5 h-5 text-inherit" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-heading">{isAr ? 'الموقع والمميزات الاستراتيجية' : 'Strategic Location & Highlights'}</h3>
+                  <h2 className="text-lg font-black text-heading">{isAr ? 'الموقع والمميزات الاستراتيجية' : 'Strategic Location & Highlights'}</h2>
                   <p className="text-xs text-neutral-text/60">{isAr ? 'موقع نوعي وحضور استثنائي على أهم المحاور' : 'Prime corridor location with exceptional visibility'}</p>
                 </div>
               </div>
@@ -661,7 +672,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   <Sparkles className="w-5 h-5 text-inherit" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-heading">{isAr ? 'أهم مميزات ومواصفات المشروع' : 'Key Project Features & Specifications'}</h3>
+                  <h2 className="text-lg font-black text-heading">{isAr ? 'أهم مميزات ومواصفات المشروع' : 'Key Project Features & Specifications'}</h2>
                   <p className="text-xs text-neutral-text/60">{isAr ? 'مزايا فريدة تعزز القيمة الاستثمارية والتشغيلية' : 'Distinctive advantages elevating investment & operational value'}</p>
                 </div>
               </div>
@@ -726,9 +737,9 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                           {isAr ? 'إنتاج أجدا العقارية' : 'Ajda Real Estate Media'}
                         </span>
                       </div>
-                      <h3 className="text-lg sm:text-2xl font-black text-heading mt-1">
+                      <h2 className="text-lg sm:text-2xl font-black text-heading mt-1">
                         {isAr ? `جولة سينمائية في ${project.title}` : `Cinematic Tour of ${project.title}`}
-                      </h3>
+                      </h2>
                     </div>
                   </div>
 
@@ -830,9 +841,9 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                             {unit.sectionAr}
                           </span>
                         )}
-                        <h4 className="text-base font-black text-heading group-hover:text-accent transition-colors">
+                        <h3 className="text-base font-black text-heading group-hover:text-accent transition-colors">
                           {unit.unitNumber}
-                        </h4>
+                        </h3>
                       </div>
                       {getStatusBadge(unit.status, unit.statusAr)}
                     </div>
@@ -1098,9 +1109,9 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h4 className="text-lg font-black text-heading mb-1">
+                <h3 className="text-lg font-black text-heading mb-1">
                   {isAr ? 'تم تسجيل اهتمامك بنجاح!' : 'Interest Registered!'}
-                </h4>
+                </h3>
                 <p className="text-xs text-neutral-text/70">
                   {isAr ? 'شكراً لاهتمامك بمشاريع أجدا العقارية.' : 'Thank you for your interest in Ajda developments.'}
                 </p>

@@ -1,3 +1,4 @@
+import { SpaLink } from './SpaLink';
 import React, { useState } from 'react';
 import type { Property } from '../../types/property';
 import {
@@ -58,7 +59,10 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         <img
           src={property.image}
           alt={display.title}
+          width={800}
+          height={480}
           loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-opacity duration-300 group-hover:opacity-95"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-300" />
@@ -125,7 +129,9 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           </div>
 
           <h3 className="font-bold text-base leading-snug mb-3 group-hover:text-accent transition-colors line-clamp-1">
-            {display.title}
+            <SpaLink page="project" projectId={property.id} projectTitleEn={property.titleEn} onNavigate={() => onQuickView?.(property)}>
+              {display.title}
+            </SpaLink>
           </h3>
 
           <div className="flex items-center justify-between text-xs text-neutral-text/70 mb-4 border-y border-muted-border/20 py-2.5">

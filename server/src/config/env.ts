@@ -97,6 +97,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters. Generate one with `openssl rand -base64 32`.'),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   UPLOAD_DIR: z.string().default('./uploads'),
+  // Built SPA (dist/); the SEO shell reads index.html from here.
+  SPA_DIST_DIR: z.string().default('../dist'),
+  // 'on' only in production: robots.txt, sitemap and the page shell are noindex otherwise.
+  SEO_INDEXING: z.enum(['on', 'off']).default('off'),
   PRIVATE_DIR: z.string().default('./private'),
   // The interface the server binds to. `127.0.0.1` keeps a development server
   // off the network; a deployment behind a reverse proxy binds `0.0.0.0`.
@@ -357,6 +361,8 @@ export const config = {
   settingsEncryptionKey: env.SETTINGS_ENCRYPTION_KEY,
   uploadDir: path.resolve(env.UPLOAD_DIR),
   privateDir: path.resolve(env.PRIVATE_DIR),
+  spaDistDir: path.resolve(env.SPA_DIST_DIR),
+  seoIndexing: env.SEO_INDEXING === 'on',
   clientOrigins,
   trustProxy: env.TRUST_PROXY,
   host: env.HOST,

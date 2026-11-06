@@ -235,6 +235,15 @@ export const CmsFooterPanel: React.FC = () => {
                 className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden"
               />
             </div>
+            <label className="flex items-center gap-2 cursor-pointer text-[11px] text-neutral-text sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={data.madeInKsaEnabled ?? false}
+                onChange={(e) => setData({ ...data, madeInKsaEnabled: e.target.checked })}
+                className="rounded text-primary focus:ring-0"
+              />
+              إظهار عبارة «صمم في المملكة العربية السعودية»
+            </label>
           </div>
         </div>
 

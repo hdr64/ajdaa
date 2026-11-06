@@ -139,7 +139,10 @@ export const PastProjectsPage: React.FC<Props> = () => {
                     <img
                       src={item.image}
                       alt={title}
+                      width={400}
+                      height={300}
                       loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                     />
                   </div>
@@ -149,7 +152,7 @@ export const PastProjectsPage: React.FC<Props> = () => {
                         {category}
                       </span>
                     )}
-                    <h3 className="text-base font-black text-heading mb-2 line-clamp-2">{title}</h3>
+                    <h2 className="text-base font-black text-heading mb-2 line-clamp-2">{title}</h2>
                     {short && <p className="text-xs text-neutral-text/70 leading-relaxed line-clamp-3">{short}</p>}
                   </div>
                 </button>
@@ -168,9 +171,9 @@ export const PastProjectsPage: React.FC<Props> = () => {
         >
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-surface rounded-3xl border border-muted-border/40 shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-black text-heading">
+              <h2 className="text-lg font-black text-heading">
                 {pick( active.title, active.titleEn, language)}
-              </h3>
+              </h2>
               <button type="button" onClick={() => setActive(null)} className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer" aria-label="إغلاق">
                 <X className="w-4 h-4" />
               </button>
@@ -180,7 +183,11 @@ export const PastProjectsPage: React.FC<Props> = () => {
               <div className="relative">
                 <img
                   src={active.gallery[galleryIndex]}
-                  alt={`gallery-${galleryIndex}`}
+                  alt={`${pick(active.title, active.titleEn, language)} — ${galleryIndex + 1}`}
+                  width={800}
+                  height={600}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full max-h-[50vh] object-contain rounded-2xl bg-canvas"
                 />
                 {active.gallery.length > 1 && (
@@ -207,7 +214,11 @@ export const PastProjectsPage: React.FC<Props> = () => {
             ) : (
               <img
                 src={active.image}
-                alt={pick( active.title, active.titleEn, language)}
+                alt={pick(active.title, active.titleEn, language)}
+                width={800}
+                height={600}
+                loading="lazy"
+                decoding="async"
                 className="w-full max-h-[50vh] object-contain rounded-2xl bg-canvas"
               />
             )}

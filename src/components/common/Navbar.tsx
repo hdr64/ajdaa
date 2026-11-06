@@ -9,6 +9,8 @@ import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { useCmsContact } from '../../hooks/useCmsContact';
+import { SpaLink } from './SpaLink';
+import type { SeoPage } from '../../seo/paths';
 import type { CmsNavItem, CmsNavPage } from '../../types/cms';
 
 import logoArLight from '../../assets/logos/ar-1.png';
@@ -120,16 +122,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
           {/* Logo - Dynamically switches between the 4 official brand logos */}
-          <div
-            onClick={() => handleNav('home')}
+          <SpaLink
+            page="home"
+            onNavigate={() => handleNav('home')}
             className="flex items-center cursor-pointer select-none group py-1"
           >
             <img
               src={logoSrc}
               alt={language === 'ar' ? 'أجدا العقارية' : 'Ajda Real Estate'}
+              width={120}
+              height={44}
+              decoding="async"
               className="h-8 xs:h-9 sm:h-11 w-auto object-contain transition-opacity duration-300 group-hover:opacity-90 navbar-logo"
             />
-          </div>
+          </SpaLink>
 
           {/* Desktop Nav Links */}
           <div className="hidden md:flex items-center gap-1">
@@ -149,10 +155,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
               }
 
               if (item.isCta) {
-                return (
+                return page ? (
+                  <SpaLink
+                    key={item.id}
+                    page={page as SeoPage}
+                    onNavigate={() => handleNav(page)}
+                    className="brand-btn-primary inline-block font-black text-xs px-5 py-2.5 rounded-full transition-all duration-300 cursor-pointer"
+                  >
+                    {label}
+                  </SpaLink>
+                ) : (
                   <button
                     key={item.id}
-                    onClick={() => page && handleNav(page)}
                     className="brand-btn-primary font-black text-xs px-5 py-2.5 rounded-full transition-all duration-300 cursor-pointer"
                   >
                     {label}
@@ -161,20 +175,23 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
               }
 
               const active = page !== null && currentPage === page;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => page && handleNav(page)}
-                  className={`px-4 py-2 text-sm font-medium transition-all relative cursor-pointer ${
-                    active
-                      ? 'text-accent font-extrabold'
-                      : 'text-neutral-text/75 hover:text-accent font-semibold'
-                  }`}
-                >
+              const itemClass = `px-4 py-2 text-sm font-medium transition-all relative cursor-pointer inline-block ${
+                active
+                  ? 'text-accent font-extrabold'
+                  : 'text-neutral-text/75 hover:text-accent font-semibold'
+              }`;
+              const underline = active && (
+                <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-gradient-to-r from-accent-light via-accent to-accent-dark transition-all duration-300" />
+              );
+              return page ? (
+                <SpaLink key={item.id} page={page as SeoPage} onNavigate={() => handleNav(page)} className={itemClass}>
                   {label}
-                  {active && (
-                    <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-gradient-to-r from-accent-light via-accent to-accent-dark transition-all duration-300" />
-                  )}
+                  {underline}
+                </SpaLink>
+              ) : (
+                <button key={item.id} className={itemClass}>
+                  {label}
+                  {underline}
                 </button>
               );
             })}
@@ -218,6 +235,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
             <img
               src={logoSrc}
               alt={language === 'ar' ? 'أجدا العقارية' : 'Ajda Real Estate'}
+              width={120}
+              height={44}
+              decoding="async"
               className="h-9 w-auto object-contain navbar-logo"
             />
           </div>
@@ -258,10 +278,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
                 );
               }
 
-              return (
+              return page ? (
+                <SpaLink
+                  key={item.id}
+                  page={page as SeoPage}
+                  onNavigate={() => handleNav(page)}
+                  style={{ animationDelay: `${(idx + 1) * 70}ms` }}
+                  className={`${classes} cursor-pointer`}
+                >
+                  {inner}
+                </SpaLink>
+              ) : (
                 <button
                   key={item.id}
-                  onClick={() => page && handleNav(page)}
                   style={{ animationDelay: `${(idx + 1) * 70}ms` }}
                   className={`${classes} cursor-pointer`}
                 >
@@ -303,9 +332,17 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, topOffs
                 <ctaEntry.Icon className="w-4 h-4 text-[var(--brand-btn-text)]" />
                 {ctaEntry.label}
               </a>
+            ) : ctaEntry.page ? (
+              <SpaLink
+                page={ctaEntry.page as SeoPage}
+                onNavigate={() => handleNav(ctaEntry.page!)}
+                className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ctaEntry.Icon className="w-4 h-4 text-[var(--brand-btn-text)]" />
+                {ctaEntry.label}
+              </SpaLink>
             ) : (
               <button
-                onClick={() => ctaEntry.page && handleNav(ctaEntry.page)}
                 className="w-full brand-btn-primary font-black text-sm py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
               >
                 <ctaEntry.Icon className="w-4 h-4 text-[var(--brand-btn-text)]" />

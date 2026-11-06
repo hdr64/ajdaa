@@ -88,6 +88,8 @@ the same IP (`127.0.0.1`) and the rate limiter would lock out the whole site
 at once. Set it to the real number of proxy hops in front of the API — one,
 here.
 
+**SEO variables.** Production sets `SEO_INDEXING=on`, `APP_URL=https://ajdaa.sa` and `SPA_DIST_DIR=/srv/ajda/app/dist`. The test instance keeps `SEO_INDEXING` unset (off) and `SPA_DIST_DIR=/srv/ajda/test/dist`. The page shell is rendered by the API, so the API must be reloaded after Caddy is changed and the SPA is built before it is asked for a page (see architecture section 12).
+
 > **Do not set `HOST=0.0.0.0`.** The API must only be reachable through
 > Caddy, on the loopback interface (`HOST=127.0.0.1`). `0.0.0.0` would expose
 > the API directly to the whole VPS network, bypassing Caddy's TLS and its
@@ -675,7 +677,18 @@ curl -fsSI https://ajdaa.sa/                    # 200, index.html not cached
 curl -fsS  https://ajdaa.sa/api/projects | head -c 200
 # test instance
 curl -fsS https://ajda.weghetk.com/api/health
+# SEO shell (production)
+curl -s  https://ajdaa.sa/projects/1 | grep -E "<title|canonical|og:title|ld\+json"   # per-project tags
+curl -sI https://ajdaa.sa/projects/999999 | head -1                                    # HTTP/2 404
+curl -s  https://ajdaa.sa/robots.txt                                                   # Allow + Sitemap line
+curl -s  https://ajdaa.sa/sitemap.xml | head -c 400
+curl -sI https://ajdaa.sa/favicon.ico | head -3                                        # 200, image/x-icon
+# SEO shell (test): must stay noindex
+curl -sI https://ajda.weghetk.com/ | grep -i x-robots-tag
+# API down: stop ajda-api, https://ajdaa.sa/ must still return the static page (200)
 ```
+
+The Caddy SEO blocks (`@spaPage`, `handle_response`, `handle_errors`) were written without a local Caddy to validate them: run `sudo caddy validate` and try the test instance first, including the "API stopped" check above.
 
 ## 9. Known limitations
 

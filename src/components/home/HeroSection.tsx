@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { HeroScene } from './HeroScene';
+import { SpaLink } from '../common/SpaLink';
 import { useLanguage } from '../../hooks/useLanguage';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
@@ -112,6 +113,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
         <img
           src={heroImage}
           alt={t.nav.brandName}
+          width={1920}
+          height={1080}
+          fetchPriority="high"
+          decoding="async"
           className="w-full h-full object-cover object-center filter brightness-[0.98] contrast-[1.04]"
         />
       </div>
@@ -169,13 +174,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
               className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-5 sm:mt-9 hero-reveal"
               style={{ animationDelay: '750ms' }}
             >
-              <button
-                onClick={() => onExplore()}
+              <SpaLink
+                page="works"
+                onNavigate={() => onExplore()}
                 className="w-full sm:w-auto brand-btn-primary font-black px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl inline-flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer text-xs xs:text-sm sm:text-base"
               >
                 <span>{text(hero.exploreBtnTextAr, hero.exploreBtnTextEn)}</span>
                 <ArrowIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
+              </SpaLink>
               {/* <button
                 onClick={onBook}
                 className="w-full sm:w-auto brand-btn-secondary font-bold px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl inline-flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer text-xs xs:text-sm sm:text-base"

@@ -108,6 +108,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                 <img
                   src={logoSrc}
                   alt={t.nav.brandName}
+                  width={120}
+                  height={48}
+                  loading="lazy"
+                  decoding="async"
                   className="h-12 md:h-14 w-auto object-contain transition-opacity duration-300 group-hover:opacity-90"
                 />
               </button>
@@ -303,7 +307,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
           © 2026 {t.nav.brandName} ({t.nav.brandSub}). {text(footer.copyrightAr, footer.copyrightEn)}
         </p>
         <div className="flex items-center gap-4">
-          <p>{text(footer.madeInKsaAr, footer.madeInKsaEn)}</p>
+          {footer.madeInKsaEnabled && <p>{text(footer.madeInKsaAr, footer.madeInKsaEn)}</p>}
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             aria-label={t.footer.backToTop}

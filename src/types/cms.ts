@@ -74,6 +74,7 @@ export interface CmsFooterSection {
   copyrightEn: string;
   madeInKsaAr: string;
   madeInKsaEn: string;
+  madeInKsaEnabled?: boolean;
   socials: CmsSocialItem[];
 }
 
@@ -393,7 +394,7 @@ export const DEFAULT_NAV_ITEMS: CmsNavItem[] = [
   { id: 'nav-works', labelAr: 'مشاريعنا', labelEn: 'Projects', page: 'works', order: 2, enabled: true },
   { id: 'nav-past-works', labelAr: 'أعمالنا السابقة', labelEn: 'Past Works', page: 'pastWorks', order: 3, enabled: true },
   { id: 'nav-clients', labelAr: 'عملاؤنا وشركاؤنا', labelEn: 'Clients & Partners', page: 'clients', order: 4, enabled: true },
-  { id: 'nav-booking', labelAr: 'حجز معاينة', labelEn: 'Book a Viewing', page: 'booking', order: 5, enabled: true, isCta: false },
+  { id: 'nav-booking', labelAr: 'سجل اهتمامك', labelEn: 'Register Interest', page: 'booking', order: 5, enabled: true, isCta: false },
   { id: 'nav-contact', labelAr: 'تواصل معنا', labelEn: 'Contact Us', page: 'contact', order: 6, enabled: true },
 ];
 
@@ -448,6 +449,7 @@ export const DEFAULT_FOOTER: CmsFooterSection = {
   copyrightEn: '2026 Ajda Real Estate. All rights reserved.',
   madeInKsaAr: 'صمم بـ ❤️ في المملكة العربية السعودية',
   madeInKsaEn: 'Designed with ❤️ in Saudi Arabia',
+  madeInKsaEnabled: false,
   socials: DEFAULT_SOCIALS,
 };
 
@@ -478,8 +480,8 @@ export const DEFAULT_HOME_PAGE: CmsHomePageContent = {
     subtitleEn: 'Signature developments built to world-class standards in prime locations, powering your commercial and investment aspirations across Saudi Arabia.',
     exploreBtnTextAr: 'استكشف مشاريعنا',
     exploreBtnTextEn: 'Explore Projects',
-    consultBtnTextAr: 'حجز معاينة استثمارية',
-    consultBtnTextEn: 'Book Investment Tour',
+    consultBtnTextAr: 'سجل اهتمامك الاستثماري',
+    consultBtnTextEn: 'Register Investment Interest',
     bgImage: '',
   },
   marquee: { enabled: true, cities: DEFAULT_MARQUEE_CITIES },
@@ -598,8 +600,8 @@ export const DEFAULT_HOME_PAGE: CmsHomePageContent = {
     titleHighlightEn: 'Acquire Your Premier Asset?',
     descAr: 'تواصل معنا اليوم ودعنا نساعدك في إيجاد العقار المثالي الذي يلبي جميع احتياجاتك الاستثمارية والتشغيلية.',
     descEn: 'Get in touch with our corporate team today to identify the ideal commercial or logistics space for your enterprise.',
-    primaryBtnTextAr: 'احجز موعد معاينة',
-    primaryBtnTextEn: 'Book Viewing Appointment',
+    primaryBtnTextAr: 'سجل اهتمامك الآن',
+    primaryBtnTextEn: 'Register Your Interest',
     secondaryBtnTextAr: 'تواصل معنا',
     secondaryBtnTextEn: 'Contact Our Team',
   },

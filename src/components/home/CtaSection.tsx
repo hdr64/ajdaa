@@ -1,6 +1,7 @@
 import React from 'react';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
+import { SpaLink } from '../common/SpaLink';
 
 interface CtaSectionProps {
   onBook: () => void;
@@ -27,18 +28,20 @@ export const CtaSection: React.FC<CtaSectionProps> = ({ onBook, onContact }) => 
           {text(cta.descAr, cta.descEn)}
         </p>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 w-full max-w-sm sm:max-w-none mx-auto">
-          <button
-            onClick={onBook}
+          <SpaLink
+            page="booking"
+            onNavigate={onBook}
             className="w-full sm:w-auto brand-btn-primary font-bold text-xs sm:text-sm px-8 py-3.5 sm:py-3 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
           >
             {text(cta.primaryBtnTextAr, cta.primaryBtnTextEn)}
-          </button>
-          <button
-            onClick={onContact}
+          </SpaLink>
+          <SpaLink
+            page="contact"
+            onNavigate={onContact}
             className="w-full sm:w-auto brand-btn-secondary font-bold text-xs sm:text-sm px-8 py-3.5 sm:py-3 rounded-full hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
           >
             {text(cta.secondaryBtnTextAr, cta.secondaryBtnTextEn)}
-          </button>
+          </SpaLink>
         </div>
       </div>
     </section>

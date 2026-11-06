@@ -10,6 +10,9 @@
 Package versions at this point: root 1.2.2, server 1.2.3, `/api/health` 1.2.2 (to be aligned at release). Production needs the migrations listed at the end, run by the owner after a backup.
 
 ### Added
+- Readable project URLs `/projects/{slug}-{id}` (slug from `titleEn`, id suffix keeps it unique, old `/projects/{id}` URLs still work and canonicalise). No migration.
+- **SEO**: the API renders the SPA shell per page (title, description, canonical, OpenGraph, Twitter, JSON-LD, `<noscript>` content, honest 404s), `/robots.txt`, `/sitemap.xml`, `SEO_INDEXING` safety flag (off by default, noindex everywhere), Caddy routing with static fallback, default share image `public/og-default.png`. See architecture section 12.
+- **Favicons**: 48/96 px PNGs and a real multi-size `favicon.ico` so Google can show the site icon.
 - **Past projects** ("our previous work"): admin CRUD, public `/past-works` page, gallery and publish switch.
 - **Careers**: public application form with optional CV (PDF, stored privately), admin Applications page, configurable required fields, email notification to configurable recipients, floating "Jobs" button and footer item, each switchable in Settings.
 - **Project page**: 3D model link, project profile PDF button, admin editing of all project fields, project duplication.

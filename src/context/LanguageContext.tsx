@@ -29,13 +29,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     root.setAttribute('lang', lang);
     root.setAttribute('dir', nextDir);
 
-    // Dynamic Title
+    // The document title is owned by `useSeo` (per page and language).
     if (lang === 'ar') {
-      document.title = 'أجدا العقارية | نُعيد تعريف العقار… مشروعاً، وقيمة، وتجربة';
       document.body.classList.remove('font-sans-en');
       document.body.classList.add('font-cairo');
     } else {
-      document.title = 'Ajda Real Estate | Redefining Real Estate… Project, Value, and Experience';
       document.body.classList.remove('font-cairo');
       document.body.classList.add('font-sans-en');
     }

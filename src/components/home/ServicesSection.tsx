@@ -5,6 +5,7 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { resolveCmsIcon } from '../common/cmsIcons';
+import { SpaLink } from '../common/SpaLink';
 
 interface ServicesSectionProps {
   onExplore?: () => void;
@@ -69,13 +70,14 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onExplore }) =
                   <p className="text-xs text-neutral-text/75 leading-relaxed mb-6">
                     {text(item.descAr, item.descEn)}
                   </p>
-                  <button
-                    onClick={onExplore}
+                  <SpaLink
+                    page="works"
+                    onNavigate={() => onExplore?.()}
                     className="inline-flex items-center gap-2 text-xs font-bold text-accent group-hover:text-accent-light transition-colors cursor-pointer"
                   >
                     <span>{text('اعرف المزيد', 'Learn More')}</span>
                     <ArrowIcon className="w-3.5 h-3.5 transition-transform duration-300" />
-                  </button>
+                  </SpaLink>
                 </div>
               </div>
             </Reveal>

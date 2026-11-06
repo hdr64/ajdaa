@@ -234,9 +234,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
       <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
         <Reveal direction="right" className="lg:col-span-2">
           <div className="glass-card h-full rounded-3xl p-8 flex flex-col">
-            <h3 className="text-lg font-black text-heading mb-6">
+            <h2 className="text-lg font-black text-heading mb-6">
               {isAr ? 'معلومات التواصل' : 'Contact Information'}
-            </h3>
+            </h2>
 
             <div className="flex flex-col gap-4 mb-8">
               {contactItems.map((item) => {
@@ -323,9 +323,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
             <div aria-hidden className="absolute -top-20 -right-20 w-56 h-56 bg-accent/8 blur-[90px] rounded-full pointer-events-none" />
 
             {!sent && (
-              <h3 className="relative text-lg font-black text-heading mb-6">
+              <h2 className="relative text-lg font-black text-heading mb-6">
                 {text(contact.formTitleAr, contact.formTitleEn)}
-              </h3>
+              </h2>
             )}
 
             {sent ? (
@@ -333,9 +333,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onSuccessToast }) => {
                 <div className="w-20 h-20 rounded-full bg-success/15 border border-success/40 flex items-center justify-center mb-7 pop-in">
                   <CheckCircle2 className="w-10 h-10 text-success" />
                 </div>
-                <h3 className="text-2xl font-black text-heading mb-3">
+                <h2 className="text-2xl font-black text-heading mb-3">
                   {isAr ? 'تم إرسال رسالتك بنجاح' : 'Your message has been sent successfully'}
-                </h3>
+                </h2>
                 <p className="text-sm text-neutral-text/60 max-w-sm leading-relaxed mb-8">
                   {isAr
                     ? 'شكراً لتواصلك معنا، سيتواصل معك أحد مستشارينا في أقرب وقت ممكن'

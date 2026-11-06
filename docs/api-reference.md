@@ -93,6 +93,14 @@ Guards: **public** (no session; most are rate limited), **JWT** (any signed-in a
 | `GET /developer/notes`, `GET /developer/notes/export`, `GET/PATCH/DELETE /developer/notes/:id` | super admin session plus `x-dev-notes-key` header |
 | `GET /health` | public (`{ status, version }`) |
 
+### SEO (search engines, public, no auth)
+
+| Route | Notes |
+|---|---|
+| `GET /robots.txt` (site root, not under `/api`) | Allows crawling and links the sitemap when `SEO_INDEXING=on`; `Disallow: /` otherwise. |
+| `GET /sitemap.xml` (site root) | Home, static pages and every **published** project (`lastmod`, main image). Empty `<urlset>` plus `X-Robots-Tag: noindex` when indexing is off. Cached 10 min. |
+| `GET /api/seo/shell?path=/projects/5` | The built `index.html` with per-page title, description, canonical, robots, OpenGraph, Twitter and JSON-LD tags and a `<noscript>` block. 200, or 404 + noindex for unknown paths and unpublished or missing projects. Admin paths are noindex. 5xx with an empty body when the template or database fails (Caddy then serves the static file). `ETag`/304, cached 60 s. Called by Caddy, not by the SPA. |
+
 ---
 
 ## 1. Authentication & Security (`/api/auth`)

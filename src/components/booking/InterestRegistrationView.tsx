@@ -270,12 +270,16 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
               <div className="flex items-center gap-3">
                 <img
                   src={selectedProperty.image}
-                  alt=""
+                  alt={`${selectedProperty.title} — ${selectedProperty.city}`}
+                  width={56}
+                  height={56}
+                  loading="lazy"
+                  decoding="async"
                   className="w-14 h-14 rounded-xl object-cover"
                 />
                 <div>
                   <span className="text-[10px] font-bold text-accent block">{selectedProperty.typeAr}</span>
-                  <h4 className="text-sm font-black text-heading">{selectedProperty.title}</h4>
+                  <h2 className="text-sm font-black text-heading">{selectedProperty.title}</h2>
                   <div className="flex items-center gap-2 text-[11px] text-neutral-text/60 mt-0.5">
                     <MapPin className="w-3 h-3 text-accent" />
                     <span>{selectedProperty.city}</span>
@@ -465,9 +469,9 @@ export const InterestRegistrationView: React.FC<InterestRegistrationViewProps> =
             <CheckCircle2 className="w-10 h-10" />
           </div>
 
-          <h3 className="text-2xl font-black text-heading mb-2">
+          <h2 className="text-2xl font-black text-heading mb-2">
             {isAr ? 'تم تسجيل اهتمامك بنجاح!' : 'Interest Registered Successfully!'}
-          </h3>
+          </h2>
 
           <p className="text-xs sm:text-sm text-neutral-text/70 leading-relaxed max-w-md mx-auto mb-8">
             {isAr

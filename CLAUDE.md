@@ -27,6 +27,7 @@ Real-estate platform "أجدا / Ajda" (ajdaa.sa). Vite + React 19 + Tailwind v4
 ## Database facts
 - Dev and tests use SQLite (`server/prisma/schema.prisma`), production uses PostgreSQL via a generated gitignored copy (`npm run db:gen:prod`, `db:migrate` = `prisma migrate deploy`). Committed migrations are PostgreSQL SQL, written by hand; `db:push` never creates a migration, so every schema change needs one.
 - Moving dev and tests to PostgreSQL (`task-w4-postgres-dev-prompt.md`) is parked; revisit before the first production deploy.
+- The generated Prisma client is built for ONE provider; `npm test`, `npm install` (SQLite) and `db:gen:prod` (PostgreSQL) overwrite each other. `npm run dev` runs `predev` (`server/scripts/ensure-prisma-client.mjs`), which regenerates the client to match `DATABASE_URL`, so no manual step is needed after running the tests.
 - Local PostgreSQL 18 is installed natively; `docker-compose.dev.yml` has a PostgreSQL 16 dev service (Docker Desktop is often off).
 - Seeded dev logins: `admin@ajdaa.sa` (super admin) and `dev@ajdaa.sa`, password `password`.
 

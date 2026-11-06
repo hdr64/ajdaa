@@ -65,6 +65,7 @@ export const cmsFooterSchema = z.object({
   copyrightEn: z.string().trim().max(200),
   madeInKsaAr: z.string().trim().max(100),
   madeInKsaEn: z.string().trim().max(100),
+  madeInKsaEnabled: z.boolean().optional(),
   socials: z.array(cmsSocialItemSchema).max(20),
 });
 export type CmsFooterSection = z.infer<typeof cmsFooterSchema>;

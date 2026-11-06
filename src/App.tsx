@@ -14,6 +14,9 @@ import { AnnouncementBar } from './components/common/AnnouncementBar';
 import { MaintenanceScreen } from './components/common/MaintenanceScreen';
 import { useSiteSettings } from './hooks/useSiteSettings';
 import { useLanguage } from './hooks/useLanguage';
+import { useSeo } from './hooks/useSeo';
+import { getSeoMeta, type SeoRoutePage } from './seo/pageMeta';
+import { pathForPage } from './seo/paths';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -104,7 +107,7 @@ const parsePath = (pathname: string): RouteState => {
   if (clean.endsWith('/contact')) return { page: 'contact' };
 
   // Match /projects/:id or /project/:id
-  const projectMatch = clean.match(/\/projects?\/(\d+)/);
+  const projectMatch = clean.match(/\/projects?\/(?:[a-z0-9-]*-)?(\d+)$/);
   if (projectMatch && projectMatch[1]) {
     return { page: 'project', projectId: parseInt(projectMatch[1], 10) };
   }
@@ -122,7 +125,7 @@ const getPathForRoute = (route: RouteState): string => {
     }
   });
 
-  const projectMatch = basePath.match(/\/projects?\/\d+/);
+  const projectMatch = basePath.match(/\/projects?\/[^/]+$/i);
   if (projectMatch) {
     basePath = basePath.replace(projectMatch[0], '');
   }
@@ -193,6 +196,15 @@ export function App() {
 
   const currentPage = route.page;
   const currentProjectId = route.projectId || 206;
+
+  // Head tags for the current route and language (title, description, canonical,
+  // OpenGraph, JSON-LD). The server renders the first set; this keeps it right
+  // while the visitor navigates. Must stay above every early return.
+  const seoOrigin = window.location.origin;
+  const seoPage: SeoRoutePage = currentPage.startsWith('admin') ? 'admin' : (currentPage as SeoRoutePage);
+  const seoProject =
+    currentPage === 'project' && selectedProperty && selectedProperty.id === route.projectId ? selectedProperty : null;
+  useSeo(getSeoMeta(seoPage, language, seoOrigin, seoProject), seoOrigin, currentPage === 'home');
 
   // An expired or revoked JWT must eject the admin portal from anywhere in the app.
   useEffect(
@@ -306,6 +318,17 @@ export function App() {
       };
     }
   }, [route.projectId, selectedProperty]);
+
+  // Show the readable URL (`/projects/villa-riyadh-206`) once the project is known.
+  // replaceState keeps the history length; the server canonical is the same path.
+  useEffect(() => {
+    if (currentPage !== 'project' || !selectedProperty || selectedProperty.id !== route.projectId) return;
+    const wanted = pathForPage('project', selectedProperty.id, selectedProperty.titleEn);
+    const here = window.location.pathname.replace(/\/$/, '');
+    if (here !== wanted && /\/projects?\/[^/]+$/i.test(here)) {
+      window.history.replaceState(window.history.state, '', here.replace(/\/projects?\/[^/]+$/i, wanted));
+    }
+  }, [currentPage, route.projectId, selectedProperty]);
 
   // Admin sections change without the page transition; the dashboard is one screen.
   const navigateAdmin = (adminPath: string, options?: { replace?: boolean }) => {

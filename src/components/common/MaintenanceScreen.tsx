@@ -53,6 +53,9 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ onAdminLog
           <img
             src={logoSrc}
             alt={isAr ? 'أجدا العقارية' : 'Ajda Real Estate'}
+            width={120}
+            height={40}
+            decoding="async"
             className="h-8 sm:h-10 w-auto object-contain navbar-logo select-none"
           />
         </div>

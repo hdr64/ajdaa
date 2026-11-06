@@ -1,6 +1,7 @@
 import React from 'react';
 import { Briefcase } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
+import { SpaLink } from './SpaLink';
 
 interface CareersFloatingButtonProps {
   onClick: () => void;
@@ -20,16 +21,16 @@ export const CareersFloatingButton: React.FC<CareersFloatingButtonProps> = ({ on
 
   return (
     <div className="fixed bottom-6 end-4 sm:end-6 z-40">
-      <button
-        type="button"
-        onClick={onClick}
+      <SpaLink
+        page="careers"
+        onNavigate={onClick}
         aria-label={label}
         title={label}
         className="brand-btn-primary flex items-center gap-2 rounded-full p-3.5 sm:px-5 sm:py-3 shadow-lg text-xs font-black cursor-pointer motion-safe:transition-transform motion-safe:hover:scale-105"
       >
         <Briefcase className="w-5 h-5" aria-hidden="true" />
         <span className="hidden sm:inline">{label}</span>
-      </button>
+      </SpaLink>
     </div>
   );
 };

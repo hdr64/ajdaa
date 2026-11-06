@@ -5,6 +5,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import { useCmsContent } from '../hooks/useCmsContent';
 import { useCmsText } from '../hooks/useCmsText';
 import { useCmsContact } from '../hooks/useCmsContact';
+import { SpaLink } from '../components/common/SpaLink';
 import type { NavPageKey } from '../components/common/Navbar';
 
 /**
@@ -108,8 +109,11 @@ export const ClientsPage: React.FC<ClientsPageProps> = ({ onNavigate }) => {
                         <img
                           src={client.logo}
                           alt={text(client.nameAr, client.nameEn)}
-                          className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                          width={200}
+                          height={128}
                           loading="lazy"
+                          decoding="async"
+                          className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
                         />
                       </div>
 
@@ -164,13 +168,14 @@ export const ClientsPage: React.FC<ClientsPageProps> = ({ onNavigate }) => {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full sm:w-auto">
-              <button
-                onClick={() => onNavigate('contact')}
+              <SpaLink
+                page="contact"
+                onNavigate={() => onNavigate('contact')}
                 className="w-full sm:w-auto brand-btn-primary font-bold text-xs sm:text-sm px-6 py-3.5 rounded-full flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105"
               >
                 <span>{text(page.ctaButtonTextAr, page.ctaButtonTextEn)}</span>
                 <ArrowIcon className="w-4 h-4" />
-              </button>
+              </SpaLink>
               {whatsappHref && (
                 <a
                   href={whatsappHref}

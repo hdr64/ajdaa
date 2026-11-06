@@ -55,8 +55,11 @@ export const ClientsSection: React.FC = () => {
                   <img
                     src={client.logo}
                     alt={text(client.nameAr, client.nameEn)}
-                    className="max-h-full max-w-full object-contain transition-opacity duration-300 group-hover:opacity-90"
+                    width={200}
+                    height={100}
                     loading="lazy"
+                    decoding="async"
+                    className="max-h-full max-w-full object-contain transition-opacity duration-300 group-hover:opacity-90"
                   />
                 </div>
 

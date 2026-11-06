@@ -187,3 +187,9 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
   - Added step validation and selection guards in `UserCreateWizard` so that `super_admin` cannot be selected or submitted under any circumstance.
   - Cleaned up `UserCreateWizardProps` and `UserFormDialog.tsx` to eliminate unused props and resolve all TypeScript lint/build warnings.
 
+
+- 2026-11-06 (owner): Google shows a globe instead of the site icon, and wants proper SEO. Done: 48/96 px favicons and a multi-size ICO; SEO shell (per-page meta, OG, JSON-LD, sitemap, robots, `SEO_INDEXING` flag); client head hook and real `<a href>` links. See docs/architecture.md section 12.
+
+- 2026-11-06 (owner): "fix them all" after the SEO review. Prompts written: task-seo-c (finish client links/images/headings), task-seo-d (readable project URLs, no migration), task-seo-e (English version at /en with hreflang). Run in that order. Deploy with indexing on and Search Console remain owner actions (docs/TODO.md item 7).
+
+- 2026-11-06 (owner): CMS review: public content shown with no admin control (project-page six-card amenities block, "made in KSA" footer line, works-page "Certified/Ready" badges, contact trust bullets, hard-coded map region counts, Past Works and Careers copy). Prompts written: task-cms-a (project page, delete fake amenities, 4K/EN fixes), task-cms-b (works badges, contact trust CMS, footer madeInKsa toggle), task-cms-c (map regions from data, featured hint), task-cms-d (Past Works and Careers CMS, run after b). Deviation from the first plan: no new amenities field, the existing per-project `features` list already covers it.

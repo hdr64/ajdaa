@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Building2, MapPin, CheckCircle2, ArrowLeft, ArrowRight, TrendingUp, Layers, Eye, RefreshCw, AlertCircle } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
+import { SpaLink } from '../common/SpaLink';
 import { useLanguage } from '../../hooks/useLanguage';
 import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
@@ -149,6 +150,10 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                   <img
                     src={prop.image}
                     alt={display.title}
+                    width={800}
+                    height={450}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover transition-opacity duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/20 to-transparent" />
@@ -200,7 +205,9 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                     </div>
 
                     <h3 className="text-lg sm:text-xl font-black text-heading mb-2 group-hover:text-accent transition-colors">
-                      {display.title}
+                      <SpaLink page="project" projectId={prop.id} projectTitleEn={prop.titleEn} onNavigate={() => onQuickView?.(prop)}>
+                        {display.title}
+                      </SpaLink>
                     </h3>
                     <p className="text-xs text-neutral-text/75 leading-relaxed mb-4 sm:mb-6 font-medium line-clamp-2">
                       {display.description}

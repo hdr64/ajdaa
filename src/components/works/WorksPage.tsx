@@ -463,6 +463,10 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                 <img
                   src={featured.image}
                   alt={featuredDisplay.title}
+                  width={1280}
+                  height={720}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-l from-canvas/90 via-canvas/20 to-transparent" />
@@ -474,9 +478,9 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                   {isAr ? 'المشروع الاستراتيجي المميز' : 'Featured Flagship Hub'}
                 </span>
 
-                <h3 className="text-2xl md:text-3xl font-black text-heading mb-3 leading-snug group-hover:text-accent transition-colors">
+                <h2 className="text-2xl md:text-3xl font-black text-heading mb-3 leading-snug group-hover:text-accent transition-colors">
                   {featuredDisplay.title}
-                </h3>
+                </h2>
                 <p className="text-xs text-neutral-text/60 mb-6 flex items-center gap-1.5 font-medium">
                   <MapPin className="w-3.5 h-3.5 text-accent" />
                   {featuredDisplay.city} · {featuredDisplay.type} · {featuredDisplay.badge}
@@ -520,7 +524,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                   >
                     {featuredDisplay.isBooked
                       ? isAr ? 'طلب استفسار' : 'Inquire Now'
-                      : isAr ? 'حجز معاينة / استفسار' : 'Book Inspection / Inquire'}
+                      : isAr ? 'سجل اهتمامك / استفسار' : 'Register Interest / Inquire'}
                     {isAr ? <ArrowLeft className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
                   </button>
                 </div>
@@ -653,6 +657,10 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                   <img
                     src={prop.image}
                     alt={display.title}
+                    width={256}
+                    height={192}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                   <span
@@ -683,9 +691,9 @@ export const WorksPage: React.FC<WorksPageProps> = ({
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-lg text-heading group-hover:text-accent transition mb-3">
+                    <h2 className="font-bold text-lg text-heading group-hover:text-accent transition mb-3">
                       {display.title}
-                    </h3>
+                    </h2>
 
                     <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-text/70 mb-4">
                       <span className="flex items-center gap-1">

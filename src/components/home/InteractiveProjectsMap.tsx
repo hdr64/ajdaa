@@ -5,6 +5,7 @@ import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { loadGoogleMaps, MapsConfigError, type GoogleMapsBundle } from '../../services/googleMaps';
 import { useLanguage } from '../../hooks/useLanguage';
+import { SpaLink } from '../common/SpaLink';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { toYoutubeEmbedUrl } from '../../services/youtube';
@@ -1008,6 +1009,10 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                       <img
                         src={selectedImage || selectedProject.image}
                         alt={selectedProject.title}
+                        width={1280}
+                        height={800}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
 
@@ -1038,7 +1043,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                                 : 'border-transparent opacity-60 hover:opacity-100'
                             }`}
                           >
-                            <img src={img} alt="" className="w-full h-full object-cover" />
+                            <img src={img} alt="" width={56} height={40} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                           </button>
                         ))}
                       </div>
@@ -1131,21 +1136,24 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
 
               {/* Drawer Footer Actions */}
               <div className="p-4 border-t border-white/10 bg-black/40 flex flex-col gap-2 shrink-0">
-                <button
-                  onClick={() => onNavigate('project', { projectId: selectedProject.id, property: selectedProject })}
+                <SpaLink
+                  page="project"
+                  projectId={selectedProject.id}
+                  onNavigate={() => onNavigate('project', { projectId: selectedProject.id, property: selectedProject })}
                   className="w-full bg-gradient-to-r from-gold to-[#bf8d3b] hover:from-[#e2c58f] hover:to-gold text-neutral-950 font-black text-xs py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-gold/20 transition-all active:scale-[0.99]"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-neutral-950" />
                   <span>{isAr ? 'عرض تفاصيل المشروع بالكامل' : 'Explore Full Project Details'}</span>
                   <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
-                </button>
+                </SpaLink>
 
-                <button
-                  onClick={() => onNavigate('booking', { projectId: selectedProject.id, property: selectedProject })}
+                <SpaLink
+                  page="booking"
+                  onNavigate={() => onNavigate('booking', { projectId: selectedProject.id, property: selectedProject })}
                   className="w-full bg-white/10 hover:bg-white/15 text-white border border-white/15 font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:border-gold/40 hover:text-gold transition-all"
                 >
                   <span>{isAr ? 'سجل اهتمامك / حجز وحدة' : 'Register Interest / Book Unit'}</span>
-                </button>
+                </SpaLink>
               </div>
             </div>
           )}

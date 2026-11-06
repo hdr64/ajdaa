@@ -28,6 +28,7 @@ import { notificationRoutes } from './routes/notifications.routes.js';
 import { cmsRoutes } from './routes/cms.routes.js';
 import { logsRoutes } from './routes/logs.routes.js';
 import { developerNotesRoutes } from './routes/developerNotes.routes.js';
+import { seoRootRoutes, seoShellRoutes } from './routes/seo.routes.js';
 import { loggerService } from './services/loggerService.js';
 import {
   closeQueueService,
@@ -261,6 +262,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await fastify.register(cmsRoutes, { prefix: '/api/cms' });
   await fastify.register(logsRoutes, { prefix: '/api/logs' });
   await fastify.register(developerNotesRoutes, { prefix: '/api/developer/notes' });
+  await fastify.register(seoRootRoutes);
+  await fastify.register(seoShellRoutes, { prefix: '/api/seo' });
 
   // The worker runs in-process, so it needs the job handlers before any job can
   // arrive. Registration is cheap and driver-independent.
