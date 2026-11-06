@@ -281,14 +281,6 @@ export const translations = {
       copiedToast: 'تم نسخ رابط العقار إلى الحافظة!',
       favAddedToast: 'تمت إضافة المشروع للمفضلة ❤️',
       favRemovedToast: 'تمت إزالة المشروع من المفضلة',
-      amenities: [
-        'تشطيب سوبر ديلوكس فاخر',
-        'نظام أمني سمارت 24/7',
-        'مواقف سيارات خاصة ومظللة',
-        'تكييف مركزي دكت متطور',
-        'واجهات زجاجية مزدوجة',
-        'ضمانات هيكلية وشاملة',
-      ],
     },
     propertyCard: {
       favAddedToast: 'تمت إضافة المشروع للمفضلة ❤️',
@@ -634,14 +626,6 @@ export const translations = {
       copiedToast: 'Property link copied to clipboard!',
       favAddedToast: 'Property added to favorites ❤️',
       favRemovedToast: 'Property removed from favorites',
-      amenities: [
-        'Super Deluxe Luxury Finish',
-        '24/7 Smart Security & Surveillance',
-        'Shaded Dedicated Parking Bays',
-        'Advanced Central Ducted HVAC',
-        'Double Glazed Thermal Facades',
-        'Comprehensive Structural Warranties',
-      ],
     },
     propertyCard: {
       favAddedToast: 'Project added to favorites ❤️',

@@ -21,23 +21,12 @@ import {
   Send,
   X,
   Building,
-  Building2,
-  ShieldCheck,
   Sparkles,
   Compass,
   Maximize2,
   ExternalLink,
   Download
 } from 'lucide-react';
-
-const PROJECT_AMENITIES = [
-  { icon: Sparkles, nameAr: 'تشطيب سوبر ديلوكس', nameEn: 'Super Deluxe Finishing' },
-  { icon: ShieldCheck, nameAr: 'نظام أمني سمارت 24/7', nameEn: '24/7 Smart Security System' },
-  { icon: Building2, nameAr: 'موقف سيارات مظلل وخاص', nameEn: 'Dedicated Shaded Parking' },
-  { icon: CheckCircle2, nameAr: 'تكييف مركزي دكت', nameEn: 'Central Ducted AC' },
-  { icon: Sparkles, nameAr: 'حديقة وجلسة خارجية عصرية', nameEn: 'Modern Outdoor Landscaping' },
-  { icon: ShieldCheck, nameAr: 'ضمانات هيكلية وشاملة', nameEn: 'Comprehensive Structural Warranties' },
-];
 
 interface ProjectDetailPageProps {
   projectId: number;
@@ -51,6 +40,20 @@ const getYouTubeEmbedUrl = (url?: string, autoplay: boolean = true): string => {
   if (!embedUrl) return '';
   return `${embedUrl}&autoplay=${autoplay ? '1' : '0'}`;
 };
+
+/**
+ * Arabic counted-noun form for floors: 1 → دور واحد, 2 → دوران,
+ * 3–10 → N أدوار, 11+ → N دورًا (singular / dual / plural / accusative).
+ */
+const arabicFloorsLabel = (count: number): string => {
+  if (count === 1) return 'دور واحد';
+  if (count === 2) return 'دوران';
+  if (count <= 10) return `${count} أدوار`;
+  return `${count} دورًا`;
+};
+
+/** English plural for floors: "1 floor", "N floors". */
+const englishFloorsLabel = (count: number): string => `${count} floor${count === 1 ? '' : 's'}`;
 
 export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   projectId,
@@ -256,6 +259,14 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   const floors = project.floors || [];
   const activeFloor = floors[activeFloorIndex] || floors[0];
 
+  // English shows the admin's English highlights when present, otherwise falls
+  // back to the Arabic list; the whole section hides when neither has entries.
+  const locationHighlights = isAr
+    ? project.locationHighlightsAr ?? []
+    : project.locationHighlightsEn?.length
+      ? project.locationHighlightsEn
+      : project.locationHighlightsAr ?? [];
+
   // Re-checked here as a last line of defence: never embed or link a scheme the
   // server would not have accepted.
   const safeModel3dUrl = isHttpsUrl(project.model3dUrl) ? project.model3dUrl : undefined;
@@ -408,9 +419,6 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>{isAr ? 'فيديو المشروع' : 'Video Tour'}</span>
-                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-accent/20 text-accent-light border border-accent/30">
-                      4K
-                    </span>
                   </button>
                 )}
               </div>
@@ -440,7 +448,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 />
                 <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
                   <span className="brand-badge text-xs font-black px-3 py-1 rounded-full shadow-md">
-                    {isAr ? 'فيديو تعريفي 4K' : '4K Video'}
+                    {isAr ? 'فيديو تعريفي' : 'Video'}
                   </span>
                 </div>
               </div>
@@ -465,7 +473,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   >
                     <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-current translate-x-[-1px] text-white group-hover/play:text-canvas transition-colors" />
                     <span className="absolute -bottom-8 whitespace-nowrap text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-white border border-white/20 opacity-0 group-hover/play:opacity-100 transition-opacity">
-                      {isAr ? 'مشاهدة جولة الفيديو 4K' : 'Watch 4K Tour'}
+                      {isAr ? 'مشاهدة جولة الفيديو' : 'Watch Video Tour'}
                     </span>
                   </button>
                 )}
@@ -505,7 +513,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                   <Play className="w-5 h-5 text-accent fill-accent mb-0.5 relative z-10" />
                   <span className="text-[10px] font-black relative z-10 text-white">
-                    {isAr ? 'فيديو 4K' : 'Video'}
+                    {isAr ? 'فيديو' : 'Video'}
                   </span>
                 </button>
               )}
@@ -570,7 +578,13 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 <div>
                   <span className="text-[11px] text-neutral-text/60 block">{isAr ? 'عدد الأدوار والوحدات' : 'Floors & Units'}</span>
                   <span className="text-xs font-bold text-heading">
-                    {floors.length > 0 ? `${floors.length} أدوار` : project.units || 'متعدد الوحدات'}
+                    {floors.length > 0
+                      ? isAr
+                        ? arabicFloorsLabel(floors.length)
+                        : englishFloorsLabel(floors.length)
+                      : isAr
+                        ? project.units || 'متعدد الوحدات'
+                        : project.unitsEn || 'Multiple units'}
                   </span>
                 </div>
               </div>
@@ -638,7 +652,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
         </div>
 
         {/* Location Highlights Section */}
-        {project.locationHighlightsAr && project.locationHighlightsAr.length > 0 && (
+        {locationHighlights.length > 0 && (
           <Reveal>
             <div className="mb-14 p-6 sm:p-8 rounded-3xl bg-surface/70 border border-muted-border/40">
               <div className="flex items-center gap-2.5 mb-6">
@@ -652,7 +666,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {project.locationHighlightsAr.map((item, idx) => (
+                {locationHighlights.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-2.5 p-3 rounded-xl bg-canvas/60 border border-muted-border/30 text-xs font-bold text-heading">
                     <CheckCircle2 className="w-4 h-4 text-accent shrink-0" />
                     <span>{item}</span>
@@ -689,28 +703,6 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
           </Reveal>
         )}
 
-        {/* Included Amenities & Warranties Section (Standard 6-Card Matrix) */}
-        <Reveal>
-          <div className="mb-16">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {PROJECT_AMENITIES.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-3.5 p-4 sm:p-5 rounded-2xl bg-surface border border-muted-border/30 shadow-xs hover:border-accent/40 hover:shadow-sm transition-all"
-                  >
-                    <Icon className="w-5 h-5 text-accent shrink-0" />
-                    <span className="text-xs sm:text-sm font-medium text-heading">
-                      {isAr ? item.nameAr : item.nameEn}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Reveal>
-
         {/* Dedicated Cinematic Video Showcase Section */}
         {project.videoUrl && (
           <Reveal>
@@ -731,7 +723,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black brand-badge px-3 py-0.5 rounded-full text-accent">
-                          {isAr ? 'فيديو تعريفي 4K' : 'Official 4K Showcase'}
+                          {isAr ? 'فيديو تعريفي' : 'Official Showcase'}
                         </span>
                         <span className="text-[10px] text-neutral-text/60 font-medium">
                           {isAr ? 'إنتاج أجدا العقارية' : 'Ajda Real Estate Media'}
@@ -827,68 +819,76 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
 
             {/* Units Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {activeFloor?.units.map((unit) => (
-                <div
-                  key={unit.id}
-                  className="rounded-2xl bg-surface/90 border border-muted-border/40 hover:border-accent/50 p-5 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-xs hover:shadow-md group"
-                >
-                  <div>
-                    {/* Unit header */}
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        {unit.sectionAr && (
-                          <span className="text-[10px] font-bold text-neutral-text/50 block mb-0.5">
-                            {unit.sectionAr}
-                          </span>
-                        )}
-                        <h3 className="text-base font-black text-heading group-hover:text-accent transition-colors">
-                          {unit.unitNumber}
-                        </h3>
-                      </div>
-                      {getStatusBadge(unit.status, unit.statusAr)}
-                    </div>
-
-                    {/* Specs */}
-                    <div className="flex items-center gap-4 py-3 border-y border-muted-border/30 my-3 text-xs">
-                      <div>
-                        <span className="text-neutral-text/50 block text-[10px]">{isAr ? 'المساحة' : 'Area'}</span>
-                        <span className="font-bold text-heading">{unit.area} م²</span>
-                      </div>
-                      <div>
-                        <span className="text-neutral-text/50 block text-[10px]">{isAr ? 'النوع' : 'Type'}</span>
-                        <span className="font-bold text-heading">{unit.typeAr}</span>
-                      </div>
-                      {unit.priceLabel && (
+              {activeFloor?.units.map((unit) => {
+                // English falls back to the Arabic list only when the English one is empty.
+                const unitFeatures = isAr
+                  ? unit.features ?? []
+                  : unit.featuresEn?.length
+                    ? unit.featuresEn
+                    : unit.features ?? [];
+                return (
+                  <div
+                    key={unit.id}
+                    className="rounded-2xl bg-surface/90 border border-muted-border/40 hover:border-accent/50 p-5 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-xs hover:shadow-md group"
+                  >
+                    <div>
+                      {/* Unit header */}
+                      <div className="flex items-start justify-between gap-2 mb-3">
                         <div>
-                          <span className="text-neutral-text/50 block text-[10px]">{isAr ? 'الحالة' : 'Note'}</span>
-                          <span className="font-bold text-accent">{unit.priceLabel}</span>
+                          {unit.sectionAr && (
+                            <span className="text-[10px] font-bold text-neutral-text/50 block mb-0.5">
+                              {unit.sectionAr}
+                            </span>
+                          )}
+                          <h3 className="text-base font-black text-heading group-hover:text-accent transition-colors">
+                            {unit.unitNumber}
+                          </h3>
+                        </div>
+                        {getStatusBadge(unit.status, unit.statusAr)}
+                      </div>
+
+                      {/* Specs */}
+                      <div className="flex items-center gap-4 py-3 border-y border-muted-border/30 my-3 text-xs">
+                        <div>
+                          <span className="text-neutral-text/50 block text-[10px]">{isAr ? 'المساحة' : 'Area'}</span>
+                          <span className="font-bold text-heading">{unit.area} م²</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-text/50 block text-[10px]">{isAr ? 'النوع' : 'Type'}</span>
+                          <span className="font-bold text-heading">{isAr ? unit.typeAr : unit.typeEn || unit.typeAr}</span>
+                        </div>
+                        {unit.priceLabel && (
+                          <div>
+                            <span className="text-neutral-text/50 block text-[10px]">{isAr ? 'الحالة' : 'Note'}</span>
+                            <span className="font-bold text-accent">{unit.priceLabel}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Features checklist */}
+                      {unitFeatures.length > 0 && (
+                        <div className="flex flex-col gap-1.5 mb-4">
+                          {unitFeatures.map((feat, fIdx) => (
+                            <div key={fIdx} className="flex items-center gap-1.5 text-[11px] text-neutral-text/70">
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent/60" />
+                              <span>{feat}</span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Features checklist */}
-                    {unit.features && unit.features.length > 0 && (
-                      <div className="flex flex-col gap-1.5 mb-4">
-                        {unit.features.map((feat, fIdx) => (
-                          <div key={fIdx} className="flex items-center gap-1.5 text-[11px] text-neutral-text/70">
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent/60" />
-                            <span>{feat}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* Unit CTA */}
+                    <button
+                      onClick={() => handleOpenInterest(unit)}
+                      className="w-full mt-2 brand-btn-secondary text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 group-hover:border-accent group-hover:bg-accent/10 transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-accent" />
+                      <span>{isAr ? 'سجل اهتمامك بهذه الوحدة' : 'Express Interest'}</span>
+                    </button>
                   </div>
-
-                  {/* Unit CTA */}
-                  <button
-                    onClick={() => handleOpenInterest(unit)}
-                    className="w-full mt-2 brand-btn-secondary text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 group-hover:border-accent group-hover:bg-accent/10 transition-all cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-accent" />
-                    <span>{isAr ? 'سجل اهتمامك بهذه الوحدة' : 'Express Interest'}</span>
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -991,7 +991,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-accent/20 border border-accent/40 text-accent-light">
-                      {isAr ? 'عرض سينمائي 4K' : 'Cinema Mode 4K'}
+                      {isAr ? 'عرض سينمائي' : 'Cinema Mode'}
                     </span>
                     <span className="text-[11px] text-white/50 hidden md:inline">
                       {project.city} • {project.typeAr}

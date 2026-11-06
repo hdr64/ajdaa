@@ -23,6 +23,11 @@ Package versions at this point: root 1.2.2, server 1.2.3, `/api/health` 1.2.2 (t
 - **Admin UX**: skeleton loaders instead of spinners, error boundary, deep-link fix for `/admin/pastProjects`.
 - **Deploy**: test-instance deploy by GitHub Actions (forced SSH command, test only), `reload.sh` for the manual production deploy, `scripts/deploy-*.mjs`, test-database sanitizer, `deploy/mkuser.sh` and a developer-user CLI.
 
+### Fixed
+- **Project page**: removed the hard-coded six-card "amenities" block (super deluxe finishing, smart security, shaded parking, central AC, landscaping, structural warranties) that was rendered on every project, could not be edited or hidden by the admin, and was false for logistics and commercial projects. The editable, per-project, bilingual `features` list is the only amenities source now. The dead `modal.amenities` translation arrays (Arabic and English) were deleted with it — nothing read them.
+- **Project page i18n**: location highlights now use the admin's `locationHighlightsEn` when the language is English and fall back to the Arabic list only when it is empty (previously always Arabic); unit cards read `typeEn` and `featuresEn` in English with an Arabic fallback; the floors count uses proper Arabic counted forms (دور واحد / دوران / N أدوار / N دورًا) and English "1 floor" / "N floors"; the units fallback reads `unitsEn` in English ("Multiple units") before defaulting.
+- **Project page honesty**: removed every unverifiable "4K" claim about the project video (tab chip, overlay badges, hover tooltip, cinema badges). The video plays at whatever resolution the admin's YouTube URL provides.
+
 ### Security and hardening
 - Logs and developer-notes access now needs a super admin session **and** a key in a header (`x-logs-key`, `x-dev-notes-key`); `?key=` is gone; both secrets plus `SETTINGS_ENCRYPTION_KEY` are required in production and no longer have default values.
 - Dependency upgrades (server audit 12 high down to 4 accepted: zod 3, Prisma CLI chain), `TRUST_PROXY` and `HOST` guidance, production config validation at boot.
