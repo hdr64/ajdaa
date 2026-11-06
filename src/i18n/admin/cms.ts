@@ -55,6 +55,8 @@ export const cms = defineStrings('cms', {
   'footer.madeInKsaArLabel': 'عبارة «صمم في المملكة العربية السعودية» (عربي)',
   'footer.madeInKsaEnLabel': 'عبارة «صمم في المملكة العربية السعودية» (إنجليزي)',
   'footer.madeInKsaHint': 'حتى 100 حرف لكل لغة، وتظهر فقط عند تفعيل المفتاح أعلاه.',
+  'works.featuredHint':
+    'بدون تثبيت مشروع تختار الصفحة تلقائياً أول مشروع تحتوي شارتّه على «رئيسي»، وإلا فأول مشروع في القائمة.',
 }, {
   'section.exportSuccess': 'CMS backup exported successfully',
   'section.exportError': 'Could not export the backup',
@@ -109,4 +111,6 @@ export const cms = defineStrings('cms', {
   'footer.madeInKsaArLabel': '"Made in Saudi Arabia" line (Arabic)',
   'footer.madeInKsaEnLabel': '"Made in Saudi Arabia" line (English)',
   'footer.madeInKsaHint': 'Up to 100 characters per language; shown only when the switch above is on.',
+  'works.featuredHint':
+    'With no project pinned the page picks the first project whose badge contains "رئيسي" (featured), otherwise the first project in the list.',
 });

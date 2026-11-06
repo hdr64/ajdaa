@@ -5,6 +5,7 @@ import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { loadGoogleMaps, MapsConfigError, type GoogleMapsBundle } from '../../services/googleMaps';
 import { useLanguage } from '../../hooks/useLanguage';
+import { buildProjectRegions } from '../../utils/projectRegions';
 import { SpaLink } from '../common/SpaLink';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
@@ -48,8 +49,12 @@ const getYouTubeEmbedUrl = (url?: string, autoplay: boolean = true): string => {
 };
 
 type BasemapStyle = 'dark' | 'satellite';
-type RegionFilter = 'all' | 'riyadh' | 'ahsa';
 type MapsStatus = 'loading' | 'ready' | 'error';
+
+/** The two cities that keep their published camera presets; every other city
+ * fits its own project bounds instead (see `handleRegionSelect`). */
+const RIYADH_CITY = 'الرياض';
+const AHSA_CITY = 'الأحساء';
 
 const riyadhCenter: google.maps.LatLngLiteral = { lat: 24.74, lng: 46.71 };
 const ahsaCenter: google.maps.LatLngLiteral = { lat: 25.38, lng: 49.58 };
@@ -194,9 +199,22 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [activeMediaTab, setActiveMediaTab] = useState<'photos' | 'video'>('photos');
   const [filterType, setFilterType] = useState<string>('all');
-  const [selectedRegion, setSelectedRegion] = useState<RegionFilter>('all');
+  /** Raw chip choice — validated against the cities present in the data below. */
+  const [regionSelection, setRegionSelection] = useState<string>('all');
   const [mapStyle, setMapStyle] = useState<BasemapStyle>('dark');
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+
+  /** Region chips built from the loaded projects: labels and counts are never stale. */
+  const regions = useMemo(() => buildProjectRegions(allProjects, isAr), [allProjects, isAr]);
+
+  /** A city that disappeared from the data (deleted project, reload) falls back to "all". */
+  const selectedRegion = useMemo(
+    () =>
+      regionSelection === 'all' || regions.some((region) => region.key === regionSelection)
+        ? regionSelection
+        : 'all',
+    [regionSelection, regions]
+  );
 
   /* ----------------------------- Boot the API ----------------------------- */
 
@@ -270,8 +288,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
 
   const filteredProjects = allProjects.filter((p) => {
     if (filterType !== 'all' && p.type !== filterType) return false;
-    if (selectedRegion === 'riyadh' && p.city !== 'الرياض') return false;
-    if (selectedRegion === 'ahsa' && p.city !== 'الأحساء') return false;
+    if (selectedRegion !== 'all' && p.city?.trim() !== selectedRegion) return false;
     return true;
   });
 
@@ -303,35 +320,46 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
   /* ------------------------------ Region switch ---------------------------- */
 
   const handleRegionSelect = useCallback(
-    (region: RegionFilter) => {
-      setSelectedRegion(region);
+    (region: string) => {
+      setRegionSelection(region);
       setSelectedProject(null);
 
       const map = mapInstanceRef.current;
       if (!map) return;
 
-      if (region === 'ahsa') {
-        map.panTo(ahsaCenter);
-        map.setZoom(13);
-      } else if (region === 'riyadh') {
+      // Riyadh and Al-Ahsa keep their published camera presets.
+      if (region === RIYADH_CITY) {
         map.panTo(riyadhCenter);
         map.setZoom(INITIAL_ZOOM);
-      } else {
+      } else if (region === AHSA_CITY) {
+        map.panTo(ahsaCenter);
+        map.setZoom(13);
+      } else if (region === 'all') {
         map.panTo(allRegionsCenter);
         map.setZoom(8);
+      } else if (maps) {
+        // Any other city is framed on its own projects, however wide the spread.
+        const bounds = new maps.LatLngBounds();
+        allProjects.forEach((p) => {
+          if (p.city?.trim() === region && p.lat && p.lng) bounds.extend({ lat: p.lat, lng: p.lng });
+        });
+        if (bounds.isEmpty()) {
+          map.panTo(allRegionsCenter);
+          map.setZoom(8);
+          return;
+        }
+        // Padding leaves room for the floating controls and the bottom strip.
+        map.fitBounds(bounds, { top: 140, bottom: 200, left: 60, right: 60 });
       }
     },
-    []
+    [setRegionSelection, maps, allProjects]
   );
 
   const handleResetView = useCallback(() => {
-    setSelectedProject(null);
-    setSelectedRegion('riyadh');
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    map.panTo(riyadhCenter);
-    map.setZoom(INITIAL_ZOOM);
-  }, []);
+    // Resets to the busiest city (the old hard-coded Riyadh view), or to all
+    // regions when there is no project at all.
+    handleRegionSelect(regions[0]?.key ?? 'all');
+  }, [handleRegionSelect, regions]);
 
   const handleZoomIn = useCallback(() => {
     const map = mapInstanceRef.current;
@@ -760,7 +788,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                 </span>
               </div>
 
-              {/* City / Region Switcher Tabs */}
+              {/* City / Region Switcher Tabs — cities come from the loaded projects */}
               <div className="flex items-center p-1 rounded-2xl bg-neutral-950/85 backdrop-blur-md border border-white/15 shadow-lg text-xs font-bold">
                 <button
                   onClick={() => handleRegionSelect('all')}
@@ -770,28 +798,21 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                       : 'text-white/70 hover:text-white'
                   }`}
                 >
-                  {isAr ? 'كافة المناطق' : 'All Regions'}
+                  {isAr ? 'كافة المناطق' : 'All Regions'} ({allProjects.length})
                 </button>
-                <button
-                  onClick={() => handleRegionSelect('riyadh')}
-                  className={`px-3 py-1 rounded-xl transition-all cursor-pointer ${
-                    selectedRegion === 'riyadh'
-                      ? 'bg-accent text-white shadow-xs'
-                      : 'text-white/70 hover:text-white'
-                  }`}
-                >
-                  {isAr ? 'الرياض (6)' : 'Riyadh (6)'}
-                </button>
-                <button
-                  onClick={() => handleRegionSelect('ahsa')}
-                  className={`px-3 py-1 rounded-xl transition-all cursor-pointer ${
-                    selectedRegion === 'ahsa'
-                      ? 'bg-accent text-white shadow-xs'
-                      : 'text-white/70 hover:text-white'
-                  }`}
-                >
-                  {isAr ? 'الأحساء (1)' : 'Al-Ahsa (1)'}
-                </button>
+                {regions.map((region) => (
+                  <button
+                    key={region.key}
+                    onClick={() => handleRegionSelect(region.key)}
+                    className={`px-3 py-1 rounded-xl transition-all cursor-pointer ${
+                      selectedRegion === region.key
+                        ? 'bg-accent text-white shadow-xs'
+                        : 'text-white/70 hover:text-white'
+                    }`}
+                  >
+                    {region.label} ({region.count})
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -981,7 +1002,7 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                           }`}
                         >
                           <Play className="w-3 h-3 fill-current" />
-                          <span>{isAr ? 'فيديو 4K' : 'Video 4K'}</span>
+                          <span>{isAr ? 'فيديو' : 'Video'}</span>
                         </button>
                       )}
                     </div>
@@ -989,7 +1010,9 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                     <span className="text-[10px] text-white/50 font-medium">
                       {activeMediaTab === 'photos'
                         ? `${selectedProject.gallery?.length || 1} ${isAr ? 'صور عالية الدقة' : 'HD Photos'}`
-                        : 'Official 4K Presentation'}
+                        : isAr
+                          ? 'العرض التعريفي الرسمي'
+                          : 'Official Presentation'}
                     </span>
                   </div>
 
@@ -1081,7 +1104,9 @@ export const InteractiveProjectsMap: React.FC<InteractiveProjectsMapProps> = ({ 
                       {isAr ? 'الوحدات المتاحة' : 'Units'}
                     </span>
                     <span className="text-xs font-bold text-white/90 truncate">
-                      {selectedProject.units || 'متعدد'}
+                      {isAr
+                        ? selectedProject.units || 'متعدد الوحدات'
+                        : selectedProject.unitsEn || selectedProject.units || 'Multiple units'}
                     </span>
                   </div>
                 </div>

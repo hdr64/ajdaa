@@ -14,6 +14,8 @@ export class MapsConfigError extends Error {
 export interface GoogleMapsBundle {
   Map: typeof google.maps.Map;
   AdvancedMarkerElement: typeof google.maps.marker.AdvancedMarkerElement;
+  /** Needed to frame a set of projects ("fit to this city") without touching `window.google`. */
+  LatLngBounds: typeof google.maps.LatLngBounds;
   /** The Map ID actually applied. Advanced markers refuse to load without one. */
   mapId: string;
   /** True when we fell back to Google's shared demo Map ID (development only). */
@@ -46,9 +48,10 @@ export function loadGoogleMaps(): Promise<GoogleMapsBundle> {
     const docLang = document.documentElement.lang === 'en' ? 'en' : 'ar';
     setOptions({ key: API_KEY, v: 'weekly', language: docLang, region: 'SA' });
 
-    const [{ Map }, { AdvancedMarkerElement }] = await Promise.all([
+    const [{ Map }, { AdvancedMarkerElement }, { LatLngBounds }] = await Promise.all([
       importLibrary('maps'),
       importLibrary('marker'),
+      importLibrary('core'),
     ]);
 
     let mapId = CONFIGURED_MAP_ID;
@@ -68,7 +71,7 @@ export function loadGoogleMaps(): Promise<GoogleMapsBundle> {
       }
     }
 
-    return { Map, AdvancedMarkerElement, mapId, usingDemoMapId };
+    return { Map, AdvancedMarkerElement, LatLngBounds, mapId, usingDemoMapId };
   })().catch((error: unknown) => {
     // Allow a later mount to retry instead of caching the failure forever.
     bundlePromise = null;

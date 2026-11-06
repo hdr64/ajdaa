@@ -10,6 +10,7 @@ import {
 import { api, getErrorMessage } from '../../../services/api';
 import { propertyService } from '../../../services/propertyService';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsWorksPageContent } from '../../../types/cms';
 import type { Property } from '../../../types/property';
 import { CmsVersionModal } from './CmsVersionModal';
@@ -43,6 +44,7 @@ const DEFAULT_WORKS: CmsWorksPageContent = {
 
 export const CmsWorksPanel: React.FC = () => {
   const { showToast, can } = useAdmin();
+  const { t } = useAdminT();
   const [data, setData] = useState<CmsWorksPageContent>(DEFAULT_WORKS);
   const [projects, setProjects] = useState<Property[]>([]);
   const [version, setVersion] = useState<number>(1);
@@ -271,6 +273,7 @@ export const CmsWorksPanel: React.FC = () => {
               </option>
             ))}
           </select>
+          <p className="mt-2 text-[11px] text-neutral-text/60">{t('cms.works.featuredHint')}</p>
         </div>
       </div>
 
