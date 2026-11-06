@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Mail, MapPin, Clock, Send, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Reveal } from './Reveal';
+import { SpaLink } from './SpaLink';
 import { useLanguage } from '../../hooks/useLanguage';
 import { newsletterService } from '../../services/newsletterService';
 import { getErrorMessage } from '../../services/api';
@@ -10,6 +11,7 @@ import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { SOCIAL_ICONS } from './socialIcons';
 import type { NavPageKey } from './Navbar';
+import type { SeoPage } from '../../seo/paths';
 
 import logoArLight from '../../assets/logos/ar-1.png';
 import logoArDark from '../../assets/logos/ar-2.png';
@@ -108,8 +110,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
           {/* Brand & Socials Column */}
           <div>
             <div className="mb-4">
-              <button
-                onClick={() => onNavigate('home')}
+              <SpaLink
+                page="home"
+                onNavigate={() => onNavigate('home')}
                 className="inline-flex items-center text-start cursor-pointer focus:outline-none group"
                 aria-label={t.nav.brandName}
               >
@@ -122,7 +125,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                   decoding="async"
                   className="h-12 md:h-14 w-auto object-contain transition-opacity duration-300 group-hover:opacity-90"
                 />
-              </button>
+              </SpaLink>
             </div>
             <p className="text-xs text-neutral-text/70 leading-relaxed mb-6">
               {text(footer.brandDescAr, footer.brandDescEn)}
@@ -155,9 +158,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
               {quickLinks.map((link) => {
                 const Chevron = isRTL ? ChevronLeft : ChevronRight;
                 return (
-                  <button
+                  <SpaLink
                     key={link.id}
-                    onClick={() => onNavigate(link.page as NavPageKey)}
+                    page={link.page as SeoPage}
+                    onNavigate={() => onNavigate(link.page as NavPageKey)}
                     className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
                   >
                     <Chevron
@@ -166,17 +170,18 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                       } transition-transform duration-300`}
                     />
                     {text(link.labelAr, link.labelEn)}
-                  </button>
+                  </SpaLink>
                 );
               })}
               {siteSettings.careers.showFooterLink && (
-                <button
-                  onClick={() => onNavigate('careers')}
+                <SpaLink
+                  page="careers"
+                  onNavigate={() => onNavigate('careers')}
                   className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
                 >
                   <ChevronRight className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
                   {language === 'ar' ? 'الوظائف' : 'Jobs'}
-                </button>
+                </SpaLink>
               )}
             </div>
           </div>
@@ -188,9 +193,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
               {serviceLinks.map((service) => {
                 const Chevron = isRTL ? ChevronLeft : ChevronRight;
                 return (
-                  <button
+                  <SpaLink
                     key={service}
-                    onClick={() => onNavigate('works')}
+                    page="works"
+                    onNavigate={() => onNavigate('works')}
                     className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
                   >
                     <Chevron
@@ -199,7 +205,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
                       } transition-transform duration-300`}
                     />
                     {service}
-                  </button>
+                  </SpaLink>
                 );
               })}
             </div>
