@@ -1,4 +1,6 @@
-# task-img-a — Responsive image variants, immutable upload caching, 1200×630 social image
+# task-img-a — MASTER DESIGN (reference only, do not run it): split into `task-img-a1` (server), `task-img-a2` (client), `task-img-a3` (bundled images)
+
+Original title: Responsive image variants, immutable upload caching, 1200×630 social image
 
 > You are an implementing agent (OpenCode). Skip the "FIRST ACTION" section of `CLAUDE.md`; the secrets and production rules still apply. **Never edit any `CLAUDE.md`.**
 > First action: run `Get-Date -Format "yyyy-MM-dd HH:mm:ss"` for `Started:`. Last action: the same for `Finished:`.
