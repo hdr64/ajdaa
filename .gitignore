@@ -80,3 +80,4 @@ deploy/mkuser.sh
 prod.md
 tmp
 backup
+.agents

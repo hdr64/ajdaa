@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, RefreshCw, Clock } from 'lucide-react';
+import { Menu, RefreshCw, Clock, Wifi, WifiOff } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { formatRelativeTime, formatAdminDateTime } from '../../../pages/admin/adminFormat';
@@ -41,14 +41,18 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitl
 
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <div
-          className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border font-bold text-[11px] ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border font-bold text-[11px] ${
             realtimeConnected
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
               : 'bg-amber-500/10 border-amber-500/20 text-amber-600'
           }`}
           title={realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}
         >
-          <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          {realtimeConnected ? (
+            <Wifi className="w-3.5 h-3.5 text-emerald-600 animate-pulse shrink-0" />
+          ) : (
+            <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          )}
           <span className="hidden lg:inline">{realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}</span>
         </div>
 

@@ -68,6 +68,7 @@ export const PERMISSION_KEYS: readonly (keyof AdminPermissions)[] = [
   'manageClients',
   'managePastProjects',
   'rollbackCms',
+  'manageMedia',
 ];
 
 export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
@@ -89,6 +90,7 @@ export const PERMISSION_LABELS: Record<keyof AdminPermissions, string> = {
   manageClients: 'إدارة الشركاء والعملاء',
   managePastProjects: 'إدارة أعمالنا السابقة',
   rollbackCms: 'استعادة نسخ محتوى الموقع',
+  manageMedia: 'إدارة مكتبة الوسائط',
 };
 
 export const PERMISSION_EN_LABELS: Record<keyof AdminPermissions, string> = {
@@ -110,6 +112,7 @@ export const PERMISSION_EN_LABELS: Record<keyof AdminPermissions, string> = {
   manageClients: 'Manage Partners & Clients',
   managePastProjects: 'Manage Past Projects',
   rollbackCms: 'Rollback CMS Versions',
+  manageMedia: 'Manage Media Library',
 };
 
 export const getPermissionLabels = (): Record<keyof AdminPermissions, string> =>
@@ -260,6 +263,7 @@ export const emptyPermissions = (): AdminPermissions => ({
   manageClients: false,
   managePastProjects: false,
   rollbackCms: false,
+  manageMedia: false,
 });
 
 /** Pre-fills the checkboxes from a role, leaving every other permission off. */

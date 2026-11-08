@@ -39,7 +39,8 @@ export type AdminPermission =
   | 'exportData'
   | 'manageUsers'
   | 'verifyUsers'
-  | 'manageNotifications';
+  | 'manageNotifications'
+  | 'manageMedia';
 
 /** The admin as currently stored in the database, resolved by `authenticate`. */
 export interface AuthenticatedAdmin {

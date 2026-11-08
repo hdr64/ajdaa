@@ -61,6 +61,10 @@ export const DEFAULT_FOOTER: CmsFooterSection = {
   madeInKsaAr: 'صمم بـ ❤️ في المملكة العربية السعودية',
   madeInKsaEn: 'Designed with ❤️ in Saudi Arabia',
   madeInKsaEnabled: false,
+  companyProfileEnabled: false,
+  companyProfilePdfUrl: '',
+  companyProfileLabelAr: 'الملف التعريفي للشركة',
+  companyProfileLabelEn: 'Company Profile',
   socials: [
     { id: 'soc-x', name: 'X (تويتر)', icon: 'x', url: 'https://x.com/Ajdaa_RS', enabled: true, order: 1 },
     { id: 'soc-instagram', name: 'إنستغرام', icon: 'instagram', url: 'https://www.instagram.com/ajdaa_rs', enabled: true, order: 2 },

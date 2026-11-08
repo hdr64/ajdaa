@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Users,
   Plus,
@@ -21,11 +21,11 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { api, getErrorMessage, resolveMediaUrl } from '../../../services/api';
-import { uploadMedia } from '../../../services/mediaService';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import type { CmsClientsPageContent, CmsClientItem } from '../../../types/cms';
 import { DEFAULT_CLIENTS_PAGE } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { MediaPickerModal } from '../media/MediaPickerModal';
 
 export const CmsClientsPanel: React.FC = () => {
   const { showToast, confirm, can } = useAdmin();
@@ -40,9 +40,8 @@ export const CmsClientsPanel: React.FC = () => {
   // Edit/Add modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<CmsClientItem | null>(null);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [savingClient, setSavingClient] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
   // Tags input temporary state inside modal
   const [tagInputAr, setTagInputAr] = useState('');
@@ -149,25 +148,6 @@ export const CmsClientsPanel: React.FC = () => {
     setTagInputAr('');
     setTagInputEn('');
     setModalOpen(true);
-  };
-
-  // Upload logo
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingLogo(true);
-    try {
-      const uploaded = await uploadMedia(file);
-      if (editingClient) {
-        setEditingClient({ ...editingClient, logo: uploaded.url });
-      }
-      showToast('تم رفع الشعار بنجاح');
-    } catch (caught) {
-      showToast(getErrorMessage(caught, 'فشل في رفع الشعار'));
-    } finally {
-      setUploadingLogo(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
   };
 
   // Save Client in modal
@@ -881,25 +861,13 @@ export const CmsClientsPanel: React.FC = () => {
                     يفضل رفع شعار شفاف بصيغة PNG أو WebP أو SVG بدقة واضحة.
                   </p>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleLogoUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
                     <button
                       type="button"
-                      disabled={uploadingLogo}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl brand-fill text-canvas transition cursor-pointer disabled:opacity-50"
+                      onClick={() => setMediaPickerOpen(true)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer"
                     >
-                      {uploadingLogo ? (
-                        <div className="w-3.5 h-3.5 border-2 border-canvas border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Upload className="w-3.5 h-3.5" />
-                      )}
-                      اختيار وتحديث الشعار
+                      <Plus className="w-3.5 h-3.5" />
+                      + إضافة شعار الشريك
                     </button>
                   </div>
                 </div>
@@ -1157,6 +1125,20 @@ export const CmsClientsPanel: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {mediaPickerOpen && (
+        <MediaPickerModal
+          open={mediaPickerOpen}
+          fileType="image"
+          onClose={() => setMediaPickerOpen(false)}
+          onSelect={(media) => {
+            if (editingClient) {
+              setEditingClient({ ...editingClient, logo: media.url });
+            }
+            setMediaPickerOpen(false);
+          }}
+        />
       )}
     </div>
   );

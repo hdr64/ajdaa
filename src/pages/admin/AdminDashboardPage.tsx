@@ -34,6 +34,7 @@ import { DepartmentsSection } from './sections/DepartmentsSection';
 import { NewsletterSection } from './sections/NewsletterSection';
 import { SettingsSection } from './sections/SettingsSection';
 import { CmsSection } from './sections/CmsSection';
+import { MediaSection } from './sections/MediaSection';
 import { ProjectShowSection } from './sections/ProjectShowSection';
 import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
@@ -70,6 +71,7 @@ const SECTION_META: Record<AdminSection, { permission?: AdminPermission }> = {
   settings: { permission: 'manageNotifications' },
   cms: {},
   profile: {},
+  media: { permission: 'manageMedia' },
 };
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -152,6 +154,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       }
       if (permission === 'manageClients') {
         return Boolean(currentUser.permissions.manageCms);
+      }
+      if (permission === 'manageMedia') {
+        return Boolean(
+          currentUser.permissions.manageMedia ??
+            (currentUser.permissions.manageCms || currentUser.permissions.manageProjects)
+        );
       }
       return false;
     },
@@ -374,6 +382,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <SettingsSection />;
       case 'cms':
         return <CmsSection />;
+      case 'media':
+        return <MediaSection />;
     }
   };
 

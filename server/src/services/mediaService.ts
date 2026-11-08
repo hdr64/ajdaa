@@ -3,6 +3,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { config } from '../config/env.js';
+import { prisma } from './prisma.js';
+import { inspectMediaUsage } from './mediaUsageService.js';
 
 const UPLOAD_DIR = config.uploadDir;
 
@@ -39,6 +41,19 @@ export class UploadTooLargeError extends Error {
   }
 }
 
+export class MediaInUseError extends Error {
+  readonly statusCode = 409;
+  readonly usageCount: number;
+  readonly usages: unknown[];
+
+  constructor(message: string, usageCount: number, usages: unknown[]) {
+    super(message);
+    this.name = 'MediaInUseError';
+    this.usageCount = usageCount;
+    this.usages = usages;
+  }
+}
+
 // Ensure upload directory exists
 async function ensureUploadDir() {
   try {
@@ -53,8 +68,8 @@ function startsWith(buffer: Buffer, bytes: number[], offset = 0): boolean {
 }
 
 /**
- * Detects the real media type from the file signature. The declared mimetype is
- * attacker-controlled, so it is only used as a hint and never as the decision.
+ * Detects the real media type from the first bytes of the file.
+ * Reads minimal bytes to be fast and safe.
  */
 export function detectMediaType(buffer: Buffer): 'image' | 'pdf' | null {
   if (buffer.length < 12) return null;
@@ -83,6 +98,11 @@ export function detectMediaType(buffer: Buffer): 'image' | 'pdf' | null {
 export interface StoredMedia {
   url: string;
   filename: string;
+  originalName: string;
+  mimeType: string;
+  fileType: 'image' | 'pdf' | 'model3d' | 'document' | 'other';
+  size: number;
+  storageKey: string;
 }
 
 export async function processAndSaveFile(
@@ -101,8 +121,6 @@ export async function processAndSaveFile(
   const detected = detectMediaType(fileBuffer);
 
   // Images are re-encoded to WebP, which drops metadata and any embedded script.
-  // The detected signature decides the branch; the client's declared mimetype is
-  // frequently `application/octet-stream` and is therefore never trusted.
   if (detected === 'image') {
     const filename = `${fileId}.webp`;
     const targetPath = path.join(UPLOAD_DIR, filename);
@@ -114,17 +132,24 @@ export async function processAndSaveFile(
         .webp({ quality: 82 })
         .toFile(targetPath);
     } catch {
-      // A file can carry an image signature yet be undecodable.
       throw new UnsupportedMediaError('Image could not be decoded');
     }
 
-    return { url: `/uploads/${filename}`, filename };
+    const stats = await fs.stat(targetPath);
+
+    return {
+      url: `/uploads/${filename}`,
+      filename,
+      originalName: originalFilename,
+      mimeType: 'image/webp',
+      fileType: 'image',
+      size: stats.size,
+      storageKey: filename,
+    };
   }
 
   // PDFs (brochures) are stored as-is and served with a download disposition.
   if (detected === 'pdf') {
-    // The extension is forced: a client-chosen one (e.g. `.html`) would make the
-    // static server send a %PDF-prefixed HTML payload as text/html on our origin.
     const baseName = originalFilename
       .replace(/\.[^.]*$/, '')
       .replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -133,11 +158,138 @@ export async function processAndSaveFile(
     const targetPath = path.join(UPLOAD_DIR, filename);
 
     await fs.writeFile(targetPath, fileBuffer);
+    const stats = await fs.stat(targetPath);
 
-    return { url: `/uploads/${filename}`, filename };
+    return {
+      url: `/uploads/${filename}`,
+      filename,
+      originalName: originalFilename,
+      mimeType: 'application/pdf',
+      fileType: 'pdf',
+      size: stats.size,
+      storageKey: filename,
+    };
   }
 
   throw new UnsupportedMediaError(
     `Unsupported file type. Allowed: ${[...ALLOWED_IMAGE_MIMES].join(', ')}, ${PDF_MIME}`
   );
+}
+
+/**
+ * Recursively scans UPLOAD_DIR for files not yet recorded in MediaFile and backfills them.
+ * Reads only the first 16 bytes for type detection to be fast and memory-efficient.
+ */
+async function scanDirRecursive(dir: string, baseDir: string): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const sub = await scanDirRecursive(fullPath, baseDir);
+      files.push(...sub);
+    } else if (entry.isFile()) {
+      const rel = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+      files.push(rel);
+    }
+  }
+  return files;
+}
+
+export async function syncDiskMediaToDatabase(): Promise<number> {
+  await ensureUploadDir();
+  let relativeFiles: string[] = [];
+  try {
+    relativeFiles = await scanDirRecursive(UPLOAD_DIR, UPLOAD_DIR);
+  } catch {
+    return 0;
+  }
+
+  let added = 0;
+  for (const relPath of relativeFiles) {
+    const url = `/uploads/${relPath}`;
+    const filename = path.basename(relPath);
+
+    // Keyed on unique URL to prevent duplicate constraint errors
+    const existing = await prisma.mediaFile.findUnique({ where: { url } });
+    if (existing) continue;
+
+    const fullPath = path.join(UPLOAD_DIR, relPath);
+    try {
+      const stats = await fs.stat(fullPath);
+      if (!stats.isFile()) continue;
+
+      const ext = path.extname(filename).toLowerCase();
+      let fileType = 'other';
+      let mimeType = 'application/octet-stream';
+
+      if (['.webp', '.jpg', '.jpeg', '.png', '.gif', '.avif'].includes(ext)) {
+        fileType = 'image';
+        mimeType = ext === '.webp' ? 'image/webp' : `image/${ext.slice(1)}`;
+      } else if (ext === '.pdf') {
+        fileType = 'pdf';
+        mimeType = 'application/pdf';
+      } else if (['.glb', '.gltf'].includes(ext)) {
+        fileType = 'model3d';
+        mimeType = ext === '.glb' ? 'model/gltf-binary' : 'model/gltf+json';
+      }
+
+      await prisma.mediaFile.upsert({
+        where: { url },
+        update: {},
+        create: {
+          url,
+          filename,
+          originalName: filename,
+          mimeType,
+          fileType,
+          size: stats.size,
+          storageKey: relPath,
+        },
+      });
+      added++;
+    } catch {
+      // Ignore unreadable entries
+    }
+  }
+
+  return added;
+}
+
+/**
+ * Safely deletes an unlinked media file from DB and disk.
+ * Strictly forbids deleting any file connected to an active project or entity to protect Google SEO stability.
+ */
+export async function deleteMediaFile(id: string): Promise<void> {
+  const media = await prisma.mediaFile.findUnique({ where: { id } });
+  if (!media) {
+    throw new Error('Media file not found');
+  }
+
+  // Strict SEO Guard: Never allow deleting if connected to any project or entity!
+  const usage = await inspectMediaUsage(media.url);
+  if (usage.usageCount > 0) {
+    const entityNames = usage.usages.map((u) => u.entityTitle).join('، ');
+    throw new MediaInUseError(
+      `لا يمكن حذف هذا الملف نهائياً لأنه مرتبط بـ (${entityNames}). روابط الصور محمية لضمان استقرار أرشفة Google SEO وعدم كسر ظهور المشروع.`,
+      usage.usageCount,
+      usage.usages
+    );
+  }
+
+  // Path traversal containment check
+  const resolvedPath = path.resolve(UPLOAD_DIR, media.storageKey);
+  const resolvedUploadDir = path.resolve(UPLOAD_DIR);
+  if (!resolvedPath.startsWith(resolvedUploadDir)) {
+    throw new Error('Invalid storage key path traversal');
+  }
+
+  try {
+    await fs.unlink(resolvedPath);
+  } catch {
+    // File may already be unlinked
+  }
+
+  await prisma.mediaFile.delete({ where: { id } });
 }

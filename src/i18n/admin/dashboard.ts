@@ -36,6 +36,8 @@ export const dashboard = defineStrings(
     'section.settings.subtitle': 'معلومات التواصل في الموقع، الإشعارات، وخادم البريد',
     'section.cms.title': 'إدارة محتوى الموقع',
     'section.cms.subtitle': 'التحكم في كافة نصوص الموقع، الأقسام، الشركاء، القائمة والتذييل',
+    'section.media.title': 'مكتبة الوسائط',
+    'section.media.subtitle': 'إدارة الملفات والصور والوسائط المستخدمة وتتبع ارتباطاتها',
     'section.profile.title': 'الملف الشخصي والحساب',
     'section.profile.subtitle': 'إدارة البيانات الشخصية، كلمة المرور وخيارات الأمان',
 
@@ -118,6 +120,8 @@ export const dashboard = defineStrings(
     'section.settings.subtitle': 'Site contact details, notifications and the mail server',
     'section.cms.title': 'Site content',
     'section.cms.subtitle': 'Control every site text, section, partner, menu and footer',
+    'section.media.title': 'Media Library',
+    'section.media.subtitle': 'Manage uploaded files, assets, and track their usage across the site',
     'section.profile.title': 'Profile & account',
     'section.profile.subtitle': 'Manage personal details, password and security options',
 

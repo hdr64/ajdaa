@@ -14,6 +14,7 @@ import {
   Settings,
   Globe,
   Archive,
+  Image as ImageIcon,
   X as CloseIcon,
   Moon,
   Sun,
@@ -59,6 +60,7 @@ function navGroups(t: (key: any) => string): NavGroup[] {
       label: t('layout.nav.group.content'),
       items: [
         { section: 'cms', label: t('layout.nav.cms'), icon: Globe, permission: 'manageCms' },
+        { section: 'media', label: t('layout.nav.media'), icon: ImageIcon, permission: 'manageMedia' },
         { section: 'pastProjects', label: t('layout.nav.pastProjects'), icon: Archive, permission: 'managePastProjects' },
       ],
     },
