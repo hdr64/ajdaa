@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { MapPin, Navigation, X, AlertTriangle, Loader2, Check } from 'lucide-react';
+import { MapPin, Navigation, X, AlertTriangle, Loader2, Check, ExternalLink } from 'lucide-react';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { loadGoogleMaps, type GoogleMapsBundle, MapsConfigError } from '../../../services/googleMaps';
 
@@ -12,6 +12,7 @@ export interface MapLocationPickerProps {
   focusCenter?: { lat: number; lng: number } | null;
   disabled?: boolean;
   className?: string;
+  mapHeightClassName?: string;
 }
 
 const DEFAULT_CENTER = { lat: 24.7136, lng: 46.6753 }; // Riyadh
@@ -25,6 +26,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   focusCenter,
   disabled = false,
   className = '',
+  mapHeightClassName = 'aspect-[4/3] w-full min-h-[220px]',
 }) => {
   const { t } = useAdminT();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -35,6 +37,12 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   const hasCoords = lat !== null && lng !== null && Number.isFinite(lat) && Number.isFinite(lng);
 
@@ -69,11 +77,11 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
 
         // Map click listener to place/move marker
         map.addListener('click', (event: google.maps.MapMouseEvent) => {
-          if (disabled) return;
+          if (disabledRef.current) return;
           if (!event.latLng) return;
           const newLat = Number(event.latLng.lat().toFixed(6));
           const newLng = Number(event.latLng.lng().toFixed(6));
-          onChange({ lat: newLat, lng: newLng });
+          onChangeRef.current({ lat: newLat, lng: newLng });
         });
 
         setLoading(false);
@@ -138,12 +146,13 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       });
 
       marker.addListener('dragend', () => {
+        if (disabledRef.current) return;
         const pos = marker.position;
         if (!pos) return;
         const newLat = typeof pos.lat === 'function' ? pos.lat() : pos.lat;
         const newLng = typeof pos.lng === 'function' ? pos.lng() : pos.lng;
         if (typeof newLat === 'number' && typeof newLng === 'number') {
-          onChange({
+          onChangeRef.current({
             lat: Number(newLat.toFixed(6)),
             lng: Number(newLng.toFixed(6)),
           });
@@ -196,7 +205,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   return (
     <div className={`space-y-2.5 ${className}`}>
       {/* Map display */}
-      <div className="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-muted-border/50 bg-surface">
+      <div className={`relative rounded-2xl overflow-hidden border border-muted-border/50 bg-surface ${mapHeightClassName}`}>
         <div ref={containerRef} className="w-full h-full" />
 
         {/* Loading overlay */}
@@ -301,6 +310,20 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           />
         </div>
       </div>
+
+      {hasCoords && (
+        <div className="flex items-center justify-between pt-0.5">
+          <a
+            href={`https://www.google.com/maps?q=${lat},${lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-accent hover:underline"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>{t('projectEdit.map.openGoogle')}</span>
+          </a>
+        </div>
+      )}
     </div>
   );
 };

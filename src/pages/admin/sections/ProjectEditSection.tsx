@@ -3,7 +3,6 @@ import {
   AlertCircle,
   ArrowRight,
   FileText,
-  MapPin,
   Plus,
   RefreshCw,
   Save,
@@ -379,7 +378,6 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
   const lat = parseNumber(form.lat);
   const lng = parseNumber(form.lng);
-  const hasCoords = lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng);
 
   return (
     <>
@@ -601,25 +599,6 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
               </div>
             </Card>
 
-            <Card
-              title={t('projectEdit.card.map')}
-              description={t('projectEdit.map.hint')}
-            >
-              <MapLocationPicker
-                lat={Number.isNaN(lat) ? null : lat}
-                lng={Number.isNaN(lng) ? null : lng}
-                disabled={busy}
-                focusCenter={cityFocus}
-                onChange={(coords) => patch({ lat: String(coords.lat), lng: String(coords.lng) })}
-                onClear={() => patch({ lat: '', lng: '' })}
-              />
-              {(errors.lat || errors.lng) && (
-                <p className="text-[11px] text-red-500 font-bold mt-1">
-                  {errors.lat || errors.lng}
-                </p>
-              )}
-            </Card>
-
             <Card title={t('projectEdit.card.description')}>
               <Field label={t('projectEdit.field.descriptionAr')} htmlFor="pe-description">
                 <textarea id="pe-description" rows={5} value={form.description} onChange={(e) => patch({ description: e.target.value })} className={`${INPUT_CLASS} resize-y leading-relaxed`} />
@@ -735,34 +714,21 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
               </div>
             </Card>
 
-            <Card title={t('projectEdit.card.map')} description={t('projectEdit.map.noCoordsDescription')}>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label={t('projectEdit.field.lat')} htmlFor="pe-lat" error={errors.lat}>
-                  <input id="pe-lat" type="number" step="any" dir="ltr" placeholder="24.7136" value={form.lat} onChange={(e) => patch({ lat: e.target.value })} className={INPUT_CLASS} />
-                </Field>
-                <Field label={t('projectEdit.field.lng')} htmlFor="pe-lng" error={errors.lng}>
-                  <input id="pe-lng" type="number" step="any" dir="ltr" placeholder="46.6753" value={form.lng} onChange={(e) => patch({ lng: e.target.value })} className={INPUT_CLASS} />
-                </Field>
-              </div>
-              {hasCoords ? (
-                <>
-                  <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl border border-muted-border/50">
-                    <iframe
-                      title={t('projectEdit.map.preview')}
-                      src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
-                      className="w-full h-full"
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                    />
-                  </div>
-                  <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[10px] font-bold text-accent hover:underline">
-                    <MapPin className="w-3 h-3" />
-                    {t('projectEdit.map.openGoogle')}
-                  </a>
-                </>
-              ) : (
-                <p className="text-[11px] text-neutral-text/50">
-                  {t('projectEdit.map.copyCoordsHint')}
+            <Card
+              title={t('projectEdit.card.map')}
+              description={t('projectEdit.map.hint')}
+            >
+              <MapLocationPicker
+                lat={Number.isNaN(lat) ? null : lat}
+                lng={Number.isNaN(lng) ? null : lng}
+                disabled={busy}
+                focusCenter={cityFocus}
+                onChange={(coords) => patch({ lat: String(coords.lat), lng: String(coords.lng) })}
+                onClear={() => patch({ lat: '', lng: '' })}
+              />
+              {(errors.lat || errors.lng) && (
+                <p className="text-[11px] text-red-500 font-bold mt-1">
+                  {errors.lat || errors.lng}
                 </p>
               )}
             </Card>
