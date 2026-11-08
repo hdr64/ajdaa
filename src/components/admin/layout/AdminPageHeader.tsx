@@ -41,19 +41,19 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitl
 
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <div
-          className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border font-bold text-[11px] ${
+          className={`p-2.5 rounded-xl border flex items-center justify-center shadow-xs transition-colors ${
             realtimeConnected
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
               : 'bg-amber-500/10 border-amber-500/20 text-amber-600'
           }`}
           title={realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}
+          aria-label={realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}
         >
           {realtimeConnected ? (
-            <Wifi className="w-3.5 h-3.5 text-emerald-600 animate-pulse shrink-0" />
+            <Wifi className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
           ) : (
-            <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
           )}
-          <span className="hidden lg:inline">{realtimeConnected ? t('layout.header.live') : t('layout.header.connecting')}</span>
         </div>
 
         {lastUpdated && (
