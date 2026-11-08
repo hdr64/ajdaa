@@ -26,6 +26,7 @@ export type AdminSection =
   | 'categories'
   | 'pastProjects'
   | 'cms'
+  | 'media'
   | 'users'
   | 'roles'
   | 'departments'
@@ -50,6 +51,7 @@ const SIMPLE_SECTIONS: AdminSection[] = [
   'categories',
   'pastProjects',
   'cms',
+  'media',
   'users',
   'roles',
   'departments',

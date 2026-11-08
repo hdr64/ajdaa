@@ -105,6 +105,7 @@ export const DEFAULT_PERMISSIONS = {
   manageClients: false,
   managePastProjects: false,
   rollbackCms: false,
+  manageMedia: false,
 } as const;
 
 /** The server stores an open-ended permission map; the UI needs a fixed shape. */
@@ -129,6 +130,7 @@ function normalizePermissions(raw: Record<string, boolean> | null | undefined) {
     rollbackCms: source.rollbackCms ?? false,
     viewApplications: source.viewApplications ?? false,
     manageApplications: source.manageApplications ?? false,
+    manageMedia: source.manageMedia ?? source.manageCms ?? source.manageProjects ?? false,
   };
 }
 

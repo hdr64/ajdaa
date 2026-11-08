@@ -1,8 +1,51 @@
 import { api, resolveMediaUrl } from './api';
 
 export interface UploadedMedia {
+  id?: string;
   url: string;
   filename: string;
+  originalName?: string;
+  mimeType?: string;
+  fileType?: string;
+  size?: number;
+}
+
+export interface MediaUsageDetail {
+  entityType: string;
+  entityId: string | number;
+  entityTitle: string;
+  field: string;
+}
+
+export interface MediaFileDto {
+  id: string;
+  url: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  fileType: 'image' | 'pdf' | 'model3d' | 'document' | 'other';
+  size: number;
+  thumbnailUrl?: string | null;
+  usageCount: number;
+  usages: MediaUsageDetail[];
+  createdById?: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+}
+
+export interface MediaListResponse {
+  items: MediaFileDto[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface MediaUsageResponse {
+  mediaId?: string;
+  url: string;
+  filename: string;
+  usageCount: number;
+  usages: MediaUsageDetail[];
 }
 
 export interface UploadOptions {
@@ -96,5 +139,49 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
     signal: options.signal,
   });
 
-  return { url: resolveMediaUrl(result.url), filename: result.filename };
+  return {
+    id: result.id,
+    url: resolveMediaUrl(result.url),
+    filename: result.filename,
+    originalName: result.originalName,
+    mimeType: result.mimeType,
+    fileType: result.fileType,
+    size: result.size,
+  };
+}
+
+/**
+ * Fetches paginated media files from the media library.
+ */
+export async function fetchMediaList(params: {
+  page?: number;
+  limit?: number;
+  type?: 'all' | 'image' | 'pdf' | 'model3d';
+  status?: 'all' | 'linked' | 'orphaned';
+  search?: string;
+} = {}): Promise<MediaListResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.type && params.type !== 'all') query.set('type', params.type);
+  if (params.status && params.status !== 'all') query.set('status', params.status);
+  if (params.search?.trim()) query.set('search', params.search.trim());
+
+  const qs = query.toString();
+  const endpoint = `/api/media${qs ? `?${qs}` : ''}`;
+  return api.get<MediaListResponse>(endpoint);
+}
+
+/**
+ * Queries usage information for a specific media URL.
+ */
+export async function fetchMediaUsage(url: string): Promise<MediaUsageResponse> {
+  return api.get<MediaUsageResponse>(`/api/media/usage?url=${encodeURIComponent(url)}`);
+}
+
+/**
+ * Deletes an unlinked media file. Fails if the file is connected to any project.
+ */
+export async function deleteMediaItem(id: string): Promise<{ success: boolean }> {
+  return api.delete<{ success: boolean }>(`/api/media/${id}`);
 }

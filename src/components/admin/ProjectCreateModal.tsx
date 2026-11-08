@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { RefreshCw, ImageUp, FileText, X as CloseIcon } from 'lucide-react';
+import { RefreshCw, FileText, Plus, X as CloseIcon } from 'lucide-react';
 import type { Property, PropertyUnit, PropertyType, UnitStatus } from '../../types/property';
 import { AdminStorage } from '../../services/adminStorage';
 import { getErrorMessage } from '../../services/api';
-import { uploadMedia, isAcceptedMedia, MAX_UPLOAD_BYTES } from '../../services/mediaService';
 import { isHttpsUrl } from '../../utils/urlValidation';
 import { useAdmin } from '../../pages/admin/adminContextDef';
 import { useAdminT } from '../../i18n/admin/useAdminT';
 import { PROJECT_TYPE_LABELS_AR } from '../../pages/admin/projectLabels';
+import { MediaPickerModal } from './media/MediaPickerModal';
 
 type PriceType = 'إيجار' | 'بيع' | 'استثمار';
 
@@ -120,13 +120,11 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
     city: isEn ? 'Riyadh' : 'الرياض',
   });
   const [creating, setCreating] = useState(false);
-  const [uploadingField, setUploadingField] = useState<'image' | 'brochure' | null>(null);
+  const [pickerState, setPickerState] = useState<{ open: boolean; type: 'image' | 'pdf' } | null>(null);
   const [model3dError, setModel3dError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadTargetRef = useRef<'image' | 'brochure'>('image');
 
   const isDirty = JSON.stringify(form) !== JSON.stringify({ ...EMPTY_FORM, city: isEn ? 'Riyadh' : 'الرياض' });
-  const busy = creating || uploadingField !== null;
+  const busy = creating;
 
   const requestClose = async () => {
     if (busy) return;
@@ -152,50 +150,6 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-
-  const openFilePicker = (target: 'image' | 'brochure') => {
-    uploadTargetRef.current = target;
-    if (fileInputRef.current) {
-      fileInputRef.current.accept =
-        target === 'image'
-          ? 'image/jpeg,image/png,image/webp,image/avif,image/gif'
-          : 'application/pdf';
-      fileInputRef.current.value = '';
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleFileSelected = async (file?: File) => {
-    if (!file) return;
-    const target = uploadTargetRef.current;
-
-    if (!isAcceptedMedia(file)) {
-      onShowToast(t('projects.modal.toastFormatUnsupported'));
-      return;
-    }
-    if (target === 'image' && file.type === 'application/pdf') {
-      onShowToast(t('projects.modal.toastImageNotPdf'));
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      onShowToast(t('projects.modal.toastFileSizeExceeded'));
-      return;
-    }
-
-    setUploadingField(target);
-    try {
-      const uploaded = await uploadMedia(file);
-      setForm((current) => ({
-        ...current,
-        [target === 'image' ? 'imageUrl' : 'brochureUrl']: uploaded.url,
-      }));
-      onShowToast(t('projects.modal.toastUploadSuccess'));
-    } catch (error) {
-      onShowToast(getErrorMessage(error, t('projects.modal.toastUploadFailed')));
-    } finally {
-      setUploadingField(null);
-    }
-  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -408,19 +362,11 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
               ) : (
                 <button
                   type="button"
-                  onClick={() => openFilePicker('image')}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    uploadTargetRef.current = 'image';
-                    void handleFileSelected(e.dataTransfer.files[0]);
-                  }}
-                  className="w-full h-28 rounded-xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex flex-col items-center justify-center gap-1.5 transition cursor-pointer"
+                  onClick={() => setPickerState({ open: true, type: 'image' })}
+                  className="w-full h-28 rounded-xl border border-dashed border-muted-border/50 hover:border-accent/60 bg-muted-surface/30 hover:bg-accent/5 text-neutral-text/70 hover:text-accent flex flex-col items-center justify-center gap-2 p-2 transition cursor-pointer text-center"
                 >
-                  {uploadingField === 'image' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ImageUp className="w-5 h-5" />}
-                  <span className="text-[10px] font-bold">
-                    {uploadingField === 'image' ? t('projects.modal.uploading') : t('projects.modal.uploadImageText')}
-                  </span>
+                  <Plus className="w-5 h-5 text-accent" />
+                  <span className="text-xs font-bold">{t('projects.modal.addImage')}</span>
                 </button>
               )}
             </div>
@@ -450,19 +396,11 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
               ) : (
                 <button
                   type="button"
-                  onClick={() => openFilePicker('brochure')}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    uploadTargetRef.current = 'brochure';
-                    void handleFileSelected(e.dataTransfer.files[0]);
-                  }}
-                  className="w-full h-28 rounded-xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex flex-col items-center justify-center gap-1.5 transition cursor-pointer"
+                  onClick={() => setPickerState({ open: true, type: 'pdf' })}
+                  className="w-full h-28 rounded-xl border border-dashed border-muted-border/50 hover:border-accent/60 bg-muted-surface/30 hover:bg-accent/5 text-neutral-text/70 hover:text-accent flex flex-col items-center justify-center gap-2 p-2 transition cursor-pointer text-center"
                 >
-                  {uploadingField === 'brochure' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
-                  <span className="text-[10px] font-bold">
-                    {uploadingField === 'brochure' ? t('projects.modal.uploading') : t('projects.modal.uploadBrochureText')}
-                  </span>
+                  <Plus className="w-5 h-5 text-accent" />
+                  <span className="text-xs font-bold">{t('projects.modal.addBrochure')}</span>
                 </button>
               )}
             </div>
@@ -488,14 +426,6 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
             </p>
           </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf"
-            className="hidden"
-            onChange={(e) => void handleFileSelected(e.target.files?.[0])}
-          />
-
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-muted-border/30">
             <button
               type="button"
@@ -516,6 +446,22 @@ export const ProjectCreateModal: React.FC<ProjectCreateModalProps> = ({ onClose,
           </div>
         </form>
       </div>
+
+      {pickerState?.open && (
+        <MediaPickerModal
+          open={pickerState.open}
+          fileType={pickerState.type}
+          onClose={() => setPickerState(null)}
+          onSelect={(media) => {
+            if (pickerState.type === 'image') {
+              setForm((cur) => ({ ...cur, imageUrl: media.url }));
+            } else {
+              setForm((cur) => ({ ...cur, brochureUrl: media.url }));
+            }
+            setPickerState(null);
+          }}
+        />
+      )}
     </div>
   );
 };

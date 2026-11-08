@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
   FileText,
-  ImageUp,
   MapPin,
   Plus,
   RefreshCw,
@@ -15,7 +14,6 @@ import {
 import type { PriceType, Property, PropertyType } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
-import { isAcceptedMedia, MAX_UPLOAD_BYTES, uploadMedia } from '../../../services/mediaService';
 import { toYoutubeEmbedUrl } from '../../../services/youtube';
 import { useAdmin } from '../adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
@@ -28,6 +26,7 @@ import { CitySelect } from '../../../components/admin/projects/CitySelect';
 import { findSaudiCityByName } from '../../../data/saudiCities';
 import { isHttpsUrl } from '../../../utils/urlValidation';
 import { detectProjectStatus } from '../../../data/properties';
+import { MediaPickerModal } from '../../../components/admin/media/MediaPickerModal';
 
 const INPUT_CLASS =
   'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
@@ -125,12 +124,6 @@ function parseNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-function validateImageFile(file: File): string | null {
-  if (!isAcceptedMedia(file) || !file.type.startsWith('image/')) return 'projectEdit.upload.unsupportedImage';
-  if (file.size > MAX_UPLOAD_BYTES) return 'projectEdit.upload.imageTooLarge';
-  return null;
-}
-
 function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <section className="rounded-3xl bg-surface border border-muted-border/40 p-5 sm:p-6 shadow-xs space-y-4">
@@ -180,12 +173,12 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   const [baseline, setBaseline] = useState<EditorForm>(() => toFormState(project));
   const [form, setForm] = useState<EditorForm>(baseline);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState<'image' | 'gallery' | 'brochure' | null>(null);
+  const [pickerState, setPickerState] = useState<{
+    open: boolean;
+    target: 'image' | 'gallery' | 'brochure';
+    fileType: 'image' | 'pdf';
+  } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-  const brochureInputRef = useRef<HTMLInputElement>(null);
 
   const autoStatus = useMemo(() => {
     return detectProjectStatus({
@@ -244,7 +237,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   };
 
   const embedUrl = toYoutubeEmbedUrl(form.videoUrl);
-  const busy = saving || uploading !== null;
+  const busy = saving;
   const isDirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(baseline), [form, baseline]);
 
   // Refresh / tab close with unsaved edits.
@@ -294,55 +287,6 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
     if (embedUrl === undefined) found.videoUrl = t('projectEdit.validation.videoUrl');
     return found;
-  };
-
-  const upload = async (kind: 'image' | 'brochure', file: File) => {
-    if (kind === 'image') {
-      const problem = validateImageFile(file);
-      if (problem) return showToast(t(problem as 'projectEdit.upload.unsupportedImage' | 'projectEdit.upload.imageTooLarge'));
-    } else if (file.type !== 'application/pdf') {
-      return showToast(t('projectEdit.upload.brochurePdfOnly'));
-    } else if (file.size > MAX_UPLOAD_BYTES) {
-      return showToast(t('projectEdit.upload.fileTooLarge'));
-    }
-
-    setUploading(kind);
-    try {
-      const uploaded = await uploadMedia(file);
-      patch(kind === 'image' ? { image: uploaded.url } : { brochureUrl: uploaded.url });
-      showToast(kind === 'image' ? t('projectEdit.upload.imageSuccess') : t('projectEdit.upload.brochureSuccess'));
-    } catch (error) {
-      showToast(getErrorMessage(error, t('projectEdit.upload.error')));
-    } finally {
-      setUploading(null);
-    }
-  };
-
-  const uploadGallery = async (files: FileList) => {
-    const selected = Array.from(files);
-    if (selected.length === 0) return;
-    setUploading('gallery');
-    const urls: string[] = [];
-    try {
-      // Sequential on purpose: parallel 50 MB uploads starve the connection pool.
-      for (const file of selected) {
-        const problem = validateImageFile(file);
-        if (problem) {
-          showToast(t(problem as 'projectEdit.upload.unsupportedImage' | 'projectEdit.upload.imageTooLarge'));
-          continue;
-        }
-        urls.push((await uploadMedia(file)).url);
-      }
-      if (urls.length > 0) {
-        showToast(urls.length === selected.length ? t('projectEdit.upload.gallerySuccess') : t('projectEdit.upload.galleryPartial', { uploaded: urls.length, total: selected.length }));
-      }
-    } catch (error) {
-      showToast(getErrorMessage(error, t('projectEdit.upload.galleryError')));
-    } finally {
-      // Append to the gallery as it is *now*: removals made during the upload stay removed.
-      if (urls.length > 0) setForm((current) => ({ ...current, gallery: [...current.gallery, ...urls] }));
-      setUploading(null);
-    }
   };
 
   const moveGalleryItem = (index: number, delta: number) => {
@@ -455,7 +399,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
           title={!isDirty ? t('projectEdit.save.noChanges') : undefined}
         >
           {busy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          <span className="hidden sm:inline">{saving ? t('projectEdit.save.saving') : uploading ? t('projectEdit.save.uploading') : t('projectEdit.save.label')}</span>
+          <span className="hidden sm:inline">{saving ? t('projectEdit.save.saving') : t('projectEdit.save.label')}</span>
         </button>
       </AdminHeaderActions>
 
@@ -682,26 +626,29 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 {form.image ? (
                   <div className="relative rounded-2xl overflow-hidden border border-muted-border/50">
                     <img src={form.image} alt={t('projectEdit.field.mainImage')} className="w-full aspect-[16/9] object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => imageInputRef.current?.click()}
-                      disabled={busy}
-                      className="absolute top-2 end-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/70 text-white text-[10px] font-bold hover:bg-black/85 cursor-pointer disabled:opacity-60"
-                    >
-                      {uploading === 'image' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ImageUp className="w-3 h-3" />}
-                      {uploading === 'image' ? t('projectEdit.uploading') : t('projectEdit.action.replace')}
-                    </button>
+                    <div className="absolute top-2 end-2 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPickerState({ open: true, target: 'image', fileType: 'image' })}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 text-white text-xs font-bold hover:bg-black/85 cursor-pointer disabled:opacity-60"
+                        title={t('projectEdit.action.replace')}
+                      >
+                        <Plus className="w-3.5 h-3.5 text-accent" />
+                        <span>{t('projectEdit.action.replace')}</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
                     id="pe-image"
                     type="button"
-                    onClick={() => imageInputRef.current?.click()}
+                    onClick={() => setPickerState({ open: true, target: 'image', fileType: 'image' })}
                     disabled={busy}
-                    className="w-full aspect-[16/9] rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex flex-col items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    className="w-full aspect-[16/9] rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 bg-muted-surface/30 hover:bg-accent/5 text-neutral-text/70 hover:text-accent flex flex-col items-center justify-center gap-2 cursor-pointer disabled:opacity-60 text-center p-4"
                   >
-                    {uploading === 'image' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ImageUp className="w-5 h-5" />}
-                    <span className="text-[10px] font-bold">{uploading === 'image' ? t('projectEdit.uploading') : t('projectEdit.image.upload')}</span>
+                    <Plus className="w-6 h-6 text-accent" />
+                    <span className="text-xs font-bold">{t('projectEdit.image.addImage')}</span>
                   </button>
                 )}
                 {errors.image && <ErrorText>{errors.image}</ErrorText>}
@@ -744,12 +691,12 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                 )}
                 <button
                   type="button"
-                  onClick={() => galleryInputRef.current?.click()}
+                  onClick={() => setPickerState({ open: true, target: 'gallery', fileType: 'image' })}
                   disabled={busy}
-                  className="w-full py-3 rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="w-full py-3 rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 bg-muted-surface/30 hover:bg-accent/5 text-neutral-text/70 hover:text-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 text-xs font-bold"
                 >
-                  {uploading === 'gallery' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  <span className="text-[10px] font-bold">{uploading === 'gallery' ? t('projectEdit.gallery.uploading') : t('projectEdit.gallery.add')}</span>
+                  <Plus className="w-4 h-4 text-accent" />
+                  <span>{t('projectEdit.gallery.addImages')}</span>
                 </button>
               </div>
             </Card>
@@ -806,22 +753,29 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     <a href={form.brochureUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-heading hover:text-accent truncate min-w-0">
                       {t('projectEdit.brochure.view')}
                     </a>
-                    <button type="button" onClick={() => brochureInputRef.current?.click()} disabled={busy} className="ms-auto text-[10px] font-bold text-accent hover:underline cursor-pointer">
-                        {busy ? t('projectEdit.uploading') : t('projectEdit.action.replace')}
-                    </button>
-                    <button type="button" onClick={() => void removeBrochure()} className="p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer" aria-label={t('projectEdit.action.removeBrochure')} title={t('projectEdit.action.removeBrochure')}>
-                      <CloseIcon className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="ms-auto flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPickerState({ open: true, target: 'brochure', fileType: 'pdf' })}
+                        disabled={busy}
+                        className="text-[10px] font-bold text-accent hover:underline cursor-pointer"
+                      >
+                        {t('projectEdit.action.replace')}
+                      </button>
+                      <button type="button" onClick={() => void removeBrochure()} className="p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer" aria-label={t('projectEdit.action.removeBrochure')} title={t('projectEdit.action.removeBrochure')}>
+                        <CloseIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => brochureInputRef.current?.click()}
+                    onClick={() => setPickerState({ open: true, target: 'brochure', fileType: 'pdf' })}
                     disabled={busy}
-                    className="w-full py-3 rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 text-neutral-text/60 hover:text-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    className="w-full py-3 rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 bg-muted-surface/30 hover:bg-accent/5 text-neutral-text/70 hover:text-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 text-xs font-bold"
                   >
-                    {uploading === 'brochure' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                    <span className="text-[10px] font-bold">{uploading === 'brochure' ? t('projectEdit.uploading') : t('projectEdit.brochure.upload')}</span>
+                    <Plus className="w-4 h-4 text-accent" />
+                    <span>{t('projectEdit.brochure.addPdf')}</span>
                   </button>
                 )}
               </div>
@@ -843,41 +797,25 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
             </Card>
           </div>
         </div>
-
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void upload('image', file);
-            e.target.value = '';
-          }}
-        />
-        <input
-          ref={galleryInputRef}
-          type="file"
-          multiple
-          accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files?.length) void uploadGallery(e.target.files);
-            e.target.value = '';
-          }}
-        />
-        <input
-          ref={brochureInputRef}
-          type="file"
-          accept="application/pdf"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void upload('brochure', file);
-            e.target.value = '';
-          }}
-        />
       </form>
+
+      {pickerState?.open && (
+        <MediaPickerModal
+          open={pickerState.open}
+          fileType={pickerState.fileType}
+          onClose={() => setPickerState(null)}
+          onSelect={(media) => {
+            if (pickerState.target === 'image') {
+              patch({ image: media.url });
+            } else if (pickerState.target === 'gallery') {
+              setForm((cur) => ({ ...cur, gallery: [...cur.gallery, media.url] }));
+            } else if (pickerState.target === 'brochure') {
+              patch({ brochureUrl: media.url });
+            }
+            setPickerState(null);
+          }}
+        />
+      )}
     </>
   );
 };

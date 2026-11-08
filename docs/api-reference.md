@@ -45,7 +45,7 @@ Guards: **public** (no session; most are rate limited), **JWT** (any signed-in a
 | `GET /units/export` | `exportData` |
 | `GET /categories` | public |
 | `POST /categories`, `PUT /categories/:id`, `DELETE /categories/:id` | `manageProjects` |
-| `POST /media/upload` | `manageProjects` or `managePastProjects` (images re-encoded to WebP, PDFs accepted) |
+| `POST /media/upload`, `GET /media`, `GET /media/usage`, `DELETE /media/:id` | `manageProjects`, `managePastProjects`, `manageMedia`, or `manageCms` |
 
 ### Past projects, careers, newsletter, inquiries
 
@@ -438,10 +438,104 @@ Updates lead pipeline status and internal notes. Requires `viewInquiries`.
 
 ---
 
-## 5. Media Upload (`/api/media`)
+## 5. Media Library & Storage API (`/api/media`)
+
+Comprehensive digital asset management for website images, brochures, and 3D architectural models. All media files are indexed in the `MediaFile` database table, tracked across all referencing entities, and protected against link rot and SEO damage.
 
 ### POST `/api/media/upload`
-Accepts `multipart/form-data` with `file`. Sharp automatically validates magic bytes, strips EXIF metadata, resizes if oversized, converts to WebP, and saves to `/uploads/`. Returns standardized relative URL.
+Uploads and indexes an image or PDF.
+- **Payload:** `multipart/form-data` with `file`.
+- **Processing:** Sharp automatically validates file magic bytes, strips EXIF metadata, resizes if oversized, converts images to WebP, and saves to `/uploads/`. PDFs are saved with `.pdf` extension and served as attachments.
+- **Database:** Auto-creates a `MediaFile` record with `originalName`, `fileType` (`image` | `pdf` | `model3d`), `mimeType`, and `size`.
+- **Response (201 Created):**
+  ```json
+  {
+    "url": "/uploads/123e4567-e89b-12d3-a456-426614174000.webp",
+    "filename": "123e4567-e89b-12d3-a456-426614174000.webp",
+    "originalName": "hero-skyline.png",
+    "fileType": "image",
+    "mimeType": "image/webp",
+    "size": 142850
+  }
+  ```
+
+### GET `/api/media`
+Returns paginated media assets with live usage tracking annotations.
+- **Access:** Admin (`manageMedia`, `manageProjects`, `managePastProjects`, or `manageCms`).
+- **Query Parameters:**
+  - `page` (number, default `1`): Page number.
+  - `limit` (number, default `24`, max `100`): Items per page.
+  - `type` (string, default `all`): Filter by `all`, `image`, `pdf`, `model3d`.
+  - `status` (string, default `all`): Filter by `all`, `linked` (in use), `orphaned` (unused).
+  - `search` (string, optional): Substring search in `originalName` or `filename`.
+- **Response (200 OK):**
+  ```json
+  {
+    "items": [
+      {
+        "id": "cly1234567890",
+        "url": "/uploads/uuid.webp",
+        "filename": "uuid.webp",
+        "originalName": "tower-main.webp",
+        "mimeType": "image/webp",
+        "fileType": "image",
+        "size": 245000,
+        "createdAt": "2026-11-08T12:00:00.000Z",
+        "usageCount": 2,
+        "usages": [
+          {
+            "entityType": "project",
+            "entityId": 1,
+            "entityTitle": "برج أجدا التجاري",
+            "field": "image"
+          }
+        ]
+      }
+    ],
+    "total": 42,
+    "page": 1,
+    "totalPages": 2
+  }
+  ```
+
+### GET `/api/media/usage`
+Inspects real-time references to a specific media URL across all platform entities (`Project`, `PastProject`, `CmsClient`, `CmsSection`, `AdminUser`, `DeveloperNote`, `AppSetting`).
+- **Query Parameters:**
+  - `url` (string, required): Full or relative URL (e.g. `/uploads/uuid.webp`).
+- **Response (200 OK):**
+  ```json
+  {
+    "url": "/uploads/uuid.webp",
+    "filename": "uuid.webp",
+    "usageCount": 1,
+    "usages": [
+      {
+        "entityType": "project",
+        "entityId": 10,
+        "entityTitle": "مجمع العقيق السكني",
+        "field": "image"
+      }
+    ]
+  }
+  ```
+
+### DELETE `/api/media/:id`
+Safely deletes an unlinked / orphaned media file from disk and database.
+- **Strict SEO Guard:** If `usageCount > 0`, deletion is **strictly blocked** and returns `409 Conflict`. Media URLs connected to live projects and content must remain permanent and immutable to prevent broken Google Search & Google Images indexing.
+- **Error Response (409 Conflict):**
+  ```json
+  {
+    "error": "لا يمكن حذف هذا الملف نهائياً لأنه مرتبط بـ (مجمع العقيق السكني). روابط الصور محمية لضمان استقرار أرشفة Google SEO وعدم كسر ظهور المشروع.",
+    "usageCount": 1,
+    "usages": [...]
+  }
+  ```
+- **Success Response (200 OK):**
+  ```json
+  {
+    "success": true
+  }
+  ```
 
 ---
 

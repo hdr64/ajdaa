@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { prisma } from '../src/services/prisma.js';
 import {
   authInject,
   buildMultipartBody,
@@ -87,5 +88,175 @@ describe('unsupported uploads are rejected', () => {
     });
 
     expect(response.statusCode).toBe(400);
+  });
+});
+
+describe('Media Library management and database indexing', () => {
+  it('creates a MediaFile database record with rich metadata on upload', async () => {
+    const png = await sharp({
+      create: { width: 64, height: 64, channels: 3, background: { r: 100, g: 150, b: 200 } },
+    })
+      .png()
+      .toBuffer();
+
+    const response = await upload({
+      filename: 'tower-skyline.png',
+      contentType: 'image/png',
+      data: png,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json() as {
+      url: string;
+      filename: string;
+      originalName?: string;
+      fileType?: string;
+      mimeType?: string;
+      size?: number;
+    };
+    expect(body.originalName).toBe('tower-skyline.png');
+    expect(body.fileType).toBe('image');
+    expect(body.mimeType).toBe('image/webp');
+    expect(body.size).toBeGreaterThan(0);
+
+    const record = await prisma.mediaFile.findUnique({
+      where: { url: body.url },
+    });
+    expect(record).not.toBeNull();
+    expect(record?.url).toBe(body.url);
+    expect(record?.originalName).toBe('tower-skyline.png');
+    expect(record?.fileType).toBe('image');
+  });
+
+  it('lists media files with pagination and usage counts via GET /api/media', async () => {
+    const listRes = await authInject(superAdminToken, {
+      method: 'GET',
+      url: '/api/media?page=1&limit=20',
+    });
+
+    expect(listRes.statusCode).toBe(200);
+    const body = listRes.json() as {
+      items: Array<{ id: string; url: string; usageCount: number; usages: Array<{ entityTitle: string }> }>;
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+
+    expect(Array.isArray(body.items)).toBe(true);
+    expect(body.total).toBeGreaterThanOrEqual(1);
+    expect(body.items[0]).toHaveProperty('usageCount');
+    expect(body.items[0]).toHaveProperty('usages');
+  });
+
+  it('checks usage for a specific media URL via GET /api/media/usage', async () => {
+    const png = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: { r: 50, g: 50, b: 50 } },
+    })
+      .png()
+      .toBuffer();
+
+    const uploadRes = await upload({
+      filename: 'sample-project-hero.png',
+      contentType: 'image/png',
+      data: png,
+    });
+    const { url } = uploadRes.json() as { url: string; filename: string };
+
+    const usageRes1 = await authInject(superAdminToken, {
+      method: 'GET',
+      url: `/api/media/usage?url=${encodeURIComponent(url)}`,
+    });
+    expect(usageRes1.statusCode).toBe(200);
+    const usage1 = usageRes1.json() as { usageCount: number; usages: Array<{ entityTitle: string }> };
+    expect(usage1.usageCount).toBe(0);
+    expect(usage1.usages).toEqual([]);
+
+    const project = await prisma.project.create({
+      data: {
+        title: 'برج الأيقونة التجاري',
+        titleEn: 'The Icon Commercial Tower',
+        type: 'commercial',
+        typeAr: 'تجاري',
+        typeEn: 'Commercial',
+        priceType: 'إيجار',
+        city: 'الرياض',
+        area: 4500,
+        status: 'متاح',
+        image: url,
+        gallery: JSON.stringify([url]),
+      },
+    });
+
+    const usageRes2 = await authInject(superAdminToken, {
+      method: 'GET',
+      url: `/api/media/usage?url=${encodeURIComponent(url)}`,
+    });
+    expect(usageRes2.statusCode).toBe(200);
+    const usage2 = usageRes2.json() as { usageCount: number; usages: Array<{ entityTitle: string }> };
+    expect(usage2.usageCount).toBeGreaterThanOrEqual(1);
+    expect(usage2.usages.some((u) => u.entityTitle.includes('برج الأيقونة التجاري'))).toBe(true);
+
+    await prisma.project.delete({ where: { id: project.id } });
+  });
+});
+
+describe('Deletion constraints and SEO protection', () => {
+  it('strictly blocks deletion of media linked to an active project (409 Conflict)', async () => {
+    const png = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    })
+      .png()
+      .toBuffer();
+
+    const uploadRes = await upload({
+      filename: 'seo-protected-image.png',
+      contentType: 'image/png',
+      data: png,
+    });
+    const { url } = uploadRes.json() as { url: string; filename: string };
+
+    const record = await prisma.mediaFile.findUnique({ where: { url } });
+    expect(record).not.toBeNull();
+
+    const project = await prisma.project.create({
+      data: {
+        title: 'مشروع حماية الروابط SEO',
+        titleEn: 'SEO Permanent Project',
+        type: 'commercial',
+        typeAr: 'تجاري',
+        typeEn: 'Commercial',
+        priceType: 'بيع',
+        city: 'الرياض',
+        area: 2500,
+        status: 'متاح',
+        image: url,
+        gallery: JSON.stringify([url]),
+      },
+    });
+
+    const deleteRes = await authInject(superAdminToken, {
+      method: 'DELETE',
+      url: `/api/media/${record!.id}`,
+    });
+
+    expect(deleteRes.statusCode).toBe(409);
+    const errorBody = deleteRes.json() as { error: string; usages?: Array<{ entityTitle: string }> };
+    expect(errorBody.error).toContain('SEO');
+    expect(errorBody.usages?.some((u) => u.entityTitle.includes('مشروع حماية الروابط SEO'))).toBe(true);
+
+    const stillExists = await prisma.mediaFile.findUnique({ where: { url } });
+    expect(stillExists).not.toBeNull();
+
+    await prisma.project.delete({ where: { id: project.id } });
+
+    const deleteRes2 = await authInject(superAdminToken, {
+      method: 'DELETE',
+      url: `/api/media/${record!.id}`,
+    });
+    expect(deleteRes2.statusCode).toBe(200);
+
+    const deletedRecord = await prisma.mediaFile.findUnique({ where: { url } });
+    expect(deletedRecord).toBeNull();
   });
 });

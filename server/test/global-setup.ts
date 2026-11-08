@@ -49,7 +49,10 @@ export function setup(): void {
     'prisma db push',
     PRISMA_CLI,
     ['db', 'push', '--schema', 'prisma/schema.prisma', '--accept-data-loss'],
-    env
+    {
+      ...env,
+      PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION: 'go',
+    }
   );
 
   runNodeStep('prisma seed', TSX_CLI, ['prisma/seed.ts'], {

@@ -92,6 +92,9 @@ export function hasPermission(admin: AuthenticatedAdmin | undefined, permission:
   if (permission === 'manageClients' || permission === 'rollbackCms') {
     if (admin.permissions.manageCms === true) return true;
   }
+  if (permission === 'manageMedia') {
+    if (admin.permissions.manageCms === true || admin.permissions.manageProjects === true) return true;
+  }
 
   return false;
 }

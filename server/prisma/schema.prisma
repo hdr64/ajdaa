@@ -402,3 +402,25 @@ model JobApplication {
   @@index([createdAt])
   @@map("job_applications")
 }
+
+/// Tracks every uploaded media asset on disk with metadata and usage state
+model MediaFile {
+  id           String    @id @default(uuid())
+  url          String    @unique // e.g. "/uploads/uuid.webp" or "/uploads/uuid-doc.pdf"
+  filename     String    // e.g. "uuid.webp"
+  originalName String    // e.g. "tower-exterior.jpg"
+  mimeType     String    // e.g. "image/webp", "application/pdf"
+  fileType     String    // 'image' | 'pdf' | 'model3d' | 'document' | 'other'
+  size         Int       // in bytes (standard Int, JSON-safe up to 2.14 GB)
+  storageKey   String    // Relative disk path under UPLOAD_DIR
+  thumbnailUrl String?   // Generated thumbnail for raster images
+  metadata     String?   // JSON: { width, height, format }
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([fileType])
+  @@index([createdAt])
+  @@map("media_files")
+}
+

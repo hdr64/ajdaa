@@ -23,6 +23,7 @@ export interface AdminPermissions {
   manageUsers: boolean;
   verifyUsers: boolean;
   manageNotifications: boolean;
+  manageMedia: boolean;
 }
 
 export interface PermissionDef {

@@ -11,6 +11,7 @@ import { floorplan } from './floorplan';
 import { inquiries } from './inquiries';
 import { layout } from './layout';
 import { mail } from './mail';
+import { media } from './media';
 import { newsletter } from './newsletter';
 import { pastProjects } from './pastProjects';
 import { profile } from './profile';
@@ -40,6 +41,7 @@ export const adminStrings = {
   inquiries,
   layout,
   mail,
+  media,
   newsletter,
   pastProjects,
   profile,

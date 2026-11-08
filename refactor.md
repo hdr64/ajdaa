@@ -197,3 +197,18 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
 - 2026-11-07 (owner): how to submit the sitemap; DNS verification not possible, so the HTML-file method is used (`public/googleeb9c61398accaddd.html`). Final production SEO review done; project pages are indexable, three have thin descriptions. Owner actions recorded in salah-tasks.md section H. Open for Claude: `/projects/<id>` returns 200 with a canonical to the slug URL instead of a 301 (minor, optional follow-up).
 
 - 2026-11-07 (owner): Folder storage feature (Google Drive-like) in the admin website. Manage all files, upload/download, trash/recycle bin, RBAC permissions to create folders/files and organize. Reusable picker to choose a 3D model, PDF brochure, or images from the storage library or upload directly for projects and CMS. 3D models can be up to 1GB (resumable chunked upload, stream pipe to disk, byte-range delivery, interactive 3D WebGL viewer). Architectural plan written to `storage-library-plan.md`.
+
+- 2026-11-08 (owner): Storage Library Step 0 — Media Library Integration & SEO Permanent Image Safety:
+  - **Prisma & Database Indexing**: Added `MediaFile` model with `url`, `filename`, `originalName`, `mimeType`, `fileType`, `size`, `storageKey`, `thumbnailUrl`, `metadata`, and timestamps. Generated PostgreSQL migration `20261108100000_media_library` with indexes and super admin backfill. Auto-syncs disk media from `/uploads/` recursively (including `seed/`).
+  - **Permissions System**: Registered `manageMedia` across all 4 permission definitions (`server/src/config/permissions.ts`, `server/src/types/fastify.d.ts`, `src/types/admin.ts`, `src/components/admin/users/usersModel.ts`) with seamless fallback inheritance to `manageProjects || manageCms`.
+  - **Usage Tracking Service (`mediaUsageService.ts`)**: Scans references across `Project` (`image`, `gallery`, `brochureUrl`, `model3dUrl`), `PastProject` (`image`, `gallery`, `pdfUrl`), `CmsClient` (`logo`), `CmsSection` (content payloads), `AdminUser` (`avatar`), `DeveloperNote` (`screenshotUrl`), and `AppSetting` (`value`).
+  - **Strict SEO URL & Deletion Protection**:
+    - Established `/uploads/...` URLs remain permanent and immutable.
+    - Removing an image or brochure from a project form **only unlinks** the field from that project record; it never deletes the physical media file.
+    - `DELETE /api/media/:id` strictly blocks deletion (HTTP 409 Conflict) whenever `usageCount > 0`, citing referencing entities and warning that active URLs must not be broken for Google Search & Google Images ranking.
+    - Deletion is permitted only for orphaned files (`usageCount === 0`) directly from the Media Library.
+  - **Admin UI & Reusable Modal**:
+    - Created Media Library page (`/admin/media`) with stats cards, Linked/Orphaned filters, type tabs, search, lightbox, and copy URL.
+    - Built reusable `<MediaPickerModal />` with dual tabs ("Choose from Library" and "Upload New").
+    - Integrated `<MediaPickerModal />` and library selection into `ProjectCreateModal`, `ProjectEditSection`, `PastProjectFormDialog`, and `CmsClientsPanel`.
+  - **Verification & Tests**: Added unit and integration tests in `server/test/media.test.ts` verifying `MediaFile` creation, pagination, live usage checks, and 409 Conflict SEO deletion blocking. Passed Vite build, Server TypeScript build, and Vitest suite.

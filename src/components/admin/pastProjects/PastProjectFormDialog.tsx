@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { X, Upload, Trash2, FileText, ImageIcon, Loader2 } from 'lucide-react';
+import { X, Trash2, FileText, Loader2, Plus } from 'lucide-react';
 import { AdminStorage } from '../../../services/adminStorage';
 import { getErrorMessage } from '../../../services/api';
 import { ApiError } from '../../../services/api';
-import { uploadMedia } from '../../../services/mediaService';
 import type { PastProject, PastProjectInput } from '../../../services/adminStorage';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
+import { MediaPickerModal } from '../media/MediaPickerModal';
 
 interface Props {
   initial: PastProject | null;
@@ -39,9 +39,11 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
   const [pdfUrl, setPdfUrl] = useState<string | null>(initial?.pdfUrl ?? null);
   const [pdfName, setPdfName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadingGallery, setUploadingGallery] = useState(false);
-  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [pickerState, setPickerState] = useState<{
+    open: boolean;
+    target: 'image' | 'gallery' | 'pdf';
+    fileType: 'image' | 'pdf';
+  } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [dirty, setDirty] = useState(false);
 
@@ -68,48 +70,6 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirty]);
-
-  const handleImageUpload = async (file: File) => {
-    setUploadingImage(true);
-    try {
-      const res = await uploadMedia(file);
-      setImage(res.url);
-      markDirty();
-    } catch (err) {
-      showToast(getErrorMessage(err, t('pastProjects.form.uploadImageError')), 'error');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const handleGalleryUpload = async (files: FileList) => {
-    setUploadingGallery(true);
-    try {
-      for (const file of Array.from(files)) {
-        const res = await uploadMedia(file);
-        setGallery((prev) => [...prev, res.url]);
-      }
-      markDirty();
-    } catch (err) {
-      showToast(getErrorMessage(err, t('pastProjects.form.uploadImageError')), 'error');
-    } finally {
-      setUploadingGallery(false);
-    }
-  };
-
-  const handlePdfUpload = async (file: File) => {
-    setUploadingPdf(true);
-    try {
-      const res = await uploadMedia(file);
-      setPdfUrl(res.url);
-      setPdfName(file.name);
-      markDirty();
-    } catch (err) {
-      showToast(getErrorMessage(err, t('pastProjects.form.uploadFileError')), 'error');
-    } finally {
-      setUploadingPdf(false);
-    }
-  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,20 +209,14 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
               </button>
             </div>
           )}
-          <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent">
-            {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-            {image ? t('pastProjects.form.replaceImage') : t('pastProjects.form.uploadImage')}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void handleImageUpload(f);
-                e.target.value = '';
-              }}
-            />
-          </label>
+          <button
+            type="button"
+            onClick={() => setPickerState({ open: true, target: 'image', fileType: 'image' })}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent hover:text-accent"
+          >
+            <Plus className="w-4 h-4 text-accent" />
+            <span>{image ? t('pastProjects.form.replaceImage') : '+ إضافة صورة'}</span>
+          </button>
           <FieldError errors={fieldErrors.image} />
         </div>
 
@@ -284,21 +238,14 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
               </div>
             ))}
           </div>
-          <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent">
-            {uploadingGallery ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {t('pastProjects.form.addImages')}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                const files = e.target.files;
-                if (files && files.length) void handleGalleryUpload(files);
-                e.target.value = '';
-              }}
-            />
-          </label>
+          <button
+            type="button"
+            onClick={() => setPickerState({ open: true, target: 'gallery', fileType: 'image' })}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent hover:text-accent"
+          >
+            <Plus className="w-4 h-4 text-accent" />
+            <span>+ إضافة صور للمعرض</span>
+          </button>
           <FieldError errors={fieldErrors.gallery} />
         </div>
 
@@ -319,20 +266,14 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
               </button>
             </div>
           )}
-          <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent">
-            {uploadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {pdfUrl ? t('pastProjects.form.replaceFile') : t('pastProjects.form.uploadPdf')}
-            <input
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void handlePdfUpload(f);
-                e.target.value = '';
-              }}
-            />
-          </label>
+          <button
+            type="button"
+            onClick={() => setPickerState({ open: true, target: 'pdf', fileType: 'pdf' })}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer hover:border-accent hover:text-accent"
+          >
+            <Plus className="w-4 h-4 text-accent" />
+            <span>{pdfUrl ? t('pastProjects.form.replaceFile') : '+ إضافة ملف PDF'}</span>
+          </button>
           <FieldError errors={fieldErrors.pdfUrl} />
         </div>
 
@@ -346,6 +287,28 @@ export const PastProjectFormDialog: React.FC<Props> = ({ initial, onClose, onSav
           </button>
         </div>
       </form>
+
+      {pickerState?.open && (
+        <MediaPickerModal
+          open={pickerState.open}
+          fileType={pickerState.fileType}
+          onClose={() => setPickerState(null)}
+          onSelect={(media) => {
+            if (pickerState.target === 'image') {
+              setImage(media.url);
+              markDirty();
+            } else if (pickerState.target === 'gallery') {
+              setGallery((prev) => [...prev, media.url]);
+              markDirty();
+            } else if (pickerState.target === 'pdf') {
+              setPdfUrl(media.url);
+              setPdfName(media.originalName || media.filename);
+              markDirty();
+            }
+            setPickerState(null);
+          }}
+        />
+      )}
     </div>
   );
 };

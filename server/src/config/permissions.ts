@@ -136,6 +136,13 @@ export const PERMISSION_CATALOGUE: readonly PermissionDef[] = [
     labelEn: 'Manage Notifications',
     description: 'تحديد من يُبلَّغ عند وصول طلب اهتمام جديد وإضافة مستمعين للأحداث',
   },
+  {
+    key: 'manageMedia',
+    group: 'cms',
+    labelAr: 'إدارة مكتبة الوسائط',
+    labelEn: 'Manage Media Library',
+    description: 'استعراض ورفع وحذف ملفات مكتبة الوسائط وإدارتها في لوحة التحكم',
+  },
 ] as const;
 
 export const PERMISSION_KEYS = [
@@ -157,6 +164,7 @@ export const PERMISSION_KEYS = [
   'manageUsers',
   'verifyUsers',
   'manageNotifications',
+  'manageMedia',
 ] as const;
 
 export const permissionKeySchema = z.enum(PERMISSION_KEYS);

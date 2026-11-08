@@ -75,6 +75,10 @@ export interface CmsFooterSection {
   madeInKsaAr: string;
   madeInKsaEn: string;
   madeInKsaEnabled?: boolean;
+  companyProfileEnabled?: boolean;
+  companyProfilePdfUrl?: string;
+  companyProfileLabelAr?: string;
+  companyProfileLabelEn?: string;
   socials: CmsSocialItem[];
 }
 
@@ -489,6 +493,10 @@ export const DEFAULT_FOOTER: CmsFooterSection = {
   madeInKsaAr: 'صمم بـ ❤️ في المملكة العربية السعودية',
   madeInKsaEn: 'Designed with ❤️ in Saudi Arabia',
   madeInKsaEnabled: false,
+  companyProfileEnabled: false,
+  companyProfilePdfUrl: '',
+  companyProfileLabelAr: 'الملف التعريفي للشركة',
+  companyProfileLabelEn: 'Company Profile',
   socials: DEFAULT_SOCIALS,
 };
 

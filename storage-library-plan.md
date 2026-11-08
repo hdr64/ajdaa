@@ -1,278 +1,264 @@
-# Ajda Storage Library & Asset Management — Comprehensive Plan
+# Ajda Storage & Media System — Master Architecture & Implementation Plan
+*(Verified & Hardened on 2026-11-08: Zero Flaws Review)*
 
-> **Goal**: Build a Google Drive-like digital asset manager (DAM) embedded inside the Ajda administrative dashboard. Allows administrators to create and organize nested folders, upload/download files, soft-delete into a Trash (سلة المحذوفات) with one-click restore and permanent purge, enforce granular RBAC permissions, support massive **1 GB 3D models** (`.glb`, `.gltf`, `.obj`), and seamlessly select or upload 3D models, PDF brochures, and images directly in Project and CMS forms.
+> **Core Philosophy**: **Start with what already exists and deliver immediate value**.
+> 1. **Step 0 (First Priority)**: Upgrade the existing media upload system into a full **Media Library (`/admin/media`)** with database tracking (`MediaFile`), usage detection (linked vs unlinked/orphaned), a reusable media picker across all admin upload forms, and a smart two-stage "unlink vs delete" confirmation flow.
+> 2. **Steps 1 to 6**: Build upon this solid foundation to layer on hierarchical folders (Google Drive-style), trash cascade, 1 GB chunked uploads, and interactive Three.js 3D viewers.
 
 ---
 
-## 1. System Architecture
+## 1. High-Level Progressive Roadmap
 
 ```mermaid
 flowchart TD
-    subgraph Client ["Frontend (React 19 + Tailwind v4)"]
-        DrivePage["Drive Page (/admin/storage)<br/>Grid / List, Tree, Breadcrumbs, Trash"]
-        AssetPicker["<AssetPickerModal /><br/>Choose from Drive | Upload Direct | 3D Link"]
-        ThreeDViewer["3D Interactive WebGL Viewer<br/>(<model-viewer> / Three.js Orbit Controls)"]
-        ProjectsAdmin["Project Forms (Create & Edit)<br/>3D Models, Brochures, Gallery, Hero"]
-        Chunker["Browser 15MB Chunker<br/>(Resumable slice engine for 1GB files)"]
-    end
+    Step0["Step 0: Media Library, Usage Registry & Smart Picker (First Priority)<br/>• DB model: MediaFile + migration for manageMedia permission<br/>• Auto-index pre-existing disk uploads on startup<br/>• POST /api/media/upload creates MediaFile records<br/>• GET /api/media with usage detection (linked vs orphaned)<br/>• Admin Media Page (/admin/media) with usage badges<br/>• Reusable <MediaPickerModal /> in all admin upload forms<br/>• Smart Unlink vs Delete: 1-item prompt to delete from library or keep"]
+    
+    Step1["Step 1: Hierarchical Folders & Core Drive MVP<br/>• Schema: StorageFolder & folder associations<br/>• Drive API: create folder, list contents, rename, download<br/>• Drive UI at /admin/storage with breadcrumbs & tree"]
+    
+    Step2["Step 2: Organization, Trash Cascade & Storage RBAC<br/>• Move items between folders with cycle prevention<br/>• Soft-delete to Trash with folder cascade & restore<br/>• Recursive physical disk purge<br/>• RBAC: viewStorage, uploadStorage, manageStorage"]
+    
+    Step3["Step 3: Unified Asset & Folder Picker<br/>• Connect Drive folders directly to the Asset Picker<br/>• Auto-organize uploads into project folders (/Projects/{Name}/)"]
+    
+    Step4["Step 4: 1 GB 3D Models & Resumable Chunking<br/>• 15 MB chunk slices via File.slice()<br/>• Offset/part-file writes with size & hash verification<br/>• Safe retries (flat < 20MB RAM, no file corruption)<br/>• Correct GLB magic (0x67 0x6C 0x54 0x46)"]
+    
+    Step5["Step 5: Three.js Interactive 3D WebGL Viewer<br/>• 360° orbit controls using existing 'three' package<br/>• Progress bar & drawer previews for 3D, PDF, and images"]
+    
+    Step6["Step 6: Quality Gates & Verification<br/>• Vitest suites, linting (0 new warnings), production builds<br/>• Arabic (RTL) & English (LTR) browser QA<br/>• Mobile responsiveness (390px)"]
 
-    subgraph Network ["Network & Reverse Proxy"]
-        CaddyProxy["Caddy Reverse Proxy<br/>Passes 15MB chunks cleanly without 413 timeout"]
-    end
-
-    subgraph API ["Backend (Fastify 5 + Node.js)"]
-        StorageRoutes["/api/storage/*<br/>Folders, Files, Chunked Upload, Trash, Download"]
-        AuthMiddleware["RBAC Permission Gate<br/>viewStorage, uploadStorage, manageStorage"]
-        MediaService["Media & 3D Streaming Service<br/>Sharp (WebP), GLB Binary Validator, Streamer"]
-    end
-
-    subgraph Storage ["Persistent Storage"]
-        PrismaDB[("Database (PostgreSQL / SQLite)<br/>StorageFolder & StorageFile")]
-        DiskStorage[("File Storage<br/>/uploads/storage/...")]
-    end
-
-    DrivePage -->|Manage files, folders, trash| StorageRoutes
-    AssetPicker -->|Select or upload asset| StorageRoutes
-    ProjectsAdmin -->|Invokes| AssetPicker
-    AssetPicker -->|Preview 3D model| ThreeDViewer
-    Chunker -->|Stream chunks| CaddyProxy
-    CaddyProxy --> StorageRoutes
-    StorageRoutes -->|Verify rights| AuthMiddleware
-    StorageRoutes -->|Process & Validate| MediaService
-    MediaService -->|Stream direct to disk| DiskStorage
-    StorageRoutes -->|Metadata & Hierarchy| PrismaDB
+    Step0 --> Step1 --> Step2 --> Step3 --> Step4 --> Step5 --> Step6
 ```
 
 ---
 
-## 2. 1 GB 3D Model Technical Strategy
+## 2. Step 0: Media Library, Usage Registry & Smart Project Picker (Detailed Spec)
 
-Uploading and serving files up to **1 GB** (`.glb`, `.gltf`, `.obj`) requires dedicated engineering to prevent Node.js heap crashes, network drops, and reverse proxy timeouts:
-
-### 2.1 Resumable Chunked Upload Engine
-* **The Problem with Direct 1GB POST**:
-  * In-memory buffers (`data.toBuffer()`) trigger V8 heap exhaustion and crash Node.js.
-  * Reverse proxies (Caddy, Cloudflare 100MB client body limit) immediately reject single 1GB POST requests with `HTTP 413 Payload Too Large`.
-  * Flaky connections that drop at 900MB would force the user to re-upload from 0MB.
-* **The Solution**:
-  1. The browser slices files > 50MB into **15 MB chunks** using native Web `File.slice()`.
-  2. Each chunk is streamed directly into an appended disk stream (`fs.createWriteStream({ flags: 'a' })`) in temporary storage.
-  3. **Server RAM remains flat (< 20 MB)** regardless of total file size.
-  4. **Pause, Resume & Retry**: If chunk #42 fails due to a network glitch, only that 15 MB chunk retries without restarting the upload.
-  5. Upon completion, the server validates the binary header (magic bytes `0x46546C67` for `glTF`), extracts metadata, records the entry in Prisma, and cleans up temporary chunk records.
-
-### 2.2 Byte-Range Delivery (HTTP 206 Partial Content)
-* Fastify serves 3D models with `Accept-Ranges: bytes` enabled.
-* WebGL 3D viewers can fetch geometry headers, material libraries, and mesh buffers progressively via Range requests without blocking the browser thread or forcing a 1GB upfront download before rendering.
-
-### 2.3 Supported 3D Formats & MIME Handling
-| Format | Extension | MIME Type | Verification Method |
-| :--- | :--- | :--- | :--- |
-| **glTF 2.0 Binary** (Standard) | `.glb` | `model/gltf-binary` | First 4 bytes must be `0x46546C67` (`glTF`) + version 2. |
-| **glTF JSON + Bin** | `.gltf` | `model/gltf+json` | JSON structure with `"asset": { "version": "2.0" }`. |
-| **3D CAD / Wavefront** | `.obj` | `text/plain` | ASCII vertices/faces structure validation. |
-| **Apple AR QuickLook** | `.usdz` | `model/vnd.usdz+zip` | Zip archive containing USD assets. |
-
----
-
-## 3. Database Schema & Data Modeling
-
-### 3.1 Prisma Models (`server/prisma/schema.prisma`)
+### 2.1 Database Modeling (`MediaFile`)
+Currently, `POST /api/media/upload` writes files to disk without any database record. We add the `MediaFile` model to `server/prisma/schema.prisma`:
 
 ```prisma
-/// Represents a virtual directory hierarchy in the storage drive
-model StorageFolder {
-  id          String          @id @default(uuid())
-  name        String          // Folder name, e.g. "مشروع برج العليا"
-  parentId    String?         // Self-referencing FK for nested subfolders
-  parent      StorageFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children    StorageFolder[] @relation("FolderTree")
-  files       StorageFile[]
-  path        String          // Materialized path, e.g. "/projects/206/" for fast subtree queries
-  color       String?         // Optional folder color tag (blue, amber, emerald, violet)
-  createdById String?
-  isDeleted   Boolean         @default(false)
-  deletedAt   DateTime?       // Set when moved to Trash
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-
-  @@index([parentId])
-  @@index([isDeleted])
-  @@index([path])
-  @@map("storage_folders")
-}
-
-/// Represents an uploaded media asset (3D model, PDF, image, video, document)
-model StorageFile {
-  id           String         @id @default(uuid())
-  folderId     String?        // Null = root folder
-  folder       StorageFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  name         String         // Display title (e.g. "المجسم ثلاثي الأبعاد - الطابق الأرضي")
-  originalName String         // Original filename (e.g. "tower-ground-v2.glb")
-  mimeType     String         // e.g. "model/gltf-binary", "application/pdf", "image/webp"
-  extension    String         // e.g. "glb", "pdf", "webp"
-  fileType     String         // 'model3d' | 'pdf' | 'image' | 'video' | 'document' | 'other'
-  size         BigInt         // BigInt to safely handle 1GB+ files (bytes)
-  url          String         // Serving URL (e.g. "/uploads/storage/uuid.glb")
-  storageKey   String         // Disk path
-  thumbnailUrl String?        // Auto-generated thumbnail for images and preview posters
-  metadata     String?        // JSON: { width, height, polygonCount, isChunked }
+/// Tracks every uploaded media asset on disk with metadata and usage state
+model MediaFile {
+  id           String    @id @default(uuid())
+  url          String    @unique // e.g. "/uploads/uuid.webp" or "/uploads/uuid-doc.pdf"
+  filename     String    // e.g. "uuid.webp"
+  originalName String    // e.g. "tower-exterior.jpg"
+  mimeType     String    // e.g. "image/webp", "application/pdf"
+  fileType     String    // 'image' | 'pdf' | 'model3d' | 'document' | 'other'
+  size         Int       // in bytes (standard Int, JSON-safe up to 2.14 GB)
+  storageKey   String    // Relative disk path under UPLOAD_DIR
+  thumbnailUrl String?   // Generated thumbnail for raster images
+  metadata     String?   // JSON: { width, height, format }
   createdById  String?
-  isDeleted    Boolean        @default(false)
-  deletedAt    DateTime?      // Set when moved to Trash
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  @@index([folderId])
   @@index([fileType])
-  @@index([isDeleted])
   @@index([createdAt])
-  @@map("storage_files")
+  @@map("media_files")
 }
 ```
 
-### 3.2 Dual-Database Migration Strategy
-* **PostgreSQL (Production)**: Handcrafted SQL migration in `server/prisma/migrations/20261108000000_storage_drive/migration.sql`.
-* **SQLite (Dev & Tests)**: Direct sync via `prisma db push` / `prisma generate`.
+### 2.2 Permissions & Migration (Full Stack Synchronization)
+To prevent TypeScript errors and ensure complete system integration, `manageMedia` is registered across all 4 locations:
 
----
+1. **Server Permission Catalogue**:
+   * Add `manageMedia` to `server/src/config/permissions.ts` (`PERMISSION_CATALOGUE` and `PERMISSION_KEYS`).
+   * Add `manageMedia` to `AdminPermission` union in `server/src/types/fastify.d.ts`.
+2. **Frontend Permission Types**:
+   * Add `manageMedia: boolean;` to `AdminPermissions` in `src/types/admin.ts`.
+   * Add `manageMedia` to `PERMISSION_KEYS`, `PERMISSION_LABELS` (Arabic), `PERMISSION_EN_LABELS` (English), and `emptyPermissions()` in `src/components/admin/users/usersModel.ts`.
+3. **Database Migration**:
+   * Create `server/prisma/migrations/20261108100000_media_library/migration.sql`:
+     * Creates table `media_files`.
+     * Backfills `manageMedia` into `Role` where `key = 'super_admin'`.
+     * Backfills `manageMedia: true` into `AdminUser.permissions` for all `super_admin` accounts.
+4. **Pre-Existing Files Auto-Discovery**:
+   * When the server boots or when `GET /api/media` is called, a sync check in `mediaService.ts` indexes any pre-existing files found in `server/uploads/` that lack a `MediaFile` record (measuring size via `fs.stat` and detecting MIME via `detectMediaType`). This guarantees all existing site images and PDFs appear immediately in the media library.
 
-## 4. Permissions & Role-Based Access Control (RBAC)
+### 2.3 Real-Time Usage Tracking Engine
+A dedicated service `server/src/services/mediaUsageService.ts` scans all database entities referencing media:
 
-Integrated into `server/src/config/permissions.ts` and `src/config/permissions.ts`:
+```ts
+export interface MediaUsageItem {
+  entityType: 'project' | 'pastProject' | 'cmsClient' | 'cmsSection' | 'adminUser';
+  entityId: string | number;
+  entityTitle: string;
+  field: 'image' | 'gallery' | 'brochureUrl' | 'model3dUrl' | 'pdfUrl' | 'logo' | 'content' | 'avatar';
+}
 
-| Permission Key | Group | Arabic Label | English Label | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `viewStorage` | `storage` | استعراض خزانة الملفات | View Storage Drive | Browse files and folders, preview files, and select assets for projects and CMS. |
-| `uploadStorage` | `storage` | رفع وتنظيم الملفات | Upload & Organize Files | Upload new files (including 1GB 3D models), create new folders, rename and move files. |
-| `manageStorage` | `storage` | إدارة خزانة الملفات (كاملة) | Full Storage Management | Move items to Trash, restore items, permanently empty Trash, and manage system folders. |
+export interface MediaUsageResult {
+  mediaId?: string;
+  url: string;
+  filename: string;
+  usageCount: number;
+  usages: MediaUsageItem[];
+}
+```
 
-* **Role Assignments**:
-  * `super_admin`: Full access (`manageStorage`, `uploadStorage`, `viewStorage`).
-  * `project_manager`: `uploadStorage` + `viewStorage` (can organize and upload project assets, but cannot permanently delete or empty trash).
-  * `sales_agent` / `viewer`: `viewStorage` (read-only and asset selection).
+**Scanned Fields & Normalization**:
+* `Project`: `image`, `brochureUrl`, `model3dUrl`, and `gallery` (JSON array).
+* `PastProject`: `image`, `pdfUrl`, and `gallery` (JSON array).
+* `CmsClient`: `logo`.
+* `CmsSection`: `content` (searches for occurrences of the filename inside stored JSON).
+* `AdminUser`: `avatar`.
+* *Optimization*: `getBatchMediaUsage()` runs a single aggregated scan across active entities so that listing 24 media cards executes in one fast round-trip.
 
----
-
-## 5. Storage API Specification (`/api/storage/*`)
+### 2.4 Server API Endpoints (`/api/media/*`)
 
 ```http
-# --- FOLDER OPERATIONS ---
-GET    /api/storage/folders?parentId={id}         # List subfolders and files in folder
-GET    /api/storage/folders/tree                  # Full directory tree for sidebar navigation
-POST   /api/storage/folders                       # Create folder { name, parentId? }
-PATCH  /api/storage/folders/:id                   # Rename or move folder { name?, parentId? }
-DELETE /api/storage/folders/:id                   # Move folder and contents to Trash (soft delete)
+# --- UPLOAD & REGISTRY ---
+POST   /api/media/upload
+# Auth: authenticate + requireAnyPermission('manageProjects', 'managePastProjects', 'manageMedia', 'manageCms')
+# Behavior: Saves file via Sharp/disk + creates MediaFile record -> returns { id, url, filename, originalName, size, fileType }
 
-# --- RESUMABLE CHUNKED UPLOADS (for 1GB 3D Models & Large Files) ---
-POST   /api/storage/upload/init                   # Init upload session { filename, size, mimeType, folderId } -> { uploadId, chunkSize }
-POST   /api/storage/upload/chunk                  # Multipart stream single chunk { uploadId, chunkIndex, file }
-POST   /api/storage/upload/complete              # Finalize session { uploadId } -> { file: StorageFile }
-DELETE /api/storage/upload/cancel                # Abort session and cleanup temp chunks { uploadId }
+# --- BROWSE & SEARCH ---
+GET    /api/media?page=1&limit=24&type=all&status=all&search=
+# Auth: authenticate + requireAnyPermission('manageProjects', 'managePastProjects', 'manageMedia', 'manageCms')
+# Query params:
+#   type: 'all' | 'image' | 'pdf' | 'model3d'
+#   status: 'all' | 'linked' | 'orphaned' (unlinked)
+# Returns: { items: (MediaFile & { usageCount: number, usages: MediaUsageItem[] })[], total, page, totalPages }
 
-# --- STANDARD UPLOAD (for small images & PDFs < 50MB) ---
-POST   /api/storage/files/upload                  # Standard multipart single upload
+# --- SINGLE USAGE CHECK ---
+GET    /api/media/usage?url={encodedUrl}
+# Returns: MediaUsageResult { mediaId, url, filename, usageCount, usages }
 
-# --- FILE OPERATIONS ---
-GET    /api/storage/files?folderId={id}&type={t}  # Search & filter files
-PATCH  /api/storage/files/:id                     # Rename or move file { name?, folderId? }
-DELETE /api/storage/files/:id                     # Move file to Trash (soft delete)
-GET    /api/storage/files/:id/download            # Stream download with Content-Disposition
-
-# --- TRASH & RESTORATION ---
-GET    /api/storage/trash                         # List all trashed items
-POST   /api/storage/trash/restore                 # Restore files & folders { fileIds?: [], folderIds?: [] }
-DELETE /api/storage/trash/purge                   # Permanently delete selected items from disk
-DELETE /api/storage/trash/empty                   # Empty entire trash (requires manageStorage)
+# --- DELETE WITH SAFETY GUARD ---
+DELETE /api/media/:id?force=false
+# Behavior:
+#   If usageCount > 0 and force !== 'true': Rejects with HTTP 409 Conflict + usage details.
+#   If usageCount === 0 or force === 'true': Deletes MediaFile row + unlinks physical file from disk.
 ```
 
----
+### 2.5 Admin Media Page (`/admin/media`)
+* **Navigation Integration**:
+  * Added to `AdminSection` union and `SIMPLE_SECTIONS` in `src/pages/admin/adminRoutes.ts`.
+  * Added to `SECTION_META` in `src/pages/admin/AdminDashboardPage.tsx` with `permission: 'manageMedia'`.
+  * Added to Admin Sidebar under the Content (المحتوى) group with an `Image` icon.
+  * Added localized labels in `src/i18n/admin/layout.ts` (`'nav.media': 'مكتبة الوسائط'` / `'nav.media': 'Media Library'`).
+* **Page Features**:
+  * **Header**: Page title, total media count, total disk usage, and `+ رفع وسائط جديدة` (Upload New Media button with drag & drop).
+  * **Filter Tabs**:
+    * All Media (جميع الوسائط)
+    * Linked / In Use (مرتبط بمحتوى - أخضر)
+    * Unused / Orphaned (غير مستخدم / معزول - برتقالي)
+  * **Type Tabs**: All, Images (صور), PDFs (مستندات), 3D Models (مجسمات).
+  * **Media Grid**:
+    * Card preview (WebP thumbnail or PDF/3D badge).
+    * Original name, file size (KB/MB), upload date.
+    * **Usage Badge**:
+      * Emerald badge: `مرتبط (3 مشاريع)` — clicking opens a popover showing the exact names of linked projects.
+      * Amber badge: `غير مستخدم (0)` — candidate for cleanup.
+    * 3-dot menu: **نسخ الرابط** (Copy URL), **تحميل** (Download), **حذف** (Delete).
+  * **Safe Delete Modal**:
+    * If file is orphaned: Simple confirmation dialog.
+    * If file is in use: Strong warning listing referencing projects before permitting deletion.
 
-## 6. Frontend UI Components (`src/`)
+### 2.6 Reusable Media Picker Modal (`<MediaPickerModal />`)
+Can be opened from **any upload window** in the admin dashboard:
+* **Props**:
+  ```tsx
+  interface MediaPickerModalProps {
+    open: boolean;
+    onClose: () => void;
+    onSelect: (media: { url: string; filename: string; originalName: string }) => void;
+    fileType?: 'image' | 'pdf' | 'model3d' | 'all';
+    title?: string;
+  }
+  ```
+* **Dual Tabs**:
+  1. **"اختر من المكتبة" (Choose from Library)**:
+     * Search and filter by mime type.
+     * Click any existing media item to instantly select and attach it.
+  2. **"رفع ملف جديد" (Upload New File)**:
+     * Standard drag & drop or file picker.
+     * Uploads via `POST /api/media/upload`, registers in `MediaFile`, and automatically selects it.
 
-### 6.1 Admin Drive Dashboard (`/admin/storage`)
-* **Folder & File Explorer**:
-  * Clickable breadcrumb trail (`خزانة الملفات / المشاريع / برج العليا`).
-  * Quick filter sidebar: All Files (جميع الملفات), 3D Models (المجسمات ثلاثية الأبعاد), PDFs (الملفات والعروض), Images (الصور), Trash (سلة المحذوفات).
-  * Search input with live debouncing and sorting (Date, Name, Size, Type).
-  * Dual view modes: Visual Grid View vs Detailed Table View.
-  * Multi-file drag & drop with an interactive upload tray showing chunk progress (`450 MB / 1024 MB - 44%`).
-* **Trash (سلة المحذوفات)**:
-  * Dedicated section showing deletion date and original folder path.
-  * "استعادة" (Restore) and "حذف نهائي" (Permanent Delete) with confirmation modals.
-
-### 6.2 3D Model Interactive Viewer (`<Model3dViewer />`)
-* Embedded WebGL viewer supporting `.glb` files up to 1GB:
-  * Orbit controls: 360° rotation, pan, zoom.
-  * Progressive loading indicator displaying downloaded MBs.
-  * Wireframe toggle and lighting adjustments.
-  * Handles both uploaded `.glb` files and external 3D virtual tour iframe URLs (Matterport / Kuula).
-
-### 6.3 Reusable Asset Picker Modal (`<AssetPickerModal />`)
-Wired into **Project Create/Edit**, **Past Projects**, and **CMS**:
-* **Tab 1: اختر من الخزانة (From Drive)**: Browse folders, filter by `model3d`, `pdf`, or `image`, and select.
-* **Tab 2: رفع مباشر (Direct Upload)**: Slices and uploads 1GB 3D models or images directly with progress bar, saves into the project folder, and auto-selects.
-* **Tab 3: رابط خارجي (External Link)**: For external 3D virtual tour URLs.
-
----
-
-## 7. Phased Implementation Roadmap
+### 2.7 Smart Unlink vs Delete Flow in Project Forms
+When an administrator clicks the **"X" (Remove)** button on an image, gallery item, or brochure PDF inside a Project form (`ProjectCreateModal`, `ProjectEditSection`, `PastProjectsSection`):
 
 ```mermaid
-flowchart LR
-    P1["Phase 1<br/>Database & Chunking Engine"] --> P2["Phase 2<br/>Storage API & Permissions"]
-    P2 --> P3["Phase 3<br/>Drive UI & Trash View"]
-    P3 --> P4["Phase 4<br/>3D Viewer & Previews"]
-    P4 --> P5["Phase 5<br/>Project Asset Picker Wiring"]
-    P5 --> P6["Phase 6<br/>Verification & Gates"]
+flowchart TD
+    ClickRemove["User clicks 'X' (Remove) on an image or brochure in Project"] --> CheckUsage["Call GET /api/media/usage?url=..."]
+    
+    CheckUsage --> Condition{"Is media linked to other entities?<br/>(usageCount > 1)"}
+    
+    Condition -- "Yes (usageCount > 1)" --> UnlinkOnly["Unlink from this Project form only<br/>Show toast: 'Removed from project (still saved in media library)'"]
+    
+    Condition -- "No (usageCount <= 1)" --> PromptDialog["Show Smart 2-Option Dialog:<br/>'This file is not used anywhere else.<br/>Do you want to keep it in the library or permanently delete it?'"]
+    
+    PromptDialog --> ChoiceKeep["Option A: Keep in Library<br/>• Unlinks from project<br/>• Media stays in library as 'Unlinked'"]
+    PromptDialog --> ChoiceDelete["Option B: Delete Permanently<br/>• Unlinks from project<br/>• Calls DELETE /api/media/:mediaId to free disk space"]
+    PromptDialog --> ChoiceCancel["Option C: Cancel action"]
 ```
-
-### Phase 1: Database & Streaming Upload Core
-- [ ] Add `StorageFolder` and `StorageFile` models to `server/prisma/schema.prisma` with `BigInt` size.
-- [ ] Create handcrafted PostgreSQL migration in `server/prisma/migrations/`.
-- [ ] Build chunked upload service in `server/src/services/chunkedUploadService.ts` with streaming disk append (`fs.createWriteStream`).
-- [ ] Add permission keys (`viewStorage`, `uploadStorage`, `manageStorage`) to `server/src/config/permissions.ts` and `src/config/permissions.ts`.
-
-### Phase 2: Storage API & Fastify Routes
-- [ ] Implement `server/src/routes/storage.routes.ts`:
-  - Folder CRUD (tree, create, rename, move, soft delete).
-  - Chunked upload session routes (`init`, `chunk`, `complete`, `cancel`).
-  - File CRUD (search, rename, move, soft delete, streaming download with byte-range support).
-  - Trash management (list, restore single/batch, permanent purge, empty trash).
-- [ ] Add server test suite: `server/test/storage.test.ts` verifying all routes, authorization checks, and trash lifecycle.
-
-### Phase 3: Admin Drive UI & Trash View
-- [ ] Build `/admin/storage` route and page component:
-  - `StoragePage.tsx` with responsive layout (sidebar tree, breadcrumb bar, grid/list toggle).
-  - `FolderCard.tsx` and `FileCard.tsx` with thumbnail renderers and contextual action menus.
-  - `NewFolderModal.tsx`, `MoveItemModal.tsx`, and `UploadProgressDrawer.tsx`.
-- [ ] Build `TrashSection.tsx` for managing deleted items with restore and purge actions.
-- [ ] Add full Arabic and English translations in `src/i18n/admin/storage.ts`.
-
-### Phase 4: 3D Model Viewer & Previews
-- [ ] Implement `<Model3dViewer />` supporting `.glb`/`.gltf` rendering with orbit controls, loading progress, and fallback for external iframe links.
-- [ ] Implement `<FilePreviewModal />` unified previewer for 3D models, PDF brochures, and high-res images.
-
-### Phase 5: Reusable Asset Picker & Project Form Integration
-- [ ] Build `<AssetPickerModal />` with tabs: "From Drive", "Upload Direct", and "External URL".
-- [ ] Wire `<AssetPickerModal />` into:
-  - `src/components/admin/ProjectCreateModal.tsx` (Hero image, Brochure PDF, 3D Model).
-  - `src/pages/admin/sections/ProjectEditSection.tsx` (Hero image, Gallery, Brochure PDF, 3D Model).
-  - `src/pages/admin/sections/PastProjectsSection.tsx` (Image, Gallery, PDF).
-  - `src/pages/ProjectDetailPage.tsx` (ensure uploaded `.glb` files render directly in the 3D viewer modal, while external links render in the iframe).
-
-### Phase 6: Verification, Gates & Documentation
-- [ ] Run full project gates:
-  - `npm run lint` (0 new warnings).
-  - `npm run build` (Vite SPA production build).
-  - `npm --prefix server run build` (Fastify TypeScript compile).
-- [ ] Browser QA: Test RTL (Arabic) & LTR (English), mobile responsiveness (390px), drag-and-drop chunked uploads, trash/restore flow, and 3D preview.
-- [ ] Update `docs/api-reference.md`, `docs/architecture.md`, and `CHANGELOG.md`.
 
 ---
 
-## 8. Key Architectural Notes for the Owner
+## 3. Subsequent Steps Overview (From Media to Full Drive)
 
-1. **Storage Backend**: Stored on local disk under `server/uploads/storage/`. The service abstraction allows switching to Cloudflare R2 or AWS S3 in the future without changing API contracts.
-2. **Chunking Performance**: With 15 MB chunks, uploading a 1 GB file requires ~68 requests. Each chunk finishes in ~1-3 seconds on typical broadband, offering smooth progress updates and automatic retry on connection drops.
-3. **Trash Retention**: Soft-deleted files remain in Trash indefinitely until an administrator with `manageStorage` clicks "Empty Trash" or restores them.
+### Step 1: Hierarchical Folders & Core Drive MVP
+* Add `StorageFolder` model and link `MediaFile`/`StorageFile` to folders (`folderId`).
+* Build `/admin/storage` explorer with breadcrumb navigation and folder tree.
+* Implement folder creation, folder renaming, file downloading, and folder nesting.
+
+### Step 2: Organization, Trash Cascade & Permissions
+* Move files and folders with cycle prevention (`targetParentId !== folder.id` and no descendant loops).
+* Soft-delete to Trash (سلة المحذوفات) with recursive folder cascade.
+* One-click restore (with orphan re-parenting) and permanent purge unlinking files from disk.
+* Dedicated permissions: `viewStorage`, `uploadStorage`, `manageStorage`.
+
+### Step 3: Unified Asset & Folder Picker
+* Enhance `<MediaPickerModal />` into `<AssetPickerModal />` allowing browsing by folder hierarchy.
+* Direct upload automatically organizes assets into project folders (e.g. `المشاريع/{اسم المشروع}/`).
+
+### Step 4: 1 GB 3D Models & Resumable Chunking
+* Resilient chunked upload engine (15 MB slices, part-file writes, declared size + hash verification).
+* Zero heap spike (flat < 20 MB RAM) during 1 GB streaming writes.
+* Correct GLB magic bytes: `[0x67, 0x6C, 0x54, 0x46]`.
+
+### Step 5: Three.js Interactive 3D WebGL Viewer
+* Embedded 3D viewer built with the project's existing `three` (^0.185.1) and `GLTFLoader`.
+* 360° orbit controls, zoom, lighting presets, and loading progress bar.
+* Secure iframe fallback for external virtual tours (Matterport / Kuula).
+
+### Step 6: Hardening, Quality Gates & Verification
+* Full Vitest integration test suite (`server/test/media.test.ts`, `server/test/storage.test.ts`).
+* Full project gates: `npm run lint`, `npm run build`, `npm --prefix server run build`.
+* Complete Arabic (RTL) & English (LTR) browser QA on desktop and mobile (390px).
+
+---
+
+## 4. Execution Checklist for Step 0
+
+To implement **Step 0** in `D:\projects\html\ajda-wt\ajda-storage`:
+- [ ] **Worktree Environment Setup**:
+  - Create `server/.env` with distinct PORT (e.g. 4002), `QUEUE_DRIVER=sync`, empty `MAIL_*`.
+  - Create `.env.local` with `VITE_API_URL=http://localhost:4002`.
+  - Install dependencies (`npm install` / `npm --prefix server install`).
+  - Seed local SQLite `dev.db`.
+- [ ] **Prisma & Schema**:
+  - Add `MediaFile` to `server/prisma/schema.prisma`.
+  - Run `prisma db push` and `prisma generate`.
+- [ ] **Permissions System**:
+  - Add `manageMedia` to `server/src/config/permissions.ts` and `server/src/types/fastify.d.ts`.
+  - Add `manageMedia` to `src/types/admin.ts` and `src/components/admin/users/usersModel.ts`.
+  - Write handcrafted migration `server/prisma/migrations/20261108100000_media_library/migration.sql`.
+- [ ] **Upload Route Update**:
+  - Update `server/src/routes/media.routes.ts` to register uploads in `MediaFile`.
+  - Add legacy disk auto-discovery on startup in `server/src/services/mediaService.ts`.
+- [ ] **Usage Service**:
+  - Implement `server/src/services/mediaUsageService.ts` (scanning Project, PastProject, CmsClient, CmsSection, AdminUser).
+- [ ] **Media API Routes**:
+  - Implement `GET /api/media`, `GET /api/media/usage`, and `DELETE /api/media/:id`.
+- [ ] **Admin Routing**:
+  - Add `media` to `src/pages/admin/adminRoutes.ts`, `src/pages/admin/AdminDashboardPage.tsx`, and `src/components/admin/layout/AdminSidebar.tsx`.
+- [ ] **Media Page UI**:
+  - Create `src/pages/admin/sections/MediaSection.tsx` with filter tabs (Linked vs Unlinked) and usage popovers.
+  - Add Arabic & English translations in `src/i18n/admin/media.ts` and `src/i18n/admin/layout.ts`.
+- [ ] **Media Picker Modal**:
+  - Create `src/components/admin/media/MediaPickerModal.tsx`.
+- [ ] **Project Form Integration**:
+  - Update `src/components/admin/ProjectCreateModal.tsx` to include "Choose from Library".
+  - Update `src/pages/admin/sections/ProjectEditSection.tsx` with "Choose from Library" and the smart unlink vs delete confirmation dialog.
+- [ ] **Tests**:
+  - Write Vitest suite `server/test/media.test.ts` verifying upload registry, usage detection, and deletion guards.
