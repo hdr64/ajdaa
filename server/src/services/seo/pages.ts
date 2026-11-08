@@ -72,6 +72,7 @@ export const STATIC_PAGES: Record<
 const PAGE_BY_PATH: Record<string, PageKey> = {
   '/': 'home',
   '/works': 'works',
+  '/projects': 'works',
   '/clients': 'clients',
   '/past-works': 'pastWorks',
   '/careers': 'careers',
