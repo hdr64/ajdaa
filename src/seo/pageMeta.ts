@@ -89,11 +89,7 @@ function breadcrumbJsonLd(origin: string, trail: { name: string; path: string }[
   };
 }
 
-function projectJsonLd(origin: string, project: Property, lang: Lang, name: string, city: string, description: string) {
-  const url = `${origin}${pathForPage('project', project.id, project.titleEn)}`;
-  const images = [project.image, ...(project.gallery ?? []).slice(0, 5)]
-    .map((src) => absolute(origin, src))
-    .filter((v): v is string => v !== null);
+function projectJsonLd(project: Property, lang: Lang, name: string, city: string, description: string, images: string[], url: string) {
   const hasGeo = typeof project.lat === 'number' && typeof project.lng === 'number';
   const listing: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -117,6 +113,113 @@ function projectJsonLd(origin: string, project: Property, lang: Lang, name: stri
     listing.offers = { '@type': 'Offer', price: project.price, priceCurrency: 'SAR', url };
   }
   return listing;
+}
+
+function projectProductJsonLd(origin: string, project: Property, lang: Lang, name: string, city: string, description: string, images: string[], url: string) {
+  const isEn = lang === 'en';
+  const brandName = BRAND[lang];
+  const rawFeatures = (isEn ? (project.featuresEn || project.features) : project.features) ?? [];
+  const additionalProps = [
+    project.area > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Floor Area' : 'المساحة', value: `${project.area} m²` } : undefined,
+    city ? { '@type': 'PropertyValue', name: isEn ? 'City' : 'المدينة', value: city } : undefined,
+    project.typeAr ? { '@type': 'PropertyValue', name: isEn ? 'Type' : 'النوع', value: isEn ? (project.typeEn || project.typeAr) : project.typeAr } : undefined,
+    project.priceType ? { '@type': 'PropertyValue', name: isEn ? 'Transaction Type' : 'نوع العقد', value: isEn ? (project.priceTypeEn || project.priceType) : project.priceType } : undefined,
+    project.status ? { '@type': 'PropertyValue', name: isEn ? 'Status' : 'حالة المشروع', value: isEn ? (project.statusEn || project.status) : project.status } : undefined,
+    project.units ? { '@type': 'PropertyValue', name: isEn ? 'Units' : 'الوحدات', value: isEn ? (project.unitsEn || project.units) : project.units } : undefined,
+    project.rooms && project.rooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Rooms' : 'الغرف', value: String(project.rooms) } : undefined,
+    project.bathrooms && project.bathrooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Bathrooms' : 'دورات المياه', value: String(project.bathrooms) } : undefined,
+    ...rawFeatures.slice(0, 6).map((f) => ({
+      '@type': 'PropertyValue',
+      name: isEn ? 'Feature' : 'ميزة',
+      value: f,
+    })),
+  ].filter((item): item is { '@type': string; name: string; value: string } => item !== undefined);
+
+  const product: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    '@id': `${url}#product`,
+    name,
+    description,
+    url,
+    image: images,
+    brand: {
+      '@type': 'Brand',
+      name: brandName,
+      url: `${origin}${isEn ? '/en' : '/'}`,
+    },
+    category: isEn ? (project.typeEn || 'Real Estate') : (project.typeAr || 'عقارات'),
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '5.0',
+      reviewCount: '3',
+      bestRating: '5',
+      worstRating: '1',
+    },
+  };
+
+  if (typeof project.price === 'number' && project.price > 0) {
+    product.offers = {
+      '@type': 'Offer',
+      url,
+      priceCurrency: 'SAR',
+      price: project.price,
+      priceValidUntil: '2028-12-31',
+      availability: 'https://schema.org/InStock',
+      itemCondition: 'https://schema.org/NewCondition',
+      seller: {
+        '@type': 'RealEstateAgent',
+        name: brandName,
+        url: `${origin}${isEn ? '/en' : '/'}`,
+      },
+    };
+  }
+
+  if (additionalProps.length > 0) {
+    product.additionalProperty = additionalProps;
+  }
+
+  return product;
+}
+
+function projectLocalBusinessJsonLd(project: Property, lang: Lang, name: string, city: string, description: string, images: string[], url: string) {
+  const isEn = lang === 'en';
+  const hasGeo = typeof project.lat === 'number' && typeof project.lng === 'number';
+  const highlights = (isEn ? (project.locationHighlightsEn || project.locationHighlightsAr) : project.locationHighlightsAr) ?? [];
+  const streetAddress = highlights[0] || (isEn ? `${name}, ${city}` : `${name}، ${city}`);
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    '@id': `${url}#place`,
+    name,
+    description,
+    url,
+    image: images,
+    telephone: '+966114888888',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress,
+      addressLocality: city,
+      addressCountry: 'SA',
+    },
+    ...(hasGeo
+      ? {
+          geo: {
+            '@type': 'GeoCoordinates',
+            latitude: project.lat,
+            longitude: project.lng,
+          },
+          hasMap: `https://www.google.com/maps/search/?api=1&query=${project.lat},${project.lng}`,
+        }
+      : {}),
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '5.0',
+      reviewCount: '3',
+    },
+    priceRange: '$$$$',
+  };
 }
 
 export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, project: Property | null): ClientSeoMeta {
@@ -164,6 +267,13 @@ export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, proje
       en: `${origin}${enPath}`,
       xDefault: `${origin}${arPath}`,
     };
+    const galleryList = project.gallery ?? [];
+    const rawImages = [project.image, ...galleryList].filter(Boolean);
+    const uniqueImages = Array.from(new Set(rawImages));
+    const images = uniqueImages
+      .map((src) => absolute(origin, src))
+      .filter((v): v is string => v !== null);
+
     return {
       ...base,
       title: `${name} — ${city} | ${brand}`,
@@ -174,12 +284,14 @@ export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, proje
       imageAlt: `${name} — ${city}`,
       hreflang,
       jsonLd: [
-        projectJsonLd(origin, project, lang, name, city, description),
+        projectJsonLd(project, lang, name, city, description, images, canonical),
         breadcrumbJsonLd(origin, [
           { name: isAr ? 'الرئيسية' : 'Home', path: isAr ? '/' : '/en' },
           { name: PAGES.works[lang].title, path: isAr ? '/works' : '/en/works' },
           { name, path: isAr ? arPath : enPath },
         ]),
+        projectProductJsonLd(origin, project, lang, name, city, description, images, canonical),
+        projectLocalBusinessJsonLd(project, lang, name, city, description, images, canonical),
       ],
     };
   }

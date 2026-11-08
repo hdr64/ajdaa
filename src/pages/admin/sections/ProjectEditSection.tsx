@@ -28,6 +28,7 @@ import { CitySelect } from '../../../components/admin/projects/CitySelect';
 import { findSaudiCityByName } from '../../../data/saudiCities';
 import { isHttpsUrl } from '../../../utils/urlValidation';
 import { detectProjectStatus } from '../../../data/properties';
+import { GoogleSearchProductPreview } from '../../../components/admin/projects/GoogleSearchProductPreview';
 
 const INPUT_CLASS =
   'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
@@ -474,6 +475,39 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
             {t('projectEdit.dirtyNotice')}
           </div>
         )}
+
+        {/* Live Google Search Product & Knowledge Panel Preview (Collapsible, collapsed by default, at top) */}
+        <GoogleSearchProductPreview
+          title={form.title}
+          titleEn={form.titleEn}
+          city={form.city}
+          cityEn={form.cityEn}
+          typeAr={form.typeAr}
+          typeEn={form.typeEn}
+          priceType={form.priceType}
+          priceTypeEn={form.priceTypeEn}
+          price={form.price}
+          priceLabel={form.priceLabel}
+          status={form.status}
+          statusEn={form.statusEn}
+          area={form.area}
+          rooms={form.rooms}
+          bathrooms={form.bathrooms}
+          unitsCount={form.unitsCount}
+          unitsCountEn={form.unitsCountEn}
+          description={form.description}
+          descriptionEn={form.descriptionEn}
+          features={form.features}
+          featuresEn={form.featuresEn}
+          locationHighlightsAr={form.locationHighlightsAr}
+          locationHighlightsEn={form.locationHighlightsEn}
+          lat={form.lat}
+          lng={form.lng}
+          image={form.image}
+          gallery={form.gallery}
+          projectId={project.id}
+          defaultExpanded={false}
+        />
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5 items-start">
           {/* Content column */}

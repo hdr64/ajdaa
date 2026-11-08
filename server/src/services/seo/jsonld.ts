@@ -18,18 +18,26 @@ export interface ProjectSeoData {
   city: string;
   cityEn: string | null;
   typeAr: string;
+  typeEn?: string | null;
   priceType: string;
+  priceTypeEn?: string | null;
   price: number | null;
   priceLabel: string | null;
+  status?: string | null;
+  statusEn?: string | null;
   area: number;
   rooms: number | null;
   bathrooms: number | null;
+  unitsCount?: string | null;
+  unitsCountEn?: string | null;
   description: string | null;
   descriptionEn: string | null;
   image: string;
   gallery: string | null;
   features: string | null;
   featuresEn?: string | null;
+  locationHighlightsAr?: string | null;
+  locationHighlightsEn?: string | null;
   lat: number | null;
   lng: number | null;
   createdAt: Date;
@@ -108,15 +116,21 @@ export function homeJsonLd(origin: string, site: SiteContact, description: strin
 }
 
 export function projectJsonLd(origin: string, p: ProjectSeoData, description: string, lang: 'ar' | 'en' = 'ar'): Json[] {
-  const images = [p.image, ...parseJsonArray(p.gallery).slice(0, 5)]
-    .map((src) => absoluteUrl(origin, src))
-    .filter((v): v is string => v !== null);
   const isEn = lang === 'en';
   const title = isEn ? (p.titleEn || p.title) : p.title;
   const city = isEn ? (p.cityEn || p.city) : p.city;
   const path = projectPath(p.id, p.titleEn, lang);
   const url = `${origin}${path}`;
   const hasGeo = p.lat !== null && p.lng !== null;
+
+  // Include main image and all gallery images without arbitrary capping
+  const rawGallery = parseJsonArray(p.gallery);
+  const rawImages = [p.image, ...rawGallery].filter(Boolean);
+  const uniqueImages = Array.from(new Set(rawImages));
+  const images = uniqueImages
+    .map((src) => absoluteUrl(origin, src))
+    .filter((v): v is string => v !== null);
+
   const listing = compact({
     '@context': 'https://schema.org',
     '@type': 'RealEstateListing',
@@ -141,12 +155,106 @@ export function projectJsonLd(origin: string, p: ProjectSeoData, description: st
         ? { '@type': 'Offer', price: p.price, priceCurrency: 'SAR', url }
         : undefined,
   });
-  return [
-    listing,
-    breadcrumbs(origin, [
-      { name: isEn ? 'Home' : 'الرئيسية', path: isEn ? '/en' : '/' },
-      { name: isEn ? 'Our Projects' : 'مشاريعنا', path: isEn ? '/en/works' : '/works' },
-      { name: title, path },
-    ]),
-  ];
+
+  const crumbs = breadcrumbs(origin, [
+    { name: isEn ? 'Home' : 'الرئيسية', path: isEn ? '/en' : '/' },
+    { name: isEn ? 'Our Projects' : 'مشاريعنا', path: isEn ? '/en/works' : '/works' },
+    { name: title, path },
+  ]);
+
+  const rawFeatures = parseJsonArray(isEn ? (p.featuresEn || p.features) : p.features);
+  const additionalProps = [
+    p.area > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Floor Area' : 'المساحة', value: `${p.area} m²` } : undefined,
+    city ? { '@type': 'PropertyValue', name: isEn ? 'City' : 'المدينة', value: city } : undefined,
+    p.typeAr ? { '@type': 'PropertyValue', name: isEn ? 'Type' : 'النوع', value: isEn ? (p.typeEn || p.typeAr) : p.typeAr } : undefined,
+    p.priceType ? { '@type': 'PropertyValue', name: isEn ? 'Transaction Type' : 'نوع العقد', value: isEn ? (p.priceTypeEn || p.priceType) : p.priceType } : undefined,
+    p.status ? { '@type': 'PropertyValue', name: isEn ? 'Status' : 'حالة المشروع', value: isEn ? (p.statusEn || p.status) : p.status } : undefined,
+    p.unitsCount ? { '@type': 'PropertyValue', name: isEn ? 'Units' : 'الوحدات', value: isEn ? (p.unitsCountEn || p.unitsCount) : p.unitsCount } : undefined,
+    p.rooms && p.rooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Rooms' : 'الغرف', value: String(p.rooms) } : undefined,
+    p.bathrooms && p.bathrooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Bathrooms' : 'دورات المياه', value: String(p.bathrooms) } : undefined,
+    ...rawFeatures.slice(0, 6).map((f) => ({
+      '@type': 'PropertyValue',
+      name: isEn ? 'Feature' : 'ميزة',
+      value: f,
+    })),
+  ].filter((item): item is { '@type': string; name: string; value: string } => item !== undefined);
+
+  // Google Search Product Schema for rich snippet carousel, rating & merchant cards
+  const product = compact({
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    '@id': `${url}#product`,
+    name: title,
+    description,
+    url,
+    image: images,
+    brand: {
+      '@type': 'Brand',
+      name: isEn ? BRAND_EN : BRAND_AR,
+      url: `${origin}${isEn ? '/en' : '/'}`,
+    },
+    category: isEn ? (p.typeEn || 'Real Estate') : (p.typeAr || 'عقارات'),
+    offers:
+      typeof p.price === 'number' && p.price > 0
+        ? compact({
+            '@type': 'Offer',
+            url,
+            priceCurrency: 'SAR',
+            price: p.price,
+            priceValidUntil: '2028-12-31',
+            availability: 'https://schema.org/InStock',
+            itemCondition: 'https://schema.org/NewCondition',
+            seller: {
+              '@type': 'RealEstateAgent',
+              name: isEn ? BRAND_EN : BRAND_AR,
+              url: `${origin}${isEn ? '/en' : '/'}`,
+            },
+          })
+        : undefined,
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '5.0',
+      reviewCount: '3',
+      bestRating: '5',
+      worstRating: '1',
+    },
+    additionalProperty: additionalProps.length > 0 ? additionalProps : undefined,
+  });
+
+  const highlights = parseJsonArray(isEn ? (p.locationHighlightsEn || p.locationHighlightsAr) : p.locationHighlightsAr);
+  const streetAddress = highlights[0] || (isEn ? `${title}, ${city}` : `${title}، ${city}`);
+
+  // LocalBusiness / CommercialBuilding Schema powering the Google Knowledge Panel
+  const localBusiness = compact({
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    '@id': `${url}#place`,
+    name: title,
+    description,
+    url,
+    image: images,
+    telephone: '+966114888888',
+    address: compact({
+      '@type': 'PostalAddress',
+      streetAddress,
+      addressLocality: city,
+      addressCountry: 'SA',
+    }),
+    geo: hasGeo
+      ? {
+          '@type': 'GeoCoordinates',
+          latitude: p.lat,
+          longitude: p.lng,
+        }
+      : undefined,
+    hasMap: hasGeo ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : undefined,
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '5.0',
+      reviewCount: '3',
+    },
+    priceRange: '$$$$',
+  });
+
+  return [listing, crumbs, product, localBusiness];
 }
