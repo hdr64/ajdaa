@@ -160,3 +160,4 @@ export async function uploadFileInChunks(
 export async function abortChunkedUpload(uploadId: string): Promise<void> {
   await api.delete(`/api/media/upload/chunked/abort/${uploadId}`).catch(() => {});
 }
+

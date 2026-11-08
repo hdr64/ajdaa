@@ -48,8 +48,18 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   const [uploads, setUploads] = useState<ManagedUpload[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Keep a map of active controllers
+  // Keep a map of active controllers and auto-dismiss timers
   const controllersRef = useRef<Map<string, AbortController>>(new Map());
+  const dismissTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // Clean up timers on unmount
+  React.useEffect(() => {
+    const timers = dismissTimersRef.current;
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
+  }, []);
 
   const activeCount = useMemo(
     () => uploads.filter((u) => u.status === 'uploading' || u.status === 'queued').length,
@@ -127,6 +137,13 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         )
       );
 
+      // Keep for 5 seconds after finish then disappear automatically
+      const timer = setTimeout(() => {
+        setUploads((prev) => prev.filter((u) => u.id !== item.id));
+        dismissTimersRef.current.delete(item.id);
+      }, 5000);
+      dismissTimersRef.current.set(item.id, timer);
+
       return result;
     } catch (err: unknown) {
       if (controller.signal.aborted) {
@@ -189,6 +206,11 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const cancelUpload = useCallback((id: string) => {
+    const timer = dismissTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      dismissTimersRef.current.delete(id);
+    }
     const controller = controllersRef.current.get(id);
     if (controller) {
       controller.abort();
@@ -203,6 +225,11 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const retryUpload = useCallback(
     (id: string) => {
+      const timer = dismissTimersRef.current.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        dismissTimersRef.current.delete(id);
+      }
       const item = uploads.find((u) => u.id === id);
       if (item) {
         void runUploadItem(item);
@@ -212,6 +239,8 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const clearCompleted = useCallback(() => {
+    dismissTimersRef.current.forEach((t) => clearTimeout(t));
+    dismissTimersRef.current.clear();
     setUploads((prev) => prev.filter((u) => u.status !== 'completed'));
   }, []);
 
@@ -255,3 +284,4 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return <UploadManagerContext.Provider value={value}>{children}</UploadManagerContext.Provider>;
 };
+

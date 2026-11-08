@@ -399,7 +399,9 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
         <button
           type="button"
           onClick={toggleEnabled}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface/90 hover:bg-surface border border-muted-border/60 text-neutral-text/60 hover:text-heading shadow-sm hover:shadow-md text-[11px] font-bold cursor-pointer transition-all opacity-60 hover:opacity-100"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface/90 hover:bg-surface border border-muted-border/60 text-neutral-text/60 hover:text-heading shadow-sm hover:shadow-md text-[11px] font-bold cursor-pointer transition-all ${
+            activeCount > 0 ? 'opacity-100 ring-2 ring-emerald-500/50' : 'opacity-60 hover:opacity-100'
+          }`}
           title={isAr ? 'انقر لتفعيل مساعد المطور' : 'Click to enable assistant pet'}
         >
           <Sparkles className="w-3.5 h-3.5 text-accent animate-pulse" />
@@ -439,8 +441,12 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
         aria-label="مساعد المطور"
         onPointerDown={handlePointerDown}
         style={containerStyle}
-        className={`fixed z-40 select-none touch-none transition-opacity duration-300 ${
-          isDragging ? 'opacity-100 cursor-grabbing scale-105' : 'opacity-60 hover:opacity-100 cursor-grab'
+        className={`fixed z-40 select-none touch-none transition-all duration-300 ${
+          isDragging
+            ? 'opacity-100 cursor-grabbing scale-105'
+            : activeCount > 0
+            ? 'opacity-100 cursor-grab scale-105'
+            : 'opacity-60 hover:opacity-100 cursor-grab'
         }`}
       >
         <div className="relative">

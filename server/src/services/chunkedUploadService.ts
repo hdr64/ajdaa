@@ -255,3 +255,4 @@ export async function abortChunkedUpload(uploadId: string): Promise<void> {
   const sessionDir = path.join(CHUNK_DIR, uploadId);
   await fs.rm(sessionDir, { recursive: true, force: true }).catch(() => {});
 }
+
