@@ -9,7 +9,9 @@ import {
   Trash2,
   Loader2,
   Power,
+  Upload,
 } from 'lucide-react';
+import { useUploadManager } from '../../../context/UploadManagerContext';
 import { uploadMedia } from '../../../services/mediaService';
 import { ApiError, api, reportClientError } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
@@ -107,6 +109,7 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
   const { currentUser, showToast } = useAdmin();
   const { language, isRTL } = useLanguage();
   const isAr = language === 'ar';
+  const { activeCount, overallProgress, toggleDrawer } = useUploadManager();
 
   // Enable/Disable toggle (persisted)
   const [enabled, setEnabled] = useState<boolean>(() => {
@@ -260,8 +263,12 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
 
   const handlePetClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // If the mouse was dragged, do not toggle the dropdown
+    // If the mouse was dragged, do not toggle
     if (dragMovedRef.current) return;
+    if (activeCount > 0) {
+      toggleDrawer();
+      return;
+    }
     setMenuOpen((prev) => !prev);
   };
 
@@ -464,9 +471,31 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
                 </div>
               </button>
 
+              {/* Option 2: Upload Manager */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  toggleDrawer();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-surface-hover text-heading text-xs font-bold transition text-start cursor-pointer group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block truncate">{isAr ? 'مدير رفع الملفات' : 'Upload Manager'}</span>
+                  <span className="block text-[10px] text-neutral-text/50 font-normal truncate">
+                    {activeCount > 0
+                      ? (isAr ? `${activeCount} قيد الرفع (${overallProgress}%)` : `${activeCount} in progress (${overallProgress}%)`)
+                      : (isAr ? 'فتح نافذة الرفع' : 'Open upload window')}
+                  </span>
+                </div>
+              </button>
+
               <div className="h-px bg-muted-border/30 my-1" />
 
-              {/* Option 2: Close assistant */}
+              {/* Option 3: Close assistant */}
               <button
                 type="button"
                 onClick={() => {
@@ -491,7 +520,7 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
           {/* Pet Mascot Avatar */}
           <div
             onClick={handlePetClick}
-            className="relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-accent via-sky-500 to-indigo-600 text-white shadow-xl hover:shadow-accent/40 transition-transform transform active:scale-95 ring-4 ring-white/20 p-1"
+            className="relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-accent via-sky-500 to-indigo-600 text-white shadow-xl hover:shadow-accent/40 transition-transform transform active:scale-95 ring-4 ring-white/20 p-1 cursor-pointer"
             role="button"
             tabIndex={0}
             aria-label={isAr ? 'فتح قائمة مساعد المطور' : 'Open developer assistant menu'}
@@ -529,11 +558,53 @@ export const AdminFeedbackPet: React.FC<AdminFeedbackPetProps> = ({ currentSecti
               </svg>
             </div>
 
-            {/* Online notification badge */}
-            <span className="absolute -top-0.5 -end-0.5 flex h-3.5 w-3.5 pointer-events-none">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
-            </span>
+            {/* Circular Progress Ring (Active when uploading) */}
+            {activeCount > 0 && (
+              <svg
+                className="absolute -inset-1.5 w-[68px] h-[68px] pointer-events-none -rotate-90 z-10"
+                viewBox="0 0 68 68"
+              >
+                <circle
+                  cx="34"
+                  cy="34"
+                  r="30"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3.5"
+                  className="text-white/20"
+                />
+                <circle
+                  cx="34"
+                  cy="34"
+                  r="30"
+                  fill="none"
+                  stroke="url(#pet-progress-gradient)"
+                  strokeWidth="3.5"
+                  strokeDasharray={188.5}
+                  strokeDashoffset={188.5 - (overallProgress / 100) * 188.5}
+                  strokeLinecap="round"
+                  className="transition-all duration-300 ease-out"
+                />
+                <defs>
+                  <linearGradient id="pet-progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#06b6d4" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            )}
+
+            {/* Notification or upload progress badge */}
+            {activeCount > 0 ? (
+              <span className="absolute -bottom-1 inset-x-0 mx-auto w-fit px-1.5 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-black font-mono shadow-md z-20 animate-pulse">
+                {overallProgress}%
+              </span>
+            ) : (
+              <span className="absolute -top-0.5 -end-0.5 flex h-3.5 w-3.5 pointer-events-none">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
+              </span>
+            )}
           </div>
         </div>
       </aside>

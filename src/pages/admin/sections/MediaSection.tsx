@@ -17,13 +17,15 @@ import {
   X as CloseIcon,
   LayoutGrid,
   List,
+  Video as VideoIcon,
+  File as FileIcon,
 } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
+import { useUploadManager } from '../../../context/UploadManagerContext';
 import { formatAdminDate, formatAdminDateTime } from '../adminFormat';
 import {
   fetchMediaList,
-  uploadMedia,
   deleteMediaItem,
   type MediaFileDto,
 } from '../../../services/mediaService';
@@ -40,6 +42,7 @@ function formatBytes(bytes: number): string {
 export const MediaSection: React.FC = () => {
   const { t } = useAdminT();
   const { showToast, confirm } = useAdmin();
+  const { uploadFiles, isUploading } = useUploadManager();
 
   const [items, setItems] = useState<MediaFileDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,12 +52,11 @@ export const MediaSection: React.FC = () => {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'linked' | 'orphaned'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'image' | 'pdf' | 'model3d'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'image' | 'video' | 'pdf' | 'model3d' | 'other'>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Uploading state
-  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Popovers & Dialogs
@@ -121,17 +123,15 @@ export const MediaSection: React.FC = () => {
     return { linked, orphaned, totalSize };
   }, [items]);
 
-  const handleFileUpload = async (file: File) => {
-    setUploading(true);
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
     try {
-      await uploadMedia(file);
-      showToast('تم رفع الملف وحفظه في مكتبة الوسائط بنجاح', 'success');
+      await uploadFiles(Array.from(files));
+      showToast('تمت إضافة الملفات إلى مدير الرفع بنجاح', 'success');
       void loadMedia();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل رفع الملف';
       showToast(msg, 'error');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -267,21 +267,21 @@ export const MediaSection: React.FC = () => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf"
+              multiple
+              accept="*/*"
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleFileUpload(file);
+                void handleFileUpload(e.target.files);
                 e.target.value = '';
               }}
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+              disabled={isUploading}
               className="h-10 px-4 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
             >
-              {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              <span>{uploading ? t('media.uploading') : t('media.upload')}</span>
+              {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              <span>{isUploading ? t('media.uploading') : t('media.upload')}</span>
             </button>
           </div>
         </div>
@@ -328,8 +328,8 @@ export const MediaSection: React.FC = () => {
           </div>
 
           {/* Type filter */}
-          <div className="flex items-center gap-1 text-[11px] font-bold">
-            {(['all', 'image', 'pdf', 'model3d'] as const).map((type) => (
+          <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
+            {(['all', 'image', 'video', 'pdf', 'model3d', 'other'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => {
@@ -366,6 +366,8 @@ export const MediaSection: React.FC = () => {
           {items.map((file) => {
             const isImage = file.fileType === 'image';
             const isPdf = file.fileType === 'pdf';
+            const isVideo = file.fileType === 'video';
+            const isModel = file.fileType === 'model3d';
             const fullUrl = resolveMediaUrl(file.url);
             const isLinked = file.usageCount > 0;
 
@@ -391,10 +393,20 @@ export const MediaSection: React.FC = () => {
                       <FileText className="w-8 h-8" />
                       <span className="text-[10px] font-black tracking-wider uppercase">PDF</span>
                     </div>
-                  ) : (
+                  ) : isVideo ? (
+                    <div className="flex flex-col items-center gap-1.5 text-purple-500/80">
+                      <VideoIcon className="w-8 h-8" />
+                      <span className="text-[10px] font-black tracking-wider uppercase">VIDEO</span>
+                    </div>
+                  ) : isModel ? (
                     <div className="flex flex-col items-center gap-1.5 text-blue-500/80">
                       <Box className="w-8 h-8" />
                       <span className="text-[10px] font-black tracking-wider uppercase">3D</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 text-neutral-text/70">
+                      <FileIcon className="w-8 h-8" />
+                      <span className="text-[10px] font-black tracking-wider uppercase">FILE</span>
                     </div>
                   )}
 
@@ -492,6 +504,7 @@ export const MediaSection: React.FC = () => {
                 {items.map((file) => {
                   const isImage = file.fileType === 'image';
                   const isPdf = file.fileType === 'pdf';
+                  const isVideo = file.fileType === 'video';
                   const isModel = file.fileType === 'model3d';
                   const fullUrl = resolveMediaUrl(file.url);
                   const isLinked = file.usageCount > 0;
@@ -510,8 +523,12 @@ export const MediaSection: React.FC = () => {
                               <img src={fullUrl} alt={file.originalName} className="w-full h-full object-cover" loading="lazy" />
                             ) : isPdf ? (
                               <FileText className="w-5 h-5 text-accent/80" />
-                            ) : (
+                            ) : isVideo ? (
+                              <VideoIcon className="w-5 h-5 text-purple-500/80" />
+                            ) : isModel ? (
                               <Box className="w-5 h-5 text-blue-500/80" />
+                            ) : (
+                              <FileIcon className="w-5 h-5 text-neutral-text/70" />
                             )}
                           </div>
                           <div className="min-w-0 max-w-xs sm:max-w-sm">
@@ -537,6 +554,8 @@ export const MediaSection: React.FC = () => {
                               ? 'bg-accent/10 text-accent'
                               : isPdf
                               ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                              : isVideo
+                              ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
                               : isModel
                               ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
                               : 'bg-canvas text-neutral-text/70'
@@ -546,6 +565,8 @@ export const MediaSection: React.FC = () => {
                             ? file.mimeType.replace('image/', '')
                             : isPdf
                             ? 'PDF'
+                            : isVideo
+                            ? 'VIDEO'
                             : isModel
                             ? '3D GLB'
                             : file.fileType}
@@ -740,6 +761,13 @@ export const MediaSection: React.FC = () => {
                   src={resolveMediaUrl(previewFile.url)}
                   alt={previewFile.originalName}
                   className="max-h-[70vh] w-auto object-contain rounded-lg"
+                />
+              ) : previewFile.fileType === 'video' ? (
+                <video
+                  controls
+                  src={resolveMediaUrl(previewFile.url)}
+                  className="max-h-[70vh] w-auto max-w-full rounded-lg shadow-lg"
+                  autoPlay
                 />
               ) : (
                 <div className="p-12 text-center text-white space-y-3">

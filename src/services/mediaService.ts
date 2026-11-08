@@ -23,7 +23,7 @@ export interface MediaFileDto {
   filename: string;
   originalName: string;
   mimeType: string;
-  fileType: 'image' | 'pdf' | 'model3d' | 'document' | 'other';
+  fileType: 'image' | 'video' | 'pdf' | 'model3d' | 'document' | 'other';
   size: number;
   thumbnailUrl?: string | null;
   usageCount: number;
@@ -53,14 +53,15 @@ export interface UploadOptions {
   onProgress?: (percent: number) => void;
 }
 
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
-const ACCEPTED_DOCUMENT_TYPES = ['application/pdf'];
+export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
+export const ACCEPTED_DOCUMENT_TYPES = ['application/pdf'];
 
 /** Shared with the server-side limit so the UI can reject oversized files before uploading. */
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 export function isAcceptedMedia(file: File): boolean {
-  return [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_DOCUMENT_TYPES].includes(file.type);
+  if (!file || file.size === 0) return false;
+  return true;
 }
 
 /**
@@ -156,7 +157,7 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
 export async function fetchMediaList(params: {
   page?: number;
   limit?: number;
-  type?: 'all' | 'image' | 'pdf' | 'model3d';
+  type?: 'all' | 'image' | 'video' | 'pdf' | 'model3d' | 'other';
   status?: 'all' | 'linked' | 'orphaned';
   search?: string;
 } = {}): Promise<MediaListResponse> {

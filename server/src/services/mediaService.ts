@@ -71,25 +71,44 @@ function startsWith(buffer: Buffer, bytes: number[], offset = 0): boolean {
  * Detects the real media type from the first bytes of the file.
  * Reads minimal bytes to be fast and safe.
  */
-export function detectMediaType(buffer: Buffer): 'image' | 'pdf' | null {
-  if (buffer.length < 12) return null;
+export function detectMediaType(buffer: Buffer): 'image' | 'pdf' | 'video' | 'model3d' | 'archive' | null {
+  if (buffer.length < 4) return null;
 
-  if (startsWith(buffer, [0xff, 0xd8, 0xff])) return 'image'; // JPEG
-  if (startsWith(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image'; // PNG
-  if (startsWith(buffer, [0x47, 0x49, 0x46, 0x38])) return 'image'; // GIF
-  if (startsWith(buffer, [0x49, 0x49, 0x2a, 0x00])) return 'image'; // TIFF (LE)
-  if (startsWith(buffer, [0x4d, 0x4d, 0x00, 0x2a])) return 'image'; // TIFF (BE)
-  if (startsWith(buffer, [0x25, 0x50, 0x44, 0x46])) return 'pdf'; // %PDF
+  if (buffer.length >= 12) {
+    if (startsWith(buffer, [0xff, 0xd8, 0xff])) return 'image'; // JPEG
+    if (startsWith(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image'; // PNG
+    if (startsWith(buffer, [0x47, 0x49, 0x46, 0x38])) return 'image'; // GIF
+    if (startsWith(buffer, [0x49, 0x49, 0x2a, 0x00])) return 'image'; // TIFF (LE)
+    if (startsWith(buffer, [0x4d, 0x4d, 0x00, 0x2a])) return 'image'; // TIFF (BE)
+    if (startsWith(buffer, [0x25, 0x50, 0x44, 0x46])) return 'pdf'; // %PDF
 
-  // RIFF....WEBP
-  if (startsWith(buffer, [0x52, 0x49, 0x46, 0x46]) && startsWith(buffer, [0x57, 0x45, 0x42, 0x50], 8)) {
-    return 'image';
-  }
+    // RIFF....WEBP or RIFF....AVI
+    if (startsWith(buffer, [0x52, 0x49, 0x46, 0x46])) {
+      if (startsWith(buffer, [0x57, 0x45, 0x42, 0x50], 8)) return 'image';
+      if (startsWith(buffer, [0x41, 0x56, 0x49, 0x20], 8)) return 'video';
+    }
 
-  // ISO-BMFF: ....ftypavif / ftypavis / ftypheic
-  if (startsWith(buffer, [0x66, 0x74, 0x79, 0x70], 4)) {
-    const brand = buffer.subarray(8, 12).toString('ascii');
-    if (['avif', 'avis', 'heic', 'heif', 'mif1'].includes(brand)) return 'image';
+    // ISO-BMFF: ....ftyp
+    if (startsWith(buffer, [0x66, 0x74, 0x79, 0x70], 4)) {
+      const brand = buffer.subarray(8, 12).toString('ascii').toLowerCase();
+      if (['avif', 'avis', 'heic', 'heif', 'mif1'].includes(brand)) return 'image';
+      if (['isom', 'mp41', 'mp42', 'mmp4', 'dash', 'qt  ', 'm4v '].includes(brand) || brand.startsWith('mp4')) return 'video';
+    }
+
+    // Matroska / WebM: 0x1A 0x45 0xDF 0xA3
+    if (startsWith(buffer, [0x1a, 0x45, 0xdf, 0xa3])) {
+      return 'video';
+    }
+
+    // 3D GLB: 0x67 0x6C 0x54 0x46 (glTF)
+    if (startsWith(buffer, [0x67, 0x6c, 0x54, 0x46])) {
+      return 'model3d';
+    }
+
+    // Archives (ZIP): PK..
+    if (startsWith(buffer, [0x50, 0x4b, 0x03, 0x04])) {
+      return 'archive';
+    }
   }
 
   return null;
@@ -100,7 +119,7 @@ export interface StoredMedia {
   filename: string;
   originalName: string;
   mimeType: string;
-  fileType: 'image' | 'pdf' | 'model3d' | 'document' | 'other';
+  fileType: 'image' | 'video' | 'pdf' | 'model3d' | 'document' | 'other';
   size: number;
   storageKey: string;
 }
@@ -119,6 +138,7 @@ export async function processAndSaveFile(
   await ensureUploadDir();
   const fileId = crypto.randomUUID();
   const detected = detectMediaType(fileBuffer);
+  const ext = path.extname(originalFilename).toLowerCase();
 
   // Images are re-encoded to WebP, which drops metadata and any embedded script.
   if (detected === 'image') {
@@ -171,8 +191,83 @@ export async function processAndSaveFile(
     };
   }
 
+  // Videos
+  const videoExts = ['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v'];
+  if (detected === 'video' || videoExts.includes(ext)) {
+    const baseName = originalFilename
+      .replace(/\.[^.]*$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 80);
+    const safeExt = videoExts.includes(ext) ? ext : '.mp4';
+    const filename = `${fileId}-${baseName || 'video'}${safeExt}`;
+    const targetPath = path.join(UPLOAD_DIR, filename);
+
+    await fs.writeFile(targetPath, fileBuffer);
+    const stats = await fs.stat(targetPath);
+
+    return {
+      url: `/uploads/${filename}`,
+      filename,
+      originalName: originalFilename,
+      mimeType: safeExt === '.mp4' ? 'video/mp4' : safeExt === '.webm' ? 'video/webm' : 'video/mp4',
+      fileType: 'video',
+      size: stats.size,
+      storageKey: filename,
+    };
+  }
+
+  // 3D Models
+  const modelExts = ['.glb', '.gltf'];
+  if (detected === 'model3d' || modelExts.includes(ext)) {
+    const baseName = originalFilename
+      .replace(/\.[^.]*$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 80);
+    const safeExt = modelExts.includes(ext) ? ext : '.glb';
+    const filename = `${fileId}-${baseName || 'model3d'}${safeExt}`;
+    const targetPath = path.join(UPLOAD_DIR, filename);
+
+    await fs.writeFile(targetPath, fileBuffer);
+    const stats = await fs.stat(targetPath);
+
+    return {
+      url: `/uploads/${filename}`,
+      filename,
+      originalName: originalFilename,
+      mimeType: safeExt === '.glb' ? 'model/gltf-binary' : 'model/gltf+json',
+      fileType: 'model3d',
+      size: stats.size,
+      storageKey: filename,
+    };
+  }
+
+  // Archives and other documents
+  const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.sql', '.csv'];
+  if (detected === 'archive' || archiveExts.includes(ext)) {
+    const baseName = originalFilename
+      .replace(/\.[^.]*$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 80);
+    const safeExt = archiveExts.includes(ext) ? ext : '.bin';
+    const filename = `${fileId}-${baseName || 'file'}${safeExt}`;
+    const targetPath = path.join(UPLOAD_DIR, filename);
+
+    await fs.writeFile(targetPath, fileBuffer);
+    const stats = await fs.stat(targetPath);
+
+    return {
+      url: `/uploads/${filename}`,
+      filename,
+      originalName: originalFilename,
+      mimeType: 'application/octet-stream',
+      fileType: 'other',
+      size: stats.size,
+      storageKey: filename,
+    };
+  }
+
   throw new UnsupportedMediaError(
-    `Unsupported file type. Allowed: ${[...ALLOWED_IMAGE_MIMES].join(', ')}, ${PDF_MIME}`
+    `Unsupported file type. Allowed: images, videos, PDFs, 3D models, archives and documents.`
   );
 }
 

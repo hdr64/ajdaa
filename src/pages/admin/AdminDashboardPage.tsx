@@ -40,6 +40,8 @@ import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
 import { AdminProfilePage } from '../../components/admin/profile/AdminProfilePage';
 import { AdminFeedbackPet } from '../../components/admin/feedback/AdminFeedbackPet';
+import { UploadManagerProvider } from '../../context/UploadManagerContext';
+import { UploadManagerDrawer } from '../../components/admin/media/UploadManagerDrawer';
 import { PasskeySuggestionModal } from '../../components/admin/auth/PasskeySuggestionModal';
 import { browserSupportsWebAuthn } from '@simplewebauthn/browser';
 
@@ -389,42 +391,45 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   return (
     <AdminContext.Provider value={contextValue}>
-      <HeaderActionsSlotContext.Provider value={actionsSlot}>
-        <div className="min-h-screen bg-canvas flex text-xs selection:bg-accent selection:text-white">
-          <AdminSidebar
-            open={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            onLogout={onLogout}
-          />
-
-          <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col">
-            <AdminPageHeader
-              title={pageTitle}
-              subtitle={t(`dashboard.section.${location.section}.subtitle` as any)}
-              onOpenMenu={() => setMenuOpen(true)}
-              actionsSlotRef={setActionsSlot}
+      <UploadManagerProvider>
+        <HeaderActionsSlotContext.Provider value={actionsSlot}>
+          <div className="min-h-screen bg-canvas flex text-xs selection:bg-accent selection:text-white">
+            <AdminSidebar
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              onLogout={onLogout}
             />
-            <div className="p-4 sm:p-6 flex-1">{renderSection()}</div>
-          </main>
 
-          <AdminFeedbackPet currentSection={location.section} />
-        </div>
+            <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col">
+              <AdminPageHeader
+                title={pageTitle}
+                subtitle={t(`dashboard.section.${location.section}.subtitle` as any)}
+                onOpenMenu={() => setMenuOpen(true)}
+                actionsSlotRef={setActionsSlot}
+              />
+              <div className="p-4 sm:p-6 flex-1">{renderSection()}</div>
+            </main>
 
-        {pendingConfirm && <ConfirmDialog options={pendingConfirm.options} onResolve={resolveConfirm} />}
+            <AdminFeedbackPet currentSection={location.section} />
+            <UploadManagerDrawer />
+          </div>
 
-        {currentUser && (
-          <PasskeySuggestionModal
-            user={currentUser}
-            isOpen={showPasskeySuggestion}
-            onClose={() => setShowPasskeySuggestion(false)}
-            onSuccess={() => {
-              void refreshUser();
-              showToast(t('auth.passkeyCreatedSuccess'), 'success');
-              setShowPasskeySuggestion(false);
-            }}
-          />
-        )}
-      </HeaderActionsSlotContext.Provider>
+          {pendingConfirm && <ConfirmDialog options={pendingConfirm.options} onResolve={resolveConfirm} />}
+
+          {currentUser && (
+            <PasskeySuggestionModal
+              user={currentUser}
+              isOpen={showPasskeySuggestion}
+              onClose={() => setShowPasskeySuggestion(false)}
+              onSuccess={() => {
+                void refreshUser();
+                showToast(t('auth.passkeyCreatedSuccess'), 'success');
+                setShowPasskeySuggestion(false);
+              }}
+            />
+          )}
+        </HeaderActionsSlotContext.Provider>
+      </UploadManagerProvider>
     </AdminContext.Provider>
   );
 };

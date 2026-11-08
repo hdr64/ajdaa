@@ -8,6 +8,13 @@ import {
   MAX_UPLOAD_BYTES,
   MediaInUseError,
 } from '../services/mediaService.js';
+import {
+  initChunkedUpload,
+  saveUploadChunk,
+  getUploadChunkStatus,
+  completeChunkedUpload,
+  abortChunkedUpload,
+} from '../services/chunkedUploadService.js';
 import { inspectMediaUsage, getBatchMediaUsage } from '../services/mediaUsageService.js';
 import { authenticate, requireAnyPermission } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
@@ -62,6 +69,133 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * Resumable Chunked Upload: Initialize session
+   */
+  fastify.post('/upload/chunked/init', mediaGuard, async (request, reply) => {
+    const initSchema = z.object({
+      filename: z.string().min(1).max(255),
+      totalSize: z.number().int().positive().max(2 * 1024 * 1024 * 1024),
+      totalChunks: z.number().int().positive().max(2000),
+      chunkSize: z.number().int().positive().max(50 * 1024 * 1024).default(5 * 1024 * 1024),
+      mimeType: z.string().optional(),
+    });
+
+    const parsed = initSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid chunk initialization parameters' });
+    }
+
+    try {
+      const res = await initChunkedUpload({
+        ...parsed.data,
+        adminId: request.admin?.id,
+      });
+      return reply.status(201).send(res);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to init chunked upload';
+      return reply.status(500).send({ error: message });
+    }
+  });
+
+  /**
+   * Resumable Chunked Upload: Save a chunk part
+   */
+  fastify.post('/upload/chunked/chunk', mediaGuard, async (request, reply) => {
+    const querySchema = z.object({
+      uploadId: z.string().uuid(),
+      chunkIndex: z.coerce.number().int().min(0),
+    });
+
+    const parsed = querySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Missing or invalid uploadId or chunkIndex' });
+    }
+
+    const { uploadId, chunkIndex } = parsed.data;
+
+    const data = await request.file();
+    if (!data) {
+      return reply.status(400).send({ error: 'No chunk data received' });
+    }
+
+    const buffer = await data.toBuffer();
+
+    try {
+      const res = await saveUploadChunk(uploadId, chunkIndex, buffer);
+      return reply.send(res);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to save chunk';
+      return reply.status(400).send({ error: message });
+    }
+  });
+
+  /**
+   * Resumable Chunked Upload: Inspect upload status / resume
+   */
+  fastify.get('/upload/chunked/status/:uploadId', mediaGuard, async (request, reply) => {
+    const paramsSchema = z.object({
+      uploadId: z.string().uuid(),
+    });
+
+    const parsed = paramsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid upload ID' });
+    }
+
+    try {
+      const status = await getUploadChunkStatus(parsed.data.uploadId);
+      return reply.send(status);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Upload session not found';
+      return reply.status(404).send({ error: message });
+    }
+  });
+
+  /**
+   * Resumable Chunked Upload: Finish and assemble chunks into media file
+   */
+  fastify.post('/upload/chunked/complete', mediaGuard, async (request, reply) => {
+    const bodySchema = z.object({
+      uploadId: z.string().uuid(),
+    });
+
+    const parsed = bodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid upload ID' });
+    }
+
+    try {
+      const media = await completeChunkedUpload(parsed.data.uploadId, request.admin?.id);
+      return reply.status(201).send(media);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to complete chunked upload';
+      return reply.status(400).send({ error: message });
+    }
+  });
+
+  /**
+   * Resumable Chunked Upload: Abort session
+   */
+  fastify.delete('/upload/chunked/abort/:uploadId', mediaGuard, async (request, reply) => {
+    const paramsSchema = z.object({
+      uploadId: z.string().uuid(),
+    });
+
+    const parsed = paramsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid upload ID' });
+    }
+
+    try {
+      await abortChunkedUpload(parsed.data.uploadId);
+      return reply.send({ success: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to abort chunked upload';
+      return reply.status(400).send({ error: message });
+    }
+  });
+
+  /**
    * Browse media files with usage detection and filters.
    */
   fastify.get('/', mediaGuard, async (request, reply) => {
@@ -71,7 +205,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     const querySchema = z.object({
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(24),
-      type: z.enum(['all', 'image', 'pdf', 'model3d']).default('all'),
+      type: z.enum(['all', 'image', 'video', 'pdf', 'model3d', 'other']).default('all'),
       status: z.enum(['all', 'linked', 'orphaned']).default('all'),
       search: z.string().optional(),
     });
@@ -85,7 +219,9 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Prisma filter for type and search
     const where: Prisma.MediaFileWhereInput = {};
-    if (type !== 'all') {
+    if (type === 'other') {
+      where.fileType = { in: ['other', 'document'] };
+    } else if (type !== 'all') {
       where.fileType = type;
     }
     if (search && search.trim()) {
