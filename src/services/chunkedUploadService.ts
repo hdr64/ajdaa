@@ -10,6 +10,7 @@ export interface ChunkProgress {
   percent: number;
   speed?: string;
   remainingSeconds?: number;
+  phase?: 'uploading' | 'processing';
 }
 
 export interface ChunkedUploadOptions {
@@ -135,7 +136,18 @@ export async function uploadFileInChunks(
     }
   }
 
-  // 4. Complete session
+  // 4. All chunks uploaded: signal processing phase before calling complete
+  if (options.onProgress) {
+    options.onProgress({
+      uploadId,
+      uploadedBytes: totalSize,
+      totalBytes: totalSize,
+      percent: 100,
+      phase: 'processing',
+    });
+  }
+
+  // 5. Complete session (server concatenates chunks and registers in DB)
   const completeRes = await api.post<UploadedMedia>(
     '/api/media/upload/chunked/complete',
     { uploadId },

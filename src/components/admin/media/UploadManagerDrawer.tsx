@@ -12,6 +12,7 @@ import {
   Box,
   File as FileIcon,
   Minus,
+  Loader2,
 } from 'lucide-react';
 import { useUploadManager, type ManagedUpload } from '../../../context/UploadManagerContext';
 import { useLanguage } from '../../../hooks/useLanguage';
@@ -56,6 +57,7 @@ export const UploadManagerDrawer: React.FC = () => {
         const isErr = item.status === 'error';
         const isPaused = item.status === 'paused';
         const isUploading = item.status === 'uploading';
+        const isProcessing = item.status === 'processing';
 
         return (
           <div
@@ -74,9 +76,18 @@ export const UploadManagerDrawer: React.FC = () => {
                   </p>
                   <div className="flex items-center gap-2 text-[10px] text-neutral-text/50 font-mono mt-0.5">
                     <span>{formatBytes(item.file.size)}</span>
-                    {item.speed && <span className="text-accent font-bold">{item.speed}</span>}
-                    {item.remainingSeconds !== undefined && item.remainingSeconds > 0 && (
-                      <span>~{item.remainingSeconds}s</span>
+                    {isProcessing ? (
+                      <span className="inline-flex items-center gap-1.5 text-accent font-bold animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin text-accent" />
+                        <span>{isAr ? 'جاري المعالجة والدمج...' : 'Processing & saving...'}</span>
+                      </span>
+                    ) : (
+                      <>
+                        {item.speed && <span className="text-accent font-bold">{item.speed}</span>}
+                        {item.remainingSeconds !== undefined && item.remainingSeconds > 0 && (
+                          <span>~{item.remainingSeconds}s</span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -93,6 +104,15 @@ export const UploadManagerDrawer: React.FC = () => {
                   >
                     <Pause className="w-4 h-4" />
                   </button>
+                )}
+
+                {isProcessing && (
+                  <div
+                    className="p-1.5 rounded-lg text-accent flex items-center justify-center"
+                    title={isAr ? 'جاري المعالجة والدمج...' : 'Processing & saving...'}
+                  >
+                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                  </div>
                 )}
 
                 {isPaused && (
@@ -146,6 +166,11 @@ export const UploadManagerDrawer: React.FC = () => {
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 inline" />
                 ) : isErr ? (
                   <AlertCircle className="w-4 h-4 text-red-500 inline" />
+                ) : isProcessing ? (
+                  <span className="inline-flex items-center gap-1 text-accent font-bold text-[10px]">
+                    <Loader2 className="w-3 h-3 animate-spin inline" />
+                    100%
+                  </span>
                 ) : (
                   `${item.progress}%`
                 )}
@@ -160,6 +185,8 @@ export const UploadManagerDrawer: React.FC = () => {
                       ? 'bg-red-500'
                       : isPaused
                       ? 'bg-amber-500'
+                      : isProcessing
+                      ? 'bg-gradient-to-r from-accent via-sky-400 to-emerald-500 animate-pulse'
                       : 'bg-accent'
                   }`}
                   style={{ width: `${item.progress}%` }}

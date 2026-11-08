@@ -10,7 +10,7 @@ export interface ManagedUpload {
   totalBytes: number;
   speed?: string;
   remainingSeconds?: number;
-  status: 'queued' | 'uploading' | 'paused' | 'completed' | 'error';
+  status: 'queued' | 'uploading' | 'processing' | 'paused' | 'completed' | 'error';
   error?: string;
   result?: UploadedMedia;
   uploadId?: string;
@@ -62,7 +62,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const activeCount = useMemo(
-    () => uploads.filter((u) => u.status === 'uploading' || u.status === 'queued').length,
+    () => uploads.filter((u) => u.status === 'uploading' || u.status === 'queued' || u.status === 'processing').length,
     [uploads]
   );
 
@@ -74,11 +74,16 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   const isUploading = activeCount > 0;
 
   const overallProgress = useMemo(() => {
-    const active = uploads.filter((u) => u.status === 'uploading' || u.status === 'queued' || u.status === 'completed');
+    const active = uploads.filter(
+      (u) => u.status === 'uploading' || u.status === 'queued' || u.status === 'completed' || u.status === 'processing'
+    );
     if (active.length === 0) return 0;
     const totalBytes = active.reduce((acc, u) => acc + u.totalBytes, 0);
     if (totalBytes === 0) return 100;
-    const uploadedBytes = active.reduce((acc, u) => acc + (u.status === 'completed' ? u.totalBytes : u.uploadedBytes), 0);
+    const uploadedBytes = active.reduce(
+      (acc, u) => acc + (u.status === 'completed' || u.status === 'processing' ? u.totalBytes : u.uploadedBytes),
+      0
+    );
     return Math.min(100, Math.round((uploadedBytes / totalBytes) * 100));
   }, [uploads]);
 
@@ -103,10 +108,11 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
                 u.id === item.id
                   ? {
                       ...u,
+                      status: prog.phase === 'processing' ? 'processing' : u.status,
                       progress: prog.percent,
                       uploadedBytes: prog.uploadedBytes,
-                      speed: prog.speed,
-                      remainingSeconds: prog.remainingSeconds,
+                      speed: prog.phase === 'processing' ? undefined : prog.speed,
+                      remainingSeconds: prog.phase === 'processing' ? undefined : prog.remainingSeconds,
                       uploadId: prog.uploadId,
                     }
                   : u
@@ -117,7 +123,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
       } else {
         // Small image direct upload with artificial smooth progress
         setUploads((prev) =>
-          prev.map((u) => (u.id === item.id ? { ...u, progress: 50, uploadedBytes: Math.floor(u.totalBytes / 2) } : u))
+          prev.map((u) => (u.id === item.id ? { ...u, progress: 60, uploadedBytes: Math.floor(u.totalBytes / 2) } : u))
         );
         result = await uploadMedia(item.file, { signal: controller.signal });
       }
