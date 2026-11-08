@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   Box,
   File as FileIcon,
+  Minus,
 } from 'lucide-react';
 import { useUploadManager, type ManagedUpload } from '../../../context/UploadManagerContext';
 import { useLanguage } from '../../../hooks/useLanguage';
@@ -35,6 +36,7 @@ export const UploadManagerDrawer: React.FC = () => {
   const {
     uploads,
     isDrawerOpen,
+    setIsDrawerOpen,
     pauseUpload,
     resumeUpload,
     cancelUpload,
@@ -114,6 +116,17 @@ export const UploadManagerDrawer: React.FC = () => {
                     <RotateCcw className="w-4 h-4" />
                   </button>
                 )}
+
+                {/* Minimize to send to background */}
+                <button
+                  type="button"
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="p-1.5 rounded-lg text-neutral-text/50 hover:text-heading hover:bg-canvas transition cursor-pointer"
+                  title={isAr ? 'تصغير وإرسال إلى الخلفية' : 'Minimize to background'}
+                  aria-label={isAr ? 'تصغير وإرسال إلى الخلفية' : 'Minimize to background'}
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
 
                 <button
                   type="button"
