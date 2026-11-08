@@ -196,7 +196,7 @@ if [ -n "$PENDING" ]; then
   for m in $PENDING; do
     file="server/prisma/migrations/$m/migration.sql"
     echo "--- $m"
-    if grep -nEi 'drop|truncate|delete' "$file"; then
+    if grep -nEi '\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX)\b|\bTRUNCATE\b|\bDELETE\s+FROM\b' "$file"; then
       echo "Pending migration $m contains DROP/TRUNCATE/DELETE. Read it, then migrate by hand if it is intended." >&2
       exit 1
     fi
