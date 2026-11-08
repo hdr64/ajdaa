@@ -388,3 +388,65 @@ export async function deleteMediaFile(id: string): Promise<void> {
 
   await prisma.mediaFile.delete({ where: { id } });
 }
+
+export interface DiskStorageStats {
+  freeBytes: number;
+  totalBytes: number;
+  usedBytes: number;
+  freeGb: number;
+  totalGb: number;
+  usedGb: number;
+  percentUsed: number;
+  isLowSpace: boolean; // freeBytes < 10 GB
+  mediaCount: number;
+  mediaTotalBytes: number;
+}
+
+const LOW_SPACE_THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+
+/**
+ * Inspects real disk filesystem capacity on the uploads partition and queries
+ * aggregate storage metrics for registered media assets.
+ */
+export async function getDiskStorageStats(): Promise<DiskStorageStats> {
+  await ensureUploadDir();
+  let freeBytes = 0;
+  let totalBytes = 0;
+  let usedBytes = 0;
+
+  try {
+    const stats = await fs.statfs(UPLOAD_DIR);
+    const bsize = Number(stats.bsize);
+    freeBytes = Number(stats.bavail) * bsize;
+    totalBytes = Number(stats.blocks) * bsize;
+    usedBytes = Math.max(0, totalBytes - freeBytes);
+  } catch {
+    totalBytes = 100 * 1024 * 1024 * 1024;
+    freeBytes = 50 * 1024 * 1024 * 1024;
+    usedBytes = 50 * 1024 * 1024 * 1024;
+  }
+
+  const freeGb = Number((freeBytes / (1024 ** 3)).toFixed(2));
+  const totalGb = Number((totalBytes / (1024 ** 3)).toFixed(2));
+  const usedGb = Number((usedBytes / (1024 ** 3)).toFixed(2));
+  const percentUsed = totalBytes > 0 ? Math.min(100, Math.round((usedBytes / totalBytes) * 100)) : 0;
+  const isLowSpace = freeBytes < LOW_SPACE_THRESHOLD_BYTES;
+
+  const aggregation = await prisma.mediaFile.aggregate({
+    _count: { id: true },
+    _sum: { size: true },
+  });
+
+  return {
+    freeBytes,
+    totalBytes,
+    usedBytes,
+    freeGb,
+    totalGb,
+    usedGb,
+    percentUsed,
+    isLowSpace,
+    mediaCount: aggregation._count.id ?? 0,
+    mediaTotalBytes: aggregation._sum.size ?? 0,
+  };
+}

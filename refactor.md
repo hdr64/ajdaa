@@ -214,3 +214,7 @@ Owner request (2026-10-25): production-grade improvements to the admin dashboard
     - Built reusable `<MediaPickerModal />` with dual tabs ("Choose from Library" and "Upload New").
     - Integrated `<MediaPickerModal />` and library selection into `ProjectCreateModal`, `ProjectEditSection`, `PastProjectFormDialog`, and `CmsClientsPanel`.
   - **Verification & Tests**: Added unit and integration tests in `server/test/media.test.ts` verifying `MediaFile` creation, pagination, live usage checks, and 409 Conflict SEO deletion blocking. Passed Vite build, Server TypeScript build, and Vitest suite.
+
+- 2026-11-09 (owner): Add `/projects` as a second route to the projects page (`/works`).
+  - Added `/projects` to `PAGE_BY_PATH` in `server/src/services/seo/pages.ts` mapping to `'works'`. Serves the exact same prerendered HTML shell with canonical pointing to `/works` (`/en/works` for `/en/projects`). Does not interfere with single project routes (`/projects/:id` or `/projects/:slug-:id`).
+  - Added `/projects` support in client `parsePath` (`src/App.tsx`), routing cleanly to `{ page: 'works' }`. Preserved `/projects` and `/en/projects` in the browser address bar on initial load via `window.history.replaceState`.

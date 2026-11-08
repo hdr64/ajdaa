@@ -1,10 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
+import fs from 'fs/promises';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
+import { config } from '../config/env.js';
 import {
   processAndSaveFile,
   deleteMediaFile,
   syncDiskMediaToDatabase,
+  getDiskStorageStats,
   MAX_UPLOAD_BYTES,
   MediaInUseError,
 } from '../services/mediaService.js';
@@ -20,6 +23,8 @@ import { authenticate, requireAnyPermission } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
 
 export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
+  const UPLOAD_DIR = config.uploadDir;
+
   const mediaGuard = {
     onRequest: [
       authenticate,
@@ -40,6 +45,14 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (data.file.truncated || buffer.length > MAX_UPLOAD_BYTES) {
       return reply.status(413).send({ error: 'File exceeds the 50 MB limit' });
+    }
+
+    const diskStats = await fs.statfs(UPLOAD_DIR).catch(() => null);
+    if (diskStats) {
+      const freeBytes = Number(diskStats.bavail) * Number(diskStats.bsize);
+      if (freeBytes < buffer.length) {
+        return reply.status(507).send({ error: 'مساحة القرص غير كافية لإتمام الرفع (Insufficient storage)' });
+      }
     }
 
     const stored = await processAndSaveFile(buffer, data.filename);
@@ -83,6 +96,16 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     const parsed = initSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid chunk initialization parameters' });
+    }
+
+    const diskStats = await fs.statfs(UPLOAD_DIR).catch(() => null);
+    if (diskStats) {
+      const freeBytes = Number(diskStats.bavail) * Number(diskStats.bsize);
+      if (freeBytes < parsed.data.totalSize) {
+        return reply.status(507).send({
+          error: `مساحة القرص غير كافية لرفع هذا الملف (${(parsed.data.totalSize / (1024 ** 3)).toFixed(2)} GB مطلوب، والمتبقي ${(freeBytes / (1024 ** 3)).toFixed(2)} GB)`,
+        });
+      }
     }
 
     try {
@@ -292,6 +315,19 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
 
     const usage = await inspectMediaUsage(decodeURIComponent(url));
     return reply.send(usage);
+  });
+
+  /**
+   * Get server disk storage statistics and available space.
+   */
+  fastify.get('/storage-stats', mediaGuard, async (_request, reply) => {
+    try {
+      const stats = await getDiskStorageStats();
+      return reply.send(stats);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to retrieve storage stats';
+      return reply.status(500).send({ error: message });
+    }
   });
 
   /**

@@ -104,7 +104,7 @@ const parsePath = (pathname: string): RouteState => {
   if (clean.endsWith('/clients')) return { page: 'clients' };
   if (clean.endsWith('/past-works')) return { page: 'pastWorks' };
   if (clean.endsWith('/careers')) return { page: 'careers' };
-  if (clean.endsWith('/works')) return { page: 'works' };
+  if (clean.endsWith('/works') || clean === '/projects') return { page: 'works' };
   if (clean.endsWith('/booking') || clean.endsWith('/register-interest')) return { page: 'booking' };
   if (clean.endsWith('/contact')) return { page: 'contact' };
 
@@ -223,10 +223,12 @@ export function App() {
       const initialRoute = parsePath(window.location.pathname);
       const initialLang =
         window.location.pathname === '/en' || window.location.pathname.startsWith('/en/') ? 'en' : 'ar';
+      const cleanPath = window.location.pathname.replace(/\/$/, '') || '/';
+      const isProjectsAlias = cleanPath === '/projects' || cleanPath === '/en/projects';
       window.history.replaceState(
         { route: initialRoute, scrollY: window.scrollY },
         '',
-        getPathForRoute(initialRoute, initialLang)
+        isProjectsAlias ? cleanPath : getPathForRoute(initialRoute, initialLang)
       );
     }
 

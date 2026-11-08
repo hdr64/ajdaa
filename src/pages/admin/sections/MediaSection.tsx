@@ -27,7 +27,9 @@ import { formatAdminDate, formatAdminDateTime } from '../adminFormat';
 import {
   fetchMediaList,
   deleteMediaItem,
+  fetchStorageStats,
   type MediaFileDto,
+  type DiskStorageStats,
 } from '../../../services/mediaService';
 import { resolveMediaUrl } from '../../../services/api';
 
@@ -49,6 +51,7 @@ export const MediaSection: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [storageStats, setStorageStats] = useState<DiskStorageStats | null>(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'linked' | 'orphaned'>('all');
@@ -106,9 +109,19 @@ export const MediaSection: React.FC = () => {
     }
   }, [page, typeFilter, statusFilter, debouncedSearch, showToast]);
 
+  const loadStorageStats = useCallback(async () => {
+    try {
+      const data = await fetchStorageStats();
+      setStorageStats(data);
+    } catch {
+      // Non-critical background telemetry
+    }
+  }, []);
+
   useEffect(() => {
     void loadMedia();
-  }, [loadMedia]);
+    void loadStorageStats();
+  }, [loadMedia, loadStorageStats]);
 
   // Aggregate stats across current items
   const stats = useMemo(() => {
@@ -129,6 +142,7 @@ export const MediaSection: React.FC = () => {
       await uploadFiles(Array.from(files));
       showToast('تمت إضافة الملفات إلى مدير الرفع بنجاح', 'success');
       void loadMedia();
+      void loadStorageStats();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل رفع الملف';
       showToast(msg, 'error');
@@ -161,6 +175,7 @@ export const MediaSection: React.FC = () => {
       await deleteMediaItem(file.id);
       showToast('تم حذف الملف نهائياً', 'success');
       void loadMedia();
+      void loadStorageStats();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل حذف الملف';
       showToast(msg, 'error');
@@ -171,28 +186,124 @@ export const MediaSection: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Low Disk Space Alert Banner (< 10GB) */}
+      {storageStats?.isLowSpace && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-amber-800 dark:text-amber-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0">
+              <AlertTriangle className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-heading flex items-center gap-2">
+                <span>{t('media.warning.lowDiskSpace')}</span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                  {storageStats.freeGb} GB متبقية
+                </span>
+              </h4>
+              <p className="text-xs text-neutral-text/80 mt-1">
+                {t('media.warning.lowDiskSpaceDesc', {
+                  freeGb: String(storageStats.freeGb),
+                  totalGb: String(storageStats.totalGb),
+                })}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('orphaned')}
+            className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs cursor-pointer shadow-xs transition"
+          >
+            {t('media.warning.viewOrphaned')}
+          </button>
+        </div>
+      )}
+
       {/* Top Stats Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        {/* Total Files */}
         <div className="p-4 rounded-2xl bg-surface border border-muted-border/30 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
           </div>
           <div>
             <p className="text-[10px] text-neutral-text/60 font-medium">{t('media.stat.totalFiles')}</p>
-            <p className="text-base font-black text-heading">{total}</p>
+            <p className="text-base font-black text-heading">{storageStats?.mediaCount ?? total}</p>
           </div>
         </div>
 
+        {/* Media Total Size */}
         <div className="p-4 rounded-2xl bg-surface border border-muted-border/30 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
-            <HardDrive className="w-5 h-5" />
+            <FileIcon className="w-5 h-5" />
           </div>
           <div>
             <p className="text-[10px] text-neutral-text/60 font-medium">{t('media.stat.totalSize')}</p>
-            <p className="text-base font-black text-heading">{formatBytes(stats.totalSize)}</p>
+            <p className="text-base font-black text-heading">
+              {formatBytes(storageStats?.mediaTotalBytes ?? stats.totalSize)}
+            </p>
           </div>
         </div>
 
+        {/* Disk Available Storage */}
+        <div
+          className={`p-4 rounded-2xl bg-surface border transition-colors col-span-2 sm:col-span-1 flex flex-col justify-between gap-2 ${
+            storageStats?.isLowSpace ? 'border-amber-500/50 bg-amber-500/5' : 'border-muted-border/30'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  storageStats?.isLowSpace
+                    ? 'bg-amber-500/20 text-amber-500'
+                    : 'bg-emerald-500/10 text-emerald-500'
+                }`}
+              >
+                <HardDrive className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-neutral-text/60 font-medium">{t('media.stat.freeSpace')}</p>
+                <p
+                  className={`text-sm sm:text-base font-black ${
+                    storageStats?.isLowSpace ? 'text-amber-500' : 'text-heading'
+                  }`}
+                >
+                  {storageStats ? `${storageStats.freeGb} GB` : '...'}
+                </p>
+              </div>
+            </div>
+            {storageStats && (
+              <span
+                className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                  storageStats.isLowSpace
+                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                    : 'bg-muted-surface text-neutral-text/70'
+                }`}
+              >
+                {storageStats.isLowSpace ? 'مساحة منخفضة' : `${100 - storageStats.percentUsed}% حر`}
+              </span>
+            )}
+          </div>
+
+          {storageStats && (
+            <div className="space-y-1 mt-1">
+              <div className="w-full h-1.5 rounded-full bg-muted-surface overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    storageStats.isLowSpace ? 'bg-amber-500' : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${storageStats.percentUsed}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[9px] text-neutral-text/50 font-mono">
+                <span>{t('media.stat.diskUsed')}: {storageStats.usedGb} GB</span>
+                <span>{t('media.stat.diskTotal')}: {storageStats.totalGb} GB</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Linked Media */}
         <div className="p-4 rounded-2xl bg-surface border border-muted-border/30 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
             <Link2 className="w-5 h-5" />
@@ -203,6 +314,7 @@ export const MediaSection: React.FC = () => {
           </div>
         </div>
 
+        {/* Orphaned Media */}
         <div className="p-4 rounded-2xl bg-surface border border-muted-border/30 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" />

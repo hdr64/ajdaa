@@ -48,6 +48,19 @@ export interface MediaUsageResponse {
   usages: MediaUsageDetail[];
 }
 
+export interface DiskStorageStats {
+  freeBytes: number;
+  totalBytes: number;
+  usedBytes: number;
+  freeGb: number;
+  totalGb: number;
+  usedGb: number;
+  percentUsed: number;
+  isLowSpace: boolean; // freeBytes < 10 GB
+  mediaCount: number;
+  mediaTotalBytes: number;
+}
+
 export interface UploadOptions {
   signal?: AbortSignal;
   onProgress?: (percent: number) => void;
@@ -185,4 +198,11 @@ export async function fetchMediaUsage(url: string): Promise<MediaUsageResponse> 
  */
 export async function deleteMediaItem(id: string): Promise<{ success: boolean }> {
   return api.delete<{ success: boolean }>(`/api/media/${id}`);
+}
+
+/**
+ * Fetches server disk storage statistics and available space.
+ */
+export async function fetchStorageStats(): Promise<DiskStorageStats> {
+  return api.get<DiskStorageStats>('/api/media/storage-stats');
 }

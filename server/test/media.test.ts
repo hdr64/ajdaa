@@ -259,4 +259,33 @@ describe('Deletion constraints and SEO protection', () => {
     const deletedRecord = await prisma.mediaFile.findUnique({ where: { url } });
     expect(deletedRecord).toBeNull();
   });
+
+  it('retrieves disk storage stats and space warning via GET /api/media/storage-stats', async () => {
+    const res = await authInject(superAdminToken, {
+      method: 'GET',
+      url: '/api/media/storage-stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      freeBytes: number;
+      totalBytes: number;
+      freeGb: number;
+      totalGb: number;
+      isLowSpace: boolean;
+      percentUsed: number;
+      mediaCount: number;
+      mediaTotalBytes: number;
+    };
+
+    expect(typeof body.freeBytes).toBe('number');
+    expect(typeof body.totalBytes).toBe('number');
+    expect(typeof body.freeGb).toBe('number');
+    expect(typeof body.totalGb).toBe('number');
+    expect(typeof body.percentUsed).toBe('number');
+    expect(typeof body.isLowSpace).toBe('boolean');
+    expect(body.isLowSpace).toBe(body.freeBytes < 10 * 1024 * 1024 * 1024);
+    expect(typeof body.mediaCount).toBe('number');
+    expect(typeof body.mediaTotalBytes).toBe('number');
+  });
 });
