@@ -9,13 +9,16 @@ import {
   ArrowDown,
   Share2,
   Building2,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
-import { api, getErrorMessage } from '../../../services/api';
+import { api, getErrorMessage, resolveMediaUrl } from '../../../services/api';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsFooterSection, CmsSocialItem, CmsSocialIcon } from '../../../types/cms';
 import { DEFAULT_FOOTER } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { MediaPickerModal } from '../media/MediaPickerModal';
 
 const SOCIAL_ICONS = [
   { value: 'x', label: 'X (تويتر)' },
@@ -38,6 +41,7 @@ export const CmsFooterPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [versionModalOpen, setVersionModalOpen] = useState(false);
+  const [profilePickerOpen, setProfilePickerOpen] = useState(false);
 
   const canManage = can('manageCms');
 
@@ -48,7 +52,7 @@ export const CmsFooterPanel: React.FC = () => {
         '/cms/content/footer'
       );
       if (res && res.content) {
-        setData(res.content);
+        setData({ ...DEFAULT_FOOTER, ...res.content });
         setVersion(res.version);
       }
     } catch {
@@ -178,9 +182,11 @@ export const CmsFooterPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Brand Summary */}
-        <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Left Column: Brand Summary + Company Profile PDF */}
+        <div className="space-y-6">
+          {/* Brand Summary */}
+          <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
           <div className="flex items-center gap-2 text-heading font-bold text-sm">
             <Building2 className="w-4 h-4 text-primary" />
             نبذة العلامة التجارية (أسفل الشعار)
@@ -278,6 +284,126 @@ export const CmsFooterPanel: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Company Profile PDF */}
+        <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-heading font-bold text-sm">
+              <FileText className="w-4 h-4 text-primary" />
+              الملف التعريفي للشركة (Company Profile)
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                disabled={!canManage}
+                checked={data.companyProfileEnabled ?? false}
+                onChange={(e) => setData({ ...data, companyProfileEnabled: e.target.checked })}
+                className="rounded text-primary focus:ring-0 disabled:opacity-50"
+              />
+              <span className="text-neutral-text text-[11px] font-semibold">تفعيل الرابط في التذييل</span>
+            </label>
+          </div>
+
+          <p className="text-xs text-neutral-text/70">
+            ملف PDF تعريفي بالشركة متاح للتحميل مباشرة من قائمة الروابط السريعة بأسفل الموقع لجميع الزوار.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
+                عنوان الرابط (بالعربية)
+              </label>
+              <input
+                type="text"
+                disabled={!canManage}
+                value={data.companyProfileLabelAr || ''}
+                onChange={(e) => setData({ ...data, companyProfileLabelAr: e.target.value })}
+                placeholder="الملف التعريفي للشركة"
+                className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
+                عنوان الرابط (بالإنجليزية)
+              </label>
+              <input
+                type="text"
+                dir="ltr"
+                disabled={!canManage}
+                value={data.companyProfileLabelEn || ''}
+                onChange={(e) => setData({ ...data, companyProfileLabelEn: e.target.value })}
+                placeholder="Company Profile"
+                className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden disabled:opacity-50"
+              />
+            </div>
+          </div>
+
+          {/* Current File Display & Single Unified "+ Add" Button */}
+          <div className="pt-2">
+            <label className="block text-[11px] font-medium text-neutral-text/70 mb-2">
+              ملف الـ PDF التعريفي
+            </label>
+            {data.companyProfilePdfUrl ? (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-canvas border border-muted-border/40 gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded-lg bg-red-500/10 text-red-500 shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-heading truncate dir-ltr text-right">
+                      {data.companyProfilePdfUrl.split('/').pop()}
+                    </p>
+                    <a
+                      href={resolveMediaUrl(data.companyProfilePdfUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-primary hover:underline flex items-center gap-1 mt-0.5"
+                    >
+                      <span>معاينة وتحميل الملف</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={!canManage}
+                    onClick={() => setProfilePickerOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface border border-muted-border/50 hover:border-primary text-heading transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-primary" />
+                    تغيير الملف
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canManage}
+                    onClick={() => setData({ ...data, companyProfilePdfUrl: '' })}
+                    className="p-1.5 rounded-lg text-neutral-text/50 hover:text-red-500 hover:bg-red-500/10 transition cursor-pointer disabled:opacity-50"
+                    title="إزالة الملف"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border-2 border-dashed border-muted-border/40 bg-canvas/40">
+                <div className="text-xs text-neutral-text/60">
+                  لم يتم تحديد ملف PDF تعريفي بعد. يمكنك رفع ملف جديد أو الاختيار من المكتبة.
+                </div>
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => setProfilePickerOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  + إضافة ملف PDF
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
         {/* Contact Points */}
         <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
@@ -556,6 +682,20 @@ export const CmsFooterPanel: React.FC = () => {
         sectionTitle="الهوية والتذييل (Footer)"
         currentVersion={version}
         onRollbackSuccess={fetchFooter}
+      />
+
+      <MediaPickerModal
+        open={profilePickerOpen}
+        onClose={() => setProfilePickerOpen(false)}
+        fileType="pdf"
+        title="اختيار الملف التعريفي للشركة (PDF)"
+        onSelect={(media) => {
+          setData((prev) => ({
+            ...prev,
+            companyProfilePdfUrl: media.url,
+          }));
+          setProfilePickerOpen(false);
+        }}
       />
     </div>
   );

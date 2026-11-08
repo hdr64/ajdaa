@@ -4,7 +4,7 @@ import { Reveal } from './Reveal';
 import { SpaLink } from './SpaLink';
 import { useLanguage } from '../../hooks/useLanguage';
 import { newsletterService } from '../../services/newsletterService';
-import { getErrorMessage } from '../../services/api';
+import { getErrorMessage, resolveMediaUrl } from '../../services/api';
 import { useTheme } from '../../hooks/useTheme';
 import { useSiteSettings, whatsappUrl } from '../../hooks/useSiteSettings';
 import { useCmsContent } from '../../hooks/useCmsContent';
@@ -155,34 +155,57 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onToast }) => {
           <div>
             <h4 className="text-sm font-bold text-heading mb-5">{text(footer.quickLinksTitleAr, footer.quickLinksTitleEn)}</h4>
             <div className="flex flex-col gap-3 text-xs text-neutral-text/70">
-              {quickLinks.map((link) => {
-                const Chevron = isRTL ? ChevronLeft : ChevronRight;
+              {(() => {
+                const QuickChevron = isRTL ? ChevronLeft : ChevronRight;
+                const chevronClass = `w-3.5 h-3.5 text-accent/70 ${
+                  isRTL ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'
+                } transition-transform duration-300`;
+
                 return (
-                  <SpaLink
-                    key={link.id}
-                    page={link.page as SeoPage}
-                    onNavigate={() => onNavigate(link.page as NavPageKey)}
-                    className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
-                  >
-                    <Chevron
-                      className={`w-3.5 h-3.5 text-accent/70 ${
-                        isRTL ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'
-                      } transition-transform duration-300`}
-                    />
-                    {text(link.labelAr, link.labelEn)}
-                  </SpaLink>
+                  <>
+                    {quickLinks.map((link) => (
+                      <SpaLink
+                        key={link.id}
+                        page={link.page as SeoPage}
+                        onNavigate={() => onNavigate(link.page as NavPageKey)}
+                        className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+                      >
+                        <QuickChevron className={chevronClass} />
+                        {text(link.labelAr, link.labelEn)}
+                      </SpaLink>
+                    ))}
+                    {siteSettings.careers.showFooterLink && (
+                      <SpaLink
+                        page="careers"
+                        onNavigate={() => onNavigate('careers')}
+                        className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+                      >
+                        <QuickChevron className={chevronClass} />
+                        {language === 'ar' ? 'الوظائف' : 'Jobs'}
+                      </SpaLink>
+                    )}
+                    {footer.companyProfileEnabled && Boolean(footer.companyProfilePdfUrl) && (
+                      <a
+                        href={resolveMediaUrl(footer.companyProfilePdfUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                        className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
+                        title={text(
+                          footer.companyProfileLabelAr || 'الملف التعريفي للشركة',
+                          footer.companyProfileLabelEn || 'Company Profile'
+                        )}
+                      >
+                        <QuickChevron className={chevronClass} />
+                        {text(
+                          footer.companyProfileLabelAr || 'الملف التعريفي للشركة',
+                          footer.companyProfileLabelEn || 'Company Profile'
+                        )}
+                      </a>
+                    )}
+                  </>
                 );
-              })}
-              {siteSettings.careers.showFooterLink && (
-                <SpaLink
-                  page="careers"
-                  onNavigate={() => onNavigate('careers')}
-                  className="flex items-center gap-1.5 text-start hover:text-accent transition cursor-pointer group font-semibold"
-                >
-                  <ChevronRight className={`w-3.5 h-3.5 text-accent/70 ${isRTL ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'} transition-transform duration-300`} />
-                  {language === 'ar' ? 'الوظائف' : 'Jobs'}
-                </SpaLink>
-              )}
+              })()}
             </div>
           </div>
 
