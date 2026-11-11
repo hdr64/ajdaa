@@ -438,3 +438,38 @@ describe('drive: chunked upload (large files)', () => {
   });
 });
 
+
+describe('drive: publish to the media library', () => {
+  const libraryRows: string[] = [];
+  afterAll(async () => {
+    const rows = await prisma.mediaFile.findMany({ where: { id: { in: libraryRows } } });
+    for (const row of rows) fs.rmSync(path.join(config.uploadDir, row.filename), { force: true });
+    await prisma.mediaFile.deleteMany({ where: { id: { in: libraryRows } } });
+  });
+
+  it('copies a Drive file into the library and keeps the Drive file', async () => {
+    const file = await uploadOk('Tower View.pdf', '%PDF-1.4 test');
+    const res = await post(`/api/drive/files/${file.id}/to-library`, {});
+    expect(res.statusCode, res.body).toBe(201);
+    const media = res.json() as { id: string; url: string; slug: string; fileType: string; mimeType: string; originalName: string };
+    libraryRows.push(media.id);
+    expect(media.url).toMatch(/^\/uploads\/.+\.pdf$/);
+    expect(media.fileType).toBe('pdf');
+    expect(media.mimeType).toBe('application/pdf');
+    expect(media.originalName).toBe('Tower View.pdf');
+    expect(fs.existsSync(path.join(config.uploadDir, path.basename(media.url)))).toBe(true);
+    expect((await list()).files.some((f) => f.id === file.id)).toBe(true);
+  });
+
+  it('refuses a type the library does not accept', async () => {
+    const file = await uploadOk('notes.txt', 'plain');
+    expect((await post(`/api/drive/files/${file.id}/to-library`, {})).statusCode).toBe(400);
+  });
+
+  it('answers 404 for a trashed or unknown file', async () => {
+    const file = await uploadOk('gone.pdf', '%PDF-1.4');
+    await post('/api/drive/trash', { folderIds: [], fileIds: [file.id] });
+    expect((await post(`/api/drive/files/${file.id}/to-library`, {})).statusCode).toBe(404);
+    expect((await post('/api/drive/files/missing-id/to-library', {})).statusCode).toBe(404);
+  });
+});

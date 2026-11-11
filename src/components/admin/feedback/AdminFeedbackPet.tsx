@@ -40,8 +40,7 @@ const SECTION_LABELS: Record<AdminSection, { ar: string; en: string }> = {
   settings: { ar: 'الإعدادات العامة', en: 'System Settings' },
   cms: { ar: 'إدارة محتوى الموقع', en: 'Site CMS' },
   profile: { ar: 'الملف الشخصي والحساب', en: 'Profile & Security' },
-  media: { ar: 'مكتبة الوسائط', en: 'Media Library' },
-  drive: { ar: 'الدرايف', en: 'Drive' },
+  files: { ar: 'الملفات', en: 'Files' },
 };
 
 const STORAGE_KEY_ENABLED = 'ajda.feedback_pet.enabled';

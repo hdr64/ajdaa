@@ -1,6 +1,21 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
 import { uploadFileInChunks, abortChunkedUpload } from '../services/chunkedUploadService';
 import { uploadMedia, type UploadedMedia } from '../services/mediaService';
+import { DRIVE_MAX_FILE_BYTES, uploadDriveFile, type DriveFile } from '../services/driveService';
+import { useAdminT } from '../i18n/admin/useAdminT';
+
+export type UploadTarget = { kind: 'library' } | { kind: 'drive'; folderId: string | null; folderName?: string };
+
+const LIBRARY_TARGET: UploadTarget = { kind: 'library' };
+
+export interface UploadFilesOptions {
+  /** Where the files go. Defaults to the media library. */
+  target?: UploadTarget;
+  /** Per-file path below the target folder (folder uploads), same order as `files`. Drive only. */
+  relPaths?: (string | undefined)[];
+}
+
+export type UploadResult = UploadedMedia | DriveFile;
 
 export interface ManagedUpload {
   id: string;
@@ -12,7 +27,10 @@ export interface ManagedUpload {
   remainingSeconds?: number;
   status: 'queued' | 'uploading' | 'processing' | 'paused' | 'completed' | 'error';
   error?: string;
-  result?: UploadedMedia;
+  target: UploadTarget;
+  /** Path below the target folder (Drive folder uploads). */
+  relPath?: string;
+  result?: UploadResult;
   uploadId?: string;
   abortController?: AbortController;
 }
@@ -23,7 +41,7 @@ interface UploadManagerContextValue {
   activeCount: number;
   completedCount: number;
   overallProgress: number;
-  uploadFiles: (files: File[]) => Promise<UploadedMedia[]>;
+  uploadFiles: (files: File[], opts?: UploadFilesOptions) => Promise<UploadResult[]>;
   pauseUpload: (id: string) => void;
   resumeUpload: (id: string) => void;
   cancelUpload: (id: string) => void;
@@ -47,6 +65,7 @@ export const useUploadManager = (): UploadManagerContextValue => {
 export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [uploads, setUploads] = useState<ManagedUpload[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const { t, isAr } = useAdminT();
 
   // Keep a map of active controllers and auto-dismiss timers
   const controllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -87,7 +106,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
     return Math.min(100, Math.round((uploadedBytes / totalBytes) * 100));
   }, [uploads]);
 
-  const runUploadItem = useCallback(async (item: ManagedUpload): Promise<UploadedMedia> => {
+  const runUploadItem = useCallback(async (item: ManagedUpload): Promise<UploadResult> => {
     const controller = new AbortController();
     controllersRef.current.set(item.id, controller);
 
@@ -96,10 +115,32 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
     );
 
     try {
-      let result: UploadedMedia;
+      let result: UploadResult;
 
-      // For files >= 5MB or non-image types: use resumable chunked upload
-      if (item.file.size >= 5 * 1024 * 1024 || !item.file.type.startsWith('image/')) {
+      if (item.target.kind === 'drive') {
+        if (item.file.size > DRIVE_MAX_FILE_BYTES) {
+          throw new Error(t('drive.upload.tooLarge', { name: item.file.name }));
+        }
+        // Files up to 50 MB go in one request with no progress events.
+        setUploads((prev) =>
+          prev.map((u) => (u.id === item.id ? { ...u, progress: 60, uploadedBytes: Math.floor(u.totalBytes / 2) } : u))
+        );
+        result = await uploadDriveFile(item.file, {
+          folderId: item.target.folderId,
+          relPath: item.relPath,
+          signal: controller.signal,
+          onProgress: (percent) => {
+            setUploads((prev) =>
+              prev.map((u) =>
+                u.id === item.id
+                  ? { ...u, progress: percent, uploadedBytes: Math.floor((u.totalBytes * percent) / 100) }
+                  : u
+              )
+            );
+          },
+        });
+      } else if (item.file.size >= 5 * 1024 * 1024 || !item.file.type.startsWith('image/')) {
+        // For files >= 5MB or non-image types: use resumable chunked upload
         result = await uploadFileInChunks(item.file, {
           signal: controller.signal,
           onProgress: (prog) => {
@@ -156,7 +197,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         // Paused or cancelled
         throw err;
       }
-      const msg = err instanceof Error ? err.message : 'فشل الرفع';
+      const msg = err instanceof Error ? err.message : isAr ? 'فشل الرفع' : 'Upload failed';
       setUploads((prev) =>
         prev.map((u) => (u.id === item.id ? { ...u, status: 'error', error: msg, speed: undefined } : u))
       );
@@ -164,19 +205,22 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       controllersRef.current.delete(item.id);
     }
-  }, []);
+  }, [t, isAr]);
 
   const uploadFiles = useCallback(
-    async (files: File[]): Promise<UploadedMedia[]> => {
+    async (files: File[], opts?: UploadFilesOptions): Promise<UploadResult[]> => {
       if (!files.length) return [];
+      const target = opts?.target ?? LIBRARY_TARGET;
 
-      const newItems: ManagedUpload[] = files.map((file) => ({
+      const newItems: ManagedUpload[] = files.map((file, index) => ({
         id: crypto.randomUUID(),
         file,
         progress: 0,
         uploadedBytes: 0,
         totalBytes: file.size,
         status: 'queued',
+        target,
+        relPath: target.kind === 'drive' ? opts?.relPaths?.[index] : undefined,
       }));
 
       setUploads((prev) => [...prev, ...newItems]);
@@ -184,7 +228,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const results = await Promise.allSettled(newItems.map((item) => runUploadItem(item)));
       return results
-        .filter((r): r is PromiseFulfilledResult<UploadedMedia> => r.status === 'fulfilled')
+        .filter((r): r is PromiseFulfilledResult<UploadResult> => r.status === 'fulfilled')
         .map((r) => r.value);
     },
     [runUploadItem]
@@ -223,7 +267,8 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
       controllersRef.current.delete(id);
     }
     const item = uploads.find((u) => u.id === id);
-    if (item?.uploadId) {
+    // Drive uploads abort their own server session when the request is cancelled.
+    if (item?.uploadId && item.target.kind === 'library') {
       void abortChunkedUpload(item.uploadId);
     }
     setUploads((prev) => prev.filter((u) => u.id !== id));

@@ -196,7 +196,7 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 /** Type and mime come from the extension only; the client's declared mime is ignored. */
-function resolveFileTypeAndMime(filename: string): { fileType: string; mimeType: string } {
+export function resolveFileTypeAndMime(filename: string): { fileType: string; mimeType: string } {
   const ext = path.extname(filename).toLowerCase();
   const mimeType = MIME_BY_EXT[ext] ?? 'application/octet-stream';
   if (ext === '.html' || ext === '.htm') return { fileType: 'html', mimeType };

@@ -43,6 +43,7 @@ import {
   trashItems,
   updateFile,
 } from '../services/driveService.js';
+import { publishDriveFileToLibrary } from '../services/driveToLibraryService.js';
 
 const idList = z.array(z.string().min(1).max(64)).max(500).default([]);
 const itemsBody = z.object({ folderIds: idList, fileIds: idList });
@@ -157,6 +158,12 @@ export const driveRoutes: FastifyPluginAsync = async (fastify) => {
     const body = z.object({ folderId: nullableId.optional() }).parse(request.body ?? {});
     const file = await copyFile(id, body.folderId ?? null, request.admin?.id);
     return reply.status(201).send(toFileDto(file));
+  });
+
+  /** Copies a Drive file into the public media library (the Drive file stays private and unchanged). */
+  fastify.post('/files/:id/to-library', guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return reply.status(201).send(await publishDriveFileToLibrary(id, request.admin?.id));
   });
 
   /** Moves several items at once into `targetId` (null = the root). */

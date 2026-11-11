@@ -8,6 +8,7 @@ import { dashboard } from './dashboard';
 import { departments } from './departments';
 import { drive } from './drive';
 import { feedback } from './feedback';
+import { files } from './files';
 import { floorplan } from './floorplan';
 import { inquiries } from './inquiries';
 import { layout } from './layout';
@@ -39,6 +40,7 @@ export const adminStrings = {
   departments,
   drive,
   feedback,
+  files,
   floorplan,
   inquiries,
   layout,

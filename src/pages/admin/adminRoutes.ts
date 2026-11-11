@@ -12,6 +12,8 @@
  *   projects/:id/edit       project editor
  *   projects/:id/units      floors & units    (bare `units` picks the first project)
  *   inquiries/:id           single inquiry detail
+ *   files                   Drive + Library page (opens the last used tab)
+ *   files/drive | files/library   canonical tab paths (aliases: `drive`, `media`)
  */
 
 export type AdminSection =
@@ -26,8 +28,7 @@ export type AdminSection =
   | 'categories'
   | 'pastProjects'
   | 'cms'
-  | 'media'
-  | 'drive'
+  | 'files'
   | 'users'
   | 'roles'
   | 'departments'
@@ -41,7 +42,11 @@ export interface AdminLocation {
   projectId?: number;
   /** For `inquiry`. */
   inquiryId?: string;
+  /** For `files`: which tab the URL names. Undefined for a bare `/admin/files`. */
+  filesTab?: FilesTab;
 }
+
+export type FilesTab = 'drive' | 'library';
 
 const SIMPLE_SECTIONS: AdminSection[] = [
   'overview',
@@ -52,8 +57,7 @@ const SIMPLE_SECTIONS: AdminSection[] = [
   'categories',
   'pastProjects',
   'cms',
-  'media',
-  'drive',
+  'files',
   'users',
   'roles',
   'departments',
@@ -89,6 +93,15 @@ export function parseAdminPath(adminPath: string | undefined): AdminLocation {
     return { section: 'projects' };
   }
 
+  // `/admin/media` and `/admin/drive` are older URLs: they open the matching Files tab.
+  if (first?.toLowerCase() === 'media') return { section: 'files', filesTab: 'library' };
+  if (first?.toLowerCase() === 'drive') return { section: 'files', filesTab: 'drive' };
+  if (first?.toLowerCase() === 'files') {
+    const tab = second?.toLowerCase();
+    if (segments.length === 2 && (tab === 'drive' || tab === 'library')) return { section: 'files', filesTab: tab };
+    return { section: 'files' };
+  }
+
   const match = first
     ? SIMPLE_SECTIONS.find((candidate) => candidate.toLowerCase() === first.toLowerCase())
     : undefined;
@@ -98,7 +111,8 @@ export function parseAdminPath(adminPath: string | undefined): AdminLocation {
 }
 
 export function buildAdminPath(location: AdminLocation): string {
-  const { section, projectId, inquiryId } = location;
+  const { section, projectId, inquiryId, filesTab } = location;
+  if (section === 'files') return filesTab ? `files/${filesTab}` : 'files';
   if (projectId) {
     if (section === 'project') return `projects/${projectId}`;
     if (section === 'projectEdit') return `projects/${projectId}/edit`;

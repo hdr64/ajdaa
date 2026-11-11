@@ -572,6 +572,7 @@ Private admin file storage, separate from the media library. Guard: `manageMedia
 | `POST /api/drive/folders/:id/copy` `{parentId?}` | Recursive copy (max 2000 items; files are physically copied, copies get new slugs and are private). |
 | `PATCH /api/drive/files/:id` `{name?,folderId?,isPublic?,slug?}` | Rename, move, share on/off, edit the slug (same rules as the media slug; `409` if used). |
 | `POST /api/drive/files/:id/copy` `{folderId?}` | Copy a file. |
+| `POST /api/drive/files/:id/to-library` | Copies a live Drive file into the public media library (the Drive file stays private and unchanged). Returns the new library item `{id,url,slug,filename,originalName,mimeType,fileType,size}` (`201`). `400` for an extension the library does not accept, `413` above 2 GB, `404` for a trashed, unknown or data-less file. |
 | `POST /api/drive/move` `{folderIds,fileIds,targetId}` | Bulk move (`targetId: null` = root). |
 | `POST /api/drive/trash`, `/restore`, `/purge` `{folderIds,fileIds}` | Trash stamps a folder and everything inside with one `trashedAt`; restore brings back exactly that set (an item whose folder is still trashed returns to the root); purge deletes trashed items for good (live items are skipped) and removes the bytes. |
 | `POST /api/drive/trash/empty` | Purge everything in the trash (send no JSON content-type, or a body). |

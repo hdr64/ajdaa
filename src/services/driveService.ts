@@ -1,4 +1,5 @@
 import { ApiError, api, getAuthToken, resolveMediaUrl } from './api';
+import type { UploadedMedia } from './mediaService';
 
 /** Client for the admin Drive (`/api/drive`): private files, virtual folders, trash, share links. */
 
@@ -86,6 +87,10 @@ export const updateDriveFile = (id: string, patch: { name?: string; isPublic?: b
 
 export const copyDriveFile = (id: string, folderId: string | null) =>
   api.post<DriveFile>(`/api/drive/files/${id}/copy`, { folderId });
+
+/** Publishes a copy of a Drive file into the public media library; the Drive file stays private. */
+export const publishDriveFileToLibrary = (id: string) =>
+  api.post<UploadedMedia>(`/api/drive/files/${id}/to-library`, {});
 
 export const moveDriveItems = (items: DriveItemIds, targetId: string | null) =>
   api.post<{ success: boolean }>('/api/drive/move', { ...items, targetId });

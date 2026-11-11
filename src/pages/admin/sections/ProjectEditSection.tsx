@@ -12,6 +12,7 @@ import {
   Video as VideoIcon,
   XCircle,
   X as CloseIcon,
+  Eye,
 } from 'lucide-react';
 import type { PriceType, Property, PropertyType } from '../../../types/property';
 import { AdminStorage } from '../../../services/adminStorage';
@@ -31,6 +32,7 @@ import { resolveMediaUrl } from '../../../services/api';
 import { detectProjectStatus } from '../../../data/properties';
 import { GoogleSearchProductPreview } from '../../../components/admin/projects/GoogleSearchProductPreview';
 import { MediaPickerModal } from '../../../components/admin/media/MediaPickerModal';
+import { FilePreviewModal } from '../../../components/admin/common/FilePreviewModal';
 
 const INPUT_CLASS =
   'w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-muted-border/50 text-xs text-heading outline-none focus:border-accent';
@@ -177,6 +179,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   const [baseline, setBaseline] = useState<EditorForm>(() => toFormState(project));
   const [form, setForm] = useState<EditorForm>(baseline);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; title: string; mode: 'frame' | 'video' } | null>(null);
   const [pickerState, setPickerState] = useState<{
     open: boolean;
     target: 'image' | 'gallery' | 'brochure' | 'model3d';
@@ -760,6 +763,15 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     <div className="ms-auto flex items-center gap-2">
                       <button
                         type="button"
+                        onClick={() => setPreview({ url: form.brochureUrl, title: t('projectEdit.brochure.label'), mode: 'frame' })}
+                        className="p-1 rounded-lg text-neutral-text/60 hover:text-accent cursor-pointer"
+                        aria-label={t('projectEdit.brochure.view')}
+                        title={t('projectEdit.brochure.view')}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setPickerState({ open: true, target: 'brochure', fileType: 'pdf' })}
                         disabled={busy}
                         className="text-[10px] font-bold text-accent hover:underline cursor-pointer"
@@ -813,6 +825,34 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                           {fileName}
                         </a>
                         <div className="ms-auto flex items-center gap-2">
+                          {kind === 'video' || kind === 'html' ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreview({
+                                  url: resolveMediaUrl(form.model3dUrl),
+                                  title: fileName,
+                                  mode: kind === 'video' ? 'video' : 'frame',
+                                })
+                              }
+                              className="p-1 rounded-lg text-neutral-text/60 hover:text-accent cursor-pointer"
+                              aria-label={t('projectEdit.model3d.view')}
+                              title={t('projectEdit.model3d.view')}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <a
+                              href={resolveMediaUrl(form.model3dUrl)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1 rounded-lg text-neutral-text/60 hover:text-accent cursor-pointer"
+                              aria-label={t('projectEdit.model3d.view')}
+                              title={t('projectEdit.model3d.view')}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                           <button
                             type="button"
                             onClick={() => setPickerState({ open: true, target: 'model3d', fileType: pickerType })}
@@ -881,6 +921,8 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
           </div>
         </div>
       </form>
+
+      {preview && <FilePreviewModal {...preview} onClose={() => setPreview(null)} />}
 
       {pickerState?.open && (
         <MediaPickerModal

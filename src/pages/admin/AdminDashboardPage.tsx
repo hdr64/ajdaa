@@ -34,8 +34,7 @@ import { DepartmentsSection } from './sections/DepartmentsSection';
 import { NewsletterSection } from './sections/NewsletterSection';
 import { SettingsSection } from './sections/SettingsSection';
 import { CmsSection } from './sections/CmsSection';
-import { MediaSection } from './sections/MediaSection';
-import { DriveSection } from './sections/DriveSection';
+import { FilesSection } from './sections/FilesSection';
 import { ProjectShowSection } from './sections/ProjectShowSection';
 import { ProjectEditSection } from './sections/ProjectEditSection';
 import { UsersPermissionsManager } from '../../components/admin/UsersPermissionsManager';
@@ -74,8 +73,7 @@ const SECTION_META: Record<AdminSection, { permission?: AdminPermission }> = {
   settings: { permission: 'manageNotifications' },
   cms: {},
   profile: {},
-  media: { permission: 'manageMedia' },
-  drive: { permission: 'manageMedia' },
+  files: { permission: 'manageMedia' },
 };
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -386,10 +384,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         return <SettingsSection />;
       case 'cms':
         return <CmsSection />;
-      case 'media':
-        return <MediaSection />;
-      case 'drive':
-        return <DriveSection />;
+      case 'files':
+        return <FilesSection />;
     }
   };
 

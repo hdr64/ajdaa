@@ -20,10 +20,10 @@ import {
   Video as VideoIcon,
   File as FileIcon,
 } from 'lucide-react';
-import { useAdmin } from '../adminContextDef';
+import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { useUploadManager } from '../../../context/UploadManagerContext';
-import { formatAdminDate, formatAdminDateTime } from '../adminFormat';
+import { formatAdminDate, formatAdminDateTime } from '../../../pages/admin/adminFormat';
 import {
   fetchMediaList,
   deleteMediaItem,
@@ -35,6 +35,7 @@ import {
 } from '../../../services/mediaService';
 import { getErrorMessage, resolveMediaUrl } from '../../../services/api';
 import { copyText } from '../../../utils/clipboard';
+import { StorageWarning } from './StorageWarning';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -44,7 +45,7 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-export const MediaSection: React.FC = () => {
+export const LibraryView: React.FC = () => {
   const { t } = useAdminT();
   const { showToast, confirm } = useAdmin();
   const { uploadFiles, isUploading } = useUploadManager();
@@ -222,37 +223,10 @@ export const MediaSection: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Low Disk Space Alert Banner (< 10GB) */}
-      {storageStats?.isLowSpace && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-amber-800 dark:text-amber-200">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0">
-              <AlertTriangle className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-heading flex items-center gap-2">
-                <span>{t('media.warning.lowDiskSpace')}</span>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white">
-                  {t('media.stat.freeLeft', { gb: storageStats.freeGb })}
-                </span>
-              </h4>
-              <p className="text-xs text-neutral-text/80 mt-1">
-                {t('media.warning.lowDiskSpaceDesc', {
-                  freeGb: String(storageStats.freeGb),
-                  totalGb: String(storageStats.totalGb),
-                })}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('orphaned')}
-            className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs cursor-pointer shadow-xs transition"
-          >
-            {t('media.warning.viewOrphaned')}
-          </button>
-        </div>
-      )}
+      <StorageWarning
+        stats={storageStats}
+        action={{ label: t('media.warning.viewOrphaned'), onClick: () => setStatusFilter('orphaned') }}
+      />
 
       {/* Top Stats Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">

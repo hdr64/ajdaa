@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useUploadManager, type ManagedUpload } from '../../../context/UploadManagerContext';
 import { useLanguage } from '../../../hooks/useLanguage';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -45,6 +46,7 @@ export const UploadManagerDrawer: React.FC = () => {
   } = useUploadManager();
   const { language } = useLanguage();
   const isAr = language === 'ar';
+  const { t } = useAdminT();
 
   if (!isDrawerOpen || uploads.length === 0) {
     return null;
@@ -74,6 +76,11 @@ export const UploadManagerDrawer: React.FC = () => {
                   <p className="text-xs font-bold text-heading truncate" title={item.file.name}>
                     {item.file.name}
                   </p>
+                  <span className="inline-block max-w-full truncate align-top text-[10px] leading-4 px-1.5 mt-0.5 rounded-md bg-canvas border border-muted-border/40 text-neutral-text/60">
+                    {item.target.kind === 'drive'
+                      ? item.target.folderName || t('files.upload.targetDrive')
+                      : t('files.upload.targetLibrary')}
+                  </span>
                   <div className="flex items-center gap-2 text-[10px] text-neutral-text/50 font-mono mt-0.5">
                     <span>{formatBytes(item.file.size)}</span>
                     {isProcessing ? (

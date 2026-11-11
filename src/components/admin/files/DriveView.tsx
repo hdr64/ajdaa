@@ -13,8 +13,9 @@ import {
   FolderPlus,
   HardDrive,
   Image as ImageIcon,
+  LayoutGrid,
+  List,
   Link2,
-  Loader2,
   MoreVertical,
   Music,
   Pencil,
@@ -26,11 +27,14 @@ import {
   UploadCloud,
   X as CloseIcon,
 } from 'lucide-react';
-import { useAdmin } from '../adminContextDef';
+import { useAdmin } from '../../../pages/admin/adminContextDef';
+import { useUploadManager } from '../../../context/UploadManagerContext';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
-import { formatAdminDateTime } from '../adminFormat';
+import { formatAdminDateTime } from '../../../pages/admin/adminFormat';
 import { getErrorMessage } from '../../../services/api';
 import { copyText } from '../../../utils/clipboard';
+import { usePersistentState } from '../../../hooks/usePersistentState';
+import { fetchStorageStats, type DiskStorageStats } from '../../../services/mediaService';
 import {
   DRIVE_MAX_FILE_BYTES,
   copyDriveFile,
@@ -47,7 +51,6 @@ import {
   trashDriveItems,
   updateDriveFile,
   updateDriveFolder,
-  uploadDriveFile,
   type DriveFile,
   type DriveFolder,
   type DriveItemIds,
@@ -55,10 +58,18 @@ import {
   type DriveListing,
   type DriveUsage,
 } from '../../../services/driveService';
-import { DriveDetailsDialog, DriveFolderPicker, DriveNameDialog } from '../../../components/admin/drive/DriveDialogs';
-import { formatBytes } from '../../../components/admin/drive/driveFormat';
+import { DriveDetailsDialog, DriveFolderPicker, DriveNameDialog } from '../drive/DriveDialogs';
+import { formatBytes } from '../drive/driveFormat';
+import { StorageWarning } from './StorageWarning';
 
 type View = 'files' | 'trash';
+type LayoutMode = 'grid' | 'list';
+type TypeFilter = 'all' | 'image' | 'video' | 'pdf' | 'other';
+const TYPE_FILTERS: TypeFilter[] = ['all', 'image', 'video', 'pdf', 'other'];
+const isLayoutMode = (v: unknown): v is LayoutMode => v === 'grid' || v === 'list';
+const matchesFilter = (file: DriveFile, filter: TypeFilter): boolean =>
+  filter === 'all' ||
+  (filter === 'other' ? file.kind !== 'image' && file.kind !== 'video' && file.kind !== 'pdf' : file.kind === filter);
 type Row = { type: 'folder'; item: DriveFolder } | { type: 'file'; item: DriveFile };
 type Dialog =
   | { kind: 'newFolder' }
@@ -115,9 +126,10 @@ async function collectDropped(items: DataTransferItemList): Promise<UploadItem[]
   return out;
 }
 
-export const DriveSection: React.FC = () => {
+export const DriveView: React.FC = () => {
   const { t, language } = useAdminT();
   const { showToast, confirm, confirmDelete } = useAdmin();
+  const { uploadFiles } = useUploadManager();
   const Forward = language === 'ar' ? ChevronLeft : ChevronRight;
 
   const [view, setView] = useState<View>('files');
@@ -130,10 +142,11 @@ export const DriveSection: React.FC = () => {
   const [selection, setSelection] = useState<{ scope: string; keys: Set<string> }>({ scope: '', keys: new Set() });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ current: number; total: number; name: string; percent?: number } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [layoutMode, setLayoutMode] = usePersistentState<LayoutMode>('ajda_drive_layout_mode', 'list', isLayoutMode);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [storageStats, setStorageStats] = useState<DiskStorageStats | null>(null);
 
-  const abortRef = useRef<AbortController | null>(null);
   const dragDepth = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -195,18 +208,25 @@ export const DriveSection: React.FC = () => {
   }, [loadUsage]);
 
   useEffect(() => {
+    fetchStorageStats()
+      .then(setStorageStats)
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     if (!menuFor) return;
     const close = () => setMenuFor(null);
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, [menuFor]);
 
+  // Folders have no type, so they only show under "All".
   const rows: Row[] = useMemo(
     () => [
-      ...(listing?.folders ?? []).map((item): Row => ({ type: 'folder', item })),
-      ...(listing?.files ?? []).map((item): Row => ({ type: 'file', item })),
+      ...(typeFilter === 'all' ? (listing?.folders ?? []) : []).map((item): Row => ({ type: 'folder', item })),
+      ...(listing?.files ?? []).filter((f) => matchesFilter(f, typeFilter)).map((item): Row => ({ type: 'file', item })),
     ],
-    [listing]
+    [listing, typeFilter]
   );
   const selectedRows = rows.filter((r) => selected.has(rowKey(r)));
 
@@ -234,41 +254,25 @@ export const DriveSection: React.FC = () => {
 
   /* -------------------------------- uploads -------------------------------- */
 
+  const folderName = listing?.folder?.name;
   const uploadItems = useCallback(
     async (items: UploadItem[]) => {
-      if (items.length === 0 || progress) return;
-      const controller = new AbortController();
-      abortRef.current = controller;
-      const target = folderId;
-      let done = 0;
-      let failed = 0;
+      if (items.length === 0) return;
+      const allowed = items.filter(({ file }) => {
+        if (file.size <= DRIVE_MAX_FILE_BYTES) return true;
+        showToast(t('drive.upload.tooLarge', { name: file.name }), 'error');
+        return false;
+      });
+      const skipped = items.length - allowed.length;
+      if (allowed.length === 0) return;
 
-      for (let i = 0; i < items.length; i++) {
-        if (controller.signal.aborted) break;
-        const { file, relPath } = items[i];
-        if (file.size > DRIVE_MAX_FILE_BYTES) {
-          failed++;
-          showToast(t('drive.upload.tooLarge', { name: file.name }), 'error');
-          continue;
-        }
-        setProgress({ current: i + 1, total: items.length, name: relPath ?? file.name });
-        try {
-          await uploadDriveFile(file, {
-            folderId: target,
-            relPath,
-            signal: controller.signal,
-            onProgress: (percent) => setProgress((prev) => (prev ? { ...prev, percent } : prev)),
-          });
-          done++;
-        } catch (err) {
-          if (controller.signal.aborted) break;
-          failed++;
-          showToast(t('drive.upload.failed', { name: file.name, reason: getErrorMessage(err) }), 'error');
-        }
-      }
-
-      abortRef.current = null;
-      setProgress(null);
+      const done = (
+        await uploadFiles(
+          allowed.map((i) => i.file),
+          { target: { kind: 'drive', folderId, folderName }, relPaths: allowed.map((i) => i.relPath) }
+        )
+      ).length;
+      const failed = allowed.length - done + skipped;
       if (done > 0 || failed > 0) {
         showToast(
           failed > 0 ? t('drive.upload.partial', { done, failed }) : t('drive.upload.done', { count: done }),
@@ -277,7 +281,7 @@ export const DriveSection: React.FC = () => {
       }
       refresh();
     },
-    [folderId, progress, refresh, showToast, t]
+    [folderId, folderName, refresh, showToast, t, uploadFiles]
   );
 
   const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>, isFolder: boolean) => {
@@ -349,7 +353,7 @@ export const DriveSection: React.FC = () => {
       return next;
     });
 
-  const allSelected = rows.length > 0 && selected.size === rows.length;
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(rowKey(r)));
 
   const detailsFile =
     dialog?.kind === 'details' ? (listing?.files.find((f) => f.id === dialog.fileId) ?? null) : null;
@@ -387,6 +391,53 @@ export const DriveSection: React.FC = () => {
     ];
   };
 
+  /** The three-dot menu of one row or card, shared by both layouts. */
+  const renderMenu = (row: Row, key: string) => {
+    const isOpen = menuFor === key;
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuFor(isOpen ? null : key);
+          }}
+          aria-label={row.item.name}
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
+          className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading hover:bg-muted-surface cursor-pointer"
+        >
+          <MoreVertical className="w-4 h-4" />
+        </button>
+        {isOpen && (
+          <div
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute end-0 top-full mt-1 z-30 min-w-48 py-1 rounded-xl bg-surface border border-muted-border/40 shadow-xl"
+          >
+            {menuItems(row).map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuFor(null);
+                  item.run();
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-start cursor-pointer hover:bg-muted-surface ${
+                  item.danger ? 'text-red-500' : 'text-heading'
+                }`}
+              >
+                <item.icon className="w-4 h-4 shrink-0" />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const title = view === 'trash' ? t('drive.view.trash') : searching ? t('drive.view.search') : null;
 
   return (
@@ -407,6 +458,8 @@ export const DriveSection: React.FC = () => {
       }}
       onDrop={(e) => void onDrop(e)}
     >
+      <StorageWarning stats={storageStats} />
+
       {/* Usage + view switch */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center p-1 bg-canvas rounded-xl border border-muted-border/40">
@@ -468,11 +521,11 @@ export const DriveSection: React.FC = () => {
                   <FolderPlus className="w-4 h-4" />
                   {t('drive.action.newFolder')}
                 </button>
-                <button type="button" onClick={() => fileInput.current?.click()} disabled={!canUpload || Boolean(progress)} className={primary}>
+                <button type="button" onClick={() => fileInput.current?.click()} disabled={!canUpload} className={primary}>
                   <Upload className="w-4 h-4" />
                   {t('drive.action.upload')}
                 </button>
-                <label className={`${ghost} ${!canUpload || progress ? 'opacity-40 pointer-events-none' : ''}`}>
+                <label className={`${ghost} ${!canUpload ? 'opacity-40 pointer-events-none' : ''}`}>
                   <UploadCloud className="w-4 h-4" />
                   {t('drive.action.uploadFolder')}
                   <input
@@ -487,12 +540,50 @@ export const DriveSection: React.FC = () => {
                 </label>
               </>
             )}
+            <div className="flex items-center p-1 bg-canvas rounded-xl border border-muted-border/40 text-neutral-text/60">
+              {(['grid', 'list'] as const).map((mode) => {
+                const ModeIcon = mode === 'grid' ? LayoutGrid : List;
+                const label = t(mode === 'grid' ? 'media.layout.grid' : 'media.layout.list');
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setLayoutMode(mode)}
+                    className={`p-2 rounded-lg transition cursor-pointer flex items-center justify-center ${
+                      layoutMode === mode ? 'bg-surface text-accent shadow-xs' : 'hover:text-heading hover:bg-surface/50'
+                    }`}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={layoutMode === mode}
+                  >
+                    <ModeIcon className="w-4 h-4" />
+                  </button>
+                );
+              })}
+            </div>
             <button type="button" onClick={refresh} aria-label={t('drive.action.refresh')} title={t('drive.action.refresh')} className={`${ghost} px-3`}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
         <input ref={fileInput} type="file" multiple className="hidden" onChange={(e) => onPickFiles(e, false)} />
+
+        {/* Type filter */}
+        <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
+          {TYPE_FILTERS.map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setTypeFilter(type)}
+              aria-pressed={typeFilter === type}
+              className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
+                typeFilter === type ? 'bg-accent/10 text-accent font-black' : 'text-neutral-text/50 hover:text-heading'
+              }`}
+            >
+              {t(`files.filter.${type}`)}
+            </button>
+          ))}
+        </div>
 
         {/* Breadcrumbs */}
         {view === 'files' && !searching && (
@@ -556,25 +647,15 @@ export const DriveSection: React.FC = () => {
             </button>
           </div>
         )}
-
-        {progress && (
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-canvas border border-muted-border/30">
-            <Loader2 className="w-4 h-4 animate-spin text-accent shrink-0" />
-            <span className="flex-1 min-w-0 truncate text-xs text-heading" dir="auto">
-              {progress.percent === undefined
-                ? t('drive.upload.progress', progress)
-                : t('drive.upload.progressPercent', { ...progress, percent: progress.percent })}
-            </span>
-            <button type="button" onClick={() => abortRef.current?.abort()} className="text-[11px] font-bold text-red-500 hover:underline cursor-pointer">
-              {t('drive.upload.cancel')}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Items */}
       <div className="rounded-2xl bg-surface border border-muted-border/30 overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[2.5rem_1fr_7rem_11rem_2.5rem] items-center gap-2 px-4 py-2.5 border-b border-muted-border/20 text-[10px] font-bold text-neutral-text/50">
+        <div
+          className={`${
+            layoutMode === 'grid' ? 'flex' : 'hidden sm:grid grid-cols-[2.5rem_1fr_7rem_11rem_2.5rem]'
+          } items-center gap-2 px-4 py-2.5 border-b border-muted-border/20 text-[10px] font-bold text-neutral-text/50`}
+        >
           <input
             type="checkbox"
             checked={allSelected}
@@ -583,10 +664,16 @@ export const DriveSection: React.FC = () => {
             aria-label={t('drive.action.selectAll')}
             className="w-4 h-4 accent-[var(--color-accent,#c9a24b)] cursor-pointer"
           />
-          <span>{t('drive.col.name')}</span>
-          <span>{t('drive.col.size')}</span>
-          <span>{view === 'trash' ? t('drive.col.trashed') : t('drive.col.modified')}</span>
-          <span />
+          {layoutMode === 'grid' ? (
+            <span>{t('drive.action.selectAll')}</span>
+          ) : (
+            <>
+              <span>{t('drive.col.name')}</span>
+              <span>{t('drive.col.size')}</span>
+              <span>{view === 'trash' ? t('drive.col.trashed') : t('drive.col.modified')}</span>
+              <span />
+            </>
+          )}
         </div>
 
         {loading && !listing ? (
@@ -595,13 +682,64 @@ export const DriveSection: React.FC = () => {
           <p className="p-10 text-center text-xs text-neutral-text/50">
             {view === 'trash' ? t('drive.empty.trash') : searching ? t('drive.empty.search') : t('drive.empty.folder')}
           </p>
+        ) : layoutMode === 'grid' ? (
+          <ul
+            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 p-4 ${
+              loading ? 'opacity-60 transition-opacity' : 'transition-opacity'
+            }`}
+          >
+            {rows.map((row) => {
+              const key = rowKey(row);
+              const isFolder = row.type === 'folder';
+              const Icon = isFolder ? Folder : KIND_ICON[row.item.kind];
+              const file = isFolder ? null : (row.item as DriveFile);
+              return (
+                <li
+                  key={key}
+                  className={`relative rounded-xl border p-3 flex flex-col items-center gap-2 text-center ${
+                    selected.has(key) ? 'border-accent bg-accent/5' : 'border-muted-border/30 bg-canvas hover:bg-muted-surface/50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(key)}
+                    onChange={() => toggleSelect(row)}
+                    aria-label={row.item.name}
+                    className="absolute top-2 start-2 w-4 h-4 accent-[var(--color-accent,#c9a24b)] cursor-pointer"
+                  />
+                  <div className="absolute top-1 end-1">{renderMenu(row, key)}</div>
+                  <button
+                    type="button"
+                    disabled={view === 'trash'}
+                    onClick={() => (isFolder ? openFolder(row.item.id) : setDialog({ kind: 'details', fileId: row.item.id }))}
+                    className="w-full flex flex-col items-center gap-2 pt-6 cursor-pointer disabled:cursor-default"
+                  >
+                    <Icon className={`w-10 h-10 shrink-0 ${isFolder ? 'text-amber-500' : 'text-neutral-text/60'}`} />
+                    <span className="block w-full truncate text-xs font-bold text-heading" dir="auto" title={row.item.name}>
+                      {row.item.name}
+                    </span>
+                    {file && (
+                      <span className="text-[10px] text-neutral-text/60" dir="ltr">
+                        {formatBytes(file.size)}
+                      </span>
+                    )}
+                  </button>
+                  {file?.isPublic && view === 'files' && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <Link2 className="w-3 h-3" />
+                      {t('drive.badge.shared')}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         ) : (
           <ul className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
             {rows.map((row) => {
               const key = rowKey(row);
               const isFolder = row.type === 'folder';
               const Icon = isFolder ? Folder : KIND_ICON[row.item.kind];
-              const isOpen = menuFor === key;
               return (
                 <li
                   key={key}
@@ -641,46 +779,7 @@ export const DriveSection: React.FC = () => {
                   <span className="hidden sm:block text-[11px] text-neutral-text/70">
                     {formatAdminDateTime(view === 'trash' ? row.item.trashedAt : row.item.updatedAt)}
                   </span>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuFor(isOpen ? null : key);
-                      }}
-                      aria-label={row.item.name}
-                      aria-haspopup="menu"
-                      aria-expanded={isOpen}
-                      className="p-1.5 rounded-lg text-neutral-text/60 hover:text-heading hover:bg-muted-surface cursor-pointer"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                    {isOpen && (
-                      <div
-                        role="menu"
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute end-0 top-full mt-1 z-30 min-w-48 py-1 rounded-xl bg-surface border border-muted-border/40 shadow-xl"
-                      >
-                        {menuItems(row).map((item) => (
-                          <button
-                            key={item.key}
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setMenuFor(null);
-                              item.run();
-                            }}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-start cursor-pointer hover:bg-muted-surface ${
-                              item.danger ? 'text-red-500' : 'text-heading'
-                            }`}
-                          >
-                            <item.icon className="w-4 h-4 shrink-0" />
-                            {item.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {renderMenu(row, key)}
                 </li>
               );
             })}

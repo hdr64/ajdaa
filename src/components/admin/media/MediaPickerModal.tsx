@@ -14,6 +14,8 @@ import {
   List,
   Video as VideoIcon,
   File as FileIcon,
+  FolderOpen,
+  Loader2,
 } from 'lucide-react';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import {
@@ -23,7 +25,9 @@ import {
   type MediaFileDto,
 } from '../../../services/mediaService';
 import { uploadFileInChunks } from '../../../services/chunkedUploadService';
-import { resolveMediaUrl } from '../../../services/api';
+import { publishDriveFileToLibrary, type DriveFile } from '../../../services/driveService';
+import { DriveFilePicker } from '../drive/DriveFilePicker';
+import { getErrorMessage, resolveMediaUrl } from '../../../services/api';
 import { formatAdminDate } from '../../../pages/admin/adminFormat';
 import { copyText } from '../../../utils/clipboard';
 
@@ -52,11 +56,13 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
 }) => {
   const { t } = useAdminT();
 
-  const [tab, setTab] = useState<'library' | 'upload'>('library');
+  const [tab, setTab] = useState<'library' | 'drive' | 'upload'>('library');
   const [items, setItems] = useState<MediaFileDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedFile, setSelectedFile] = useState<MediaFileDto | null>(null);
+  const [driveFile, setDriveFile] = useState<DriveFile | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   // Layout mode (Grid vs Detailed List)
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(() => {
@@ -78,6 +84,12 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [notice, setNotice] = useState('');
+
+  const switchTab = (next: 'library' | 'drive' | 'upload') => {
+    setTab(next);
+    setDriveFile(null);
+    setUploadError('');
+  };
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Copies the file's permanent public link without selecting the file.
@@ -115,6 +127,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   useEffect(() => {
     if (open) {
       setSelectedFile(null);
+      setDriveFile(null);
       setUploadError('');
       setNotice('');
       void loadMedia();
@@ -163,6 +176,26 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     onClose();
   };
 
+  // Publishes a copy of the chosen Drive file into the library, then returns that library item like a library pick.
+  const handleConfirmDrive = async () => {
+    if (!driveFile || publishing) return;
+    setPublishing(true);
+    setUploadError('');
+    try {
+      const published = await publishDriveFileToLibrary(driveFile.id);
+      onSelect({
+        url: published.url,
+        filename: published.filename,
+        originalName: published.originalName || driveFile.name,
+      });
+      onClose();
+    } catch (err: unknown) {
+      setUploadError(getErrorMessage(err, t('files.picker.publishFailed')));
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -197,7 +230,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
         {/* Tab Switcher */}
         <div className="flex border-b border-muted-border/20 px-4 bg-canvas/50">
           <button
-            onClick={() => setTab('library')}
+            onClick={() => switchTab('library')}
             className={`py-3 px-4 font-bold text-xs border-b-2 -mb-px transition cursor-pointer flex items-center gap-2 ${
               tab === 'library'
                 ? 'border-accent text-accent'
@@ -208,7 +241,18 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
             <span>{t('media.picker.tabLibrary')}</span>
           </button>
           <button
-            onClick={() => setTab('upload')}
+            onClick={() => switchTab('drive')}
+            className={`py-3 px-4 font-bold text-xs border-b-2 -mb-px transition cursor-pointer flex items-center gap-2 ${
+              tab === 'drive'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-neutral-text/60 hover:text-heading'
+            }`}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>{t('files.picker.tabDrive')}</span>
+          </button>
+          <button
+            onClick={() => switchTab('upload')}
             className={`py-3 px-4 font-bold text-xs border-b-2 -mb-px transition cursor-pointer flex items-center gap-2 ${
               tab === 'upload'
                 ? 'border-accent text-accent'
@@ -502,6 +546,20 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 </div>
               )}
             </div>
+          ) : tab === 'drive' ? (
+            <div className="space-y-3">
+              {uploadError && (
+                <p className="text-[11px] font-bold text-red-500 bg-red-500/10 px-3 py-2 rounded-lg">{uploadError}</p>
+              )}
+              <DriveFilePicker
+                fileType={fileType}
+                selectedId={driveFile?.id ?? null}
+                onSelect={(file) => {
+                  setDriveFile(file);
+                  setUploadError('');
+                }}
+              />
+            </div>
           ) : (
             /* Upload Tab */
             <div className="py-8 flex flex-col items-center justify-center">
@@ -574,6 +632,11 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 {t('media.picker.selected', { name: selectedFile.originalName })}
               </span>
             )}
+            {driveFile && tab === 'drive' && (
+              <span className="font-bold text-heading truncate">
+                {t('media.picker.selected', { name: driveFile.name })}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -589,6 +652,16 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 disabled={!selectedFile}
                 className="px-4 py-2 rounded-xl bg-accent hover:bg-accent/90 text-white text-xs font-bold transition disabled:opacity-40 cursor-pointer"
               >
+                {t('media.action.useFile')}
+              </button>
+            )}
+            {tab === 'drive' && (
+              <button
+                onClick={() => void handleConfirmDrive()}
+                disabled={!driveFile || publishing}
+                className="px-4 py-2 rounded-xl bg-accent hover:bg-accent/90 text-white text-xs font-bold transition disabled:opacity-40 cursor-pointer inline-flex items-center gap-2"
+              >
+                {publishing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {t('media.action.useFile')}
               </button>
             )}
