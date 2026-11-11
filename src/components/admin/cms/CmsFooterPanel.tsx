@@ -18,6 +18,8 @@ import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsFooterSection, CmsSocialItem, CmsSocialIcon } from '../../../types/cms';
 import { DEFAULT_FOOTER } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 import { MediaPickerModal } from '../media/MediaPickerModal';
 
 const SOCIAL_ICONS = [
@@ -44,6 +46,11 @@ export const CmsFooterPanel: React.FC = () => {
   const [profilePickerOpen, setProfilePickerOpen] = useState(false);
 
   const canManage = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty('footer', data, loading);
+  const handleDiscard = () => {
+    const saved = savedValue();
+    if (saved) setData(saved);
+  };
 
   const fetchFooter = async () => {
     setLoading(true);
@@ -79,6 +86,7 @@ export const CmsFooterPanel: React.FC = () => {
         data
       );
       setVersion(res.version);
+      markSaved();
       showToast('تم حفظ إعدادات الهوية والتذييل بنجاح');
     } catch (caught) {
       showToast(getErrorMessage(caught, 'تعذر حفظ بيانات التذييل'));
@@ -290,7 +298,7 @@ export const CmsFooterPanel: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-heading font-bold text-sm">
               <FileText className="w-4 h-4 text-primary" />
-              الملف التعريفي للشركة (Company Profile)
+              الملف التعريفي للشركة
             </div>
             <label className="flex items-center gap-2 cursor-pointer text-xs">
               <input
@@ -569,7 +577,7 @@ export const CmsFooterPanel: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-heading font-bold text-sm">
             <Share2 className="w-4 h-4 text-primary" />
-            شبكات وقنوات التواصل الاجتماعي (Social Links)
+            شبكات وقنوات التواصل الاجتماعي
           </div>
           <button
             type="button"
@@ -674,6 +682,8 @@ export const CmsFooterPanel: React.FC = () => {
           ))}
         </div>
       </div>
+
+      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
 
       <CmsVersionModal
         open={versionModalOpen}

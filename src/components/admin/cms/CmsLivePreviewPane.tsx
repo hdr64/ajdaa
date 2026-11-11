@@ -31,7 +31,12 @@ export interface CmsLivePreviewPaneProps {
 const PAGES = [
   { id: '/', labelAr: 'الرئيسية', labelEn: 'Home', icon: Home },
   { id: '/works', labelAr: 'المشاريع', labelEn: 'Works', icon: Building },
-  { id: '/clients', labelAr: 'الشركاء والعملاء', labelEn: 'Clients', icon: Users },
+  {
+    id: '/clients',
+    labelAr: 'الشركاء والعملاء',
+    labelEn: 'Clients',
+    icon: Users,
+  },
   { id: '/contact', labelAr: 'التواصل', labelEn: 'Contact', icon: Mail },
 ];
 
@@ -57,10 +62,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
   const handleLangToggle = (nextLang: 'ar' | 'en') => {
     setLang(nextLang);
     try {
-      iframeRef.current?.contentWindow?.postMessage(
-        { type: 'AJDA_SET_LANG', lang: nextLang },
-        '*'
-      );
+      iframeRef.current?.contentWindow?.postMessage({ type: 'AJDA_SET_LANG', lang: nextLang }, '*');
     } catch {
       // Cross-origin fallback (reload iframe with new lang param)
       setReloadKey((k) => k + 1);
@@ -86,10 +88,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
 
       // 1. Immediately post message to the iframe to revalidate live without flicker
       try {
-        iframeRef.current?.contentWindow?.postMessage(
-          { type: 'AJDA_CMS_UPDATED' },
-          '*'
-        );
+        iframeRef.current?.contentWindow?.postMessage({ type: 'AJDA_CMS_UPDATED' }, '*');
       } catch {
         // Cross-origin fallback
       }
@@ -221,36 +220,38 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
 
         {/* Right Side: Page Selector, Language, Zoom, Fullscreen, Close */}
         <div className="flex items-center gap-1.5">
-          {/* Page Picker (Dropdown or compact pills) */}
-          <div className="flex items-center gap-0.5 p-0.5 rounded-xl bg-canvas border border-muted-border/30">
-            {PAGES.map((page) => {
-              const Icon = page.icon;
-              const isSelected = currentPath === page.id;
-              return (
-                <button
-                  key={page.id}
-                  type="button"
-                  onClick={() => {
-                    if (currentPath !== page.id) {
-                      setIsLoading(true);
-                      onPathChange?.(page.id);
-                    }
-                  }}
-                  className={`flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg transition cursor-pointer ${
-                    isSelected
-                      ? 'bg-primary/10 text-primary font-bold'
-                      : 'text-neutral-text/70 hover:text-heading'
-                  }`}
-                  title={page.labelAr}
-                >
-                  <Icon className="w-3 h-3" />
-                  <span className={isSplitView ? 'hidden xl:inline' : 'hidden md:inline'}>
-                    {page.labelAr}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {/* Page Picker: hidden in split view, the active CMS tab already sets the route */}
+          {!isSplitView && (
+            <div className="flex items-center gap-0.5 p-0.5 rounded-xl bg-canvas border border-muted-border/30">
+              {PAGES.map((page) => {
+                const Icon = page.icon;
+                const isSelected = currentPath === page.id;
+                return (
+                  <button
+                    key={page.id}
+                    type="button"
+                    onClick={() => {
+                      if (currentPath !== page.id) {
+                        setIsLoading(true);
+                        onPathChange?.(page.id);
+                      }
+                    }}
+                    className={`flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-primary/10 text-primary font-bold'
+                        : 'text-neutral-text/70 hover:text-heading'
+                    }`}
+                    title={page.labelAr}
+                  >
+                    <Icon className="w-3 h-3" />
+                    <span className={isSplitView ? 'hidden xl:inline' : 'hidden md:inline'}>
+                      {page.labelAr}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Language Switcher */}
           <div className="flex items-center rounded-xl bg-canvas border border-muted-border/30 p-0.5">
@@ -371,7 +372,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
           )}
 
           {/* Browser Address Bar Simulation */}
-          {device === 'desktop' && (
+          {device === 'desktop' && !isSplitView && (
             <div className="flex items-center gap-2.5 px-3 py-1.5 bg-surface/80 border-b border-muted-border/30 shrink-0 text-xs">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-rose-500/80 inline-block" />
@@ -381,7 +382,8 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
               <div className="flex-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-canvas border border-muted-border/20 text-neutral-text/70 font-mono text-[10px] truncate">
                 <Globe className="w-3 h-3 text-primary shrink-0" />
                 <span>
-                  https://ajda.sa{currentPath === '/' ? '' : currentPath}?lang={lang}
+                  https://ajda.sa{currentPath === '/' ? '' : currentPath}?lang=
+                  {lang}
                 </span>
               </div>
             </div>

@@ -6,6 +6,8 @@ import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsCareersPageContent, CmsSeoMeta } from '../../../types/cms';
 import { DEFAULT_CAREERS_PAGE } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 
 export const CmsCareersPanel: React.FC = () => {
   const { showToast, can } = useAdmin();
@@ -17,6 +19,11 @@ export const CmsCareersPanel: React.FC = () => {
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManage = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty('careers', data, loading);
+  const handleDiscard = () => {
+    const saved = savedValue();
+    if (saved) setData(saved);
+  };
 
   const fetchCareers = async () => {
     setLoading(true);
@@ -81,6 +88,7 @@ export const CmsCareersPanel: React.FC = () => {
         data
       );
       setVersion(res.version);
+      markSaved();
       showToast(t('cms.careers.saveSuccess'));
     } catch (caught) {
       showToast(getErrorMessage(caught, t('cms.careers.saveError')));
@@ -353,6 +361,8 @@ export const CmsCareersPanel: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
 
       {/* Version History Modal */}
       <CmsVersionModal

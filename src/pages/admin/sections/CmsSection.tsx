@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import {
-  Globe,
   Compass,
   Footprints,
   Home,
@@ -29,6 +28,10 @@ import { CmsClientsPanel } from '../../../components/admin/cms/CmsClientsPanel';
 import { CmsContactPanel } from '../../../components/admin/cms/CmsContactPanel';
 import { CmsPastWorksPanel } from '../../../components/admin/cms/CmsPastWorksPanel';
 import { CmsCareersPanel } from '../../../components/admin/cms/CmsCareersPanel';
+import {
+  CmsDirtyContext,
+  useCmsDirtyRegistryState,
+} from '../../../components/admin/cms/cmsDirtyContext';
 import { CmsPreviewModal } from '../../../components/admin/cms/CmsPreviewModal';
 import { CmsLivePreviewPane } from '../../../components/admin/cms/CmsLivePreviewPane';
 import { api, getErrorMessage } from '../../../services/api';
@@ -44,8 +47,9 @@ interface BackupParsedData {
 }
 
 export const CmsSection: React.FC = () => {
-  const { can, isSuperAdmin, showToast } = useAdmin();
+  const { can, isSuperAdmin, showToast, confirm } = useAdmin();
   const { t } = useAdminT();
+  const { registry: dirtyRegistry, anyDirty } = useCmsDirtyRegistryState();
   const [requestedTab, setActiveTab] = useState<CmsTab>('home');
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -89,7 +93,17 @@ export const CmsSection: React.FC = () => {
     }
   };
 
-  const handleTabChange = (tab: CmsTab) => {
+  const handleTabChange = async (tab: CmsTab) => {
+    if (tab === activeTab) return;
+    if (anyDirty) {
+      const ok = await confirm({
+        title: t('cms.dirty.leaveTitle'),
+        message: t('cms.dirty.leaveMessage'),
+        confirmLabel: t('cms.dirty.leaveConfirm'),
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setActiveTab(tab);
     setPreviewPathOverride(null); // auto-sync preview route with the new tab
   };
@@ -167,23 +181,60 @@ export const CmsSection: React.FC = () => {
   };
 
   const tabs = [
-    { id: 'home' as CmsTab, labelKey: 'cms.section.tabHome', icon: Home, visible: canManageCms },
-    { id: 'works' as CmsTab, labelKey: 'cms.section.tabWorks', icon: Building, visible: canManageCms },
-    { id: 'pastWorks' as CmsTab, labelKey: 'cms.section.tabPastWorks', icon: Archive, visible: canManageCms },
+    {
+      id: 'home' as CmsTab,
+      labelKey: 'cms.section.tabHome',
+      icon: Home,
+      visible: canManageCms,
+    },
+    {
+      id: 'works' as CmsTab,
+      labelKey: 'cms.section.tabWorks',
+      icon: Building,
+      visible: canManageCms,
+    },
+    {
+      id: 'pastWorks' as CmsTab,
+      labelKey: 'cms.section.tabPastWorks',
+      icon: Archive,
+      visible: canManageCms,
+    },
     {
       id: 'clients' as CmsTab,
       labelKey: 'cms.section.tabClients',
       icon: Users,
       visible: canManageClients || canManageCms,
     },
-    { id: 'contact' as CmsTab, labelKey: 'cms.section.tabContact', icon: Mail, visible: canManageCms },
-    { id: 'careers' as CmsTab, labelKey: 'cms.section.tabCareers', icon: Briefcase, visible: canManageCms },
-    { id: 'nav' as CmsTab, labelKey: 'cms.section.tabNav', icon: Compass, visible: canManageCms },
-    { id: 'footer' as CmsTab, labelKey: 'cms.section.tabFooter', icon: Footprints, visible: canManageCms },
+    {
+      id: 'contact' as CmsTab,
+      labelKey: 'cms.section.tabContact',
+      icon: Mail,
+      visible: canManageCms,
+    },
+    {
+      id: 'careers' as CmsTab,
+      labelKey: 'cms.section.tabCareers',
+      icon: Briefcase,
+      visible: canManageCms,
+    },
+    {
+      id: 'nav' as CmsTab,
+      labelKey: 'cms.section.tabNav',
+      icon: Compass,
+      visible: canManageCms,
+    },
+    {
+      id: 'footer' as CmsTab,
+      labelKey: 'cms.section.tabFooter',
+      icon: Footprints,
+      visible: canManageCms,
+    },
   ].filter((t) => t.visible);
 
   // The requested tab may be one this user cannot see (e.g. only manageClients): fall back to the first allowed one.
-  const activeTab: CmsTab | undefined = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0]?.id;
+  const activeTab: CmsTab | undefined = tabs.some((tab) => tab.id === requestedTab)
+    ? requestedTab
+    : tabs[0]?.id;
 
   const getActiveTabRoute = () => {
     switch (activeTab) {
@@ -205,7 +256,7 @@ export const CmsSection: React.FC = () => {
   const currentPreviewRoute = previewPathOverride ?? getActiveTabRoute();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Hidden Backup File Input */}
       <input
         type="file"
@@ -215,81 +266,63 @@ export const CmsSection: React.FC = () => {
         className="hidden"
       />
 
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-surface border border-muted-border/30 shadow-xs">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl brand-fill text-canvas flex items-center justify-center shadow-xs shrink-0">
-            <Globe className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-heading">{t('cms.section.title')}</h2>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary">
-                {t('cms.section.bilingual')}
+      {/* Slim toolbar (the page title already lives in the admin top bar) */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {/* Side-by-Side Split View Toggle */}
+        <button
+          type="button"
+          onClick={() => handleToggleSplit(!splitPreview)}
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+            splitPreview
+              ? 'bg-primary/10 border border-primary/40 text-primary'
+              : 'bg-canvas border border-muted-border/40 hover:border-primary/50 text-neutral-text hover:text-heading'
+          }`}
+          title={t('cms.section.toggleSplitTitle')}
+        >
+          <Columns2 className="w-4 h-4 text-primary" />
+          <span>{splitPreview ? t('cms.section.splitOn') : t('cms.section.splitOff')}</span>
+        </button>
+
+        {/* Fullscreen Preview Modal Button */}
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer"
+          title={t('cms.section.fullscreenTitle')}
+        >
+          <Eye className="w-3.5 h-3.5 text-primary" />
+          <span className="hidden sm:inline">{t('cms.section.fullscreenLabel')}</span>
+        </button>
+
+        {isSuperAdmin && (
+          <>
+            {/* Export Backup Button */}
+            <button
+              type="button"
+              onClick={handleExportBackup}
+              disabled={exporting}
+              className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
+              title={t('cms.section.exportTitle')}
+            >
+              <Download className="w-3.5 h-3.5 text-primary" />
+              <span className="hidden md:inline">
+                {exporting ? t('cms.section.exporting') : t('cms.section.exportLabel')}
               </span>
-            </div>
-            <p className="text-xs text-neutral-text/70 mt-0.5">
-              {t('cms.section.subtitle')}
-            </p>
-          </div>
-        </div>
+            </button>
 
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Side-by-Side Split View Toggle */}
-          <button
-            type="button"
-            onClick={() => handleToggleSplit(!splitPreview)}
-            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-              splitPreview
-                ? 'brand-fill text-canvas shadow-xs'
-                : 'bg-canvas border border-muted-border/40 hover:border-primary/50 text-neutral-text hover:text-heading'
-            }`}
-            title={t('cms.section.toggleSplitTitle')}
-          >
-            <Columns2 className={`w-4 h-4 ${splitPreview ? 'text-emerald-300' : 'text-primary'}`} />
-            <span>{splitPreview ? t('cms.section.splitOn') : t('cms.section.splitOff')}</span>
-          </button>
-
-          {/* Fullscreen Preview Modal Button */}
-          <button
-            type="button"
-            onClick={() => setPreviewOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer"
-            title={t('cms.section.fullscreenTitle')}
-          >
-            <Eye className="w-3.5 h-3.5 text-primary" />
-            <span className="hidden sm:inline">{t('cms.section.fullscreenLabel')}</span>
-          </button>
-
-          {isSuperAdmin && (
-            <>
-              {/* Export Backup Button */}
-              <button
-                type="button"
-                onClick={handleExportBackup}
-                disabled={exporting}
-                className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
-                title={t('cms.section.exportTitle')}
-              >
-                <Download className="w-3.5 h-3.5 text-primary" />
-                <span className="hidden md:inline">{exporting ? t('cms.section.exporting') : t('cms.section.exportLabel')}</span>
-              </button>
-
-              {/* Import Backup Button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
-                title={t('cms.section.importTitle')}
-              >
-                <Upload className="w-3.5 h-3.5 text-indigo-500" />
-                <span className="hidden md:inline">{t('cms.section.importLabel')}</span>
-              </button>
-            </>
-          )}
-        </div>
+            {/* Import Backup Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-canvas border border-muted-border/40 hover:border-primary/50 text-heading transition cursor-pointer disabled:opacity-50"
+              title={t('cms.section.importTitle')}
+            >
+              <Upload className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="hidden md:inline">{t('cms.section.importLabel')}</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Main Workspace: Side-by-Side Split View */}
@@ -301,7 +334,7 @@ export const CmsSection: React.FC = () => {
           }`}
         >
           {/* Tabs Navigation */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          <div className="flex flex-wrap items-center gap-2">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -317,7 +350,17 @@ export const CmsSection: React.FC = () => {
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  {t(tab.labelKey as 'cms.section.tabHome' | 'cms.section.tabWorks' | 'cms.section.tabPastWorks' | 'cms.section.tabClients' | 'cms.section.tabContact' | 'cms.section.tabCareers' | 'cms.section.tabNav' | 'cms.section.tabFooter')}
+                  {t(
+                    tab.labelKey as
+                      | 'cms.section.tabHome'
+                      | 'cms.section.tabWorks'
+                      | 'cms.section.tabPastWorks'
+                      | 'cms.section.tabClients'
+                      | 'cms.section.tabContact'
+                      | 'cms.section.tabCareers'
+                      | 'cms.section.tabNav'
+                      | 'cms.section.tabFooter',
+                  )}
                 </button>
               );
             })}
@@ -325,14 +368,16 @@ export const CmsSection: React.FC = () => {
 
           {/* Active Tab Panel */}
           <div key={`${activeTab}-${cmsRefreshKey}`} className="transition-all duration-150">
-            {activeTab === 'home' && <CmsHomePanel />}
-            {activeTab === 'works' && <CmsWorksPanel />}
-            {activeTab === 'pastWorks' && <CmsPastWorksPanel />}
-            {activeTab === 'clients' && <CmsClientsPanel />}
-            {activeTab === 'contact' && <CmsContactPanel />}
-            {activeTab === 'careers' && <CmsCareersPanel />}
-            {activeTab === 'nav' && <CmsNavPanel />}
-            {activeTab === 'footer' && <CmsFooterPanel />}
+            <CmsDirtyContext.Provider value={dirtyRegistry}>
+              {activeTab === 'home' && <CmsHomePanel />}
+              {activeTab === 'works' && <CmsWorksPanel />}
+              {activeTab === 'pastWorks' && <CmsPastWorksPanel />}
+              {activeTab === 'clients' && <CmsClientsPanel />}
+              {activeTab === 'contact' && <CmsContactPanel />}
+              {activeTab === 'careers' && <CmsCareersPanel />}
+              {activeTab === 'nav' && <CmsNavPanel />}
+              {activeTab === 'footer' && <CmsFooterPanel />}
+            </CmsDirtyContext.Provider>
           </div>
         </div>
 
@@ -392,24 +437,32 @@ export const CmsSection: React.FC = () => {
             {/* File info card */}
             <div className="p-4 rounded-2xl bg-canvas border border-muted-border/30 space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">{t('cms.section.fileNameLabel')}</span>
+                <span className="text-neutral-text font-medium">
+                  {t('cms.section.fileNameLabel')}
+                </span>
                 <span className="font-mono font-bold text-heading truncate max-w-[240px]">
                   {pendingBackup.fileName}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">{t('cms.section.fileSizeLabel')}</span>
+                <span className="text-neutral-text font-medium">
+                  {t('cms.section.fileSizeLabel')}
+                </span>
                 <span className="font-mono text-heading">{pendingBackup.fileSizeKb} KB</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">{t('cms.section.sectionsLabel')}</span>
+                <span className="text-neutral-text font-medium">
+                  {t('cms.section.sectionsLabel')}
+                </span>
                 <span className="font-bold text-primary">
                   {pendingBackup.detectedSections.length} {t('cms.section.sectionsCount')} (
                   {pendingBackup.detectedSections.join(', ')})
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-text font-medium">{t('cms.section.clientsLabel')}</span>
+                <span className="text-neutral-text font-medium">
+                  {t('cms.section.clientsLabel')}
+                </span>
                 <span className="font-bold text-emerald-500">
                   {pendingBackup.detectedClientsCount} {t('cms.section.clientsCount')}
                 </span>

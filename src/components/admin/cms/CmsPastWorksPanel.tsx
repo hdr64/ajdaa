@@ -6,6 +6,8 @@ import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsPastWorksPageContent, CmsSeoMeta } from '../../../types/cms';
 import { DEFAULT_PAST_WORKS_PAGE } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 
 export const CmsPastWorksPanel: React.FC = () => {
   const { showToast, can } = useAdmin();
@@ -17,6 +19,11 @@ export const CmsPastWorksPanel: React.FC = () => {
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManage = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty('pastWorks', data, loading);
+  const handleDiscard = () => {
+    const saved = savedValue();
+    if (saved) setData(saved);
+  };
 
   const fetchPastWorks = async () => {
     setLoading(true);
@@ -81,6 +88,7 @@ export const CmsPastWorksPanel: React.FC = () => {
         data
       );
       setVersion(res.version);
+      markSaved();
       showToast(t('cms.pastWorks.saveSuccess'));
     } catch (caught) {
       showToast(getErrorMessage(caught, t('cms.pastWorks.saveError')));
@@ -353,6 +361,8 @@ export const CmsPastWorksPanel: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
 
       {/* Version History Modal */}
       <CmsVersionModal

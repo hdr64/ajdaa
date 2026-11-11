@@ -25,6 +25,8 @@ import { useAdmin } from '../../../pages/admin/adminContextDef';
 import type { CmsClientsPageContent, CmsClientItem } from '../../../types/cms';
 import { DEFAULT_CLIENTS_PAGE } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 import { MediaPickerModal } from '../media/MediaPickerModal';
 
 export const CmsClientsPanel: React.FC = () => {
@@ -50,11 +52,17 @@ export const CmsClientsPanel: React.FC = () => {
   // Page copy state
   const [pageCopy, setPageCopy] = useState<CmsClientsPageContent>(DEFAULT_CLIENTS_PAGE);
   const [pageCopyVersion, setPageCopyVersion] = useState<number>(1);
+  const [pageCopyLoading, setPageCopyLoading] = useState(true);
   const [savingPageCopy, setSavingPageCopy] = useState(false);
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManageClients = can('manageClients') || can('manageCms');
   const canManageCms = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty('clientsPage', pageCopy, pageCopyLoading);
+  const handleDiscardPageCopy = () => {
+    const saved = savedValue();
+    if (saved) setPageCopy(saved);
+  };
 
   // Fetch all clients (including hidden)
   const fetchClients = async () => {
@@ -71,6 +79,7 @@ export const CmsClientsPanel: React.FC = () => {
 
   // Fetch page copy
   const fetchPageCopy = async () => {
+    setPageCopyLoading(true);
     try {
       const res = await api.get<{ key: string; content: CmsClientsPageContent; version: number }>(
         '/cms/content/clientsPage'
@@ -81,6 +90,8 @@ export const CmsClientsPanel: React.FC = () => {
       }
     } catch {
       setPageCopy(DEFAULT_CLIENTS_PAGE);
+    } finally {
+      setPageCopyLoading(false);
     }
   };
 
@@ -312,6 +323,7 @@ export const CmsClientsPanel: React.FC = () => {
         pageCopy
       );
       setPageCopyVersion(res.version);
+      markSaved();
       showToast('تم حفظ نصوص صفحة العملاء بنجاح');
     } catch (caught) {
       showToast(getErrorMessage(caught, 'تعذر حفظ نصوص الصفحة'));
@@ -756,7 +768,7 @@ export const CmsClientsPanel: React.FC = () => {
           <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
             <div className="flex items-center gap-2 text-heading font-bold text-sm">
               <MessageSquare className="w-4 h-4 text-primary" />
-              بانر الانضمام إلى شبكة الشركاء (CTA)
+              بانر الانضمام إلى شبكة الشركاء
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -809,6 +821,8 @@ export const CmsClientsPanel: React.FC = () => {
               </div>
             </div>
           </div>
+
+          <CmsDirtyBar dirty={dirty} saving={savingPageCopy} canSave={canManageCms} onSave={() => void handleSavePageCopy()} onDiscard={handleDiscardPageCopy} />
 
           <CmsVersionModal
             open={versionModalOpen}
@@ -1015,7 +1029,7 @@ export const CmsClientsPanel: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Tags (English) - Press Enter to add
+                    شارات ووسوم (إنجليزي) - اضغط Enter للإضافة
                   </label>
                   <div className="flex gap-1.5 mb-2">
                     <input

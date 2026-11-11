@@ -13,6 +13,8 @@ import { useAdmin } from '../../../pages/admin/adminContextDef';
 import type { CmsHomePageContent } from '../../../types/cms';
 import { DEFAULT_HOME_PAGE } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 
 export const CmsHomePanel: React.FC = () => {
   const { showToast, can } = useAdmin();
@@ -26,6 +28,11 @@ export const CmsHomePanel: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string>('hero');
 
   const canManage = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty('home', data, loading);
+  const handleDiscard = () => {
+    const saved = savedValue();
+    if (saved) setData(saved);
+  };
 
   const fetchHome = async () => {
     setLoading(true);
@@ -61,6 +68,7 @@ export const CmsHomePanel: React.FC = () => {
         data
       );
       setVersion(res.version);
+      markSaved();
       showToast('تم حفظ إعدادات الصفحة الرئيسية بنجاح');
     } catch (caught) {
       showToast(getErrorMessage(caught, 'تعذر حفظ محتوى الصفحة الرئيسية'));
@@ -83,7 +91,7 @@ export const CmsHomePanel: React.FC = () => {
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-surface border border-muted-border/30">
         <div>
-          <h3 className="text-base font-bold text-heading">الصفحة الرئيسية (Home Page Sections)</h3>
+          <h3 className="text-base font-bold text-heading">أقسام الصفحة الرئيسية</h3>
           <p className="text-xs text-neutral-text/70">
             التحكم في كافة نصوص وأقسام الصفحة الرئيسية وإمكانية تفعيل أو إخفاء أي قسم بضغطة زر.
           </p>
@@ -100,8 +108,8 @@ export const CmsHomePanel: React.FC = () => {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !canManage}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer disabled:opacity-50"
+            disabled={saving || !canManage || !dirty}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? (
               <div className="w-4 h-4 border-2 border-canvas border-t-transparent rounded-full animate-spin" />
@@ -122,7 +130,7 @@ export const CmsHomePanel: React.FC = () => {
             onClick={() => setActiveSection(activeSection === 'hero' ? '' : 'hero')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">1. البانر الرئيسي (Hero)</span>
+              <span className="text-xs font-bold text-heading">1. البانر الرئيسي</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.hero?.enabled
@@ -198,7 +206,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title Line 1 (English)
+                    عنوان البانر - السطر 1 (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -226,7 +234,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title Line 2 (English)
+                    عنوان البانر - السطر 2 (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -254,7 +262,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Highlighted Word (English)
+                    الكلمة الملونة المميزة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -282,7 +290,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Subtitle (English)
+                    الوصف الفرعي (إنجليزي)
                   </label>
                   <textarea
                     rows={2}
@@ -310,7 +318,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Explore Button Text (English)
+                    نص زر الاستكشاف الأول (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -338,7 +346,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Consult Button Text (English)
+                    نص زر حجز المعاينة الثاني (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -472,7 +480,7 @@ export const CmsHomePanel: React.FC = () => {
             onClick={() => setActiveSection(activeSection === 'mapSection' ? '' : 'mapSection')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">3. قسم الخريطة التفاعلية (Map Section)</span>
+              <span className="text-xs font-bold text-heading">3. قسم الخريطة التفاعلية</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.mapSection?.enabled
@@ -526,7 +534,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Badge (English)
+                    الشارة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -560,7 +568,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title (English)
+                    العنوان (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -594,7 +602,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title Highlight (English)
+                    الكلمة البارزة بالعنوان (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -628,7 +636,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Description (English)
+                    الوصف (إنجليزي)
                   </label>
                   <textarea
                     rows={2}
@@ -694,7 +702,7 @@ export const CmsHomePanel: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-heading">
                     <Video className="w-4 h-4 text-primary" />
-                    عرض الفيديو التعريفي (YouTube Showcase)
+                    عرض الفيديو التعريفي
                   </div>
                   <label className="flex items-center gap-1.5 cursor-pointer text-xs">
                     <input
@@ -744,7 +752,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Vision Title (English)
+                    عنوان الرؤية (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -772,7 +780,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Vision Text (English)
+                    نص الرؤية (إنجليزي)
                   </label>
                   <textarea
                     rows={2}
@@ -800,7 +808,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Mission Title (English)
+                    عنوان الرسالة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -828,7 +836,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Mission Text (English)
+                    نص الرسالة (إنجليزي)
                   </label>
                   <textarea
                     rows={2}
@@ -852,7 +860,7 @@ export const CmsHomePanel: React.FC = () => {
             onClick={() => setActiveSection(activeSection === 'services' ? '' : 'services')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">5. الخدمات والتخصصات (Services)</span>
+              <span className="text-xs font-bold text-heading">5. الخدمات والتخصصات</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.services?.enabled
@@ -903,7 +911,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Badge (English)
+                    الشارة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -937,7 +945,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title (English)
+                    العنوان (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1015,7 +1023,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Badge (English)
+                    الشارة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1049,7 +1057,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title (English)
+                    العنوان (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1076,7 +1084,7 @@ export const CmsHomePanel: React.FC = () => {
             onClick={() => setActiveSection(activeSection === 'portfolioSection' ? '' : 'portfolioSection')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">7. قسم محفظة المشاريع (Portfolio)</span>
+              <span className="text-xs font-bold text-heading">7. قسم محفظة المشاريع</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.portfolioSection?.enabled
@@ -1130,7 +1138,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Badge (English)
+                    الشارة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1164,7 +1172,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title (English)
+                    العنوان (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1192,7 +1200,7 @@ export const CmsHomePanel: React.FC = () => {
           >
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold text-heading">
-                8. قسم الشركاء في الرئيسية (Home Clients)
+                8. قسم الشركاء في الرئيسية
               </span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
@@ -1247,7 +1255,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Badge (English)
+                    الشارة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1281,7 +1289,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title (English)
+                    العنوان (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1308,7 +1316,7 @@ export const CmsHomePanel: React.FC = () => {
             onClick={() => setActiveSection(activeSection === 'cta' ? '' : 'cta')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">9. بانر الدعوة لإجراء (CTA Banner)</span>
+              <span className="text-xs font-bold text-heading">9. بانر الدعوة لإجراء</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.cta?.enabled
@@ -1356,7 +1364,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title (English)
+                    عنوان البانر (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1384,7 +1392,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Title Highlight (English)
+                    الكلمة البارزة (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1412,7 +1420,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Description (English)
+                    الوصف (إنجليزي)
                   </label>
                   <textarea
                     rows={2}
@@ -1440,7 +1448,7 @@ export const CmsHomePanel: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
-                    Primary Button (English)
+                    زر الإجراء الأول (إنجليزي)
                   </label>
                   <input
                     type="text"
@@ -1458,11 +1466,13 @@ export const CmsHomePanel: React.FC = () => {
         </div>
       </div>
 
+      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
+
       <CmsVersionModal
         open={versionModalOpen}
         onClose={() => setVersionModalOpen(false)}
         sectionKey="home"
-        sectionTitle="الصفحة الرئيسية (Home Page)"
+        sectionTitle="الصفحة الرئيسية"
         currentVersion={version}
         onRollbackSuccess={fetchHome}
       />

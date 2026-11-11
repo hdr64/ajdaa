@@ -14,6 +14,8 @@ import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsWorksPageContent } from '../../../types/cms';
 import type { Property } from '../../../types/property';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 
 const DEFAULT_WORKS: CmsWorksPageContent = {
   badgeAr: 'المحفظة العقارية',
@@ -53,6 +55,11 @@ export const CmsWorksPanel: React.FC = () => {
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManage = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty('works', data, loading);
+  const handleDiscard = () => {
+    const saved = savedValue();
+    if (saved) setData(saved);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -95,6 +102,7 @@ export const CmsWorksPanel: React.FC = () => {
         data
       );
       setVersion(res.version);
+      markSaved();
       showToast('تم حفظ محتوى صفحة المشاريع بنجاح');
     } catch (caught) {
       showToast(getErrorMessage(caught, 'تعذر حفظ محتوى المشاريع'));
@@ -117,7 +125,7 @@ export const CmsWorksPanel: React.FC = () => {
       {/* Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-surface border border-muted-border/30">
         <div>
-          <h3 className="text-base font-bold text-heading">صفحة المشاريع (Works Page)</h3>
+          <h3 className="text-base font-bold text-heading">صفحة المشاريع</h3>
           <p className="text-xs text-neutral-text/70">
             تخصيص العناوين الترحيبية، البانر المميز للمشروع المختار، وحالة عدم وجود نتائج والبانر الختامي.
           </p>
@@ -151,7 +159,7 @@ export const CmsWorksPanel: React.FC = () => {
       <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
         <div className="flex items-center gap-2 text-heading font-bold text-sm">
           <Building className="w-4 h-4 text-primary" />
-          النصوص الافتتاحية للصفحة (Header Hero)
+          النصوص الافتتاحية للصفحة
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -236,7 +244,7 @@ export const CmsWorksPanel: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-heading font-bold text-sm">
             <Star className="w-4 h-4 text-amber-500" />
-            البانر المميز للمشروع (Featured Project Banner)
+            البانر المميز للمشروع
           </div>
           <label className="flex items-center gap-2 cursor-pointer text-xs">
             <input
@@ -281,7 +289,7 @@ export const CmsWorksPanel: React.FC = () => {
       <div className="p-5 rounded-2xl bg-surface border border-muted-border/30 space-y-4">
         <div className="flex items-center gap-2 text-heading font-bold text-sm">
           <Search className="w-4 h-4 text-primary" />
-          رسالة عدم وجود نتائج (Empty State)
+          رسالة عدم وجود نتائج
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -394,7 +402,7 @@ export const CmsWorksPanel: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-heading font-bold text-sm">
             <MessageSquare className="w-4 h-4 text-primary" />
-            البانر السفلي للدعوة إلى اتخاذ إجراء (CTA)
+            البانر السفلي للدعوة إلى اتخاذ إجراء
           </div>
           <label className="flex items-center gap-2 cursor-pointer text-xs">
             <input
@@ -458,11 +466,13 @@ export const CmsWorksPanel: React.FC = () => {
         </div>
       </div>
 
+      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
+
       <CmsVersionModal
         open={versionModalOpen}
         onClose={() => setVersionModalOpen(false)}
         sectionKey="works"
-        sectionTitle="صفحة المشاريع (Works Page)"
+        sectionTitle="صفحة المشاريع"
         currentVersion={version}
         onRollbackSuccess={fetchData}
       />

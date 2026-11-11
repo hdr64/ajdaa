@@ -15,6 +15,8 @@ import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import type { CmsContactPageContent, CmsTrustItem } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 
 const DEFAULT_CONTACT: CmsContactPageContent = {
   badgeAr: 'تواصل مع أجدا',
@@ -84,6 +86,19 @@ export const CmsContactPanel: React.FC = () => {
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManage = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty(
+    'contact',
+    { data, subjectPairs, trustEnabled, trustPairs },
+    loading,
+  );
+  const handleDiscard = () => {
+    const saved = savedValue();
+    if (!saved) return;
+    setData(saved.data);
+    setSubjectPairs(saved.subjectPairs);
+    setTrustEnabled(saved.trustEnabled);
+    setTrustPairs(saved.trustPairs);
+  };
 
   const fetchContact = async () => {
     setLoading(true);
@@ -102,7 +117,7 @@ export const CmsContactPanel: React.FC = () => {
         const maxLen = Math.max(arList.length, enList.length);
         for (let i = 0; i < maxLen; i++) {
           pairs.push({
-            id: `subj-${i}-${Date.now()}`,
+            id: `subj-${i}`,
             ar: arList[i] || '',
             en: enList[i] || '',
           });
@@ -275,6 +290,7 @@ export const CmsContactPanel: React.FC = () => {
         payload
       );
       setVersion(res.version);
+      markSaved();
       showToast('تم حفظ محتوى صفحة التواصل بنجاح');
     } catch (caught) {
       showToast(getErrorMessage(caught, 'تعذر حفظ بيانات التواصل'));
@@ -440,7 +456,7 @@ export const CmsContactPanel: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-heading font-bold text-sm">
             <ListPlus className="w-4 h-4 text-primary" />
-            خيارات موضوع الاستفسار (Dropdown Subjects)
+            خيارات موضوع الاستفسار
           </div>
           <button
             type="button"
@@ -640,6 +656,8 @@ export const CmsContactPanel: React.FC = () => {
           ))}
         </div>
       </div>
+
+      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
 
       <CmsVersionModal
         open={versionModalOpen}

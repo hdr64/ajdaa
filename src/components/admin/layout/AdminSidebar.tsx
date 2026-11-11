@@ -183,7 +183,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
           {groups.map((group) => (
             <div key={group.label}>
-              <div className={`px-3 mb-1.5 text-[10px] font-black uppercase tracking-wide text-neutral-text/40 ${rail ? 'md:hidden' : ''}`}>
+              <div className={`px-3 mb-1.5 text-[10px] font-black uppercase tracking-wide text-neutral-text/70 ${rail ? 'md:hidden' : ''}`}>
                 {group.label}
               </div>
               {rail && <div className="hidden md:block mx-3 mb-2 border-t border-muted-border/30" aria-hidden="true" />}
@@ -269,7 +269,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
             )}
             <div className={`min-w-0 flex-1 ${rail ? 'md:hidden' : ''}`}>
               <div className="text-xs font-bold text-heading truncate">{currentUser?.name ?? '…'}</div>
-              <div className="text-[10px] text-neutral-text/55 truncate">
+              <div className="text-[10px] text-neutral-text/70 truncate">
                 {currentUser?.roleAr ?? '…'} · {t('common.entity.profile')}
               </div>
             </div>
@@ -304,7 +304,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
                 onClick={onClick}
                 title={label}
                 aria-label={label}
-                className={`${desktopOnly ? 'hidden md:flex' : 'flex'} items-center justify-center p-2 rounded-lg text-neutral-text/60 hover:text-accent hover:bg-surface-hover cursor-pointer`}
+                className={`${desktopOnly ? 'hidden md:flex' : 'flex'} items-center justify-center p-2 rounded-lg text-neutral-text/70 hover:text-accent hover:bg-surface-hover cursor-pointer`}
               >
                 <Icon className="w-4 h-4 ltr:rotate-180" />
               </button>
@@ -316,7 +316,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
               rel="noopener noreferrer"
               title={t('layout.action.openSite')}
               aria-label={t('layout.action.openSite')}
-              className="flex items-center justify-center p-2 rounded-lg text-neutral-text/60 hover:text-accent hover:bg-surface-hover"
+              className="flex items-center justify-center p-2 rounded-lg text-neutral-text/70 hover:text-accent hover:bg-surface-hover"
             >
               <ExternalLink className="w-4 h-4" />
             </a>

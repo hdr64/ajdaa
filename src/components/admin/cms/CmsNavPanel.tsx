@@ -12,6 +12,8 @@ import { useAdmin } from '../../../pages/admin/adminContextDef';
 import type { CmsNavItem } from '../../../types/cms';
 import { DEFAULT_NAV_ITEMS } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
+import { useCmsDirty } from './cmsDirtyContext';
+import { CmsDirtyBar } from './CmsDirtyBar';
 
 export const CmsNavPanel: React.FC = () => {
   const { showToast, confirm, can } = useAdmin();
@@ -22,6 +24,11 @@ export const CmsNavPanel: React.FC = () => {
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManage = can('manageCms');
+  const { dirty, markSaved, savedValue } = useCmsDirty('nav', items, loading);
+  const handleDiscard = () => {
+    const saved = savedValue();
+    if (saved) setItems(saved);
+  };
 
   const fetchNav = async () => {
     setLoading(true);
@@ -113,6 +120,7 @@ export const CmsNavPanel: React.FC = () => {
     try {
       const res = await api.put<{ success: boolean; version: number }>('/cms/content/nav', items);
       setVersion(res.version);
+      markSaved();
       showToast('تم حفظ تغييرات القائمة العلوية بنجاح');
     } catch (caught) {
       showToast(getErrorMessage(caught, 'تعذر حفظ القائمة العلوية'));
@@ -291,7 +299,7 @@ export const CmsNavPanel: React.FC = () => {
                           onChange={(e) => handleUpdateItem(index, { isCta: e.target.checked })}
                           className="rounded text-primary focus:ring-0"
                         />
-                        <span className="text-neutral-text">زر مميز (CTA)</span>
+                        <span className="text-neutral-text">زر مميز</span>
                       </label>
                     </div>
                   )}
@@ -326,6 +334,8 @@ export const CmsNavPanel: React.FC = () => {
           </div>
         ))}
       </div>
+
+      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
 
       <CmsVersionModal
         open={versionModalOpen}
