@@ -158,7 +158,7 @@ export const CmsPastWorksPanel: React.FC = () => {
 
       {/* Main Content Form */}
       <div className="p-5 sm:p-6 rounded-3xl bg-surface border border-muted-border/30 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
           {/* Badge */}
           <div>
             <label className="block text-xs font-bold text-neutral-text/70 mb-1.5">
@@ -281,7 +281,7 @@ export const CmsPastWorksPanel: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-neutral-text/70 mb-1.5">
               {t('cms.seo.metaTitleAr')}

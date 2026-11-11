@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Compass,
   Footprints,
@@ -16,6 +16,10 @@ import {
   CheckCircle2,
   Archive,
   Briefcase,
+  Save,
+  Undo2,
+  History,
+  ChevronDown,
 } from 'lucide-react';
 import { useAdmin } from '../adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
@@ -38,6 +42,12 @@ import { api, getErrorMessage } from '../../../services/api';
 
 type CmsTab = 'nav' | 'footer' | 'home' | 'works' | 'clients' | 'contact' | 'pastWorks' | 'careers';
 
+const EDITOR_PCT_KEY = 'ajda_cms_editor_pct';
+const EDITOR_PCT_MIN = 28;
+const EDITOR_PCT_MAX = 70;
+const EDITOR_PCT_DEFAULT = 45;
+const clampPct = (n: number) => Math.min(EDITOR_PCT_MAX, Math.max(EDITOR_PCT_MIN, n));
+
 interface BackupParsedData {
   version?: number;
   exportedAt?: string;
@@ -49,7 +59,7 @@ interface BackupParsedData {
 export const CmsSection: React.FC = () => {
   const { can, isSuperAdmin, showToast, confirm } = useAdmin();
   const { t } = useAdminT();
-  const { registry: dirtyRegistry, anyDirty, drafts } = useCmsDirtyRegistryState();
+  const { registry: dirtyRegistry, anyDirty, drafts, toolbar } = useCmsDirtyRegistryState();
   const [requestedTab, setActiveTab] = useState<CmsTab>('home');
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -64,6 +74,37 @@ export const CmsSection: React.FC = () => {
   });
 
   const [previewPathOverride, setPreviewPathOverride] = useState<string | null>(null);
+
+  // Resizable split: width of the editor column as a % of the workspace (desktop only)
+  const [editorPct, setEditorPct] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(EDITOR_PCT_KEY));
+      if (Number.isFinite(saved) && saved >= EDITOR_PCT_MIN && saved <= EDITOR_PCT_MAX) return saved;
+    } catch {
+      // Ignore
+    }
+    return EDITOR_PCT_DEFAULT;
+  });
+  const [resizing, setResizing] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
+  // Width of the editor column -> data-cw tokens read by the cw-sm/cw-md/cw-lg variants (index.css)
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelWidthTokens, setPanelWidthTokens] = useState('sm md lg');
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = (width: number) => {
+      const tokens = [width >= 520 && 'sm', width >= 600 && 'md', width >= 800 && 'lg']
+        .filter(Boolean)
+        .join(' ');
+      setPanelWidthTokens(tokens);
+    };
+    update(el.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => update(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Backup Import State
   const [pendingBackup, setPendingBackup] = useState<{
@@ -91,6 +132,45 @@ export const CmsSection: React.FC = () => {
     } catch {
       // Ignore
     }
+  };
+
+  const persistEditorPct = (pct: number) => {
+    try {
+      localStorage.setItem(EDITOR_PCT_KEY, String(Math.round(pct * 10) / 10));
+    } catch {
+      // Ignore
+    }
+  };
+
+  const isWorkspaceRtl = () =>
+    workspaceRef.current ? getComputedStyle(workspaceRef.current).direction === 'rtl' : false;
+
+  const handleResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const box = workspaceRef.current?.getBoundingClientRect();
+    if (!resizing || !box || box.width === 0) return;
+    // The editor is the first flex child: it sits on the right in RTL.
+    const offset = isWorkspaceRtl() ? box.right - e.clientX : e.clientX - box.left;
+    setEditorPct(clampPct((offset / box.width) * 100));
+  };
+
+  const handleResizeKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const growKey = isWorkspaceRtl() ? 'ArrowLeft' : 'ArrowRight';
+    const next = clampPct(editorPct + (e.key === growKey ? 2 : -2));
+    setEditorPct(next);
+    persistEditorPct(next);
+  };
+
+  const handleToolbarDiscard = async () => {
+    if (!toolbar) return;
+    const ok = await confirm({
+      title: t('cms.dirty.discardConfirmTitle'),
+      message: t('cms.dirty.discardConfirmMessage'),
+      confirmLabel: t('cms.dirty.discard'),
+      danger: true,
+    });
+    if (ok) toolbar.handlers.current.onDiscard();
   };
 
   const handleTabChange = async (tab: CmsTab) => {
@@ -236,6 +316,8 @@ export const CmsSection: React.FC = () => {
     ? requestedTab
     : tabs[0]?.id;
 
+  const ActiveTabIcon = tabs.find((tab) => tab.id === activeTab)?.icon;
+
   const getActiveTabRoute = () => {
     switch (activeTab) {
       case 'works':
@@ -256,7 +338,7 @@ export const CmsSection: React.FC = () => {
   const currentPreviewRoute = previewPathOverride ?? getActiveTabRoute();
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 lg:h-[calc(100dvh-8rem)]">
       {/* Hidden Backup File Input */}
       <input
         type="file"
@@ -267,7 +349,59 @@ export const CmsSection: React.FC = () => {
       />
 
       {/* Slim toolbar (the page title already lives in the admin top bar) */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+        {/* Save / discard / history of the active panel (panels that publish them) */}
+        <div className="flex flex-wrap items-center gap-2">
+          {toolbar && (
+            <>
+              {toolbar.dirty && toolbar.canSave && (
+              <button
+                type="button"
+                onClick={() => toolbar.handlers.current.onSave()}
+                disabled={toolbar.saving}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {toolbar.saving ? (
+                  <div className="w-4 h-4 border-2 border-canvas border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {toolbar.saving ? t('cms.common.saving') : t('cms.common.saveChanges')}
+              </button>
+              )}
+              {toolbar.dirty && (
+              <button
+                type="button"
+                onClick={() => void handleToolbarDiscard()}
+                disabled={toolbar.saving}
+                className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl border border-muted-border/40 bg-canvas text-neutral-text hover:text-heading hover:border-primary/50 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Undo2 className="w-4 h-4" />
+                {t('cms.dirty.discard')}
+              </button>
+              )}
+              <button
+                type="button"
+                onClick={() => toolbar.handlers.current.onHistory()}
+                className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl border border-muted-border/40 bg-canvas text-neutral-text hover:text-heading hover:border-primary/50 transition cursor-pointer"
+              >
+                <History className="w-4 h-4" />
+                {t('cms.common.historyButton', { version: toolbar.version })}
+              </button>
+              {toolbar.dirty && (
+                <span
+                  role="status"
+                  className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400"
+                >
+                  <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+                  {t('cms.dirty.label')}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
         {/* Side-by-Side Split View Toggle */}
         <button
           type="button"
@@ -323,33 +457,41 @@ export const CmsSection: React.FC = () => {
             </button>
           </>
         )}
+        </div>
       </div>
 
       {/* Main Workspace: Side-by-Side Split View */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div
+        ref={workspaceRef}
+        style={{ '--cms-editor-w': `${editorPct}%` } as React.CSSProperties}
+        className={`flex flex-col lg:flex-row gap-6 lg:gap-0 items-start lg:items-stretch lg:flex-1 lg:min-h-0 ${
+          resizing ? 'select-none' : ''
+        }`}
+      >
         {/* Left Column: Editor Tabs & Panel */}
         <div
-          className={`w-full transition-all duration-300 space-y-6 ${
-            splitPreview ? 'lg:w-[48%] xl:w-[45%] 2xl:w-[42%] shrink-0' : 'w-full'
-          }`}
+          ref={panelRef}
+          data-cw={panelWidthTokens}
+          className={`w-full flex flex-col gap-6 lg:h-full lg:min-h-0 ${
+            splitPreview ? 'lg:w-(--cms-editor-w) shrink-0' : 'w-full'
+          } ${resizing ? '' : 'transition-all duration-300'}`}
         >
           {/* Tabs Navigation */}
-          <div className="flex flex-wrap items-center gap-2">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold rounded-2xl whitespace-nowrap transition cursor-pointer ${
-                    isActive
-                      ? 'brand-fill text-canvas shadow-xs'
-                      : 'bg-surface border border-muted-border/30 text-neutral-text hover:text-heading hover:border-muted-border/60'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
+          <div className="relative shrink-0">
+            {ActiveTabIcon && (
+              <ActiveTabIcon
+                className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary"
+                aria-hidden="true"
+              />
+            )}
+            <select
+              value={activeTab}
+              onChange={(e) => handleTabChange(e.target.value as CmsTab)}
+              aria-label={t('cms.section.pageSelectLabel')}
+              className="w-full cursor-pointer appearance-none rounded-2xl border border-muted-border/40 bg-surface py-2.5 ps-10 pe-10 text-xs font-bold text-heading transition hover:border-muted-border/70 focus:border-primary focus:outline-hidden"
+            >
+              {tabs.map((tab) => (
+                <option key={tab.id} value={tab.id}>
                   {t(
                     tab.labelKey as
                       | 'cms.section.tabHome'
@@ -361,13 +503,20 @@ export const CmsSection: React.FC = () => {
                       | 'cms.section.tabNav'
                       | 'cms.section.tabFooter',
                   )}
-                </button>
-              );
-            })}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute end-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-text"
+              aria-hidden="true"
+            />
           </div>
 
           {/* Active Tab Panel */}
-          <div key={`${activeTab}-${cmsRefreshKey}`} className="transition-all duration-150">
+          <div
+            key={`${activeTab}-${cmsRefreshKey}`}
+            className="transition-all duration-150 lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:pe-1 w-full"
+          >
             <CmsDirtyContext.Provider value={dirtyRegistry}>
               {activeTab === 'home' && <CmsHomePanel />}
               {activeTab === 'works' && <CmsWorksPanel />}
@@ -381,9 +530,50 @@ export const CmsSection: React.FC = () => {
           </div>
         </div>
 
+        {/* Drag handle between editor and preview (desktop only) */}
+        {splitPreview && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t('cms.section.resizeLabel')}
+            aria-valuemin={EDITOR_PCT_MIN}
+            aria-valuemax={EDITOR_PCT_MAX}
+            aria-valuenow={Math.round(editorPct)}
+            tabIndex={0}
+            title={t('cms.section.resizeHint')}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setResizing(true);
+            }}
+            onPointerMove={handleResizeMove}
+            onPointerUp={(e) => {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+              setResizing(false);
+              persistEditorPct(editorPct);
+            }}
+            onPointerCancel={() => setResizing(false)}
+            onDoubleClick={() => {
+              setEditorPct(EDITOR_PCT_DEFAULT);
+              persistEditorPct(EDITOR_PCT_DEFAULT);
+            }}
+            onKeyDown={handleResizeKey}
+            className="group hidden lg:flex w-6 shrink-0 cursor-col-resize touch-none items-center justify-center focus:outline-hidden"
+          >
+            <div
+              className={`h-16 w-1 rounded-full transition-colors group-hover:bg-primary group-focus-visible:bg-primary ${
+                resizing ? 'bg-primary' : 'bg-muted-border/60'
+              }`}
+            />
+          </div>
+        )}
+
         {/* Right Column: Live Preview Sticky Pane (Side-by-Side) */}
         {splitPreview && (
-          <div className="hidden lg:block lg:flex-1 w-full sticky top-20 transition-all duration-300">
+          <div
+            className={`hidden lg:block lg:flex-1 lg:h-full lg:min-h-0 lg:min-w-0 w-full ${
+              resizing ? 'pointer-events-none' : 'transition-all duration-300'
+            }`}
+          >
             <CmsLivePreviewPane
               currentPath={currentPreviewRoute}
               onPathChange={(p) => setPreviewPathOverride(p)}

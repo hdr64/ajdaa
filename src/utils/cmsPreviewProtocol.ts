@@ -25,7 +25,14 @@ export type PreviewDrafts = Partial<Pick<CmsSectionsPayload, PreviewDraftKey>>;
 export type ParentToFrame =
   | { type: 'AJDA_CMS_DRAFT'; drafts: PreviewDrafts }
   | { type: 'AJDA_CMS_UPDATED' }
-  | { type: 'AJDA_SET_LANG'; lang: 'ar' | 'en' };
+  | { type: 'AJDA_SET_LANG'; lang: 'ar' | 'en' }
+  | { type: 'AJDA_SCROLL_TO_SECTION'; section: string };
+
+/** Window event the CMS panels dispatch (detail: section key) to scroll the preview. */
+export const CMS_FOCUS_SECTION_EVENT = 'ajda:cms-focus-section';
+
+/** Attribute that marks a home-page section inside the preview iframe. */
+export const PREVIEW_SECTION_ATTR = 'data-cms-section';
 
 export type FrameToParent = { type: 'AJDA_PREVIEW_READY' } | { type: 'AJDA_PREVIEW_ERROR' };
 

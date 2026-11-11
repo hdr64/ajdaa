@@ -452,7 +452,7 @@ export const CmsClientsPanel: React.FC = () => {
               لا يوجد شركاء مطابقون للبحث.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 cw-md:grid-cols-2 cw-lg:grid-cols-3 gap-4">
               {filteredClients.map((client, index) => {
                 const isSelected = client.id ? selectedIds.has(client.id) : false;
                 return (
@@ -633,7 +633,7 @@ export const CmsClientsPanel: React.FC = () => {
               النصوص الترحيبية للقسم
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                   شارة الصفحة (عربي)
@@ -682,7 +682,7 @@ export const CmsClientsPanel: React.FC = () => {
                 />
               </div>
 
-              <div className="md:col-span-2">
+              <div className="cw-md:col-span-2">
                 <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                   الوصف والنبذة (عربي)
                 </label>
@@ -693,7 +693,7 @@ export const CmsClientsPanel: React.FC = () => {
                   className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden"
                 />
               </div>
-              <div className="md:col-span-2">
+              <div className="cw-md:col-span-2">
                 <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                   الوصف والنبذة (إنجليزي)
                 </label>
@@ -715,7 +715,7 @@ export const CmsClientsPanel: React.FC = () => {
               شريط الإحصائيات والأرقام (Stats Bar)
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 cw-sm:grid-cols-2 cw-lg:grid-cols-4 gap-4">
               {pageCopy.stats?.map((st, sIdx) => (
                 <div key={st.id || sIdx} className="p-3 rounded-xl bg-canvas border border-muted-border/30 space-y-2">
                   <div>
@@ -776,7 +776,7 @@ export const CmsClientsPanel: React.FC = () => {
               بانر الانضمام إلى شبكة الشركاء
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                   عنوان البانر (عربي)
@@ -893,7 +893,7 @@ export const CmsClientsPanel: React.FC = () => {
               </div>
 
               {/* Names */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     اسم الشريك (عربي) *
@@ -922,7 +922,7 @@ export const CmsClientsPanel: React.FC = () => {
               </div>
 
               {/* Sectors */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     قطاع الأعمال (عربي) *
@@ -982,7 +982,7 @@ export const CmsClientsPanel: React.FC = () => {
               </div>
 
               {/* Tags Editor */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     شارات ووسوم (عربي) - اضغط Enter للإضافة
@@ -1084,7 +1084,7 @@ export const CmsClientsPanel: React.FC = () => {
               </div>
 
               {/* Website URL & Visibility */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center pt-2 border-t border-muted-border/20">
+              <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-4 items-center pt-2 border-t border-muted-border/20">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     رابط الموقع الإلكتروني الرسمي

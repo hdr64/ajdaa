@@ -162,7 +162,7 @@ export const CmsWorksPanel: React.FC = () => {
           النصوص الافتتاحية للصفحة
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
               شارة الصفحة (عربي)
@@ -213,7 +213,7 @@ export const CmsWorksPanel: React.FC = () => {
             />
           </div>
 
-          <div className="md:col-span-2">
+          <div className="cw-md:col-span-2">
             <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
               الوصف والنبذة الفرعية (عربي)
             </label>
@@ -224,7 +224,7 @@ export const CmsWorksPanel: React.FC = () => {
               className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden"
             />
           </div>
-          <div className="md:col-span-2">
+          <div className="cw-md:col-span-2">
             <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
               الوصف والنبذة الفرعية (إنجليزي)
             </label>
@@ -292,7 +292,7 @@ export const CmsWorksPanel: React.FC = () => {
           رسالة عدم وجود نتائج
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
               عنوان الحالة الفارغة (عربي)
@@ -415,7 +415,7 @@ export const CmsWorksPanel: React.FC = () => {
           </label>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
               عنوان البانر (عربي)

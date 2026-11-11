@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/*
+ * CMS editor width variants (cw-sm / cw-md / cw-lg): like sm/md/lg but driven by the width of the
+ * CMS editor column, not the screen. CmsSection sets data-cw="sm md lg" on the panel wrapper from a
+ * ResizeObserver. (Not CSS container queries: they would trap the panels' position:fixed modals.)
+ */
+@custom-variant cw-sm (&:where([data-cw~="sm"] *));
+@custom-variant cw-md (&:where([data-cw~="md"] *));
+@custom-variant cw-lg (&:where([data-cw~="lg"] *));
+
 @theme {
   --color-canvas: var(--canvas);
   --color-canvas-dark: var(--canvas-dark);

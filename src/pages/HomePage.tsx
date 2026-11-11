@@ -13,6 +13,8 @@ import { CtaSection } from '../components/home/CtaSection';
 import { Reveal } from '../components/common/Reveal';
 import { useCmsContent } from '../hooks/useCmsContent';
 import type { NavPageKey } from '../components/common/Navbar';
+import { PreviewAnchor } from '../components/common/PreviewAnchor';
+import { usePreviewSectionScroll } from '../hooks/usePreviewSectionScroll';
 
 interface HomePageProps {
   onExploreHero: (filters?: { city?: string; type?: string; priceType?: string }) => void;
@@ -29,69 +31,90 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const { content } = useCmsContent();
   const { home } = content;
+  usePreviewSectionScroll();
 
   // Each section's visibility is the admin's call, so the page mirrors the
   // `enabled` flags rather than hardcoding an order.
   return (
     <>
       {home.hero.enabled && (
-        <HeroSection
-          onExplore={onExploreHero}
-          onBook={() => onNavigate('booking')}
-        />
+        <PreviewAnchor section="hero">
+          <HeroSection
+            onExplore={onExploreHero}
+            onBook={() => onNavigate('booking')}
+          />
+        </PreviewAnchor>
       )}
 
-      {home.marquee.enabled && <Marquee />}
+      {home.marquee.enabled && (
+        <PreviewAnchor section="marquee">
+          <Marquee />
+        </PreviewAnchor>
+      )}
 
       {home.mapSection.enabled && (
-        <Reveal direction="up">
-          <InteractiveProjectsMap
-            onNavigate={(page, options) => onNavigate(page, true, options)}
-            onQuickView={onQuickView}
-          />
-        </Reveal>
+        <PreviewAnchor section="mapSection">
+          <Reveal direction="up">
+            <InteractiveProjectsMap
+              onNavigate={(page, options) => onNavigate(page, true, options)}
+              onQuickView={onQuickView}
+            />
+          </Reveal>
+        </PreviewAnchor>
       )}
 
       {home.about.enabled && (
-        <Reveal direction="up">
-          <AboutSection />
-        </Reveal>
+        <PreviewAnchor section="about">
+          <Reveal direction="up">
+            <AboutSection />
+          </Reveal>
+        </PreviewAnchor>
       )}
 
       {home.services.enabled && (
-        <Reveal direction="up">
-          <ServicesSection onExplore={() => onNavigate('works')} />
-        </Reveal>
+        <PreviewAnchor section="services">
+          <Reveal direction="up">
+            <ServicesSection onExplore={() => onNavigate('works')} />
+          </Reveal>
+        </PreviewAnchor>
       )}
 
       {home.process.enabled && (
-        <Reveal direction="up">
-          <ProcessSection />
-        </Reveal>
+        <PreviewAnchor section="process">
+          <Reveal direction="up">
+            <ProcessSection />
+          </Reveal>
+        </PreviewAnchor>
       )}
 
       {home.portfolioSection.enabled && (
-        <Reveal direction="up">
-          <ProjectsSection
-            onExplore={() => onNavigate('works')}
-            onQuickView={onQuickView}
-          />
-        </Reveal>
+        <PreviewAnchor section="portfolioSection">
+          <Reveal direction="up">
+            <ProjectsSection
+              onExplore={() => onNavigate('works')}
+              onQuickView={onQuickView}
+            />
+          </Reveal>
+        </PreviewAnchor>
       )}
 
       {home.clientsSection.enabled && (
-        <Reveal direction="up">
-          <ClientsSection />
-        </Reveal>
+        <PreviewAnchor section="clientsSection">
+          <Reveal direction="up">
+            <ClientsSection />
+          </Reveal>
+        </PreviewAnchor>
       )}
 
       {home.cta.enabled && (
-        <Reveal direction="up">
-          <CtaSection
-            onBook={() => onNavigate('booking')}
-            onContact={() => onNavigate('contact')}
-          />
-        </Reveal>
+        <PreviewAnchor section="cta">
+          <Reveal direction="up">
+            <CtaSection
+              onBook={() => onNavigate('booking')}
+              onContact={() => onNavigate('contact')}
+            />
+          </Reveal>
+        </PreviewAnchor>
       )}
     </>
   );

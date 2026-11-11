@@ -193,7 +193,7 @@ export const CmsNavPanel: React.FC = () => {
                 : 'bg-surface/50 border-dashed border-muted-border/20 opacity-70'
             }`}
           >
-            <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 justify-between">
+            <div className="flex flex-col cw-lg:flex-row items-start cw-lg:items-center gap-4 justify-between">
               {/* Reorder and status */}
               <div className="flex items-center gap-2 shrink-0">
                 <div className="flex flex-col gap-1">
@@ -222,7 +222,7 @@ export const CmsNavPanel: React.FC = () => {
               </div>
 
               {/* Input Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 flex-1 w-full">
+              <div className="grid grid-cols-1 cw-md:grid-cols-4 gap-3 flex-1 w-full">
                 {/* Arabic Label */}
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
@@ -307,7 +307,7 @@ export const CmsNavPanel: React.FC = () => {
               </div>
 
               {/* Toggles & Delete */}
-              <div className="flex items-center gap-3 shrink-0 self-end lg:self-center">
+              <div className="flex items-center gap-3 shrink-0 self-end cw-lg:self-center">
                 <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
                   <input
                     type="checkbox"

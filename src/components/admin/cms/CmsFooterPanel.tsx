@@ -190,7 +190,7 @@ export const CmsFooterPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 cw-lg:grid-cols-2 gap-6 items-start">
         {/* Left Column: Brand Summary + Company Profile PDF */}
         <div className="space-y-6">
           {/* Brand Summary */}
@@ -227,7 +227,7 @@ export const CmsFooterPanel: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-3 pt-2">
             <div>
               <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                 حقوق النشر (عربي)
@@ -251,7 +251,7 @@ export const CmsFooterPanel: React.FC = () => {
                 className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden"
               />
             </div>
-            <label className="flex items-center gap-2 cursor-pointer text-[11px] text-neutral-text sm:col-span-2">
+            <label className="flex items-center gap-2 cursor-pointer text-[11px] text-neutral-text cw-sm:col-span-2">
               <input
                 type="checkbox"
                 checked={data.madeInKsaEnabled ?? false}
@@ -260,7 +260,7 @@ export const CmsFooterPanel: React.FC = () => {
               />
               إظهار عبارة «صمم في المملكة العربية السعودية»
             </label>
-            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="cw-sm:col-span-2 grid grid-cols-1 cw-sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                   {t('cms.footer.madeInKsaArLabel')}
@@ -286,7 +286,7 @@ export const CmsFooterPanel: React.FC = () => {
                   className="w-full px-3 py-1.5 text-xs rounded-xl bg-canvas border border-muted-border/40 focus:border-primary focus:outline-hidden"
                 />
               </div>
-              <p className="text-[11px] text-neutral-text/50 sm:col-span-2">
+              <p className="text-[11px] text-neutral-text/50 cw-sm:col-span-2">
                 {t('cms.footer.madeInKsaHint')}
               </p>
             </div>
@@ -316,7 +316,7 @@ export const CmsFooterPanel: React.FC = () => {
             ملف PDF تعريفي بالشركة متاح للتحميل مباشرة من قائمة الروابط السريعة بأسفل الموقع لجميع الزوار.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                 عنوان الرابط (بالعربية)
@@ -394,7 +394,7 @@ export const CmsFooterPanel: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border-2 border-dashed border-muted-border/40 bg-canvas/40">
+              <div className="flex flex-col cw-sm:flex-row cw-sm:items-center justify-between gap-3 p-4 rounded-xl border-2 border-dashed border-muted-border/40 bg-canvas/40">
                 <div className="text-xs text-neutral-text/60">
                   لم يتم تحديد ملف PDF تعريفي بعد. يمكنك رفع ملف جديد أو الاختيار من المكتبة.
                 </div>
@@ -518,7 +518,7 @@ export const CmsFooterPanel: React.FC = () => {
                 <span className="text-neutral-text text-[11px]">إظهار العنوان</span>
               </label>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-2">
               <input
                 type="text"
                 value={data.addressAr}
@@ -551,7 +551,7 @@ export const CmsFooterPanel: React.FC = () => {
                 <span className="text-neutral-text text-[11px]">إظهار ساعات العمل</span>
               </label>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 cw-sm:grid-cols-2 gap-2">
               <input
                 type="text"
                 value={data.hoursAr}

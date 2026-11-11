@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Save,
-  History,
   ChevronDown,
   ChevronUp,
   Video,
@@ -13,8 +11,8 @@ import { useAdmin } from '../../../pages/admin/adminContextDef';
 import type { CmsHomePageContent } from '../../../types/cms';
 import { DEFAULT_HOME_PAGE } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
-import { useCmsDirty } from './cmsDirtyContext';
-import { CmsDirtyBar } from './CmsDirtyBar';
+import { useCmsDirty, useCmsToolbar } from './cmsDirtyContext';
+import { CMS_FOCUS_SECTION_EVENT } from '../../../utils/cmsPreviewProtocol';
 
 export const CmsHomePanel: React.FC = () => {
   const { showToast, can } = useAdmin();
@@ -26,6 +24,15 @@ export const CmsHomePanel: React.FC = () => {
 
   // Active accordion section
   const [activeSection, setActiveSection] = useState<string>('hero');
+
+  // Opening a section also scrolls the live preview to it.
+  const toggleSection = (key: string) => {
+    const opening = activeSection !== key;
+    setActiveSection(opening ? key : '');
+    if (opening) {
+      window.dispatchEvent(new CustomEvent<string>(CMS_FOCUS_SECTION_EVENT, { detail: key }));
+    }
+  };
 
   const canManage = can('manageCms');
   const { dirty, markSaved, savedValue } = useCmsDirty('home', data, loading, (v) => v);
@@ -77,6 +84,16 @@ export const CmsHomePanel: React.FC = () => {
     }
   };
 
+  useCmsToolbar('home', {
+    dirty,
+    saving,
+    canSave: canManage,
+    version,
+    onSave: () => void handleSave(),
+    onDiscard: handleDiscard,
+    onHistory: () => setVersionModalOpen(true),
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12 text-neutral-text/60">
@@ -88,49 +105,20 @@ export const CmsHomePanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-surface border border-muted-border/30">
-        <div>
-          <h3 className="text-base font-bold text-heading">أقسام الصفحة الرئيسية</h3>
-          <p className="text-xs text-neutral-text/70">
-            التحكم في كافة نصوص وأقسام الصفحة الرئيسية وإمكانية تفعيل أو إخفاء أي قسم بضغطة زر.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setVersionModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl border border-muted-border/40 hover:bg-canvas text-neutral-text hover:text-heading transition cursor-pointer"
-          >
-            <History className="w-4 h-4" />
-            السجل (الإصدار #{version})
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || !canManage || !dirty}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl brand-fill text-canvas shadow-xs hover:opacity-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? (
-              <div className="w-4 h-4 border-2 border-canvas border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            حفظ كافة التغييرات
-          </button>
-        </div>
-      </div>
-
       {/* Accordion List of Sections */}
       <div className="space-y-3">
         {/* 1. HERO */}
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'hero' ? '' : 'hero')}
+            onClick={() => toggleSection('hero')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">1. البانر الرئيسي</span>
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.hero?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >1. البانر الرئيسي</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.hero?.enabled
@@ -152,9 +140,10 @@ export const CmsHomePanel: React.FC = () => {
                   onChange={(e) =>
                     setData({ ...data, hero: { ...data.hero, enabled: e.target.checked } })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'hero' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -162,7 +151,7 @@ export const CmsHomePanel: React.FC = () => {
 
           {activeSection === 'hero' && (
             <div className="p-5 border-t border-muted-border/20 bg-canvas/30 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     شارة البانر (عربي)
@@ -275,7 +264,7 @@ export const CmsHomePanel: React.FC = () => {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الوصف الفرعي (عربي)
                   </label>
@@ -288,7 +277,7 @@ export const CmsHomePanel: React.FC = () => {
                     className="w-full px-3 py-1.5 text-xs rounded-xl bg-surface border border-muted-border/40 focus:border-primary focus:outline-hidden"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الوصف الفرعي (إنجليزي)
                   </label>
@@ -367,10 +356,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'marquee' ? '' : 'marquee')}
+            onClick={() => toggleSection('marquee')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">2. شريط المدن المتحرك (Marquee)</span>
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.marquee?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >2. شريط المدن المتحرك (Marquee)</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.marquee?.enabled
@@ -392,9 +385,10 @@ export const CmsHomePanel: React.FC = () => {
                   onChange={(e) =>
                     setData({ ...data, marquee: { ...data.marquee, enabled: e.target.checked } })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'marquee' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -427,7 +421,7 @@ export const CmsHomePanel: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 cw-sm:grid-cols-2 cw-lg:grid-cols-3 gap-3">
                 {data.marquee?.cities?.map((city, cIdx) => (
                   <div
                     key={city.id || cIdx}
@@ -477,10 +471,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'mapSection' ? '' : 'mapSection')}
+            onClick={() => toggleSection('mapSection')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">3. قسم الخريطة التفاعلية</span>
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.mapSection?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >3. قسم الخريطة التفاعلية</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.mapSection?.enabled
@@ -505,9 +503,10 @@ export const CmsHomePanel: React.FC = () => {
                       mapSection: { ...data.mapSection, enabled: e.target.checked },
                     })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'mapSection' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -515,7 +514,7 @@ export const CmsHomePanel: React.FC = () => {
 
           {activeSection === 'mapSection' && (
             <div className="p-5 border-t border-muted-border/20 bg-canvas/30 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الشارة (عربي)
@@ -618,7 +617,7 @@ export const CmsHomePanel: React.FC = () => {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الوصف (عربي)
                   </label>
@@ -634,7 +633,7 @@ export const CmsHomePanel: React.FC = () => {
                     className="w-full px-3 py-1.5 text-xs rounded-xl bg-surface border border-muted-border/40 focus:border-primary focus:outline-hidden"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الوصف (إنجليزي)
                   </label>
@@ -660,10 +659,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'about' ? '' : 'about')}
+            onClick={() => toggleSection('about')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.about?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >
                 4. عن أجدا، الفيديو والرؤية والقيم (About & Values)
               </span>
               <span
@@ -687,9 +690,10 @@ export const CmsHomePanel: React.FC = () => {
                   onChange={(e) =>
                     setData({ ...data, about: { ...data.about, enabled: e.target.checked } })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'about' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -714,7 +718,7 @@ export const CmsHomePanel: React.FC = () => {
                           about: { ...data.about, videoShowcaseEnabled: e.target.checked },
                         })
                       }
-                      className="rounded text-primary focus:ring-0"
+                      className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                     />
                     <span className="text-neutral-text text-[11px]">تفعيل مشغل الفيديو</span>
                   </label>
@@ -736,7 +740,7 @@ export const CmsHomePanel: React.FC = () => {
               </div>
 
               {/* Vision and Mission */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     عنوان الرؤية (عربي)
@@ -765,7 +769,7 @@ export const CmsHomePanel: React.FC = () => {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     نص الرؤية (عربي)
                   </label>
@@ -778,7 +782,7 @@ export const CmsHomePanel: React.FC = () => {
                     className="w-full px-3 py-1.5 text-xs rounded-xl bg-surface border border-muted-border/40 focus:border-primary focus:outline-hidden"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     نص الرؤية (إنجليزي)
                   </label>
@@ -821,7 +825,7 @@ export const CmsHomePanel: React.FC = () => {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     نص الرسالة (عربي)
                   </label>
@@ -834,7 +838,7 @@ export const CmsHomePanel: React.FC = () => {
                     className="w-full px-3 py-1.5 text-xs rounded-xl bg-surface border border-muted-border/40 focus:border-primary focus:outline-hidden"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     نص الرسالة (إنجليزي)
                   </label>
@@ -857,10 +861,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'services' ? '' : 'services')}
+            onClick={() => toggleSection('services')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">5. الخدمات والتخصصات</span>
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.services?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >5. الخدمات والتخصصات</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.services?.enabled
@@ -882,9 +890,10 @@ export const CmsHomePanel: React.FC = () => {
                   onChange={(e) =>
                     setData({ ...data, services: { ...data.services, enabled: e.target.checked } })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'services' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -892,7 +901,7 @@ export const CmsHomePanel: React.FC = () => {
 
           {activeSection === 'services' && (
             <div className="p-5 border-t border-muted-border/20 bg-canvas/30 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الشارة (عربي)
@@ -969,10 +978,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'process' ? '' : 'process')}
+            onClick={() => toggleSection('process')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">6. مراحل وسير العمل (Process)</span>
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.process?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >6. مراحل وسير العمل (Process)</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.process?.enabled
@@ -994,9 +1007,10 @@ export const CmsHomePanel: React.FC = () => {
                   onChange={(e) =>
                     setData({ ...data, process: { ...data.process, enabled: e.target.checked } })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'process' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -1004,7 +1018,7 @@ export const CmsHomePanel: React.FC = () => {
 
           {activeSection === 'process' && (
             <div className="p-5 border-t border-muted-border/20 bg-canvas/30 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الشارة (عربي)
@@ -1081,10 +1095,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'portfolioSection' ? '' : 'portfolioSection')}
+            onClick={() => toggleSection('portfolioSection')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">7. قسم محفظة المشاريع</span>
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.portfolioSection?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >7. قسم محفظة المشاريع</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.portfolioSection?.enabled
@@ -1109,9 +1127,10 @@ export const CmsHomePanel: React.FC = () => {
                       portfolioSection: { ...data.portfolioSection, enabled: e.target.checked },
                     })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'portfolioSection' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -1119,7 +1138,7 @@ export const CmsHomePanel: React.FC = () => {
 
           {activeSection === 'portfolioSection' && (
             <div className="p-5 border-t border-muted-border/20 bg-canvas/30 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الشارة (عربي)
@@ -1196,10 +1215,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'clientsSection' ? '' : 'clientsSection')}
+            onClick={() => toggleSection('clientsSection')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.clientsSection?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >
                 8. قسم الشركاء في الرئيسية
               </span>
               <span
@@ -1226,9 +1249,10 @@ export const CmsHomePanel: React.FC = () => {
                       clientsSection: { ...data.clientsSection, enabled: e.target.checked },
                     })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'clientsSection' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -1236,7 +1260,7 @@ export const CmsHomePanel: React.FC = () => {
 
           {activeSection === 'clientsSection' && (
             <div className="p-5 border-t border-muted-border/20 bg-canvas/30 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الشارة (عربي)
@@ -1313,10 +1337,14 @@ export const CmsHomePanel: React.FC = () => {
         <div className="border border-muted-border/30 rounded-2xl overflow-hidden bg-surface transition">
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none bg-surface hover:bg-canvas/50"
-            onClick={() => setActiveSection(activeSection === 'cta' ? '' : 'cta')}
+            onClick={() => toggleSection('cta')}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-heading">9. بانر الدعوة لإجراء</span>
+              <span
+                className={`text-xs font-bold transition-colors ${
+                  data.cta?.enabled ? "text-heading" : "text-neutral-text/50"
+                }`}
+              >9. بانر الدعوة لإجراء</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                   data.cta?.enabled
@@ -1338,9 +1366,10 @@ export const CmsHomePanel: React.FC = () => {
                   onChange={(e) =>
                     setData({ ...data, cta: { ...data.cta, enabled: e.target.checked } })
                   }
-                  className="rounded text-primary focus:ring-0"
+                  aria-label="تفعيل القسم"
+                  title="تفعيل القسم"
+                  className="h-4 w-4 cursor-pointer rounded border-muted-border accent-primary focus:ring-0"
                 />
-                <span className="text-neutral-text text-[11px]">تفعيل القسم</span>
               </label>
               {activeSection === 'cta' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
@@ -1348,7 +1377,7 @@ export const CmsHomePanel: React.FC = () => {
 
           {activeSection === 'cta' && (
             <div className="p-5 border-t border-muted-border/20 bg-canvas/30 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 cw-md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     عنوان البانر (عربي)
@@ -1405,7 +1434,7 @@ export const CmsHomePanel: React.FC = () => {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الوصف (عربي)
                   </label>
@@ -1418,7 +1447,7 @@ export const CmsHomePanel: React.FC = () => {
                     className="w-full px-3 py-1.5 text-xs rounded-xl bg-surface border border-muted-border/40 focus:border-primary focus:outline-hidden"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="cw-md:col-span-2">
                   <label className="block text-[11px] font-medium text-neutral-text/70 mb-1">
                     الوصف (إنجليزي)
                   </label>
@@ -1465,8 +1494,6 @@ export const CmsHomePanel: React.FC = () => {
           )}
         </div>
       </div>
-
-      <CmsDirtyBar dirty={dirty} saving={saving} canSave={canManage} onSave={() => void handleSave()} onDiscard={handleDiscard} />
 
       <CmsVersionModal
         open={versionModalOpen}

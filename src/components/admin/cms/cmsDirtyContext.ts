@@ -1,11 +1,23 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { sanitizeDrafts, type PreviewDrafts } from '../../../utils/cmsPreviewProtocol';
+
+/** Save / discard / history controls a panel hands to the page toolbar. */
+export interface CmsToolbarState {
+  dirty: boolean;
+  saving: boolean;
+  canSave: boolean;
+  version: number;
+  /** Always holds the panel's latest callbacks, so the toolbar never calls a stale closure. */
+  handlers: { current: { onSave: () => void; onDiscard: () => void; onHistory: () => void } };
+}
 
 /** Lets CMS panels tell the page shell whether they hold unsaved edits. */
 export interface CmsDirtyRegistry {
   setDirty: (panel: string, dirty: boolean) => void;
   /** Publishes a panel's unsaved content (JSON) to the live preview; `null` withdraws it. */
   setDraft: (panel: string, json: string | null) => void;
+  /** Publishes a panel's save/discard/history controls to the page toolbar; `null` withdraws them. */
+  setToolbar: (panel: string, state: CmsToolbarState | null) => void;
 }
 
 export const CmsDirtyContext = createContext<CmsDirtyRegistry | null>(null);
@@ -67,12 +79,46 @@ export function useCmsDirty<T>(
   };
 }
 
-/** Hook for the page shell: the provider value, the dirty flag, and the drafts to preview. */
+/**
+ * Hands a panel's save / discard / history controls to the page toolbar, replacing
+ * an in-panel header. The callbacks may change every render; only the flags and
+ * the version trigger a re-register.
+ */
+export function useCmsToolbar(
+  panel: string,
+  state: Omit<CmsToolbarState, 'handlers'> & CmsToolbarState['handlers']['current'],
+) {
+  const registry = useContext(CmsDirtyContext);
+  const { dirty, saving, canSave, version, onSave, onDiscard, onHistory } = state;
+  const handlers = useRef({ onSave, onDiscard, onHistory });
+
+  useEffect(() => {
+    handlers.current = { onSave, onDiscard, onHistory };
+  });
+
+  useEffect(() => {
+    registry?.setToolbar(panel, { dirty, saving, canSave, version, handlers });
+    return () => registry?.setToolbar(panel, null);
+  }, [registry, panel, dirty, saving, canSave, version]);
+}
+
+/** Hook for the page shell: the provider value, the dirty flag, the drafts to preview and the toolbar. */
 export function useCmsDirtyRegistryState() {
   const [dirtyPanels, setDirtyPanels] = useState<Record<string, boolean>>({});
   const [draftJsons, setDraftJsons] = useState<Record<string, string>>({});
+  const [toolbars, setToolbars] = useState<Record<string, CmsToolbarState>>({});
   const registry = useMemo<CmsDirtyRegistry>(
     () => ({
+      setToolbar: (panel, state) =>
+        setToolbars((prev) => {
+          if (state === null) {
+            if (!(panel in prev)) return prev;
+            const rest = { ...prev };
+            delete rest[panel];
+            return rest;
+          }
+          return { ...prev, [panel]: state };
+        }),
       setDirty: (panel, dirty) =>
         setDirtyPanels((prev) => (!!prev[panel] === dirty ? prev : { ...prev, [panel]: dirty })),
       setDraft: (panel, json) =>
@@ -101,5 +147,8 @@ export function useCmsDirtyRegistryState() {
     return sanitizeDrafts(parsed);
   }, [draftJsons]);
 
-  return { registry, anyDirty: Object.values(dirtyPanels).some(Boolean), drafts };
+  // Only one panel is mounted at a time, so the toolbar belongs to whichever registered.
+  const toolbar: CmsToolbarState | null = Object.values(toolbars)[0] ?? null;
+
+  return { registry, anyDirty: Object.values(dirtyPanels).some(Boolean), drafts, toolbar };
 }

@@ -18,8 +18,10 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
+import { useLanguage } from '../../../hooks/useLanguage';
 import { acquireSocket, releaseSocket } from '../../../services/realtimeSocket';
 import {
+  CMS_FOCUS_SECTION_EVENT,
   isTrustedFrameMessage,
   postToFrame,
   type PreviewDrafts,
@@ -38,16 +40,11 @@ export interface CmsLivePreviewPaneProps {
 }
 
 const PAGES = [
-  { id: '/', labelAr: 'الرئيسية', labelEn: 'Home', icon: Home },
-  { id: '/works', labelAr: 'المشاريع', labelEn: 'Works', icon: Building },
-  {
-    id: '/clients',
-    labelAr: 'الشركاء والعملاء',
-    labelEn: 'Clients',
-    icon: Users,
-  },
-  { id: '/contact', labelAr: 'التواصل', labelEn: 'Contact', icon: Mail },
-];
+  { id: '/', labelKey: 'cms.preview.pageHome', icon: Home },
+  { id: '/works', labelKey: 'cms.preview.pageWorks', icon: Building },
+  { id: '/clients', labelKey: 'cms.preview.pageClients', icon: Users },
+  { id: '/contact', labelKey: 'cms.preview.pageContact', icon: Mail },
+] as const;
 
 export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
   currentPath,
@@ -59,7 +56,15 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
 }) => {
   const { t } = useAdminT();
   const [device, setDevice] = useState<DeviceViewport>(isSplitView ? 'desktop' : 'desktop');
-  const [lang, setLang] = useState<'ar' | 'en'>('ar');
+  // The preview starts in the admin's language and follows it when the admin
+  // language changes; the AR/EN toggle below still overrides it for the session.
+  const { language: adminLang } = useLanguage();
+  const [lang, setLang] = useState<'ar' | 'en'>(adminLang);
+  const [seenAdminLang, setSeenAdminLang] = useState(adminLang);
+  if (seenAdminLang !== adminLang) {
+    setSeenAdminLang(adminLang);
+    setLang(adminLang);
+  }
   const [zoom, setZoom] = useState<number>(100);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -71,6 +76,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
   const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftsRef = useRef<PreviewDrafts | undefined>(drafts);
   const langRef = useRef<'ar' | 'en'>(lang);
+  const pendingSectionRef = useRef<string | null>(null);
 
   const sendDrafts = useCallback(() => {
     setDraftError(false);
@@ -107,6 +113,19 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
     return () => clearTimeout(timer);
   }, [drafts, sendDrafts]);
 
+  // A panel asks to scroll the preview to a section. The last request is kept
+  // and replayed once the page announces it is ready (e.g. after a reload).
+  useEffect(() => {
+    const onFocusSection = (event: Event) => {
+      const section = (event as CustomEvent<unknown>).detail;
+      if (typeof section !== 'string') return;
+      pendingSectionRef.current = section;
+      postToFrame(iframeRef.current?.contentWindow, { type: 'AJDA_SCROLL_TO_SECTION', section });
+    };
+    window.addEventListener(CMS_FOCUS_SECTION_EVENT, onFocusSection);
+    return () => window.removeEventListener(CMS_FOCUS_SECTION_EVENT, onFocusSection);
+  }, []);
+
   // The iframe announces when its page is ready (including after every reload)
   // and when a draft crashed it.
   useEffect(() => {
@@ -116,6 +135,12 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
       if (type === 'AJDA_PREVIEW_READY') {
         sendDrafts();
         postToFrame(iframeRef.current?.contentWindow, { type: 'AJDA_SET_LANG', lang: langRef.current });
+        if (pendingSectionRef.current) {
+          postToFrame(iframeRef.current?.contentWindow, {
+            type: 'AJDA_SCROLL_TO_SECTION',
+            section: pendingSectionRef.current,
+          });
+        }
         setIsLoading(false);
       } else if (type === 'AJDA_PREVIEW_ERROR') {
         setDraftError(true);
@@ -167,11 +192,11 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
     switch (device) {
       case 'mobile':
         return isSplitView
-          ? 'w-[360px] h-[720px] max-h-[calc(100vh-230px)] rounded-[40px] border-[8px] border-slate-900 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto'
+          ? 'w-[360px] h-[720px] max-h-[calc(100vh-300px)] rounded-[40px] border-[8px] border-slate-900 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto'
           : 'w-[380px] h-[780px] max-h-[82vh] rounded-[44px] border-[10px] border-slate-900 shadow-2xl bg-canvas overflow-hidden flex flex-col relative mx-auto my-auto';
       case 'tablet':
         return isSplitView
-          ? 'w-[720px] max-w-full h-[820px] max-h-[calc(100vh-230px)] rounded-3xl border-[8px] border-slate-900/80 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto'
+          ? 'w-[720px] max-w-full h-[820px] max-h-[calc(100vh-300px)] rounded-3xl border-[8px] border-slate-900/80 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto'
           : 'w-[768px] h-[920px] max-h-[85vh] rounded-3xl border-[8px] border-slate-900/80 shadow-2xl bg-canvas overflow-hidden flex flex-col mx-auto my-auto';
       case 'desktop':
       default:
@@ -182,7 +207,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
   return (
     <div
       className={`flex flex-col bg-surface rounded-3xl border border-muted-border/40 shadow-sm overflow-hidden transition-all duration-300 ${
-        isSplitView ? 'h-[calc(100vh-140px)] min-h-[580px]' : 'w-full h-full'
+        isSplitView ? 'h-full min-h-0' : 'w-full h-full'
       }`}
     >
       {/* Top Header / Control Toolbar */}
@@ -194,16 +219,16 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
               <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-heading">معاينة حية للموقع</span>
+              <span className="text-xs font-black text-heading">{t('cms.preview.title')}</span>
               {justUpdated ? (
                 <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary text-canvas animate-bounce shadow-xs">
                   <Sparkles className="w-3 h-3" />
-                  تم التحديث الآن!
+                  {t('cms.preview.updated')}
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  مزامنة لحظية
+                  {t('cms.preview.sync')}
                 </span>
               )}
               {draftError && (
@@ -226,10 +251,10 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
                 ? 'brand-fill text-canvas shadow-xs'
                 : 'text-neutral-text hover:text-heading'
             }`}
-            title="سطح المكتب (عرض كامل)"
+            title={t('cms.preview.desktopTitle')}
           >
             <Monitor className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[11px]">سطح المكتب</span>
+            <span className="hidden sm:inline text-[11px]">{t('cms.preview.desktop')}</span>
           </button>
           <button
             type="button"
@@ -239,10 +264,10 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
                 ? 'brand-fill text-canvas shadow-xs'
                 : 'text-neutral-text hover:text-heading'
             }`}
-            title="جهاز لوحي (768px)"
+            title={t('cms.preview.tabletTitle')}
           >
             <Tablet className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[11px]">لوحي</span>
+            <span className="hidden sm:inline text-[11px]">{t('cms.preview.tablet')}</span>
           </button>
           <button
             type="button"
@@ -252,10 +277,10 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
                 ? 'brand-fill text-canvas shadow-xs'
                 : 'text-neutral-text hover:text-heading'
             }`}
-            title="هاتف ذكي (375px)"
+            title={t('cms.preview.mobileTitle')}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[11px]">هاتف</span>
+            <span className="hidden sm:inline text-[11px]">{t('cms.preview.mobile')}</span>
           </button>
         </div>
 
@@ -282,11 +307,11 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
                         ? 'bg-primary/10 text-primary font-bold'
                         : 'text-neutral-text/70 hover:text-heading'
                     }`}
-                    title={page.labelAr}
+                    title={t(page.labelKey)}
                   >
                     <Icon className="w-3 h-3" />
                     <span className={isSplitView ? 'hidden xl:inline' : 'hidden md:inline'}>
-                      {page.labelAr}
+                      {t(page.labelKey)}
                     </span>
                   </button>
                 );
@@ -305,7 +330,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
                   : 'text-neutral-text hover:text-heading'
               }`}
             >
-              عربي
+              {t('cms.preview.langAr')}
             </button>
             <button
               type="button"
@@ -316,17 +341,17 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
                   : 'text-neutral-text hover:text-heading'
               }`}
             >
-              EN
+              {t('cms.preview.langEn')}
             </button>
           </div>
 
           {/* Zoom options */}
           <select
-            aria-label="تكبير أو تصغير العرض"
+            aria-label={t('cms.preview.zoomLabel')}
             value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))}
             className="text-[11px] px-1.5 py-1 rounded-xl bg-canvas border border-muted-border/30 text-neutral-text focus:outline-none focus:border-primary/50 cursor-pointer hidden sm:block"
-            title="مقياس العرض (Zoom)"
+            title={t('cms.preview.zoomTitle')}
           >
             <option value={100}>100%</option>
             <option value={90}>90%</option>
@@ -341,7 +366,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
             type="button"
             onClick={handleRefresh}
             className="p-1.5 rounded-xl bg-canvas border border-muted-border/30 hover:border-primary/50 text-neutral-text hover:text-heading transition cursor-pointer"
-            title="إعادة تحميل المعاينة"
+            title={t('cms.preview.reload')}
           >
             <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-primary' : ''}`} />
           </button>
@@ -351,7 +376,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
             type="button"
             onClick={handleOpenExternal}
             className="p-1.5 rounded-xl bg-canvas border border-muted-border/30 hover:border-primary/50 text-neutral-text hover:text-heading transition cursor-pointer hidden md:block"
-            title="فتح في تبويب مستقل جديد"
+            title={t('cms.preview.openExternal')}
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
@@ -362,7 +387,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
               type="button"
               onClick={onExpandFullscreen}
               className="p-1.5 rounded-xl bg-canvas border border-muted-border/30 hover:border-primary/50 text-neutral-text hover:text-heading transition cursor-pointer"
-              title="توسيع ملء الشاشة"
+              title={t('cms.preview.expand')}
             >
               <Maximize2 className="w-3.5 h-3.5" />
             </button>
@@ -374,7 +399,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
               type="button"
               onClick={onClose}
               className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition cursor-pointer"
-              title="إخفاء المعاينة الجانبية"
+              title={t('cms.preview.hideSide')}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -436,7 +461,7 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-canvas/90 backdrop-blur-xs gap-2">
                 <Loader2 className="w-7 h-7 text-primary animate-spin" />
                 <p className="text-[11px] font-bold text-neutral-text animate-pulse">
-                  جاري تحميل المعاينة...
+                  {t('cms.preview.loading')}
                 </p>
               </div>
             )}
