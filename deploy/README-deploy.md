@@ -721,6 +721,8 @@ publicly served `server/uploads`. They are backed up by `server/scripts/backup_d
 into `${BACKUP_DIR}/private/`. They are **not** copied to the test instance, and
 the sanitize script deletes the `job_applications` rows.
 
+The admin **Drive** (`PRIVATE_DIR/drive`, tables `drive_folders` / `drive_files`) lives in the same private folder, so it is covered by the same backup and is not copied to the test instance; it can grow large, so check the backup size and free disk. Its public share links `/d/<slug>` need the `/d/*` handler in Caddy.
+
 One-time step on both instances:
 
 ```bash

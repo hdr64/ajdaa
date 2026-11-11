@@ -17,6 +17,8 @@ import { unitRoutes } from './routes/units.routes.js';
 import { inquiryRoutes } from './routes/inquiries.routes.js';
 import { careersRoutes } from './routes/careers.routes.js';
 import { mediaRoutes } from './routes/media.routes.js';
+import { publicMediaRoutes } from './routes/publicMedia.routes.js';
+import { driveRoutes, drivePublicRoutes } from './routes/drive.routes.js';
 import { categoryRoutes } from './routes/categories.routes.js';
 import { pastProjectRoutes } from './routes/pastProjects.routes.js';
 import { newsletterRoutes } from './routes/newsletter.routes.js';
@@ -155,6 +157,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         reply.header('Content-Disposition', 'attachment');
       }
       reply.header('X-Content-Type-Options', 'nosniff');
+      // Uploaded pages and SVGs run in a sandbox with no access to this origin
+      // (no cookies, storage or API calls as the site), and may be framed by the SPA.
+      if (/\.(html?|svg)$/i.test(filePath)) {
+        reply.header('Content-Security-Policy', 'sandbox allow-scripts allow-popups allow-forms');
+        reply.removeHeader('X-Frame-Options');
+      }
     },
   });
 
@@ -251,6 +259,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await fastify.register(inquiryRoutes, { prefix: '/api/inquiries' });
   await fastify.register(careersRoutes, { prefix: '/api/careers' });
   await fastify.register(mediaRoutes, { prefix: '/api/media' });
+  await fastify.register(publicMediaRoutes);
+  await fastify.register(driveRoutes, { prefix: '/api/drive' });
+  await fastify.register(drivePublicRoutes);
   await fastify.register(categoryRoutes, { prefix: '/api/categories' });
   await fastify.register(pastProjectRoutes, { prefix: '/api/past-projects' });
   await fastify.register(newsletterRoutes, { prefix: '/api/newsletter' });

@@ -3,11 +3,14 @@ import { api, resolveMediaUrl } from './api';
 export interface UploadedMedia {
   id?: string;
   url: string;
+  slug?: string | null;
   filename: string;
   originalName?: string;
   mimeType?: string;
   fileType?: string;
   size?: number;
+  /** Set when a .zip was extracted: every library item it produced. */
+  extracted?: UploadedMedia[];
 }
 
 export interface MediaUsageDetail {
@@ -20,10 +23,12 @@ export interface MediaUsageDetail {
 export interface MediaFileDto {
   id: string;
   url: string;
+  /** Permanent public link name: `/f/<slug>`, HTML pages at `/html/<slug>/`. */
+  slug?: string | null;
   filename: string;
   originalName: string;
   mimeType: string;
-  fileType: 'image' | 'video' | 'pdf' | 'model3d' | 'document' | 'other';
+  fileType: 'image' | 'video' | 'pdf' | 'model3d' | 'html' | 'document' | 'other';
   size: number;
   thumbnailUrl?: string | null;
   usageCount: number;
@@ -170,7 +175,7 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
 export async function fetchMediaList(params: {
   page?: number;
   limit?: number;
-  type?: 'all' | 'image' | 'video' | 'pdf' | 'model3d' | 'other';
+  type?: 'all' | 'image' | 'video' | 'pdf' | 'model3d' | 'html' | 'other';
   status?: 'all' | 'linked' | 'orphaned';
   search?: string;
 } = {}): Promise<MediaListResponse> {
@@ -198,6 +203,22 @@ export async function fetchMediaUsage(url: string): Promise<MediaUsageResponse> 
  */
 export async function deleteMediaItem(id: string): Promise<{ success: boolean }> {
   return api.delete<{ success: boolean }>(`/api/media/${id}`);
+}
+
+/**
+ * The permanent public link of a library file (same origin as the site): `/f/<slug>`,
+ * or `/html/<slug>/` for HTML pages. Falls back to the direct file URL when the
+ * file has no slug yet.
+ */
+export function mediaPublicUrl(file: { url: string; slug?: string | null; fileType?: string }): string {
+  if (!file.slug) return resolveMediaUrl(file.url);
+  const path = file.fileType === 'html' ? `/html/${file.slug}/` : `/f/${file.slug}`;
+  return `${window.location.origin}${path}`;
+}
+
+/** Changes a file's slug; the old public link stops working. */
+export async function updateMediaSlug(id: string, slug: string): Promise<{ id: string; slug: string }> {
+  return api.patch<{ id: string; slug: string }>(`/api/media/${id}`, { slug });
 }
 
 /**

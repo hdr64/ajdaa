@@ -25,9 +25,24 @@ function parseJsonArray(raw: string | null | undefined): string[] {
   }
 }
 
-function cleanFilename(input: string): string {
-  const parts = input.split('/');
-  return parts[parts.length - 1].toLowerCase().trim();
+/**
+ * Key under which a file's usages are stored. Flat uploads use the lowercase
+ * basename. Files inside an extracted zip folder (`/uploads/<folder>/a/index.html`)
+ * use their whole path under `/uploads/`, because many sites share names like
+ * `index.html`.
+ */
+export function usageKey(input: string): string {
+  let value = input.trim();
+  try {
+    value = decodeURI(value);
+  } catch {
+    // keep the raw value
+  }
+  value = value.toLowerCase();
+  const nested = /\/uploads\/(.+)$/.exec(value);
+  if (nested && nested[1].includes('/')) return nested[1];
+  const parts = value.split('/');
+  return parts[parts.length - 1].trim();
 }
 
 /**
@@ -39,7 +54,7 @@ export async function getBatchMediaUsage(): Promise<Map<string, MediaUsageItem[]
 
   const addUsage = (target: string | null | undefined, item: MediaUsageItem) => {
     if (!target) return;
-    const key = cleanFilename(target);
+    const key = usageKey(target);
     if (!key) return;
     const existing = usageMap.get(key) ?? [];
     existing.push(item);
@@ -112,15 +127,19 @@ export async function getBatchMediaUsage(): Promise<Map<string, MediaUsageItem[]
 
   // Check all known media files for exact token appearance in CMS or AppSettings
   const mediaFiles = await prisma.mediaFile.findMany({
-    select: { filename: true },
+    select: { url: true },
   });
 
+  // Lower-case every text once; doing it inside the loop below cost files x texts large copies.
+  const sectionTexts = cmsSections.map((sec) => ({ sec, text: sec.content?.toLowerCase() ?? '' }));
+  const settingTexts = appSettings.map((setting) => ({ setting, text: setting.value?.toLowerCase() ?? '' }));
+
   for (const mf of mediaFiles) {
-    const fn = mf.filename.toLowerCase();
+    const fn = usageKey(mf.url);
     const token = `/uploads/${fn}`;
 
-    for (const sec of cmsSections) {
-      if (sec.content && (sec.content.toLowerCase().includes(token) || sec.content.toLowerCase().includes(`"${fn}"`))) {
+    for (const { sec, text } of sectionTexts) {
+      if (text && (text.includes(token) || text.includes(`"${fn}"`))) {
         const existing = usageMap.get(fn) ?? [];
         existing.push({
           entityType: 'cmsSection',
@@ -132,8 +151,8 @@ export async function getBatchMediaUsage(): Promise<Map<string, MediaUsageItem[]
       }
     }
 
-    for (const setting of appSettings) {
-      if (setting.value && (setting.value.toLowerCase().includes(token) || setting.value.toLowerCase().includes(`"${fn}"`))) {
+    for (const { setting, text } of settingTexts) {
+      if (text && (text.includes(token) || text.includes(`"${fn}"`))) {
         const existing = usageMap.get(fn) ?? [];
         existing.push({
           entityType: 'appSetting',
@@ -153,16 +172,21 @@ export async function getBatchMediaUsage(): Promise<Map<string, MediaUsageItem[]
  * Checks usage for a specific media URL or filename.
  */
 export async function inspectMediaUsage(targetUrl: string): Promise<MediaUsageResult> {
-  const filename = cleanFilename(targetUrl);
+  const filename = usageKey(targetUrl);
+  // Files in an extracted folder are matched by their full URL only: the
+  // basename (`index.html`) is shared between sites.
+  const isNested = filename.includes('/');
 
   const mediaFile = await prisma.mediaFile.findFirst({
-    where: {
-      OR: [
-        { url: targetUrl },
-        { filename },
-        { url: { endsWith: filename } },
-      ],
-    },
+    where: isNested
+      ? { url: targetUrl }
+      : {
+          OR: [
+            { url: targetUrl },
+            { filename },
+            { url: { endsWith: filename } },
+          ],
+        },
   });
 
   const batch = await getBatchMediaUsage();

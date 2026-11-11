@@ -190,8 +190,9 @@ export function toProperty(dto: ProjectDto): Property {
     features: dto.features ?? undefined,
     featuresEn: dto.featuresEn ?? undefined,
     videoUrl: optional(dto.videoUrl),
-    // Kept as-is (not run through resolveMediaUrl): the value is always an
-    // external https URL and must stay exactly that for the viewer iframe.
+    // Kept exactly as stored, never run through resolveMediaUrl: it is either an
+    // external https viewer URL (feeds an iframe) or a library `/uploads/*.glb`
+    // path, which the form saves back unchanged and the viewer resolves when used.
     model3dUrl: optional(dto.model3dUrl),
     virtualTour3dAvailable: dto.virtualTour3dAvailable,
     locationHighlightsAr: dto.locationHighlightsAr ?? undefined,

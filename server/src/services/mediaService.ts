@@ -5,6 +5,8 @@ import crypto from 'crypto';
 import { config } from '../config/env.js';
 import { prisma } from './prisma.js';
 import { inspectMediaUsage } from './mediaUsageService.js';
+import { EXTRACTED_MARKER } from './zipExtractService.js';
+import { generateUniqueSlug, backfillMissingSlugs } from './mediaSlugService.js';
 
 const UPLOAD_DIR = config.uploadDir;
 
@@ -21,6 +23,21 @@ const ALLOWED_IMAGE_MIMES = new Set([
 ]);
 
 const PDF_MIME = 'application/pdf';
+
+/** Extensions the library accepts on upload (the chunked upload checks them before any byte arrives). */
+export const MEDIA_IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif'];
+export const MEDIA_VIDEO_EXTS = ['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v'];
+export const MEDIA_MODEL_EXTS = ['.glb', '.gltf'];
+export const MEDIA_ARCHIVE_EXTS = ['.zip', '.rar', '.7z', '.tar', '.gz', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.sql', '.csv'];
+export const MEDIA_ALLOWED_EXTS = new Set([
+  ...MEDIA_IMAGE_EXTS,
+  ...MEDIA_VIDEO_EXTS,
+  ...MEDIA_MODEL_EXTS,
+  ...MEDIA_ARCHIVE_EXTS,
+  '.pdf',
+  '.html',
+  '.htm',
+]);
 
 /** Thrown for anything outside the allowlist so the route can answer 400. */
 export class UnsupportedMediaError extends Error {
@@ -119,7 +136,7 @@ export interface StoredMedia {
   filename: string;
   originalName: string;
   mimeType: string;
-  fileType: 'image' | 'video' | 'pdf' | 'model3d' | 'document' | 'other';
+  fileType: 'image' | 'video' | 'pdf' | 'model3d' | 'html' | 'document' | 'other';
   size: number;
   storageKey: string;
 }
@@ -192,7 +209,7 @@ export async function processAndSaveFile(
   }
 
   // Videos
-  const videoExts = ['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v'];
+  const videoExts = MEDIA_VIDEO_EXTS;
   if (detected === 'video' || videoExts.includes(ext)) {
     const baseName = originalFilename
       .replace(/\.[^.]*$/, '')
@@ -217,7 +234,7 @@ export async function processAndSaveFile(
   }
 
   // 3D Models
-  const modelExts = ['.glb', '.gltf'];
+  const modelExts = MEDIA_MODEL_EXTS;
   if (detected === 'model3d' || modelExts.includes(ext)) {
     const baseName = originalFilename
       .replace(/\.[^.]*$/, '')
@@ -241,8 +258,31 @@ export async function processAndSaveFile(
     };
   }
 
+  // HTML pages are stored as-is and served sandboxed (see the static handler).
+  if (ext === '.html' || ext === '.htm') {
+    const baseName = originalFilename
+      .replace(/\.[^.]*$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 80);
+    const filename = `${fileId}-${baseName || 'page'}${ext}`;
+    const targetPath = path.join(UPLOAD_DIR, filename);
+
+    await fs.writeFile(targetPath, fileBuffer);
+    const stats = await fs.stat(targetPath);
+
+    return {
+      url: `/uploads/${filename}`,
+      filename,
+      originalName: originalFilename,
+      mimeType: 'text/html',
+      fileType: 'html',
+      size: stats.size,
+      storageKey: filename,
+    };
+  }
+
   // Archives and other documents
-  const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.sql', '.csv'];
+  const archiveExts = MEDIA_ARCHIVE_EXTS;
   if (detected === 'archive' || archiveExts.includes(ext)) {
     const baseName = originalFilename
       .replace(/\.[^.]*$/, '')
@@ -277,6 +317,8 @@ export async function processAndSaveFile(
  */
 async function scanDirRecursive(dir: string, baseDir: string): Promise<string[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true });
+  // An extracted zip is one bundle: its css/js/images are not library items.
+  if (entries.some((entry) => entry.isFile() && entry.name === EXTRACTED_MARKER)) return [];
   const files: string[] = [];
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue;
@@ -321,10 +363,16 @@ export async function syncDiskMediaToDatabase(): Promise<number> {
 
       if (['.webp', '.jpg', '.jpeg', '.png', '.gif', '.avif'].includes(ext)) {
         fileType = 'image';
-        mimeType = ext === '.webp' ? 'image/webp' : `image/${ext.slice(1)}`;
+        mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : `image/${ext.slice(1)}`;
       } else if (ext === '.pdf') {
         fileType = 'pdf';
         mimeType = 'application/pdf';
+      } else if (['.mp4', '.webm', '.mov', '.m4v', '.ogv'].includes(ext)) {
+        fileType = 'video';
+        mimeType = ext === '.webm' ? 'video/webm' : ext === '.ogv' ? 'video/ogg' : 'video/mp4';
+      } else if (['.html', '.htm'].includes(ext)) {
+        fileType = 'html';
+        mimeType = 'text/html';
       } else if (['.glb', '.gltf'].includes(ext)) {
         fileType = 'model3d';
         mimeType = ext === '.glb' ? 'model/gltf-binary' : 'model/gltf+json';
@@ -335,6 +383,7 @@ export async function syncDiskMediaToDatabase(): Promise<number> {
         update: {},
         create: {
           url,
+          slug: await generateUniqueSlug(filename),
           filename,
           originalName: filename,
           mimeType,
@@ -349,7 +398,27 @@ export async function syncDiskMediaToDatabase(): Promise<number> {
     }
   }
 
+  await backfillMissingSlugs().catch(() => 0);
+
   return added;
+}
+
+const SYNC_MIN_INTERVAL_MS = 60_000;
+let lastSyncAt = 0;
+let syncInFlight: Promise<number> | null = null;
+
+/**
+ * Runs the disk index at most once a minute (or now, with `force`); callers that arrive
+ * while a scan is running share it. The library list calls this on every request.
+ */
+export function syncDiskMediaThrottled(force = false): Promise<number> {
+  if (syncInFlight) return syncInFlight;
+  if (!force && Date.now() - lastSyncAt < SYNC_MIN_INTERVAL_MS) return Promise.resolve(0);
+  syncInFlight = syncDiskMediaToDatabase().finally(() => {
+    lastSyncAt = Date.now();
+    syncInFlight = null;
+  });
+  return syncInFlight;
 }
 
 /**
@@ -376,7 +445,7 @@ export async function deleteMediaFile(id: string): Promise<void> {
   // Path traversal containment check
   const resolvedPath = path.resolve(UPLOAD_DIR, media.storageKey);
   const resolvedUploadDir = path.resolve(UPLOAD_DIR);
-  if (!resolvedPath.startsWith(resolvedUploadDir)) {
+  if (!resolvedPath.startsWith(resolvedUploadDir + path.sep)) {
     throw new Error('Invalid storage key path traversal');
   }
 
@@ -387,6 +456,18 @@ export async function deleteMediaFile(id: string): Promise<void> {
   }
 
   await prisma.mediaFile.delete({ where: { id } });
+
+  // Files extracted from a zip live in their own folder; remove the folder with
+  // its last library item (a website's single row removes the whole site).
+  const [folderName] = media.storageKey.split('/');
+  if (media.storageKey.includes('/') && folderName) {
+    const folderPath = path.resolve(UPLOAD_DIR, folderName);
+    const isBundle = await fs.access(path.join(folderPath, EXTRACTED_MARKER)).then(() => true, () => false);
+    if (isBundle && folderPath.startsWith(resolvedUploadDir + path.sep)) {
+      const remaining = await prisma.mediaFile.count({ where: { storageKey: { startsWith: `${folderName}/` } } });
+      if (remaining === 0) await fs.rm(folderPath, { recursive: true, force: true }).catch(() => {});
+    }
+  }
 }
 
 export interface DiskStorageStats {

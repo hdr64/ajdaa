@@ -6,6 +6,7 @@ import { cms } from './cms';
 import { common } from './common';
 import { dashboard } from './dashboard';
 import { departments } from './departments';
+import { drive } from './drive';
 import { feedback } from './feedback';
 import { floorplan } from './floorplan';
 import { inquiries } from './inquiries';
@@ -36,6 +37,7 @@ export const adminStrings = {
   common,
   dashboard,
   departments,
+  drive,
   feedback,
   floorplan,
   inquiries,

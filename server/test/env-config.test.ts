@@ -53,6 +53,8 @@ const BASE_ENV = {
   LOGS_SECRET_KEY: VALID_LOGS_SECRET,
   DEVELOPER_NOTES_SECRET: VALID_DEVELOPER_SECRET,
   SETTINGS_ENCRYPTION_KEY: VALID_SETTINGS_KEY,
+  // The probe inherits process.env: pin the proxy setting so a developer's own TRUST_PROXY cannot leak in.
+  TRUST_PROXY: '',
 };
 
 describe('the production rules of the environment', () => {

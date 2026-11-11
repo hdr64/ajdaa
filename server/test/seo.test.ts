@@ -64,7 +64,7 @@ beforeAll(async () => {
   originalIndexing = config.seoIndexing;
   config.spaDistDir = distDir;
 
-  publishedId = (await prisma.project.create({ data: projectData('برج السيف', { titleEn: 'Saif Tower', price: 2500000, priceLabel: '2.5 مليون' }) })).id;
+  publishedId = (await prisma.project.create({ data: projectData('برج السيف', { titleEn: 'Saif Tower', cityEn: 'Riyadh', price: 2500000, priceLabel: '2.5 مليون' }) })).id;
   noPriceId = (await prisma.project.create({ data: projectData('مجمع النخيل', { titleEn: null }) })).id;
   draftId = (await prisma.project.create({ data: projectData('مشروع سري مسودة', { publishStatus: 'draft' }) })).id;
   evilId = (await prisma.project.create({ data: projectData(EVIL) })).id;

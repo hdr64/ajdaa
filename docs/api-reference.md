@@ -46,6 +46,8 @@ Guards: **public** (no session; most are rate limited), **JWT** (any signed-in a
 | `GET /categories` | public |
 | `POST /categories`, `PUT /categories/:id`, `DELETE /categories/:id` | `manageProjects` |
 | `POST /media/upload`, `GET /media`, `GET /media/usage`, `DELETE /media/:id` | `manageProjects`, `managePastProjects`, `manageMedia`, or `manageCms` |
+| `/drive/*` (list, folders, upload, move, copy, trash, restore, purge, download) | `manageMedia` (same rule as the media library) |
+| `GET /d/:slug` | public, only while the file is shared |
 
 ### Past projects, careers, newsletter, inquiries
 
@@ -459,14 +461,32 @@ Uploads and indexes an image or PDF.
   }
   ```
 
+### POST `/api/media/upload/chunked/init` (zip extraction)
+Resumable upload (`init`, `chunk`, `status/:uploadId`, `complete`, `abort/:uploadId`; up to 2 GB). `init` accepts an optional `extract`: `video`, `model3d` or `html`.
+- **Validation (same rules as the Drive upload):** the extension must be on the library allow list (images `jpg jpeg png webp gif avif`, videos, `pdf`, `glb gltf`, `html htm`, `zip rar 7z tar gz doc docx xls xlsx ppt pptx sql csv`; `svg` is refused), else `400`. `chunkSize` 256 KB to 50 MB and `totalChunks = ceil(totalSize/chunkSize)`, else `400`; free disk must cover the file (`507`). Each chunk must have exactly `chunkSize` bytes (the last one the remainder) and a valid index, else `400`; an unknown or expired session is `404`; the assembled size is checked on `complete`. The stored type and mime come from the extension, never from the client's `mimeType`. Sessions idle for 24 h are deleted.
+- **With `extract` and a `.zip` file:** `complete` unpacks the zip into `uploads/<uuid>-<name>/` (the zip itself is deleted) and returns `201` with the first created item plus `extracted: MediaFile[]`. `video` lists every `.mp4/.webm/.mov/.m4v/.ogv`, `model3d` every `.glb`, `html` one row for the entry page (`index.html`, else the shallowest `.html`); other files stay on disk, unlisted. The folder carries a `.ajda-extracted` marker so the disk sync never indexes a site's css/js/images, and it is removed with its last library item.
+- **Limits and safety:** max 5000 entries and 1 GB uncompressed; absolute paths, `..`, symlinks, encrypted and zip64 archives are rejected with `400`; hidden files and `__MACOSX` are skipped; a zip without files of the chosen kind is `400`.
+- **Serving:** `.html` and `.svg` under `/uploads/` are sent with `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms` and without `X-Frame-Options`, so an uploaded page cannot reach this origin's cookies or storage.
+
+### Permanent public links: `GET /f/<slug>`, `GET /html/<slug>/` (no login)
+Every library file has one `slug` (`MediaFile.slug`, unique, generated once as `<name>-<6 hex>`, e.g. `tower-view-a3f9c1`). It never changes when the file is moved or renamed; only an admin edits it.
+- `GET /f/<slug>`: serves the file itself (range requests work for video). Unknown slug: `404`.
+- `GET /html/<slug>/`: serves an HTML page or website (`GET /html/<slug>` redirects `301` to the trailing-slash form so relative links resolve). `/html/<slug>/<path>` serves files next to the entry page of an extracted zip (hidden files, `..` and anything outside the site folder are `404`; a single uploaded page has no siblings). Only for `fileType: html`.
+- HTML and SVG responses carry `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms`; both routes send `Access-Control-Allow-Origin: *` so a sandboxed page can load its own css/js/fonts.
+- Caddy must proxy `/f/*` and `/html/*` to the API (already in `deploy/Caddyfile.ajda` and `Caddyfile.test.ajda`; the owner reloads Caddy on each server). The Vite dev server proxies them too.
+
+### PATCH `/api/media/:id`
+Changes the slug: `{ "slug": "villa-tour" }` (3-80 chars, lowercase letters, digits, single hyphens; reserved: `api`, `assets`, `uploads`, `admin`, `f`, `html`). `400` invalid, `409` already used, `404` unknown file. The old link stops working.
+
 ### GET `/api/media`
 Returns paginated media assets with live usage tracking annotations.
 - **Access:** Admin (`manageMedia`, `manageProjects`, `managePastProjects`, or `manageCms`).
 - **Query Parameters:**
   - `page` (number, default `1`): Page number.
   - `limit` (number, default `24`, max `100`): Items per page.
-  - `type` (string, default `all`): Filter by `all`, `image`, `pdf`, `model3d`.
+  - `type` (string, default `all`): Filter by `all`, `image`, `video`, `pdf`, `model3d`, `html`, `other`.
   - `status` (string, default `all`): Filter by `all`, `linked` (in use), `orphaned` (unused).
+  - `rescan` (`1`, optional): index files dropped on disk by hand right now. Without it the disk index runs at most once a minute (a full scan per request does not scale). Paging, type and search run in the database; only the rows of the requested page are loaded and annotated (a `status` filter reads ids and urls of the matches to apply usage).
   - `search` (string, optional): Substring search in `originalName` or `filename`.
 - **Response (200 OK):**
   ```json
@@ -538,6 +558,33 @@ Safely deletes an unlinked / orphaned media file from disk and database.
   ```
 
 ---
+
+## 5b. Drive (`/api/drive`, `GET /d/<slug>`)
+Private admin file storage, separate from the media library. Guard: `manageMedia` (which `manageCms` and `manageProjects` also grant). Folders are **virtual** (tables `drive_folders`, `drive_files`); files sit flat in `PRIVATE_DIR/drive/<uuid>[.ext]`, never under the public `/uploads`. Moving, renaming and trashing therefore never touch the disk, and a file's slug never changes unless an admin edits it.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/drive/list?view=files&folderId=` | Folder contents + breadcrumbs (no `folderId` = root). `view=trash` lists trashed items whose parent is not itself trashed; `view=search&q=` searches names. A trashed folder answers `400`, an unknown one `404`. |
+| `GET /api/drive/folders` | All live folders `{id,name,parentId}` (move/copy picker). |
+| `GET /api/drive/usage` | `{ fileCount, totalBytes, trashedBytes }`. |
+| `POST /api/drive/folders` `{name,parentId?}` | New folder. `409` when the name exists in that folder, `400` for empty names, slashes or control characters. |
+| `PATCH /api/drive/folders/:id` `{name?,parentId?}` | Rename (409 on clash) and/or move (auto-renames `name (2)` on clash; `400` into itself or a subfolder). |
+| `POST /api/drive/folders/:id/copy` `{parentId?}` | Recursive copy (max 2000 items; files are physically copied, copies get new slugs and are private). |
+| `PATCH /api/drive/files/:id` `{name?,folderId?,isPublic?,slug?}` | Rename, move, share on/off, edit the slug (same rules as the media slug; `409` if used). |
+| `POST /api/drive/files/:id/copy` `{folderId?}` | Copy a file. |
+| `POST /api/drive/move` `{folderIds,fileIds,targetId}` | Bulk move (`targetId: null` = root). |
+| `POST /api/drive/trash`, `/restore`, `/purge` `{folderIds,fileIds}` | Trash stamps a folder and everything inside with one `trashedAt`; restore brings back exactly that set (an item whose folder is still trashed returns to the root); purge deletes trashed items for good (live items are skipped) and removes the bytes. |
+| `POST /api/drive/trash/empty` | Purge everything in the trash (send no JSON content-type, or a body). |
+| `POST /api/drive/upload?folderId=&relPath=` | One multipart file per request, max **50 MB** (`413` above: use the chunked upload). `relPath` (folder upload) such as `Photos/2024/a.jpg` creates the folders below `folderId`. Name clashes become `name (2).ext`. The stored type comes from the extension, never from the client. |
+| `POST /api/drive/upload/chunked/init` `{relPath,folderId?,totalSize,totalChunks,chunkSize}` | Starts a resumable upload of up to **5 GB** (`413` above). `chunkSize` 256 KB to 50 MB (the web app sends 8 MB) and `totalChunks = ceil(totalSize/chunkSize)`; names and the target folder are validated up front; needs about the file size in free disk (`507` otherwise). Returns `{uploadId}`. Sessions idle for 24 h are deleted. |
+| `POST /api/drive/upload/chunked/chunk?uploadId=&chunkIndex=` | One multipart chunk; its length must be exactly `chunkSize` (the last one the remainder), else `400`. |
+| `GET /api/drive/upload/chunked/status/:uploadId` | `{uploadedChunks,totalChunks,totalSize}` so a client can resume. |
+| `POST /api/drive/upload/chunked/complete` `{uploadId}` | Joins the parts (streamed; each part is deleted as it is appended), checks the final size and registers the file (`201`, same shape as `/upload`). Missing chunk: `400`, session kept. |
+| `DELETE /api/drive/upload/chunked/abort/:uploadId` | Drops the session and its parts. |
+| `GET /api/drive/files/:id/download[?inline=1]` | Authenticated download; `inline=1` only affects safe types. |
+| `GET /d/<slug>[?download=1]` | **Public** share link. `404` unless `isPublic` and not trashed. Images, video, audio, PDF and plain text show inline; every other type (HTML, SVG, ...) is stored without its extension and always downloads (`attachment`, `nosniff`), so uploaded files can never run on the site origin. Range requests work. |
+
+Caddy must proxy `/d/*` to the API (done in `deploy/Caddyfile.ajda` and `Caddyfile.test.ajda`; reload Caddy on each server). The Vite dev server proxies `^/d/`.
 
 ## 6. Real-Time WebSocket Events (Socket.io)
 

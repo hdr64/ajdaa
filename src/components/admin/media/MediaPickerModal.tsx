@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FileText,
   Box,
+  Copy,
+  Globe,
   Upload,
   Search,
   Check,
@@ -17,11 +19,13 @@ import { useAdminT } from '../../../i18n/admin/useAdminT';
 import {
   fetchMediaList,
   uploadMedia,
+  mediaPublicUrl,
   type MediaFileDto,
 } from '../../../services/mediaService';
 import { uploadFileInChunks } from '../../../services/chunkedUploadService';
 import { resolveMediaUrl } from '../../../services/api';
 import { formatAdminDate } from '../../../pages/admin/adminFormat';
+import { copyText } from '../../../utils/clipboard';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -35,7 +39,7 @@ export interface MediaPickerModalProps {
   open: boolean;
   onClose: () => void;
   onSelect: (media: { url: string; filename: string; originalName: string }) => void;
-  fileType?: 'image' | 'pdf' | 'model3d' | 'video' | 'other' | 'all';
+  fileType?: 'image' | 'pdf' | 'model3d' | 'video' | 'html' | 'other' | 'all';
   title?: string;
 }
 
@@ -73,6 +77,21 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   // Upload state
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Copies the file's permanent public link without selecting the file.
+  const handleCopy = async (file: MediaFileDto) => {
+    const ok = await copyText(mediaPublicUrl(file));
+    if (ok) {
+      setCopiedId(file.id);
+      window.setTimeout(() => setCopiedId((cur) => (cur === file.id ? null : cur)), 1500);
+    } else {
+      setNotice(t('media.action.copyFailed'));
+    }
+  };
+  // Video, 3D model and HTML uploads may be a .zip that the server unpacks.
+  const extractKind = fileType === 'video' || fileType === 'model3d' || fileType === 'html' ? fileType : undefined;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadMedia = useCallback(async () => {
@@ -97,6 +116,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     if (open) {
       setSelectedFile(null);
       setUploadError('');
+      setNotice('');
       void loadMedia();
     }
   }, [open, loadMedia]);
@@ -105,6 +125,16 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     setUploading(true);
     setUploadError('');
     try {
+      if (extractKind && /\.zip$/i.test(file.name)) {
+        // Unpack on the server, then go back to the list so the admin picks one item.
+        const result = await uploadFileInChunks(file, { extract: extractKind });
+        const count = result.extracted?.length ?? 0;
+        setNotice(t('media.picker.extracted').replace('{count}', String(count)));
+        setSearch('');
+        setTab('library');
+        await loadMedia();
+        return;
+      }
       const uploaded =
         file.size >= 5 * 1024 * 1024 || !file.type.startsWith('image/')
           ? await uploadFileInChunks(file)
@@ -116,7 +146,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
       });
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل رفع الملف';
+      const msg = err instanceof Error ? err.message : t('media.toast.uploadFailed');
       setUploadError(msg);
     } finally {
       setUploading(false);
@@ -144,10 +174,16 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
             <h3 className="text-sm font-black text-heading">{title || t('media.picker.title')}</h3>
             <p className="text-[11px] text-neutral-text/50 mt-0.5">
               {fileType === 'image'
-                ? 'اختيار صورة من مكتبة الوسائط أو رفع صورة جديدة'
+                ? t('media.picker.hintImage')
                 : fileType === 'pdf'
-                ? 'اختيار ملف PDF للمشروع أو رفع ملف جديد'
-                : 'اختيار ملف من المكتبة أو رفع ملف جديد'}
+                ? t('media.picker.hintPdf')
+                : fileType === 'model3d'
+                ? t('media.picker.hintModel3d')
+                : fileType === 'video'
+                ? t('media.picker.hintVideo')
+                : fileType === 'html'
+                ? t('media.picker.hintHtml')
+                : t('media.picker.hintFile')}
             </p>
           </div>
           <button
@@ -188,6 +224,9 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
         <div className="p-4 flex-1 overflow-y-auto">
           {tab === 'library' ? (
             <div className="space-y-4">
+              {notice && (
+                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-500/10 px-3 py-2 rounded-lg">{notice}</p>
+              )}
               {/* Search input & Layout Switcher */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -235,7 +274,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               {loading ? (
                 <div className="h-48 flex items-center justify-center gap-2 text-xs text-neutral-text/60">
                   <RefreshCw className="w-4 h-4 animate-spin text-accent" />
-                  <span>جاري التحميل...</span>
+                  <span>{t('media.picker.loading')}</span>
                 </div>
               ) : items.length === 0 ? (
                 <div className="py-12 text-center text-xs text-neutral-text/50">
@@ -250,6 +289,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                     const isPdf = file.fileType === 'pdf';
                     const isVideo = file.fileType === 'video';
                     const isModel = file.fileType === 'model3d';
+                    const isHtml = file.fileType === 'html';
 
                     return (
                       <div
@@ -284,6 +324,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                             <VideoIcon className="w-6 h-6 text-purple-500/80" />
                           ) : isModel ? (
                             <Box className="w-6 h-6 text-blue-500/80" />
+                          ) : isHtml ? (
+                            <Globe className="w-6 h-6 text-emerald-500/80" />
                           ) : (
                             <FileIcon className="w-6 h-6 text-neutral-text/70" />
                           )}
@@ -293,6 +335,19 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                               <Check className="w-3 h-3 stroke-[3]" />
                             </div>
                           )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleCopy(file);
+                            }}
+                            onDoubleClick={(e) => e.stopPropagation()}
+                            title={t('media.action.copyUrl')}
+                            aria-label={t('media.action.copyUrl')}
+                            className="absolute top-1 start-1 w-6 h-6 rounded-md bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition cursor-pointer"
+                          >
+                            {copiedId === file.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          </button>
                         </div>
 
                         <div className="p-1.5 bg-surface min-w-0">
@@ -315,6 +370,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                         <th className="py-2.5 px-3 text-start">{t('media.table.type')}</th>
                         <th className="py-2.5 px-3 text-start">{t('media.table.size')}</th>
                         <th className="py-2.5 px-3 text-start">{t('media.table.uploadedAt')}</th>
+                        <th className="py-2.5 px-3 text-start w-10"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-muted-border/20">
@@ -325,6 +381,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                         const isPdf = file.fileType === 'pdf';
                         const isVideo = file.fileType === 'video';
                         const isModel = file.fileType === 'model3d';
+                    const isHtml = file.fileType === 'html';
 
                         return (
                           <tr
@@ -372,6 +429,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                                     <VideoIcon className="w-4 h-4 text-purple-500/80" />
                                   ) : isModel ? (
                                     <Box className="w-4 h-4 text-blue-500/80" />
+                                  ) : isHtml ? (
+                                    <Globe className="w-4 h-4 text-emerald-500/80" />
                                   ) : (
                                     <FileIcon className="w-4 h-4 text-neutral-text/70" />
                                   )}
@@ -397,6 +456,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                                     ? 'bg-purple-500/10 text-purple-600'
                                     : isModel
                                     ? 'bg-blue-500/10 text-blue-600'
+                                    : isHtml
+                                    ? 'bg-emerald-500/10 text-emerald-600'
                                     : 'bg-canvas text-neutral-text/70'
                                 }`}
                               >
@@ -408,6 +469,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                                   ? 'VIDEO'
                                   : isModel
                                   ? '3D GLB'
+                                  : isHtml
+                                  ? 'HTML'
                                   : file.fileType}
                               </span>
                             </td>
@@ -416,6 +479,20 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                             </td>
                             <td className="py-2.5 px-3 whitespace-nowrap text-neutral-text/60 text-[10px]">
                               {formatAdminDate(file.createdAt)}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleCopy(file);
+                                }}
+                                title={t('media.action.copyUrl')}
+                                aria-label={t('media.action.copyUrl')}
+                                className="p-1.5 rounded-lg text-neutral-text/60 hover:text-accent hover:bg-accent/10 cursor-pointer"
+                              >
+                                {copiedId === file.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
                             </td>
                           </tr>
                         );
@@ -431,7 +508,19 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept={fileType === 'image' ? 'image/*' : fileType === 'pdf' ? 'application/pdf' : fileType === 'video' ? 'video/*' : '*/*'}
+                accept={
+                  fileType === 'image'
+                    ? 'image/*'
+                    : fileType === 'pdf'
+                    ? 'application/pdf'
+                    : fileType === 'video'
+                    ? 'video/*,.zip'
+                    : fileType === 'model3d'
+                    ? '.glb,model/gltf-binary,.zip'
+                    : fileType === 'html'
+                    ? '.html,.htm,.zip'
+                    : '*/*'
+                }
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -463,7 +552,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                     {uploading ? t('media.uploading') : t('media.picker.dropText')}
                   </p>
                   <p className="text-[10px] text-neutral-text/50 mt-1">
-                    الحد الأقصى للملف 50 ميجابايت (يتم ضغط الصور تلقائياً)
+                    {extractKind ? t('media.picker.zipHint') : t('media.picker.maxSize')}
                   </p>
                 </div>
 
@@ -482,7 +571,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
           <div className="text-xs text-neutral-text/60 truncate min-w-0">
             {selectedFile && tab === 'library' && (
               <span className="font-bold text-heading truncate">
-                المحدد: {selectedFile.originalName}
+                {t('media.picker.selected', { name: selectedFile.originalName })}
               </span>
             )}
           </div>

@@ -15,6 +15,7 @@ import {
   Globe,
   Archive,
   Image as ImageIcon,
+  FolderOpen,
   X as CloseIcon,
   Moon,
   Sun,
@@ -61,6 +62,7 @@ function navGroups(t: (key: any) => string): NavGroup[] {
       items: [
         { section: 'cms', label: t('layout.nav.cms'), icon: Globe, permission: 'manageCms' },
         { section: 'media', label: t('layout.nav.media'), icon: ImageIcon, permission: 'manageMedia' },
+        { section: 'drive', label: t('layout.nav.drive'), icon: FolderOpen, permission: 'manageMedia' },
         { section: 'pastProjects', label: t('layout.nav.pastProjects'), icon: Archive, permission: 'managePastProjects' },
       ],
     },

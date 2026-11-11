@@ -39,7 +39,7 @@ model AdminUser {
   role              String      @default("sales_agent") // super_admin | project_manager | sales_agent | viewer
   roleAr            String      @default("مسؤول مبيعات")
   roleId            String?
-  roleRef           Role?       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  roleRef           Role?       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   department        String?
   departmentId      String?
   departmentRef     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
@@ -407,6 +407,7 @@ model JobApplication {
 model MediaFile {
   id           String    @id @default(uuid())
   url          String    @unique // e.g. "/uploads/uuid.webp" or "/uploads/uuid-doc.pdf"
+  slug         String?   @unique // permanent public link: /f/<slug> (HTML sites: /html/<slug>/); editable, never changes on its own
   filename     String    // e.g. "uuid.webp"
   originalName String    // e.g. "tower-exterior.jpg"
   mimeType     String    // e.g. "image/webp", "application/pdf"
@@ -424,3 +425,43 @@ model MediaFile {
   @@map("media_files")
 }
 
+
+// Drive: private admin file storage with virtual folders. Folders exist only in
+// these tables; files sit flat on disk (PRIVATE_DIR/drive/<storageKey>), so moving
+// or renaming never touches the disk and a file's slug link never changes.
+model DriveFolder {
+  id          String        @id @default(uuid())
+  name        String
+  parentId    String?
+  parent      DriveFolder?  @relation("DriveTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    DriveFolder[] @relation("DriveTree")
+  files       DriveFile[]
+  trashedAt   DateTime?     // set on the trashed folder and everything inside it
+  createdById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([parentId])
+  @@index([trashedAt])
+  @@map("drive_folders")
+}
+
+model DriveFile {
+  id          String       @id @default(uuid())
+  name        String       // display name, editable
+  folderId    String?
+  folder      DriveFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  slug        String       @unique // permanent link /d/<slug>; works only while isPublic
+  storageKey  String       // file name under PRIVATE_DIR/drive
+  mimeType    String
+  size        BigInt       // bytes; files may be up to 5 GB (more than a 32-bit Int holds)
+  isPublic    Boolean      @default(false)
+  trashedAt   DateTime?
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([folderId])
+  @@index([trashedAt])
+  @@map("drive_files")
+}

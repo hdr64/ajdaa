@@ -131,3 +131,70 @@ describe('Resumable Chunked Upload API', () => {
   });
 });
 
+describe('Chunked upload safeguards', () => {
+  const init = (payload: Record<string, unknown>) =>
+    authInject(superAdminToken, { method: 'POST', url: '/api/media/upload/chunked/init', payload });
+
+  const sendChunk = (uploadId: string, index: number, data: Buffer) => {
+    const { payload, headers } = buildMultipartBody({ filename: 'c.bin', contentType: 'application/octet-stream', data });
+    return authInject(superAdminToken, {
+      method: 'POST',
+      url: `/api/media/upload/chunked/chunk?uploadId=${uploadId}&chunkIndex=${index}`,
+      payload,
+      headers,
+    });
+  };
+
+  const oneChunk = { totalSize: 300 * 1024, totalChunks: 1, chunkSize: 1024 * 1024 };
+
+  it('refuses extensions outside the allow list, including svg', async () => {
+    for (const filename of ['logo.svg', 'run.exe', 'noext']) {
+      const res = await init({ filename, ...oneChunk });
+      expect(res.statusCode, filename).toBe(400);
+    }
+  });
+
+  it('refuses inconsistent init values', async () => {
+    expect((await init({ filename: 'a.mp4', totalSize: 3 * 1024 * 1024, totalChunks: 1, chunkSize: 1024 * 1024 })).statusCode).toBe(400);
+    expect((await init({ filename: 'a.mp4', ...oneChunk, chunkSize: 1024 })).statusCode).toBe(400);
+  });
+
+  it('rejects a wrong chunk size and an out-of-range index, answers 404 for an unknown session', async () => {
+    const res = await init({ filename: 'a.mp4', ...oneChunk });
+    expect(res.statusCode).toBe(201);
+    const { uploadId } = res.json() as { uploadId: string };
+
+    expect((await sendChunk(uploadId, 0, Buffer.alloc(100))).statusCode).toBe(400);
+    expect((await sendChunk(uploadId, 5, Buffer.alloc(oneChunk.totalSize))).statusCode).toBe(400);
+
+    // Nothing was stored, so completing reports the missing chunk.
+    const complete = await authInject(superAdminToken, {
+      method: 'POST',
+      url: '/api/media/upload/chunked/complete',
+      payload: { uploadId },
+    });
+    expect(complete.statusCode).toBe(400);
+
+    const unknown = await authInject(superAdminToken, {
+      method: 'GET',
+      url: '/api/media/upload/chunked/status/00000000-0000-4000-8000-000000000000',
+    });
+    expect(unknown.statusCode).toBe(404);
+  });
+
+  it('takes the stored mime from the extension, not from the client', async () => {
+    const res = await init({ filename: 'photo.jpg', ...oneChunk, mimeType: 'text/html' });
+    const { uploadId } = res.json() as { uploadId: string };
+    expect((await sendChunk(uploadId, 0, Buffer.alloc(oneChunk.totalSize, 'x'))).statusCode).toBe(200);
+    const done = await authInject(superAdminToken, {
+      method: 'POST',
+      url: '/api/media/upload/chunked/complete',
+      payload: { uploadId },
+    });
+    expect(done.statusCode).toBe(201);
+    const media = done.json() as { id: string; mimeType: string; fileType: string };
+    expect(media.mimeType).toBe('image/jpeg');
+    expect(media.fileType).toBe('image');
+    await authInject(superAdminToken, { method: 'DELETE', url: `/api/media/${media.id}` });
+  });
+});

@@ -73,6 +73,50 @@ describe('POST/PUT /api/projects model3dUrl', () => {
     }
   });
 
+  it('accepts a library .glb path and round-trips it', async () => {
+    const response = await create({ model3dUrl: '/uploads/3f2a-villa_model.glb' });
+    expect(response.statusCode).toBe(201);
+    const body = response.json() as { id: number; model3dUrl: string | null; virtualTour3dAvailable: boolean };
+    createdIds.push(body.id);
+    expect(body.model3dUrl).toBe('/uploads/3f2a-villa_model.glb');
+    expect(body.virtualTour3dAvailable).toBe(true);
+  });
+
+  it('accepts videos, HTML pages and nested extracted-folder paths', async () => {
+    for (const model3dUrl of [
+      '/uploads/3f2a-tour.mp4',
+      '/uploads/3f2a-page.html',
+      '/uploads/3f2a-site/site/index.html',
+      '/uploads/3f2a-site/%D9%85%D9%84%D9%81/index.html',
+      '/uploads/3f2a-clips/clips/a.webm',
+    ]) {
+      const response = await create({ model3dUrl });
+      expect(response.statusCode, model3dUrl).toBe(201);
+      const body = response.json() as { id: number; model3dUrl: string | null };
+      createdIds.push(body.id);
+      expect(body.model3dUrl).toBe(model3dUrl);
+    }
+  });
+
+  it('rejects library paths that are not a plain .glb upload', async () => {
+    const invalid: [string, string][] = [
+      ['path traversal', '/uploads/../secret.glb'],
+            ['pdf file', '/uploads/x.pdf'],
+      ['gltf file', '/uploads/x.gltf'],
+      ['other folder', '/other/x.glb'],
+      ['embedded space', '/uploads/a b.glb'],
+      ['nested traversal', '/uploads/a/../b/index.html'],
+      ['double slash', '/uploads/a//index.html'],
+      ['script file', '/uploads/a/app.js'],
+      ['exe file', '/uploads/a/run.exe'],
+    ];
+
+    for (const [label, model3dUrl] of invalid) {
+      const response = await create({ model3dUrl });
+      expect(response.statusCode, label).toBe(400);
+    }
+  });
+
   it('stores an empty model3dUrl as null', async () => {
     const response = await create({ model3dUrl: '' });
     expect(response.statusCode).toBe(201);

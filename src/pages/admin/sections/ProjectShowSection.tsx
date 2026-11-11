@@ -19,7 +19,7 @@ import {
 import type { Property, UnitStatus } from '../../../types/property';
 import { detectProjectStatus } from '../../../data/properties';
 import { AdminStorage } from '../../../services/adminStorage';
-import { getErrorMessage } from '../../../services/api';
+import { getErrorMessage, resolveMediaUrl } from '../../../services/api';
 import { useAdmin } from '../adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { AdminHeaderActions } from '../../../components/admin/layout/AdminHeaderActions';
@@ -29,7 +29,7 @@ import { InquiryStatusSelect } from './inquiryUi';
 import { ProjectUnitsPanel } from './ProjectUnitsPanel';
 import { formatAdminDate } from '../adminFormat';
 import { completenessIssues, publicProjectUrl, PUBLISH_STATUS_KEYS, publishStatusOf, UNIT_STATUS_LABELS_AR } from '../projectLabels';
-import { isDownloadableMediaUrl, isHttpsUrl } from '../../../utils/urlValidation';
+import { isDownloadableMediaUrl, isHttpsUrl, isModel3dUrl } from '../../../utils/urlValidation';
 import { usePublishProject } from './usePublishProject';
 import { useDuplicateProject } from './useDuplicateProject';
 
@@ -416,9 +416,9 @@ const ProjectDetails: React.FC<{ project: Property }> = ({ project }) => {
             <Fact
               label={t('projects.show.fact.model3d')}
               value={
-                project.model3dUrl && isHttpsUrl(project.model3dUrl) ? (
+                project.model3dUrl && isModel3dUrl(project.model3dUrl) ? (
                   <a
-                    href={project.model3dUrl}
+                    href={resolveMediaUrl(project.model3dUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-accent hover:underline"

@@ -2,11 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
+  Box,
   FileText,
+  Globe,
   Plus,
   RefreshCw,
   Save,
   SearchX,
+  Video as VideoIcon,
   XCircle,
   X as CloseIcon,
 } from 'lucide-react';
@@ -23,7 +26,8 @@ import { PRICE_TYPES, PROJECT_TYPE_LABELS_AR, PROPERTY_TYPES } from '../projectL
 import { MapLocationPicker } from '../../../components/admin/projects/MapLocationPicker';
 import { CitySelect } from '../../../components/admin/projects/CitySelect';
 import { findSaudiCityByName } from '../../../data/saudiCities';
-import { isHttpsUrl } from '../../../utils/urlValidation';
+import { getModel3dKind, isModel3dFileUrl, isModel3dUrl, toUploadPath } from '../../../utils/urlValidation';
+import { resolveMediaUrl } from '../../../services/api';
 import { detectProjectStatus } from '../../../data/properties';
 import { GoogleSearchProductPreview } from '../../../components/admin/projects/GoogleSearchProductPreview';
 import { MediaPickerModal } from '../../../components/admin/media/MediaPickerModal';
@@ -175,8 +179,8 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   const [saving, setSaving] = useState(false);
   const [pickerState, setPickerState] = useState<{
     open: boolean;
-    target: 'image' | 'gallery' | 'brochure';
-    fileType: 'image' | 'pdf';
+    target: 'image' | 'gallery' | 'brochure' | 'model3d';
+    fileType: 'image' | 'pdf' | 'model3d' | 'video' | 'html';
   } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -273,7 +277,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
     if (Number.isNaN(bathrooms)) found.bathrooms = t('projectEdit.validation.bathroomsNumber');
     else if (bathrooms !== null && !Number.isInteger(bathrooms)) found.bathrooms = t('projectEdit.validation.bathroomsInteger');
 
-    if (form.model3dUrl.trim() && !isHttpsUrl(form.model3dUrl)) {
+    if (form.model3dUrl.trim() && !isModel3dUrl(form.model3dUrl)) {
       found.model3dUrl = t('projectEdit.validation.model3dUrl');
     }
 
@@ -779,18 +783,97 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                   </button>
                 )}
               </div>
-              <Field label={t('projectEdit.field.model3dUrl')} htmlFor="pe-model3dUrl" error={errors.model3dUrl}>
-                <input
-                  id="pe-model3dUrl"
-                  type="url"
-                  dir="ltr"
-                  inputMode="url"
-                  placeholder="https://viewer.example.com/model/123"
-                  value={form.model3dUrl}
-                  onChange={(e) => patch({ model3dUrl: e.target.value })}
-                  className={INPUT_CLASS}
-                />
-              </Field>
+              {isModel3dFileUrl(form.model3dUrl) ? (
+                <div>
+                  <span className={LABEL_CLASS}>{t('projectEdit.field.model3dUrl')}</span>
+                  {(() => {
+                    const kind = getModel3dKind(form.model3dUrl);
+                    const pickerType = kind === 'video' ? 'video' : kind === 'html' ? 'html' : 'model3d';
+                    const KindIcon = kind === 'video' ? VideoIcon : kind === 'html' ? Globe : Box;
+                    let fileName = form.model3dUrl.split('/').pop() ?? '';
+                    try {
+                      fileName = decodeURIComponent(fileName);
+                    } catch {
+                      // keep the encoded name
+                    }
+                    return (
+                      <div className="flex items-center gap-2 p-3 rounded-xl border border-muted-border/50 bg-canvas">
+                        <KindIcon className="w-5 h-5 text-accent shrink-0" />
+                        <span className="text-[10px] font-black text-accent shrink-0">
+                          {t(`projectEdit.model3d.kind.${pickerType}`)}
+                        </span>
+                        <a
+                          href={resolveMediaUrl(form.model3dUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          dir="ltr"
+                          title={t('projectEdit.model3d.view')}
+                          className="text-[11px] font-bold text-heading hover:text-accent truncate min-w-0"
+                        >
+                          {fileName}
+                        </a>
+                        <div className="ms-auto flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPickerState({ open: true, target: 'model3d', fileType: pickerType })}
+                            disabled={busy}
+                            className="text-[10px] font-bold text-accent hover:underline cursor-pointer"
+                          >
+                            {t('projectEdit.action.replace')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => patch({ model3dUrl: '' })}
+                            disabled={busy}
+                            className="p-1 rounded-lg text-neutral-text/60 hover:text-red-500 cursor-pointer"
+                            aria-label={t('projectEdit.action.removeModel3d')}
+                            title={t('projectEdit.action.removeModel3d')}
+                          >
+                            <CloseIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {errors.model3dUrl && <p className="mt-1 text-[10px] font-bold text-red-500">{errors.model3dUrl}</p>}
+                </div>
+              ) : (
+                <>
+                  <Field label={t('projectEdit.field.model3dUrl')} htmlFor="pe-model3dUrl" error={errors.model3dUrl}>
+                    <input
+                      id="pe-model3dUrl"
+                      type="url"
+                      dir="ltr"
+                      inputMode="url"
+                      placeholder="https://viewer.example.com/model/123"
+                      value={form.model3dUrl}
+                      onChange={(e) => patch({ model3dUrl: e.target.value })}
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                  <div>
+                    <span className={LABEL_CLASS}>{t('projectEdit.model3d.chooseLabel')}</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        ['model3d', Box],
+                        ['video', VideoIcon],
+                        ['html', Globe],
+                      ] as const).map(([type, Icon]) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setPickerState({ open: true, target: 'model3d', fileType: type })}
+                          disabled={busy}
+                          className="py-3 rounded-2xl border border-dashed border-muted-border/50 hover:border-accent/60 bg-muted-surface/30 hover:bg-accent/5 text-neutral-text/70 hover:text-accent flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-60 text-[11px] font-bold"
+                        >
+                          <Icon className="w-4 h-4 text-accent" />
+                          <span>{t(`projectEdit.model3d.kind.${type}`)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
               <p className="text-[10px] text-neutral-text/50">
                 {t('projectEdit.model3d.hint')}
               </p>
@@ -811,6 +894,14 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
               setForm((cur) => ({ ...cur, gallery: [...cur.gallery, media.url] }));
             } else if (pickerState.target === 'brochure') {
               patch({ brochureUrl: media.url });
+            } else if (pickerState.target === 'model3d') {
+              // A fresh upload comes back with the API origin; store only `/uploads/...`.
+              const stored = toUploadPath(media.url);
+              if (isModel3dFileUrl(stored)) {
+                patch({ model3dUrl: stored });
+              } else {
+                setErrors((cur) => ({ ...cur, model3dUrl: t('projectEdit.validation.model3dFileType') }));
+              }
             }
             setPickerState(null);
           }}

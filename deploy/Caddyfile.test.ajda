@@ -37,6 +37,18 @@ ajda.weghetk.com {
 		reverse_proxy 127.0.0.1:4001
 	}
 
+	# --- Permanent public links of library files (/f/<slug>, HTML sites at /html/<slug>/) ---
+	handle /f/* {
+		reverse_proxy 127.0.0.1:4001
+	}
+	handle /html/* {
+		reverse_proxy 127.0.0.1:4001
+	}
+	# Drive share links (/d/<slug>, only while the file is shared)
+	handle /d/* {
+		reverse_proxy 127.0.0.1:4001
+	}
+
 	handle /socket.io/* {
 		reverse_proxy 127.0.0.1:4001 {
 			flush_interval -1
@@ -55,7 +67,7 @@ ajda.weghetk.com {
 	# Paths with a file extension and anything under /assets are plain static files.
 	# If the API answers 5xx or is down, handle_errors below serves the static index.html.
 	@spaPage {
-		not path /assets/* /uploads/* /socket.io/* /api/*
+		not path /assets/* /uploads/* /f/* /html/* /d/* /socket.io/* /api/*
 		not path_regexp \.[A-Za-z0-9]+$
 	}
 	handle @spaPage {
@@ -87,7 +99,7 @@ ajda.weghetk.com {
 	# API unreachable (restart, crash): serve the static shell for page URLs only.
 	# {http.request.orig_uri.path} is the URL before the rewrite to /api/seo/shell.
 	handle_errors {
-		@spaDown expression `{http.error.status_code} >= 500 && !{http.request.orig_uri.path}.startsWith("/api/") && !{http.request.orig_uri.path}.startsWith("/uploads/") && !{http.request.orig_uri.path}.startsWith("/socket.io/")`
+		@spaDown expression `{http.error.status_code} >= 500 && !{http.request.orig_uri.path}.startsWith("/api/") && !{http.request.orig_uri.path}.startsWith("/uploads/") && !{http.request.orig_uri.path}.startsWith("/f/") && !{http.request.orig_uri.path}.startsWith("/html/") && !{http.request.orig_uri.path}.startsWith("/d/") && !{http.request.orig_uri.path}.startsWith("/socket.io/")`
 		handle @spaDown {
 			rewrite * /index.html
 			root * /srv/ajda/test/dist

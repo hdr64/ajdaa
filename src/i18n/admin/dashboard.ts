@@ -38,6 +38,8 @@ export const dashboard = defineStrings(
     'section.cms.subtitle': 'التحكم في كافة نصوص الموقع، الأقسام، الشركاء، القائمة والتذييل',
     'section.media.title': 'مكتبة الوسائط',
     'section.media.subtitle': 'إدارة الملفات والصور والوسائط المستخدمة وتتبع ارتباطاتها',
+    'section.drive.title': 'الدرايف',
+    'section.drive.subtitle': 'ملفات ومجلدات خاصة بالإدارة مع سلة محذوفات ومشاركة برابط دائم',
     'section.profile.title': 'الملف الشخصي والحساب',
     'section.profile.subtitle': 'إدارة البيانات الشخصية، كلمة المرور وخيارات الأمان',
 
@@ -122,6 +124,8 @@ export const dashboard = defineStrings(
     'section.cms.subtitle': 'Control every site text, section, partner, menu and footer',
     'section.media.title': 'Media Library',
     'section.media.subtitle': 'Manage uploaded files, assets, and track their usage across the site',
+    'section.drive.title': 'Drive',
+    'section.drive.subtitle': 'Private admin files and folders with a trash and permanent share links',
     'section.profile.title': 'Profile & account',
     'section.profile.subtitle': 'Manage personal details, password and security options',
 

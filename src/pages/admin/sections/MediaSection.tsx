@@ -30,8 +30,11 @@ import {
   fetchStorageStats,
   type MediaFileDto,
   type DiskStorageStats,
+  mediaPublicUrl,
+  updateMediaSlug,
 } from '../../../services/mediaService';
-import { resolveMediaUrl } from '../../../services/api';
+import { getErrorMessage, resolveMediaUrl } from '../../../services/api';
+import { copyText } from '../../../utils/clipboard';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -55,7 +58,7 @@ export const MediaSection: React.FC = () => {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'linked' | 'orphaned'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'image' | 'video' | 'pdf' | 'model3d' | 'other'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'image' | 'video' | 'pdf' | 'model3d' | 'html' | 'other'>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -65,6 +68,7 @@ export const MediaSection: React.FC = () => {
   // Popovers & Dialogs
   const [activeUsageFile, setActiveUsageFile] = useState<MediaFileDto | null>(null);
   const [previewFile, setPreviewFile] = useState<MediaFileDto | null>(null);
+  const [slugDraft, setSlugDraft] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Layout mode (Grid vs Detailed List)
@@ -89,7 +93,11 @@ export const MediaSection: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Only the newest request may write its result: a slow older answer must not replace a newer one.
+  const latestRequest = useRef(0);
+
   const loadMedia = useCallback(async () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     try {
       const res = await fetchMediaList({
@@ -99,15 +107,21 @@ export const MediaSection: React.FC = () => {
         status: statusFilter,
         search: debouncedSearch,
       });
+      if (requestId !== latestRequest.current) return;
+      // The last item of the last page was removed: step back instead of showing an empty grid.
+      if (res.items.length === 0 && page > 1 && page > res.totalPages) {
+        setPage(res.totalPages);
+        return;
+      }
       setItems(res.items);
       setTotal(res.total);
       setTotalPages(res.totalPages);
     } catch {
-      showToast('فشل تحميل ملفات الوسائط', 'error');
+      if (requestId === latestRequest.current) showToast(t('media.toast.loadFailed'), 'error');
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
-  }, [page, typeFilter, statusFilter, debouncedSearch, showToast]);
+  }, [page, typeFilter, statusFilter, debouncedSearch, showToast, t]);
 
   const loadStorageStats = useCallback(async () => {
     try {
@@ -140,19 +154,41 @@ export const MediaSection: React.FC = () => {
     if (!files || files.length === 0) return;
     try {
       await uploadFiles(Array.from(files));
-      showToast('تمت إضافة الملفات إلى مدير الرفع بنجاح', 'success');
+      showToast(t('media.toast.uploadQueued'), 'success');
       void loadMedia();
       void loadStorageStats();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل رفع الملف';
+      const msg = err instanceof Error ? err.message : t('media.toast.uploadFailed');
       showToast(msg, 'error');
     }
   };
 
-  const handleCopyUrl = (url: string) => {
-    const full = resolveMediaUrl(url);
-    void navigator.clipboard.writeText(full);
-    showToast(t('media.action.copied'), 'info');
+  const openPreview = (file: MediaFileDto) => {
+    setSlugDraft(file.slug ?? '');
+    setPreviewFile(file);
+  };
+
+  const copyLink = async (link: string) => {
+    const ok = await copyText(link);
+    showToast(ok ? t('media.action.copied') : t('media.action.copyFailed'), ok ? 'info' : 'error');
+  };
+
+  // The main copy button gives the permanent link (/f/<slug>); the direct
+  // /uploads URL is copied from the preview.
+  const handleCopyUrl = (file: MediaFileDto) => void copyLink(mediaPublicUrl(file));
+
+  const handleSaveSlug = async () => {
+    if (!previewFile) return;
+    const slug = slugDraft.trim().toLowerCase();
+    if (slug === (previewFile.slug ?? '')) return;
+    try {
+      const res = await updateMediaSlug(previewFile.id, slug);
+      showToast(t('media.preview.slugSaved'), 'info');
+      setPreviewFile({ ...previewFile, slug: res.slug });
+      setItems((cur) => cur.map((i) => (i.id === previewFile.id ? { ...i, slug: res.slug } : i)));
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
+    }
   };
 
   const handleDelete = async (file: MediaFileDto) => {
@@ -173,11 +209,11 @@ export const MediaSection: React.FC = () => {
     setDeletingId(file.id);
     try {
       await deleteMediaItem(file.id);
-      showToast('تم حذف الملف نهائياً', 'success');
+      showToast(t('media.toast.deleted'), 'success');
       void loadMedia();
       void loadStorageStats();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل حذف الملف';
+      const msg = err instanceof Error ? err.message : t('media.toast.deleteFailed');
       showToast(msg, 'error');
     } finally {
       setDeletingId(null);
@@ -197,7 +233,7 @@ export const MediaSection: React.FC = () => {
               <h4 className="text-sm font-bold text-heading flex items-center gap-2">
                 <span>{t('media.warning.lowDiskSpace')}</span>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white">
-                  {storageStats.freeGb} GB متبقية
+                  {t('media.stat.freeLeft', { gb: storageStats.freeGb })}
                 </span>
               </h4>
               <p className="text-xs text-neutral-text/80 mt-1">
@@ -280,7 +316,7 @@ export const MediaSection: React.FC = () => {
                     : 'bg-muted-surface text-neutral-text/70'
                 }`}
               >
-                {storageStats.isLowSpace ? 'مساحة منخفضة' : `${100 - storageStats.percentUsed}% حر`}
+                {storageStats.isLowSpace ? t('media.stat.lowSpace') : t('media.stat.freePercent', { percent: 100 - storageStats.percentUsed })}
               </span>
             )}
           </div>
@@ -311,6 +347,7 @@ export const MediaSection: React.FC = () => {
           <div>
             <p className="text-[10px] text-neutral-text/60 font-medium">{t('media.stat.linkedCount')}</p>
             <p className="text-base font-black text-heading">{stats.linked}</p>
+            <p className="text-[9px] text-neutral-text/40">{t('media.stat.thisPage')}</p>
           </div>
         </div>
 
@@ -322,6 +359,7 @@ export const MediaSection: React.FC = () => {
           <div>
             <p className="text-[10px] text-neutral-text/60 font-medium">{t('media.stat.orphanedCount')}</p>
             <p className="text-base font-black text-heading">{stats.orphaned}</p>
+            <p className="text-[9px] text-neutral-text/40">{t('media.stat.thisPage')}</p>
           </div>
         </div>
       </div>
@@ -441,7 +479,7 @@ export const MediaSection: React.FC = () => {
 
           {/* Type filter */}
           <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
-            {(['all', 'image', 'video', 'pdf', 'model3d', 'other'] as const).map((type) => (
+            {(['all', 'image', 'video', 'pdf', 'model3d', 'html', 'other'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => {
@@ -490,7 +528,7 @@ export const MediaSection: React.FC = () => {
               >
                 {/* Thumbnail / Preview Area */}
                 <div
-                  onClick={() => setPreviewFile(file)}
+                  onClick={() => openPreview(file)}
                   className="h-32 bg-canvas flex items-center justify-center overflow-hidden cursor-pointer relative"
                 >
                   {isImage ? (
@@ -531,7 +569,7 @@ export const MediaSection: React.FC = () => {
                           setActiveUsageFile(file);
                         }}
                         className="px-2 py-0.5 rounded-full bg-emerald-500/90 text-white font-black text-[9px] shadow-sm backdrop-blur-sm flex items-center gap-1 hover:bg-emerald-600 transition cursor-pointer"
-                        title="انقر لعرض المشاريع المرتبطة"
+                        title={t('media.usage.viewProjects')}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-white" />
                         <span>{t('media.badge.linked', { count: file.usageCount })}</span>
@@ -557,7 +595,7 @@ export const MediaSection: React.FC = () => {
                   {/* Action Bar */}
                   <div className="flex items-center justify-between pt-2 border-t border-muted-border/20 text-neutral-text/60">
                     <button
-                      onClick={() => handleCopyUrl(file.url)}
+                      onClick={() => handleCopyUrl(file)}
                       title={t('media.action.copyUrl')}
                       className="p-1 rounded-lg hover:text-accent hover:bg-accent/10 transition cursor-pointer"
                     >
@@ -577,7 +615,7 @@ export const MediaSection: React.FC = () => {
                     <button
                       onClick={() => handleDelete(file)}
                       disabled={deletingId === file.id}
-                      title={isLinked ? 'لا يمكن الحذف - الملف مرتبط بمشروع' : t('media.action.delete')}
+                      title={isLinked ? t('media.delete.disabledProject') : t('media.action.delete')}
                       className={`p-1 rounded-lg transition cursor-pointer ${
                         isLinked
                           ? 'text-neutral-text/30 hover:text-amber-600 hover:bg-amber-500/10'
@@ -628,7 +666,7 @@ export const MediaSection: React.FC = () => {
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div
-                            onClick={() => setPreviewFile(file)}
+                            onClick={() => openPreview(file)}
                             className="w-11 h-11 rounded-xl bg-canvas border border-muted-border/40 overflow-hidden shrink-0 flex items-center justify-center cursor-pointer hover:border-accent/60 transition group-hover:scale-105"
                           >
                             {isImage ? (
@@ -646,7 +684,7 @@ export const MediaSection: React.FC = () => {
                           <div className="min-w-0 max-w-xs sm:max-w-sm">
                             <p
                               className="font-bold text-heading text-xs truncate hover:text-accent cursor-pointer"
-                              onClick={() => setPreviewFile(file)}
+                              onClick={() => openPreview(file)}
                               title={file.originalName}
                             >
                               {file.originalName}
@@ -697,7 +735,7 @@ export const MediaSection: React.FC = () => {
                             type="button"
                             onClick={() => setActiveUsageFile(file)}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] transition cursor-pointer"
-                            title="انقر لعرض تفاصيل المشاريع المرتبطة"
+                            title={t('media.usage.viewDetails')}
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             <span>{t('media.badge.linked', { count: file.usageCount })}</span>
@@ -732,7 +770,7 @@ export const MediaSection: React.FC = () => {
                       <td className="py-3 px-4 whitespace-nowrap text-end">
                         <div className="inline-flex items-center justify-end gap-1">
                           <button
-                            onClick={() => handleCopyUrl(file.url)}
+                            onClick={() => handleCopyUrl(file)}
                             title={t('media.action.copyUrl')}
                             className="p-1.5 rounded-lg hover:text-accent hover:bg-accent/10 text-neutral-text/60 transition cursor-pointer"
                           >
@@ -752,7 +790,7 @@ export const MediaSection: React.FC = () => {
                           <button
                             onClick={() => handleDelete(file)}
                             disabled={deletingId === file.id}
-                            title={isLinked ? 'لا يمكن الحذف - الملف مرتبط بمحتوى نشط' : t('media.action.delete')}
+                            title={isLinked ? t('media.delete.disabledContent') : t('media.action.delete')}
                             className={`p-1.5 rounded-lg transition cursor-pointer ${
                               isLinked
                                 ? 'text-neutral-text/30 hover:text-amber-600 hover:bg-amber-500/10'
@@ -784,7 +822,7 @@ export const MediaSection: React.FC = () => {
             disabled={page === 1}
             className="px-3 py-1.5 rounded-xl border border-muted-border/40 bg-surface text-xs font-bold text-heading hover:border-accent disabled:opacity-40 cursor-pointer"
           >
-            السابق
+            {t('media.pagination.prev')}
           </button>
           <span className="text-xs text-neutral-text/60 font-bold px-2">
             {page} / {totalPages}
@@ -794,7 +832,7 @@ export const MediaSection: React.FC = () => {
             disabled={page === totalPages}
             className="px-3 py-1.5 rounded-xl border border-muted-border/40 bg-surface text-xs font-bold text-heading hover:border-accent disabled:opacity-40 cursor-pointer"
           >
-            التالي
+            {t('media.pagination.next')}
           </button>
         </div>
       )}
@@ -825,7 +863,7 @@ export const MediaSection: React.FC = () => {
                   <div className="min-w-0">
                     <p className="font-bold text-heading truncate">{u.entityTitle}</p>
                     <p className="text-[10px] text-neutral-text/50">
-                      الحقل: <span className="font-mono text-accent">{u.field}</span>
+                      {t('media.usage.field')} <span className="font-mono text-accent">{u.field}</span>
                     </p>
                   </div>
                   <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-accent/10 text-accent shrink-0">
@@ -840,7 +878,7 @@ export const MediaSection: React.FC = () => {
                 onClick={() => setActiveUsageFile(null)}
                 className="px-4 py-2 rounded-xl bg-surface hover:bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer"
               >
-                إغلاق
+                {t('media.common.close')}
               </button>
             </div>
           </div>
@@ -855,7 +893,7 @@ export const MediaSection: React.FC = () => {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="max-w-4xl max-h-[85vh] rounded-2xl overflow-hidden bg-surface border border-white/20 shadow-2xl flex flex-col"
+            className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-surface border border-white/20 shadow-2xl flex flex-col"
           >
             <div className="p-3 bg-surface border-b border-muted-border/20 flex items-center justify-between gap-3">
               <p className="text-xs font-bold text-heading truncate">{previewFile.originalName}</p>
@@ -867,12 +905,84 @@ export const MediaSection: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-4 flex items-center justify-center bg-black/40 overflow-hidden">
+            <div className="px-3 py-3 border-b border-muted-border/20 space-y-2.5 text-start">
+              <div>
+                <span className="block text-[10px] font-bold text-neutral-text/60 mb-1">{t('media.preview.publicLink')}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    dir="ltr"
+                    value={mediaPublicUrl(previewFile)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-canvas border border-muted-border/50 text-[11px] text-heading"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleCopyUrl(previewFile)}
+                    title={t('media.action.copyUrl')}
+                    aria-label={t('media.action.copyUrl')}
+                    className="p-2 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-neutral-text/60 mb-1">{t('media.preview.slug')}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    dir="ltr"
+                    value={slugDraft}
+                    onChange={(e) => setSlugDraft(e.target.value)}
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-canvas border border-muted-border/50 text-[11px] text-heading outline-none focus:border-accent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveSlug()}
+                    disabled={slugDraft.trim().toLowerCase() === (previewFile.slug ?? '')}
+                    className="px-3 py-1.5 rounded-lg bg-accent text-white text-[11px] font-bold disabled:opacity-40 cursor-pointer"
+                  >
+                    {t('media.preview.slugSave')}
+                  </button>
+                </div>
+                <p className="mt-1 text-[10px] text-neutral-text/50">{t('media.preview.slugHint')}</p>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-neutral-text/60 mb-1">{t('media.preview.fileLink')}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    dir="ltr"
+                    value={resolveMediaUrl(previewFile.url)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-canvas border border-muted-border/50 text-[11px] text-heading"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void copyLink(resolveMediaUrl(previewFile.url))}
+                    title={t('media.action.copyFileUrl')}
+                    aria-label={t('media.action.copyFileUrl')}
+                    className="p-2 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 flex items-center justify-center bg-black/40 overflow-auto">
               {previewFile.fileType === 'image' ? (
                 <img
                   src={resolveMediaUrl(previewFile.url)}
                   alt={previewFile.originalName}
                   className="max-h-[70vh] w-auto object-contain rounded-lg"
+                />
+              ) : previewFile.fileType === 'html' ? (
+                <iframe
+                  src={mediaPublicUrl(previewFile)}
+                  title={previewFile.originalName}
+                  sandbox="allow-scripts allow-popups allow-forms"
+                  className="w-[min(80vw,56rem)] h-[45vh] border-0 bg-white rounded-lg"
                 />
               ) : previewFile.fileType === 'video' ? (
                 <video
@@ -891,7 +1001,7 @@ export const MediaSection: React.FC = () => {
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white font-bold text-xs"
                   >
-                    <span>فتح في تبويب جديد</span>
+                    <span>{t('media.preview.openInTab')}</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>

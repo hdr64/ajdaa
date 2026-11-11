@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import fs from 'fs/promises';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
@@ -6,7 +6,7 @@ import { config } from '../config/env.js';
 import {
   processAndSaveFile,
   deleteMediaFile,
-  syncDiskMediaToDatabase,
+  syncDiskMediaThrottled,
   getDiskStorageStats,
   MAX_UPLOAD_BYTES,
   MediaInUseError,
@@ -18,9 +18,20 @@ import {
   completeChunkedUpload,
   abortChunkedUpload,
 } from '../services/chunkedUploadService.js';
-import { inspectMediaUsage, getBatchMediaUsage } from '../services/mediaUsageService.js';
+import { inspectMediaUsage, getBatchMediaUsage, usageKey } from '../services/mediaUsageService.js';
 import { authenticate, requireAnyPermission } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
+import { EXTRACT_KINDS } from '../services/zipExtractService.js';
+import { generateUniqueSlug, validateSlug } from '../services/mediaSlugService.js';
+
+/** Errors that carry their own status (MediaUploadError, ZipExtractError) keep it; anything else is a generic 500. */
+function sendUploadError(reply: FastifyReply, err: unknown, fallback: string) {
+  const statusCode = (err as { statusCode?: number } | null)?.statusCode;
+  if (typeof statusCode === 'number' && err instanceof Error) {
+    return reply.status(statusCode).send({ error: err.message });
+  }
+  return reply.status(500).send({ error: fallback });
+}
 
 export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
   const UPLOAD_DIR = config.uploadDir;
@@ -60,6 +71,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     const record = await prisma.mediaFile.create({
       data: {
         url: stored.url,
+        slug: await generateUniqueSlug(stored.originalName),
         filename: stored.filename,
         originalName: stored.originalName,
         mimeType: stored.mimeType,
@@ -73,6 +85,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(201).send({
       id: record.id,
       url: record.url,
+      slug: record.slug,
       filename: record.filename,
       originalName: record.originalName,
       mimeType: record.mimeType,
@@ -91,21 +104,13 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       totalChunks: z.number().int().positive().max(2000),
       chunkSize: z.number().int().positive().max(50 * 1024 * 1024).default(5 * 1024 * 1024),
       mimeType: z.string().optional(),
+      // Unpack a .zip into the library as this kind of content.
+      extract: z.enum(EXTRACT_KINDS).optional(),
     });
 
     const parsed = initSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid chunk initialization parameters' });
-    }
-
-    const diskStats = await fs.statfs(UPLOAD_DIR).catch(() => null);
-    if (diskStats) {
-      const freeBytes = Number(diskStats.bavail) * Number(diskStats.bsize);
-      if (freeBytes < parsed.data.totalSize) {
-        return reply.status(507).send({
-          error: `مساحة القرص غير كافية لرفع هذا الملف (${(parsed.data.totalSize / (1024 ** 3)).toFixed(2)} GB مطلوب، والمتبقي ${(freeBytes / (1024 ** 3)).toFixed(2)} GB)`,
-        });
-      }
     }
 
     try {
@@ -115,8 +120,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       });
       return reply.status(201).send(res);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to init chunked upload';
-      return reply.status(500).send({ error: message });
+      return sendUploadError(reply, err, 'Failed to init chunked upload');
     }
   });
 
@@ -142,13 +146,15 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const buffer = await data.toBuffer();
+    if (data.file.truncated) {
+      return reply.status(413).send({ error: 'Chunk is too large' });
+    }
 
     try {
       const res = await saveUploadChunk(uploadId, chunkIndex, buffer);
       return reply.send(res);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to save chunk';
-      return reply.status(400).send({ error: message });
+      return sendUploadError(reply, err, 'Failed to save chunk');
     }
   });
 
@@ -169,8 +175,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       const status = await getUploadChunkStatus(parsed.data.uploadId);
       return reply.send(status);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Upload session not found';
-      return reply.status(404).send({ error: message });
+      return sendUploadError(reply, err, 'Failed to read upload status');
     }
   });
 
@@ -191,8 +196,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       const media = await completeChunkedUpload(parsed.data.uploadId, request.admin?.id);
       return reply.status(201).send(media);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to complete chunked upload';
-      return reply.status(400).send({ error: message });
+      return sendUploadError(reply, err, 'Failed to complete chunked upload');
     }
   });
 
@@ -213,8 +217,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       await abortChunkedUpload(parsed.data.uploadId);
       return reply.send({ success: true });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to abort chunked upload';
-      return reply.status(400).send({ error: message });
+      return sendUploadError(reply, err, 'Failed to abort chunked upload');
     }
   });
 
@@ -222,15 +225,14 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
    * Browse media files with usage detection and filters.
    */
   fastify.get('/', mediaGuard, async (request, reply) => {
-    // 1. Ensure any pre-existing files on disk are indexed
-    await syncDiskMediaToDatabase().catch(() => 0);
-
     const querySchema = z.object({
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(24),
-      type: z.enum(['all', 'image', 'video', 'pdf', 'model3d', 'other']).default('all'),
+      type: z.enum(['all', 'image', 'video', 'pdf', 'model3d', 'html', 'other']).default('all'),
       status: z.enum(['all', 'linked', 'orphaned']).default('all'),
       search: z.string().optional(),
+      // `rescan=1` forces the disk index to refresh now (otherwise at most once a minute).
+      rescan: z.enum(['0', '1']).optional(),
     });
 
     const parsed = querySchema.safeParse(request.query);
@@ -238,7 +240,10 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid query parameters' });
     }
 
-    const { page, limit, type, status, search } = parsed.data;
+    const { page, limit, type, status, search, rescan } = parsed.data;
+
+    // Index files that were dropped on disk by hand (throttled: a full scan per request does not scale).
+    await syncDiskMediaThrottled(rescan === '1').catch(() => 0);
 
     // Prisma filter for type and search
     const where: Prisma.MediaFileWhereInput = {};
@@ -248,23 +253,42 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       where.fileType = type;
     }
     if (search && search.trim()) {
-      const q = search.trim().toLowerCase();
+      // SQLite's LIKE ignores case; PostgreSQL needs the explicit mode (as the Drive search does).
+      const q = search.trim();
+      const mode = (/^postgres/i.test(config.databaseUrl) ? { mode: 'insensitive' } : {}) as object;
       where.OR = [
-        { originalName: { contains: q } },
-        { filename: { contains: q } },
+        { originalName: { contains: q, ...mode } },
+        { filename: { contains: q, ...mode } },
       ];
     }
 
-    const allMatching = await prisma.mediaFile.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    // 2. Fetch usage map to annotate each item
+    // Usage is computed from the other tables (small); only the page being shown is loaded in full.
     const usageMap = await getBatchMediaUsage();
+    const orderBy = { createdAt: 'desc' } as const;
+    let total: number;
+    let rows: Awaited<ReturnType<typeof prisma.mediaFile.findMany>>;
 
-    // 3. Resolve uploader admin names for createdById
-    const adminIds = [...new Set(allMatching.map((m) => m.createdById).filter(Boolean))] as string[];
+    if (status === 'all') {
+      [total, rows] = await Promise.all([
+        prisma.mediaFile.count({ where }),
+        prisma.mediaFile.findMany({ where, orderBy, skip: (page - 1) * limit, take: limit }),
+      ]);
+    } else {
+      // Linked / orphaned depends on usage, which is not a column: filter on ids and urls only.
+      const light = await prisma.mediaFile.findMany({ where, orderBy, select: { id: true, url: true } });
+      const wantLinked = status === 'linked';
+      const ids = light
+        .filter((item) => ((usageMap.get(usageKey(item.url))?.length ?? 0) > 0) === wantLinked)
+        .map((item) => item.id);
+      total = ids.length;
+      const pageIds = ids.slice((page - 1) * limit, page * limit);
+      const found = pageIds.length > 0 ? await prisma.mediaFile.findMany({ where: { id: { in: pageIds } } }) : [];
+      const byId = new Map(found.map((item) => [item.id, item]));
+      rows = pageIds.map((id) => byId.get(id)).filter((item): item is (typeof found)[number] => item !== undefined);
+    }
+
+    // Resolve uploader admin names for the rows on this page.
+    const adminIds = [...new Set(rows.map((m) => m.createdById).filter(Boolean))] as string[];
     const admins = adminIds.length > 0
       ? await prisma.adminUser.findMany({
           where: { id: { in: adminIds } },
@@ -273,28 +297,16 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       : [];
     const adminMap = new Map(admins.map((a) => [a.id, a.name || a.email]));
 
-    const annotated = allMatching.map((item) => {
-      const usages = usageMap.get(item.filename.toLowerCase()) ?? [];
-      const createdByName = item.createdById ? (adminMap.get(item.createdById) ?? null) : null;
+    const items = rows.map((item) => {
+      const usages = usageMap.get(usageKey(item.url)) ?? [];
       return {
         ...item,
-        createdByName,
+        createdByName: item.createdById ? (adminMap.get(item.createdById) ?? null) : null,
         usageCount: usages.length,
         usages,
       };
     });
-
-    // 3. Filter by linked / orphaned status if requested
-    let filtered = annotated;
-    if (status === 'linked') {
-      filtered = annotated.filter((i) => i.usageCount > 0);
-    } else if (status === 'orphaned') {
-      filtered = annotated.filter((i) => i.usageCount === 0);
-    }
-
-    const total = filtered.length;
     const totalPages = Math.ceil(total / limit) || 1;
-    const items = filtered.slice((page - 1) * limit, page * limit);
 
     return reply.send({
       items,
@@ -328,6 +340,33 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       const message = err instanceof Error ? err.message : 'Failed to retrieve storage stats';
       return reply.status(500).send({ error: message });
     }
+  });
+
+  /**
+   * Change a file's public slug (`/f/<slug>`, `/html/<slug>/`). The old link stops working.
+   */
+  fastify.patch('/:id', mediaGuard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = z.object({ slug: z.string().trim().toLowerCase() }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'slug is required' });
+    }
+    const problem = validateSlug(parsed.data.slug);
+    if (problem) {
+      return reply.status(400).send({ error: problem });
+    }
+
+    const media = await prisma.mediaFile.findUnique({ where: { id }, select: { id: true } });
+    if (!media) {
+      return reply.status(404).send({ error: 'Media file not found' });
+    }
+    const taken = await prisma.mediaFile.findUnique({ where: { slug: parsed.data.slug }, select: { id: true } });
+    if (taken && taken.id !== id) {
+      return reply.status(409).send({ error: 'This slug is already used by another file' });
+    }
+
+    const updated = await prisma.mediaFile.update({ where: { id }, data: { slug: parsed.data.slug } });
+    return reply.send({ id: updated.id, slug: updated.slug });
   });
 
   /**

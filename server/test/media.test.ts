@@ -289,3 +289,37 @@ describe('Deletion constraints and SEO protection', () => {
     expect(typeof body.mediaTotalBytes).toBe('number');
   });
 });
+
+describe('Media list: database pagination and status filter', () => {
+  type ListBody = { items: Array<{ id: string; usageCount: number }>; total: number; page: number; totalPages: number };
+  const list = async (query: string) =>
+    (await authInject(superAdminToken, { method: 'GET', url: `/api/media?${query}` })).json() as ListBody;
+
+  it('splits the library into pages that do not overlap and add up to the total', async () => {
+    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+    for (let i = 0; i < 3; i++) {
+      expect((await upload({ filename: `page-test-${i}.png`, contentType: 'image/png', data: png })).statusCode).toBe(201);
+    }
+
+    const first = await list('page=1&limit=2');
+    expect(first.items).toHaveLength(2);
+    expect(first.totalPages).toBe(Math.ceil(first.total / 2));
+
+    const second = await list('page=2&limit=2');
+    const firstIds = new Set(first.items.map((i) => i.id));
+    expect(second.items.every((i) => !firstIds.has(i.id))).toBe(true);
+
+    const beyond = await list(`page=${first.totalPages + 1}&limit=2`);
+    expect(beyond.items).toHaveLength(0);
+  });
+
+  it('filters by linked / orphaned status and keeps the totals consistent', async () => {
+    const all = await list('limit=100');
+    const linked = await list('status=linked&limit=100');
+    const orphaned = await list('status=orphaned&limit=100');
+
+    expect(linked.items.every((i) => i.usageCount > 0)).toBe(true);
+    expect(orphaned.items.every((i) => i.usageCount === 0)).toBe(true);
+    expect(linked.total + orphaned.total).toBe(all.total);
+  });
+});

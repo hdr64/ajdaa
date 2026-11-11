@@ -219,7 +219,12 @@ export async function getSectionContent(key: string): Promise<{
   }
 
   const section = await prisma.cmsSection.findUnique({ where: { key } });
-  if (!section) return null;
+  if (!section) {
+    // Sections added after the first release have no row until an admin saves them once;
+    // serve their defaults (as the aggregated payload does) instead of a 404 the panel cannot edit.
+    const fallback = key === 'pastWorks' ? DEFAULT_PAST_WORKS_PAGE : key === 'careers' ? DEFAULT_CAREERS_PAGE : null;
+    return fallback ? { data: fallback, etag: `W/"sec-${key}-default"`, version: 0 } : null;
+  }
 
   // The same new-field merge as the aggregated payload: the admin panel edits
   // what it reads, so a stale row must not reach the form (and then be saved)

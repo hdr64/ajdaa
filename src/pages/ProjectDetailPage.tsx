@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useCallback, useRef } from 'react';
 import type { Property, PropertyUnit, UnitStatus } from '../types/property';
 import { AdminStorage } from '../services/adminStorage';
-import { getErrorMessage } from '../services/api';
+import { getErrorMessage, resolveMediaUrl } from '../services/api';
 import { toYoutubeEmbedUrl } from '../services/youtube';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
 import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
 import { SpaLink } from '../components/common/SpaLink';
-import { isHttpsUrl, isDownloadableMediaUrl } from '../utils/urlValidation';
+import { isModel3dUrl, getModel3dKind, isDownloadableMediaUrl } from '../utils/urlValidation';
 import { detectProjectStatus } from '../data/properties';
 import {
   MapPin,
@@ -33,6 +33,9 @@ interface ProjectDetailPageProps {
   onNavigate: (page: 'home' | 'works' | 'booking' | 'contact' | 'clients', options?: { projectId?: number; unitId?: string }) => void;
   onShowToast: (msg: string) => void;
 }
+
+// three.js only loads when a visitor opens a library 3D model.
+const Model3dViewer = lazy(() => import('../components/Model3dViewer'));
 
 const getYouTubeEmbedUrl = (url?: string, autoplay: boolean = true): string => {
   if (!url) return '';
@@ -269,7 +272,13 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
 
   // Re-checked here as a last line of defence: never embed or link a scheme the
   // server would not have accepted.
-  const safeModel3dUrl = isHttpsUrl(project.model3dUrl) ? project.model3dUrl : undefined;
+  const safeModel3dUrl = isModel3dUrl(project.model3dUrl) ? project.model3dUrl : undefined;
+  // The kind is inferred from the file: a library `.glb` opens in the built-in
+  // viewer, a video in a player, an HTML page in a sandboxed iframe; an external
+  // https viewer link stays a plain iframe.
+  const model3dKind = getModel3dKind(safeModel3dUrl);
+  const model3dSrc = safeModel3dUrl ? resolveMediaUrl(safeModel3dUrl) : '';
+  const model3dTitle = isAr ? `المجسم ثلاثي الأبعاد - ${project.title}` : `3D model - ${project.title}`;
   const brochureUrl = isDownloadableMediaUrl(project.brochureUrl) ? project.brochureUrl : undefined;
 
   const handleOpenInterest = (unit?: PropertyUnit) => {
@@ -621,7 +630,13 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                     className="brand-btn-secondary font-bold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:text-accent hover:border-accent transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <Box className="w-3.5 h-3.5 text-accent shrink-0" />
-                    <span className="truncate">{isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model'}</span>
+                    <span className="truncate">
+                      {model3dKind === 'video'
+                        ? isAr ? 'مشاهدة الفيديو' : 'Watch video'
+                        : model3dKind === 'html'
+                          ? isAr ? 'عرض التجربة التفاعلية' : 'View interactive page'
+                          : isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model'}
+                    </span>
                   </button>
                 ) : (
                   <div
@@ -916,8 +931,9 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 <span className="text-sm font-black truncate">{project.title}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {(model3dKind === 'external' || model3dKind === 'html') && (
                 <a
-                  href={safeModel3dUrl}
+                  href={model3dSrc}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}
@@ -926,6 +942,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}</span>
                 </a>
+                )}
                 <button
                   onClick={() => setModel3dModalOpen(false)}
                   aria-label={isAr ? 'إغلاق المجسم' : 'Close 3D model'}
@@ -938,22 +955,55 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
             </div>
 
             <div className="flex-1 min-h-0 rounded-2xl overflow-hidden bg-black border border-white/15 shadow-2xl">
-              <iframe
-                src={safeModel3dUrl}
-                title={isAr ? `المجسم ثلاثي الأبعاد - ${project.title}` : `3D model - ${project.title}`}
-                sandbox="allow-scripts allow-same-origin allow-popups"
-                referrerPolicy="no-referrer"
-                allow="fullscreen"
-                loading="lazy"
-                className="w-full h-full border-0"
-              />
+              {model3dKind === 'model' ? (
+                <Suspense fallback={null}>
+                  <Model3dViewer src={model3dSrc} isAr={isAr} title={model3dTitle} />
+                </Suspense>
+              ) : model3dKind === 'video' ? (
+                <video
+                  src={model3dSrc}
+                  title={model3dTitle}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full bg-black"
+                />
+              ) : model3dKind === 'html' ? (
+                // An uploaded page runs without access to this site (no allow-same-origin).
+                <iframe
+                  src={model3dSrc}
+                  title={model3dTitle}
+                  sandbox="allow-scripts allow-popups allow-forms"
+                  referrerPolicy="no-referrer"
+                  allow="fullscreen"
+                  allowFullScreen
+                  loading="lazy"
+                  className="w-full h-full border-0 bg-white"
+                />
+              ) : (
+                <iframe
+                  src={safeModel3dUrl}
+                  title={model3dTitle}
+                  sandbox="allow-scripts allow-same-origin allow-popups"
+                  referrerPolicy="no-referrer"
+                  allow="fullscreen"
+                  loading="lazy"
+                  className="w-full h-full border-0"
+                />
+              )}
             </div>
 
-            <p className="mt-2 text-[11px] text-white/50 text-center">
-              {isAr
-                ? 'لا يظهر المجسم؟ بعض المواقع تمنع العرض داخل الصفحة، افتحه في تبويب جديد.'
-                : 'Model not loading? Some sites block embedding — open it in a new tab.'}
-            </p>
+            {model3dKind === 'model' ? (
+              <p className="mt-2 text-[11px] text-white/50 text-center">
+                {isAr ? 'اسحب للتدوير، وحرّك العجلة أو اقرص للتكبير.' : 'Drag to rotate, scroll or pinch to zoom.'}
+              </p>
+            ) : model3dKind === 'video' ? null : (
+              <p className="mt-2 text-[11px] text-white/50 text-center">
+                {isAr
+                  ? 'لا يظهر المجسم؟ بعض المواقع تمنع العرض داخل الصفحة، افتحه في تبويب جديد.'
+                  : 'Model not loading? Some sites block embedding — open it in a new tab.'}
+              </p>
+            )}
           </div>
         </div>
       )}

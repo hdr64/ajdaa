@@ -13,19 +13,30 @@ import { PUBLISH_STATUSES, UNIT_STATUSES, type PublishStatus } from '../config/c
 // an href or an iframe srcdoc.
 const HTTPS_URL_PATTERN = /^https:\/\/[^\s"'<>\\]+$/;
 
+// A 3D-card item chosen from the media library is stored as its `/uploads/...`
+// path: a `.glb` model, a video, or an HTML page (also nested inside an extracted
+// zip folder, hence `/` and percent-encoding). A `.gltf` stays out: it can
+// reference other files, which a single library entry cannot carry.
+const MODEL3D_FILE_PATTERN = /^\/uploads\/[A-Za-z0-9._%/-]+\.(glb|mp4|webm|mov|m4v|ogv|html?)$/i;
+
 /**
- * Accepts an https URL, or nothing. Absent/empty/whitespace-only input collapses
- * to null so the column never stores an unusable string.
+ * `model3dUrl`: an https viewer link, a library `.glb` path, or nothing.
+ * Absent/empty/whitespace-only input collapses to null so the column never
+ * stores an unusable string.
  */
-const optionalHttpsUrl = z
+const optionalModel3dUrl = z
   .string()
   .trim()
   .max(500)
   .nullish()
   .transform((value) => (value ? value : null))
-  .refine((value) => value === null || HTTPS_URL_PATTERN.test(value), {
-    message: 'Must be an https URL (max 500 characters)',
-  });
+  .refine(
+    (value) =>
+      value === null ||
+      HTTPS_URL_PATTERN.test(value) ||
+      (MODEL3D_FILE_PATTERN.test(value) && !value.includes('..') && !value.includes('//')),
+    { message: 'Must be an https URL or a library .glb, video or HTML file (max 500 characters)' },
+  );
 
 const projectSchema = z.object({
   type: z.string().min(1),
@@ -56,8 +67,9 @@ const projectSchema = z.object({
   features: z.array(z.string()).default([]),
   featuresEn: z.array(z.string()).default([]),
   videoUrl: z.string().nullish(),
-  // External 3D viewer link. The API derives `virtualTour3dAvailable` from this.
-  model3dUrl: optionalHttpsUrl,
+  // External 3D viewer link or a library `.glb`. The API derives
+  // `virtualTour3dAvailable` from this.
+  model3dUrl: optionalModel3dUrl,
   // Accepted but ignored: the stored column is legacy data and the API reports
   // `virtualTour3dAvailable` as `Boolean(model3dUrl)` instead.
   virtualTour3dAvailable: z.boolean().optional(),

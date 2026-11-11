@@ -17,6 +17,8 @@ export interface ChunkedUploadOptions {
   chunkSize?: number;
   onProgress?: (progress: ChunkProgress) => void;
   signal?: AbortSignal;
+  /** Unpack a .zip into the library as this kind of content. */
+  extract?: 'video' | 'model3d' | 'html';
 }
 
 export async function uploadFileInChunks(
@@ -36,6 +38,7 @@ export async function uploadFileInChunks(
       totalChunks,
       chunkSize,
       mimeType: file.type || undefined,
+      extract: options.extract,
     },
     { signal: options.signal }
   );
@@ -166,6 +169,7 @@ export async function uploadFileInChunks(
   return {
     ...completeRes,
     url: resolveMediaUrl(completeRes.url),
+    extracted: completeRes.extracted?.map((item) => ({ ...item, url: resolveMediaUrl(item.url) })),
   };
 }
 
