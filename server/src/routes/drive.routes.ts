@@ -44,10 +44,21 @@ import {
   updateFile,
 } from '../services/driveService.js';
 import { publishDriveFileToLibrary } from '../services/driveToLibraryService.js';
+import { extractDriveZip } from '../services/driveExtractService.js';
+import {
+  acquireZipSlot,
+  buildZipArchive,
+  createZipTicket,
+  planZip,
+  releaseZipSlot,
+  takeZipTicket,
+} from '../services/driveZipService.js';
 
 const idList = z.array(z.string().min(1).max(64)).max(500).default([]);
 const itemsBody = z.object({ folderIds: idList, fileIds: idList });
 const nullableId = z.string().min(1).max(64).nullable();
+const zipTicketBody = itemsBody.extend({ name: z.string().max(120).optional() });
+const ZIP_TICKET_PATTERN = /^[0-9a-f]{48}$/;
 
 function contentDisposition(mode: 'inline' | 'attachment', name: string): string {
   const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\%]/g, '_');
@@ -164,6 +175,82 @@ export const driveRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/files/:id/to-library', guard, async (request, reply) => {
     const { id } = request.params as { id: string };
     return reply.status(201).send(await publishDriveFileToLibrary(id, request.admin?.id));
+  });
+
+  /**
+   * Unpacks a zip stored in the Drive into a new folder (next to the zip, or inside `folderId`).
+   * Runs on the server so a big archive never travels through the browser; see
+   * `driveExtractService` for the safety rules. One extraction at a time.
+   */
+  fastify.post('/files/:id/extract', guard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({ folderId: nullableId.optional() }).parse(request.body ?? {});
+    try {
+      const result = await extractDriveZip({ fileId: id, folderId: body.folderId, adminId: request.admin?.id });
+      return reply.status(201).send(result);
+    } catch (err) {
+      // The shared error handler only forwards 4xx; 507 (disk full) must keep its status.
+      if (err instanceof DriveError && err.statusCode >= 500) return reply.status(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  /** Step 1 of a zip download: validates the selection and returns a single-use URL (valid 60 s). */
+  fastify.post('/zip/ticket', guard, async (request) => {
+    const body = zipTicketBody
+      .refine((b) => b.folderIds.length + b.fileIds.length > 0, { message: 'Nothing selected' })
+      .parse(request.body);
+    const token = await createZipTicket(body, request.admin?.id);
+    return { url: `/api/drive/zip/${token}` };
+  });
+
+  /**
+   * Step 2: streams the archive. Intentionally NOT behind `guard`: the browser navigates here
+   * with a plain link, which cannot send the Authorization header. The unguessable single-use
+   * ticket from the guarded POST above is the credential.
+   */
+  fastify.get('/zip/:ticket', async (request, reply) => {
+    const { ticket } = request.params as { ticket: string };
+    const found = ZIP_TICKET_PATTERN.test(ticket) ? takeZipTicket(ticket) : null;
+    if (!found) return reply.status(404).send({ error: 'Download link expired or already used' });
+    if (!acquireZipSlot()) {
+      return reply.status(429).send({ error: 'Too many downloads in progress, try again shortly' });
+    }
+
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      releaseZipSlot();
+    };
+
+    try {
+      const plan = await planZip(found);
+      const archive = await buildZipArchive(plan, (entry) =>
+        request.log.warn({ zipPath: entry.zipPath }, 'Drive zip: file is missing on disk, skipped')
+      );
+
+      // The socket closing frees the slot; closing before the end means the client left.
+      reply.raw.on('close', () => {
+        release();
+        if (!reply.raw.writableFinished) archive.abort();
+      });
+      archive.on('error', (err) => {
+        request.log.error({ err }, 'Drive zip: archive failed');
+        reply.raw.destroy();
+      });
+      archive.on('warning', (err) => request.log.warn({ err }, 'Drive zip: warning'));
+
+      reply.header('Content-Type', 'application/zip');
+      reply.header('Content-Disposition', contentDisposition('attachment', plan.zipName));
+      reply.header('X-Content-Type-Options', 'nosniff');
+      reply.header('Cache-Control', 'no-store');
+      void archive.finalize();
+      return reply.send(archive);
+    } catch (err) {
+      release();
+      throw err;
+    }
   });
 
   /** Moves several items at once into `targetId` (null = the root). */

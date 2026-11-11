@@ -39,6 +39,36 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+/** Live preview of the chosen library item. HTML uses its public `/html/<slug>/` URL so a site's CSS, JS and images load. */
+const SelectedPreview: React.FC<{ file: MediaFileDto }> = ({ file }) => {
+  const frame = 'w-full h-56 rounded-xl border border-muted-border/40';
+  if (file.fileType === 'html') {
+    return (
+      <iframe
+        key={file.id}
+        src={mediaPublicUrl(file)}
+        title={file.originalName}
+        sandbox="allow-scripts allow-popups allow-forms"
+        className={`${frame} bg-white`}
+      />
+    );
+  }
+  if (file.fileType === 'pdf') {
+    return <iframe key={file.id} src={resolveMediaUrl(file.url)} title={file.originalName} className={`${frame} bg-white`} />;
+  }
+  if (file.fileType === 'video') {
+    return <video key={file.id} src={resolveMediaUrl(file.url)} controls className={`${frame} bg-black`} />;
+  }
+  if (file.fileType === 'image') {
+    return (
+      <div className={`${frame} bg-canvas flex items-center justify-center p-2`}>
+        <img src={resolveMediaUrl(file.url)} alt={file.originalName} className="max-h-full max-w-full object-contain" />
+      </div>
+    );
+  }
+  return null;
+};
+
 export interface MediaPickerModalProps {
   open: boolean;
   onClose: () => void;
@@ -124,14 +154,19 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     }
   }, [open, fileType, search]);
 
+  // Reset only when the picker opens (not on a search change), so a zip upload keeps the chosen item.
+  const wasOpen = useRef(false);
   useEffect(() => {
     if (open) {
-      setSelectedFile(null);
-      setDriveFile(null);
-      setUploadError('');
-      setNotice('');
+      if (!wasOpen.current) {
+        setSelectedFile(null);
+        setDriveFile(null);
+        setUploadError('');
+        setNotice('');
+      }
       void loadMedia();
     }
+    wasOpen.current = open;
   }, [open, loadMedia]);
 
   const handleFileUpload = async (file: File) => {
@@ -141,10 +176,32 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
       if (extractKind && /\.zip$/i.test(file.name)) {
         // Unpack on the server, then go back to the list so the admin picks one item.
         const result = await uploadFileInChunks(file, { extract: extractKind });
-        const count = result.extracted?.length ?? 0;
-        setNotice(t('media.picker.extracted').replace('{count}', String(count)));
+        const extracted = result.extracted ?? [];
+        const only = extracted.length === 1 ? extracted[0] : null;
         setSearch('');
         setTab('library');
+        if (only?.id) {
+          // One item came out (a website zip): show it in the list already chosen, so one click confirms it.
+          setSelectedFile({
+            id: only.id,
+            url: only.url,
+            slug: only.slug,
+            filename: only.filename,
+            originalName: only.originalName || only.filename,
+            mimeType: only.mimeType ?? '',
+            fileType: (only.fileType as MediaFileDto['fileType']) ?? 'other',
+            size: only.size ?? 0,
+            usageCount: 0,
+            usages: [],
+            createdAt: new Date().toISOString(),
+          });
+          setNotice(t('media.picker.extractedOne', { name: only.originalName || only.filename }));
+        } else if (result.folderName) {
+          // The extraction created its own folder: name it so the admin can find it in the Library.
+          setNotice(t('media.picker.extractedInFolder', { count: extracted.length, name: result.folderName }));
+        } else {
+          setNotice(t('media.picker.extracted').replace('{count}', String(extracted.length)));
+        }
         await loadMedia();
         return;
       }
@@ -271,6 +328,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               {notice && (
                 <p className="text-[11px] font-bold text-emerald-700 bg-emerald-500/10 px-3 py-2 rounded-lg">{notice}</p>
               )}
+              {selectedFile && <SelectedPreview file={selectedFile} />}
               {/* Search input & Layout Switcher */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">

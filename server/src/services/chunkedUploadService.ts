@@ -38,6 +38,8 @@ export interface ChunkedMeta {
   mimeType?: string;
   /** Extract a .zip into the library as this kind instead of storing it. */
   extract?: ExtractKind;
+  /** Library folder the file (or the folder a zip extraction creates) lands in. */
+  folderId?: string | null;
   createdById?: string;
   createdAt: string;
 }
@@ -84,6 +86,7 @@ export async function initChunkedUpload(params: {
   chunkSize: number;
   mimeType?: string;
   extract?: ExtractKind;
+  folderId?: string | null;
   adminId?: string;
 }): Promise<{ uploadId: string; chunkSize: number; totalChunks: number }> {
   const ext = path.extname(params.filename).toLowerCase();
@@ -93,6 +96,12 @@ export async function initChunkedUpload(params: {
   }
   if (params.totalChunks > MAX_CHUNKS || params.totalChunks !== Math.max(1, Math.ceil(params.totalSize / params.chunkSize))) {
     throw new MediaUploadError('Chunk count does not match the file size', 400);
+  }
+  // The target folder is checked before any session exists, so a bad folderId
+  // never leaves an upload session behind.
+  if (params.folderId) {
+    const folder = await prisma.mediaFolder.findUnique({ where: { id: params.folderId }, select: { id: true } });
+    if (!folder) throw new MediaUploadError('Folder not found', 404);
   }
 
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -116,6 +125,7 @@ export async function initChunkedUpload(params: {
     chunkSize: params.chunkSize,
     mimeType: params.mimeType,
     extract: params.extract,
+    folderId: params.folderId,
     createdById: params.adminId,
     createdAt: new Date().toISOString(),
   };
@@ -251,7 +261,8 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
   // Clean up session chunks directory
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
 
-  // A zip uploaded for a chosen kind is unpacked; its files become library rows.
+  // A zip uploaded for a chosen kind is unpacked; its files become library rows
+  // inside one new folder named after the zip (under meta.folderId).
   if (meta.extract) {
     if (ext !== '.zip') {
       await fs.unlink(finalPath).catch(() => {});
@@ -262,6 +273,7 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
       originalName: meta.filename,
       kind: meta.extract,
       adminId: adminId || meta.createdById,
+      folderId: meta.folderId,
     });
     return { ...extracted[0], extracted };
   }
@@ -279,6 +291,7 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
         fileType,
         size: meta.totalSize,
         storageKey: finalFilename,
+        folderId: meta.folderId ?? null,
         createdById: adminId || meta.createdById,
       },
     });
@@ -291,6 +304,7 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
       mimeType: record.mimeType,
       fileType: record.fileType,
       size: record.size,
+      folderId: record.folderId,
     };
   } catch (err) {
     await fs.unlink(finalPath).catch(() => {});

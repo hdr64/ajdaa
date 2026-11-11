@@ -23,6 +23,15 @@ import { authenticate, requireAnyPermission } from '../middleware/auth.js';
 import { prisma } from '../services/prisma.js';
 import { EXTRACT_KINDS } from '../services/zipExtractService.js';
 import { generateUniqueSlug, validateSlug } from '../services/mediaSlugService.js';
+import {
+  listFolders,
+  createFolder,
+  updateFolder,
+  deleteFolder,
+  moveFiles,
+  MediaFolderError,
+  MAX_MOVE_FILES,
+} from '../services/mediaFolderService.js';
 
 /** Errors that carry their own status (MediaUploadError, ZipExtractError) keep it; anything else is a generic 500. */
 function sendUploadError(reply: FastifyReply, err: unknown, fallback: string) {
@@ -47,6 +56,19 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
    * Upload an image or PDF and register it in MediaFile.
    */
   fastify.post('/upload', mediaGuard, async (request, reply) => {
+    // Optional target library folder: ?folderId=<uuid> (404 when it does not exist).
+    const folderQuery = z.object({ folderId: z.string().uuid().optional() }).safeParse(request.query);
+    if (!folderQuery.success) {
+      return reply.status(400).send({ error: 'Invalid folderId query parameter' });
+    }
+    const uploadFolderId = folderQuery.data.folderId ?? null;
+    if (uploadFolderId) {
+      const folder = await prisma.mediaFolder.findUnique({ where: { id: uploadFolderId }, select: { id: true } });
+      if (!folder) {
+        return reply.status(404).send({ error: 'Folder not found' });
+      }
+    }
+
     const data = await request.file();
     if (!data) {
       return reply.status(400).send({ error: 'No file uploaded' });
@@ -78,6 +100,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
         fileType: stored.fileType,
         size: stored.size,
         storageKey: stored.storageKey,
+        folderId: uploadFolderId,
         createdById: request.admin?.id,
       },
     });
@@ -91,6 +114,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       mimeType: record.mimeType,
       fileType: record.fileType,
       size: record.size,
+      folderId: record.folderId,
     });
   });
 
@@ -106,6 +130,8 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       mimeType: z.string().optional(),
       // Unpack a .zip into the library as this kind of content.
       extract: z.enum(EXTRACT_KINDS).optional(),
+      // Target library folder for the file (or for the folder a zip extraction creates).
+      folderId: z.string().uuid().nullable().optional(),
     });
 
     const parsed = initSchema.safeParse(request.body);
@@ -231,6 +257,10 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       type: z.enum(['all', 'image', 'video', 'pdf', 'model3d', 'html', 'other']).default('all'),
       status: z.enum(['all', 'linked', 'orphaned']).default('all'),
       search: z.string().optional(),
+      // Library folders: `all` (default, today's behaviour), `root`, or a folder id.
+      // An unknown folder id simply yields an empty page, never an error.
+      folder: z.union([z.literal('all'), z.literal('root'), z.string().uuid()]).default('all'),
+      sort: z.enum(['newest', 'oldest', 'name', 'size']).default('newest'),
       // `rescan=1` forces the disk index to refresh now (otherwise at most once a minute).
       rescan: z.enum(['0', '1']).optional(),
     });
@@ -240,7 +270,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid query parameters' });
     }
 
-    const { page, limit, type, status, search, rescan } = parsed.data;
+    const { page, limit, type, status, search, folder, sort, rescan } = parsed.data;
 
     // Index files that were dropped on disk by hand (throttled: a full scan per request does not scale).
     await syncDiskMediaThrottled(rescan === '1').catch(() => 0);
@@ -251,6 +281,12 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       where.fileType = { in: ['other', 'document'] };
     } else if (type !== 'all') {
       where.fileType = type;
+    }
+    if (folder === 'root') {
+      where.folderId = null;
+    } else if (folder !== 'all') {
+      // A folder id that does not exist simply matches nothing.
+      where.folderId = folder;
     }
     if (search && search.trim()) {
       // SQLite's LIKE ignores case; PostgreSQL needs the explicit mode (as the Drive search does).
@@ -264,7 +300,16 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Usage is computed from the other tables (small); only the page being shown is loaded in full.
     const usageMap = await getBatchMediaUsage();
-    const orderBy = { createdAt: 'desc' } as const;
+    // `id` is the last key so rows with equal names, sizes or timestamps keep one fixed order
+    // and neighbouring pages never repeat or skip a row.
+    const orderBy: Prisma.MediaFileOrderByWithRelationInput[] =
+      sort === 'oldest'
+        ? [{ createdAt: 'asc' }, { id: 'asc' }]
+        : sort === 'name'
+          ? [{ originalName: 'asc' }, { id: 'asc' }]
+          : sort === 'size'
+            ? [{ size: 'desc' }, { id: 'asc' }]
+            : [{ createdAt: 'desc' }, { id: 'asc' }];
     let total: number;
     let rows: Awaited<ReturnType<typeof prisma.mediaFile.findMany>>;
 
@@ -339,6 +384,95 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to retrieve storage stats';
       return reply.status(500).send({ error: message });
+    }
+  });
+
+  /**
+   * Library folders: the flat list of every folder with its direct file count.
+   */
+  fastify.get('/folders', mediaGuard, async (_request, reply) => {
+    return reply.send({ folders: await listFolders() });
+  });
+
+  /**
+   * Create a library folder (virtual: only a row, no directory on disk).
+   */
+  fastify.post('/folders', mediaGuard, async (request, reply) => {
+    const bodySchema = z.object({
+      name: z.string(),
+      parentId: z.string().uuid().nullable().optional(),
+    });
+    const parsed = bodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid folder payload' });
+    }
+    try {
+      const folder = await createFolder(parsed.data.name, parsed.data.parentId ?? null, request.admin?.id);
+      return reply.status(201).send(folder);
+    } catch (err: unknown) {
+      return sendUploadError(reply, err, 'Failed to create folder');
+    }
+  });
+
+  /**
+   * Rename a library folder and/or move it (parentId null = library root).
+   */
+  fastify.patch('/folders/:id', mediaGuard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const bodySchema = z
+      .object({
+        name: z.string().optional(),
+        parentId: z.string().uuid().nullable().optional(),
+      })
+      .refine((value) => value.name !== undefined || value.parentId !== undefined, {
+        message: 'Nothing to update',
+      });
+    const parsed = bodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Provide a name or a parentId to update' });
+    }
+    try {
+      const folder = await updateFolder(id, parsed.data);
+      return reply.send(folder);
+    } catch (err: unknown) {
+      return sendUploadError(reply, err, 'Failed to update folder');
+    }
+  });
+
+  /**
+   * Delete a library folder. Files are never deleted: they and the child folders
+   * move up one level.
+   */
+  fastify.delete('/folders/:id', mediaGuard, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const result = await deleteFolder(id);
+      return reply.send({ success: true, ...result });
+    } catch (err: unknown) {
+      return sendUploadError(reply, err, 'Failed to delete folder');
+    }
+  });
+
+  /**
+   * Move files into a folder (folderId null = library root). Disk paths never change.
+   */
+  fastify.post('/move', mediaGuard, async (request, reply) => {
+    const bodySchema = z.object({
+      ids: z.array(z.string().uuid()).min(1).max(MAX_MOVE_FILES),
+      folderId: z.string().uuid().nullable(),
+    });
+    const parsed = bodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid move payload' });
+    }
+    try {
+      const moved = await moveFiles(parsed.data.ids, parsed.data.folderId);
+      return reply.send({ moved });
+    } catch (err: unknown) {
+      if (err instanceof MediaFolderError) {
+        return reply.status(err.statusCode).send({ error: err.message });
+      }
+      return sendUploadError(reply, err, 'Failed to move files');
     }
   });
 

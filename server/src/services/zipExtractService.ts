@@ -9,6 +9,7 @@ import { pipeline } from 'stream/promises';
 import { config } from '../config/env.js';
 import { prisma } from './prisma.js';
 import { generateUniqueSlug } from './mediaSlugService.js';
+import { cleanFolderName, createFolder, uniqueFolderName } from './mediaFolderService.js';
 
 /**
  * Extracts an uploaded .zip into its own folder under the uploads directory and
@@ -235,23 +236,33 @@ export interface ExtractedMedia {
   mimeType: string;
   fileType: string;
   size: number;
+  /** Library folder the extraction created (named after the zip). */
+  folderId?: string | null;
+  folderName?: string | null;
 }
 
 /**
  * Extracts `zipPath` into `uploads/<uuid>-<name>/` and creates MediaFile rows:
  * every video / .glb inside for those kinds, or one row for the entry page of a
- * website (`html`). The source zip is deleted afterwards. On any failure the new
- * folder is removed.
+ * website (`html`). The rows all land in ONE new library folder named after the
+ * zip (under `folderId`, the library root when it is not given), so an extraction
+ * never scatters rows into the flat list. The source zip is deleted afterwards.
+ * On any failure the extracted disk folder and the library folder are removed.
  */
 export async function extractZipToLibrary(params: {
   zipPath: string;
   originalName: string;
   kind: ExtractKind;
   adminId?: string;
+  /** Parent library folder for the new zip folder; null/undefined = library root. */
+  folderId?: string | null;
 }): Promise<ExtractedMedia[]> {
   const { zipPath, originalName, kind, adminId } = params;
+  const parentFolderId = params.folderId ?? null;
   const folder = `${crypto.randomUUID()}-${safeBaseName(originalName)}`;
   const destDir = path.join(UPLOAD_DIR, folder);
+  let libraryFolderId: string | null = null;
+  let libraryFolderName: string | null = null;
 
   const handle = await fs.open(zipPath, 'r');
   try {
@@ -284,6 +295,19 @@ export async function extractZipToLibrary(params: {
     }
 
     const siteName = originalName.replace(/\.zip$/i, '');
+
+    // One library folder for the whole zip, named after it (`name (2)` on a
+    // clash). A zip whose name cleans down to nothing falls back to `Extracted`.
+    let wanted = siteName;
+    try {
+      wanted = cleanFolderName(siteName);
+    } catch {
+      wanted = 'Extracted';
+    }
+    const libraryFolder = await createFolder(await uniqueFolderName(parentFolderId, wanted), parentFolderId, adminId);
+    libraryFolderId = libraryFolder.id;
+    libraryFolderName = libraryFolder.name;
+
     const created: ExtractedMedia[] = [];
     for (const relPath of listed) {
       const stats = await fs.stat(path.join(destDir, ...relPath.split('/')));
@@ -297,6 +321,7 @@ export async function extractZipToLibrary(params: {
           fileType: kind,
           size: stats.size,
           storageKey: `${folder}/${relPath}`,
+          folderId: libraryFolderId,
           createdById: adminId,
         },
       });
@@ -309,6 +334,8 @@ export async function extractZipToLibrary(params: {
         mimeType: row.mimeType,
         fileType: row.fileType,
         size: row.size,
+        folderId: libraryFolderId,
+        folderName: libraryFolderName,
       });
     }
 
@@ -317,6 +344,10 @@ export async function extractZipToLibrary(params: {
   } catch (err) {
     await fs.rm(destDir, { recursive: true, force: true }).catch(() => {});
     await fs.unlink(zipPath).catch(() => {});
+    // The library folder must not survive a failed extraction either.
+    if (libraryFolderId) {
+      await prisma.mediaFolder.delete({ where: { id: libraryFolderId } }).catch(() => {});
+    }
     throw err;
   } finally {
     await handle.close().catch(() => {});

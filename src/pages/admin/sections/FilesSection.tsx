@@ -43,8 +43,8 @@ export const FilesSection: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex-1 min-h-0 flex flex-col gap-4">
+      <div className="shrink-0 flex flex-wrap items-center gap-3">
         <div role="tablist" className="inline-flex items-center p-1 bg-surface rounded-xl border border-muted-border/40">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
@@ -67,7 +67,14 @@ export const FilesSection: React.FC = () => {
         </p>
       </div>
 
-      {tab === 'drive' ? <DriveView /> : <LibraryView />}
+      {tab === 'drive' ? (
+        <DriveView />
+      ) : (
+        // Column flex so the Library can stretch its empty state over the leftover height.
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+          <LibraryView />
+        </div>
+      )}
     </div>
   );
 };

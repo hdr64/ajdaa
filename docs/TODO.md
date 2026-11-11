@@ -32,6 +32,7 @@ Statuses: ⬜ no prompt yet · ⏳ prompt ready in `docs/prompts/` · 🔒 block
 | 8 | Full code-quality review (`prompts/code-quality-review-prompt.md` → `code-quality-review.md`, previous report to `docs/reviews/`) | ⏳ reusable | Run for a baseline now, again after each batch of merged work and before every production deploy. |
 | 9 | Production-readiness check (owner note 8): backups restore test, monitoring, env checklist, rollback rehearsal on the test instance | ⬜ Claude | Uses `deploy/README-deploy.md` sections 6 to 9. |
 | 10 | `w2-monitoring` | 🔒 | Needs `MONITOR_ALLOWED_IPS` and `MONITOR_EXTERNAL_UNTIL` (go-live + 30 days) from the owner. |
+| 12 | **Library folders and page declutter** (owner 2026-11-11: Library is flat and messy) | 🟡 implemented by GLM (zip) and applied 2026-11-11, reviewed by Claude; open: owner runs `! npm --prefix server test`, browser pass AR/EN, `db:migrate` on test then production after a backup, then archive `prompts/task-libfolders-*` to `_archive/libfolders/` | Order: a (schema, folder API; needs a hand-written PostgreSQL migration) → b (server upload/zip into folder) ‖ c (folder UI) → d (upload into open folder) → e (slim stats, table default, website rows, sort, bulk delete of unused). Virtual folders: public URLs never change. |
 | 11 | `w4-postgres-dev` (PostgreSQL for dev and tests, one schema, `migrate dev`) | 🟡 dropped for now | Revisit before the first production deploy: it would catch SQLite-vs-PostgreSQL migration drift (finding M-1 was exactly that). |
 
 ## 3. Housekeeping the owner may want to do

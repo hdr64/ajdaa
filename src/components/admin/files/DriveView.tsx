@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive as ArchiveIcon,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Download,
   File as FileIcon,
@@ -16,8 +14,10 @@ import {
   LayoutGrid,
   List,
   Link2,
+  Loader2,
   MoreVertical,
   Music,
+  PackageOpen,
   Pencil,
   RefreshCw,
   RotateCcw,
@@ -41,10 +41,13 @@ import {
   copyDriveFolder,
   createDriveFolder,
   downloadDriveFile,
+  downloadDriveZip,
   driveShareUrl,
   emptyDriveTrash,
+  extractDriveZip,
   fetchDriveList,
   fetchDriveUsage,
+  isDriveZip,
   moveDriveItems,
   purgeDriveItems,
   restoreDriveItems,
@@ -60,6 +63,7 @@ import {
 } from '../../../services/driveService';
 import { DriveDetailsDialog, DriveFolderPicker, DriveNameDialog } from '../drive/DriveDialogs';
 import { formatBytes } from '../drive/driveFormat';
+import { FolderBreadcrumb } from './FolderBreadcrumb';
 import { StorageWarning } from './StorageWarning';
 
 type View = 'files' | 'trash';
@@ -126,11 +130,13 @@ async function collectDropped(items: DataTransferItemList): Promise<UploadItem[]
   return out;
 }
 
+/** Width of the row action menu in px (matches the old min-w-48). */
+const MENU_WIDTH = 192;
+
 export const DriveView: React.FC = () => {
-  const { t, language } = useAdminT();
+  const { t } = useAdminT();
   const { showToast, confirm, confirmDelete } = useAdmin();
   const { uploadFiles } = useUploadManager();
-  const Forward = language === 'ar' ? ChevronLeft : ChevronRight;
 
   const [view, setView] = useState<View>('files');
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -142,10 +148,14 @@ export const DriveView: React.FC = () => {
   const [selection, setSelection] = useState<{ scope: string; keys: Set<string> }>({ scope: '', keys: new Set() });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  /** Viewport position of the open row menu (fixed, so the scrolling list cannot clip it). */
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [layoutMode, setLayoutMode] = usePersistentState<LayoutMode>('ajda_drive_layout_mode', 'list', isLayoutMode);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [storageStats, setStorageStats] = useState<DiskStorageStats | null>(null);
+  /** Id of the zip being extracted on the server (one at a time). */
+  const [extractingId, setExtractingId] = useState<string | null>(null);
 
   const dragDepth = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -217,7 +227,14 @@ export const DriveView: React.FC = () => {
     if (!menuFor) return;
     const close = () => setMenuFor(null);
     document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
+    // Capture: the list scrolls inside its own container, and scroll does not bubble.
+    document.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
   }, [menuFor]);
 
   // Folders have no type, so they only show under "All".
@@ -250,6 +267,42 @@ export const DriveView: React.FC = () => {
       }
     },
     [refresh, showToast, t]
+  );
+
+  /** Streams folders and/or files as one zip straight to disk. */
+  const downloadZip = useCallback(
+    async (items: DriveItemIds) => {
+      try {
+        await downloadDriveZip(items);
+      } catch (err) {
+        showToast(getErrorMessage(err, t('drive.toast.zipFailed')), 'error');
+      }
+    },
+    [showToast, t]
+  );
+
+  /** Unpacks a zip into a new folder next to it. Long-running: the row shows a spinner meanwhile. */
+  const extractZip = useCallback(
+    async (file: DriveFile) => {
+      if (extractingId) return;
+      setExtractingId(file.id);
+      showToast(t('drive.toast.extracting', { name: file.name }), 'info');
+      try {
+        const res = await extractDriveZip(file.id);
+        showToast(
+          res.skipped > 0
+            ? t('drive.toast.extractedSkipped', { files: res.files, folder: res.folder.name, skipped: res.skipped })
+            : t('drive.toast.extracted', { files: res.files, folder: res.folder.name }),
+          'success'
+        );
+      } catch (err) {
+        showToast(getErrorMessage(err, t('drive.toast.extractFailed')), 'error');
+      } finally {
+        setExtractingId(null);
+        refresh();
+      }
+    },
+    [extractingId, refresh, showToast, t]
   );
 
   /* -------------------------------- uploads -------------------------------- */
@@ -379,13 +432,22 @@ export const DriveView: React.FC = () => {
     ];
     const trash = { key: 'trash', label: t('drive.action.trash'), icon: Trash2, danger: true, run: () => void trashRows([row]) };
     if (row.type === 'folder') {
-      return [{ key: 'open', label: t('drive.action.open'), icon: Folder, run: () => openFolder(row.item.id) }, ...common, trash];
+      const folder = row.item;
+      return [
+        { key: 'open', label: t('drive.action.open'), icon: Folder, run: () => openFolder(folder.id) },
+        { key: 'zip', label: t('drive.action.downloadZip'), icon: ArchiveIcon, run: () => void downloadZip({ folderIds: [folder.id], fileIds: [] }) },
+        ...common,
+        trash,
+      ];
     }
     const file = row.item;
     return [
       { key: 'details', label: t('drive.action.details'), icon: Link2, run: () => setDialog({ kind: 'details', fileId: file.id }) },
       { key: 'link', label: t('drive.action.copyLink'), icon: Copy, run: () => void copyLink(file) },
       { key: 'download', label: t('drive.action.download'), icon: Download, run: () => void downloadDriveFile(file).catch(() => showToast(t('drive.toast.downloadFailed'), 'error')) },
+      ...(isDriveZip(file)
+        ? [{ key: 'extract', label: t('drive.action.extract'), icon: PackageOpen, run: () => void extractZip(file) }]
+        : []),
       ...common,
       trash,
     ];
@@ -400,7 +462,21 @@ export const DriveView: React.FC = () => {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setMenuFor(isOpen ? null : key);
+            if (isOpen) {
+              setMenuFor(null);
+              return;
+            }
+            const rect = e.currentTarget.getBoundingClientRect();
+            const menuHeight = menuItems(row).length * 36 + 12;
+            const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
+            const left = Math.max(8, rtl ? rect.left : rect.right - MENU_WIDTH);
+            const fitsBelow = rect.bottom + menuHeight + 8 <= window.innerHeight;
+            setMenuPos(
+              fitsBelow || rect.top < menuHeight
+                ? { top: rect.bottom + 4, left }
+                : { bottom: window.innerHeight - rect.top + 4, left }
+            );
+            setMenuFor(key);
           }}
           aria-label={row.item.name}
           aria-haspopup="menu"
@@ -409,11 +485,12 @@ export const DriveView: React.FC = () => {
         >
           <MoreVertical className="w-4 h-4" />
         </button>
-        {isOpen && (
+        {isOpen && menuPos && (
           <div
             role="menu"
             onClick={(e) => e.stopPropagation()}
-            className="absolute end-0 top-full mt-1 z-30 min-w-48 py-1 rounded-xl bg-surface border border-muted-border/40 shadow-xl"
+            style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left, width: MENU_WIDTH }}
+            className="fixed z-50 py-1 rounded-xl bg-surface border border-muted-border/40 shadow-xl"
           >
             {menuItems(row).map((item) => (
               <button
@@ -442,7 +519,7 @@ export const DriveView: React.FC = () => {
 
   return (
     <div
-      className="space-y-4 relative"
+      className="flex-1 min-h-0 flex flex-col gap-4 relative"
       onDragEnter={(e) => {
         if (!canUpload || !hasFiles(e)) return;
         dragDepth.current++;
@@ -587,27 +664,7 @@ export const DriveView: React.FC = () => {
 
         {/* Breadcrumbs */}
         {view === 'files' && !searching && (
-          <nav className="flex flex-wrap items-center gap-1 text-xs">
-            <button
-              type="button"
-              onClick={() => openFolder(null)}
-              className={`font-bold cursor-pointer hover:underline ${folderId ? 'text-accent' : 'text-heading'}`}
-            >
-              {t('drive.folder.root')}
-            </button>
-            {(listing?.breadcrumbs ?? []).map((crumb, i, all) => (
-              <React.Fragment key={crumb.id}>
-                <Forward className="w-3.5 h-3.5 text-neutral-text/40 shrink-0" />
-                <button
-                  type="button"
-                  onClick={() => openFolder(crumb.id)}
-                  className={`font-bold cursor-pointer hover:underline ${i === all.length - 1 ? 'text-heading' : 'text-accent'}`}
-                >
-                  {crumb.name}
-                </button>
-              </React.Fragment>
-            ))}
-          </nav>
+          <FolderBreadcrumb rootLabel={t('drive.folder.root')} crumbs={listing?.breadcrumbs ?? []} onOpen={openFolder} />
         )}
         {title && <p className="text-xs font-black text-heading">{title}</p>}
 
@@ -636,6 +693,12 @@ export const DriveView: React.FC = () => {
                   <Copy className="w-4 h-4" />
                   {t('drive.action.copy')}
                 </button>
+                {(selectedRows.some((r) => r.type === 'folder') || selectedRows.length >= 2) && (
+                  <button type="button" onClick={() => void downloadZip(toIds(selectedRows))} className={ghost}>
+                    <ArchiveIcon className="w-4 h-4" />
+                    {t('drive.action.downloadZip')}
+                  </button>
+                )}
                 <button type="button" onClick={() => void trashRows(selectedRows)} className={`${btn} bg-red-500 text-white hover:opacity-90`}>
                   <Trash2 className="w-4 h-4" />
                   {t('drive.action.trash')}
@@ -650,9 +713,9 @@ export const DriveView: React.FC = () => {
       </div>
 
       {/* Items */}
-      <div className="rounded-2xl bg-surface border border-muted-border/30 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col rounded-2xl bg-surface border border-muted-border/30 overflow-hidden">
         <div
-          className={`${
+          className={`shrink-0 ${
             layoutMode === 'grid' ? 'flex' : 'hidden sm:grid grid-cols-[2.5rem_1fr_7rem_11rem_2.5rem]'
           } items-center gap-2 px-4 py-2.5 border-b border-muted-border/20 text-[10px] font-bold text-neutral-text/50`}
         >
@@ -676,6 +739,7 @@ export const DriveView: React.FC = () => {
           )}
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && !listing ? (
           <p className="p-10 text-center text-xs text-neutral-text/50">…</p>
         ) : rows.length === 0 ? (
@@ -684,14 +748,15 @@ export const DriveView: React.FC = () => {
           </p>
         ) : layoutMode === 'grid' ? (
           <ul
-            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 p-4 ${
+            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 p-4 ${
               loading ? 'opacity-60 transition-opacity' : 'transition-opacity'
             }`}
           >
             {rows.map((row) => {
               const key = rowKey(row);
               const isFolder = row.type === 'folder';
-              const Icon = isFolder ? Folder : KIND_ICON[row.item.kind];
+              const extracting = !isFolder && extractingId === row.item.id;
+              const Icon = extracting ? Loader2 : isFolder ? Folder : KIND_ICON[row.item.kind];
               const file = isFolder ? null : (row.item as DriveFile);
               return (
                 <li
@@ -714,7 +779,7 @@ export const DriveView: React.FC = () => {
                     onClick={() => (isFolder ? openFolder(row.item.id) : setDialog({ kind: 'details', fileId: row.item.id }))}
                     className="w-full flex flex-col items-center gap-2 pt-6 cursor-pointer disabled:cursor-default"
                   >
-                    <Icon className={`w-10 h-10 shrink-0 ${isFolder ? 'text-amber-500' : 'text-neutral-text/60'}`} />
+                    <Icon className={`w-10 h-10 shrink-0 ${extracting ? 'animate-spin text-accent' : isFolder ? 'text-amber-500' : 'text-neutral-text/60'}`} />
                     <span className="block w-full truncate text-xs font-bold text-heading" dir="auto" title={row.item.name}>
                       {row.item.name}
                     </span>
@@ -739,7 +804,8 @@ export const DriveView: React.FC = () => {
             {rows.map((row) => {
               const key = rowKey(row);
               const isFolder = row.type === 'folder';
-              const Icon = isFolder ? Folder : KIND_ICON[row.item.kind];
+              const extracting = !isFolder && extractingId === row.item.id;
+              const Icon = extracting ? Loader2 : isFolder ? Folder : KIND_ICON[row.item.kind];
               return (
                 <li
                   key={key}
@@ -760,7 +826,7 @@ export const DriveView: React.FC = () => {
                     onClick={() => (isFolder ? openFolder(row.item.id) : setDialog({ kind: 'details', fileId: row.item.id }))}
                     className="flex items-center gap-3 min-w-0 text-start cursor-pointer disabled:cursor-default"
                   >
-                    <Icon className={`w-5 h-5 shrink-0 ${isFolder ? 'text-amber-500' : 'text-neutral-text/60'}`} />
+                    <Icon className={`w-5 h-5 shrink-0 ${extracting ? 'animate-spin text-accent' : isFolder ? 'text-amber-500' : 'text-neutral-text/60'}`} />
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-bold text-heading" dir="auto">
                         {row.item.name}
@@ -785,6 +851,7 @@ export const DriveView: React.FC = () => {
             })}
           </ul>
         )}
+        </div>
       </div>
 
       {dragging && canUpload && (

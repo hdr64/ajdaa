@@ -1,38 +1,65 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   X,
   Play,
   Pause,
   RotateCcw,
   CheckCircle2,
+  CheckCheck,
   AlertCircle,
   FileText,
   Video as VideoIcon,
   Image as ImageIcon,
   Box,
   File as FileIcon,
-  Minus,
+  ChevronDown,
+  ChevronUp,
   Loader2,
 } from 'lucide-react';
-import { useUploadManager, type ManagedUpload } from '../../../context/UploadManagerContext';
-import { useLanguage } from '../../../hooks/useLanguage';
+import {
+  useUploadManager,
+  type ManagedUpload,
+  type UploadTarget,
+} from '../../../context/UploadManagerContext';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
+
+/** Rows drawn at once; a folder of thousands of files must not freeze the panel. */
+const MAX_VISIBLE_ROWS = 200;
+
+/** Display order: problems first, finished last. */
+const STATUS_ORDER: Record<ManagedUpload['status'], number> = {
+  error: 0,
+  uploading: 1,
+  processing: 1,
+  paused: 2,
+  queued: 3,
+  completed: 4,
+};
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 function getFileIcon(file: File) {
-  if (file.type.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-accent" />;
-  if (file.type.startsWith('video/')) return <VideoIcon className="w-5 h-5 text-purple-500" />;
-  if (file.type === 'application/pdf') return <FileText className="w-5 h-5 text-red-500" />;
-  if (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) return <Box className="w-5 h-5 text-blue-500" />;
-  return <FileIcon className="w-5 h-5 text-neutral-text/70" />;
+  const cls = 'w-4 h-4 shrink-0';
+  if (file.type.startsWith('image/')) return <ImageIcon className={`${cls} text-accent`} />;
+  if (file.type.startsWith('video/')) return <VideoIcon className={`${cls} text-purple-500`} />;
+  if (file.type === 'application/pdf') return <FileText className={`${cls} text-red-500`} />;
+  if (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) return <Box className={`${cls} text-blue-500`} />;
+  return <FileIcon className={`${cls} text-neutral-text/70`} />;
 }
+
+function sameTarget(a: UploadTarget, b: UploadTarget): boolean {
+  if (a.kind !== b.kind) return false;
+  return a.kind === 'drive' && b.kind === 'drive' ? a.folderId === b.folderId : true;
+}
+
+const iconButton =
+  'p-1 rounded-md cursor-pointer transition text-neutral-text/60 hover:bg-canvas';
 
 export const UploadManagerDrawer: React.FC = () => {
   const {
@@ -43,170 +70,243 @@ export const UploadManagerDrawer: React.FC = () => {
     resumeUpload,
     cancelUpload,
     retryUpload,
+    retryFailed,
+    clearFinished,
+    errorCount,
+    completedCount,
+    overallProgress,
   } = useUploadManager();
-  const { language } = useLanguage();
-  const isAr = language === 'ar';
   const { t } = useAdminT();
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Array.prototype.sort is stable, so items keep their upload order inside a group.
+  const sorted = useMemo(
+    () => [...uploads].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]),
+    [uploads]
+  );
+
+  const sharedTarget = useMemo(
+    () => (uploads.length > 0 && uploads.every((u) => sameTarget(u.target, uploads[0].target)) ? uploads[0].target : null),
+    [uploads]
+  );
 
   if (!isDrawerOpen || uploads.length === 0) {
     return null;
   }
 
-  return (
-    <div className="fixed bottom-24 end-6 z-50 w-84 sm:w-96 flex flex-col gap-2 pointer-events-auto">
-      {uploads.map((item: ManagedUpload) => {
-        const isDone = item.status === 'completed';
-        const isErr = item.status === 'error';
-        const isPaused = item.status === 'paused';
-        const isUploading = item.status === 'uploading';
-        const isProcessing = item.status === 'processing';
+  const targetLabel = (target: UploadTarget): string =>
+    target.kind === 'drive' ? target.folderName || t('files.upload.targetDrive') : t('files.upload.targetLibrary');
 
-        return (
+  const visible = sorted.slice(0, MAX_VISIBLE_ROWS);
+  const hiddenCount = sorted.length - visible.length;
+
+  return (
+    <div
+      className="fixed bottom-24 end-6 z-50 w-[calc(100vw-2rem)] max-w-96 sm:w-96 rounded-2xl bg-surface/95 backdrop-blur-md border border-muted-border/60 shadow-2xl pointer-events-auto overflow-hidden"
+      role="region"
+      aria-label={t('files.upload.title')}
+    >
+      {/* Header: always visible */}
+      <div className="px-3 pt-2.5 pb-2 space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-heading truncate">
+              {t('files.upload.title')}
+              <span className="ms-2 font-mono font-medium text-neutral-text/60">
+                {t('files.upload.summary', { done: completedCount, total: uploads.length })}
+              </span>
+            </p>
+            {sharedTarget && (
+              <p className="text-[10px] text-neutral-text/50 truncate" title={targetLabel(sharedTarget)}>
+                {targetLabel(sharedTarget)}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setCollapsed((c) => !c)}
+              className={`${iconButton} hover:text-heading`}
+              title={collapsed ? t('files.upload.expand') : t('files.upload.collapse')}
+              aria-label={collapsed ? t('files.upload.expand') : t('files.upload.collapse')}
+              aria-expanded={!collapsed}
+            >
+              {collapsed ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDrawerOpen(false)}
+              className={`${iconButton} hover:text-heading`}
+              title={t('files.upload.hide')}
+              aria-label={t('files.upload.hide')}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-canvas rounded-full h-1.5 overflow-hidden border border-muted-border/30">
           <div
-            key={item.id}
-            className="p-3.5 rounded-2xl bg-surface/95 backdrop-blur-md border border-muted-border/60 shadow-2xl space-y-2.5 animate-in fade-in slide-in-from-bottom-3 duration-200"
-          >
-            <div className="flex items-center justify-between gap-3">
-              {/* File details & type icon */}
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <div className="w-9 h-9 rounded-xl bg-canvas border border-muted-border/40 flex items-center justify-center shrink-0 shadow-xs">
+            className={`h-full transition-all duration-200 ${errorCount > 0 ? 'bg-amber-500' : 'bg-accent'}`}
+            style={{ width: `${overallProgress}%` }}
+          />
+        </div>
+
+        {(errorCount > 0 || completedCount > 0) && (
+          <div className="flex items-center gap-1.5">
+            {errorCount > 0 && (
+              <button
+                type="button"
+                onClick={retryFailed}
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md text-accent hover:bg-accent/10 cursor-pointer transition"
+              >
+                <RotateCcw className="w-3 h-3" />
+                {t('files.upload.retryFailed')} ({errorCount})
+              </button>
+            )}
+            {completedCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFinished}
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md text-neutral-text/70 hover:bg-canvas cursor-pointer transition"
+              >
+                <CheckCheck className="w-3 h-3" />
+                {t('files.upload.clearFinished')}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Body: one compact row per file */}
+      {!collapsed && (
+        <ul className="max-h-[50vh] overflow-y-auto border-t border-muted-border/40">
+          {visible.map((item) => {
+            const isDone = item.status === 'completed';
+            const isErr = item.status === 'error';
+            const isPaused = item.status === 'paused';
+            const isQueued = item.status === 'queued';
+            const isUploading = item.status === 'uploading';
+            const isProcessing = item.status === 'processing';
+
+            return (
+              <li key={item.id} className="relative px-3 py-1.5 border-b border-muted-border/20 last:border-b-0">
+                <div className="flex items-center gap-2 min-h-6">
                   {getFileIcon(item.file)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-heading truncate" title={item.file.name}>
-                    {item.file.name}
-                  </p>
-                  <span className="inline-block max-w-full truncate align-top text-[10px] leading-4 px-1.5 mt-0.5 rounded-md bg-canvas border border-muted-border/40 text-neutral-text/60">
-                    {item.target.kind === 'drive'
-                      ? item.target.folderName || t('files.upload.targetDrive')
-                      : t('files.upload.targetLibrary')}
-                  </span>
-                  <div className="flex items-center gap-2 text-[10px] text-neutral-text/50 font-mono mt-0.5">
-                    <span>{formatBytes(item.file.size)}</span>
-                    {isProcessing ? (
-                      <span className="inline-flex items-center gap-1.5 text-accent font-bold animate-pulse">
-                        <Loader2 className="w-3 h-3 animate-spin text-accent" />
-                        <span>{isAr ? 'جاري المعالجة والدمج...' : 'Processing & saving...'}</span>
+                  <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-heading truncate" title={item.file.name}>
+                      {item.file.name}
+                    </span>
+                    {!sharedTarget && (
+                      <span className="shrink-0 max-w-20 truncate text-[9px] leading-4 px-1 rounded bg-canvas border border-muted-border/40 text-neutral-text/60">
+                        {targetLabel(item.target)}
                       </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-mono text-neutral-text/50 shrink-0">
+                    {formatBytes(item.file.size)}
+                  </span>
+
+                  {/* Status */}
+                  <span className="text-[10px] font-mono font-bold text-neutral-text/70 shrink-0 min-w-9 text-end">
+                    {isDone ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 inline" />
+                    ) : isErr ? (
+                      <AlertCircle className="w-3.5 h-3.5 text-red-500 inline" />
+                    ) : isProcessing ? (
+                      <Loader2
+                        className="w-3.5 h-3.5 animate-spin text-accent inline"
+                        aria-label={t('files.upload.processing')}
+                      />
+                    ) : isQueued ? (
+                      <span className="font-sans font-medium text-neutral-text/50">{t('files.upload.queued')}</span>
+                    ) : isPaused ? (
+                      <span className="font-sans font-medium text-amber-500">{t('files.upload.paused')}</span>
                     ) : (
-                      <>
-                        {item.speed && <span className="text-accent font-bold">{item.speed}</span>}
-                        {item.remainingSeconds !== undefined && item.remainingSeconds > 0 && (
-                          <span>~{item.remainingSeconds}s</span>
-                        )}
-                      </>
+                      `${item.progress}%`
+                    )}
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex items-center shrink-0">
+                    {isUploading && (
+                      <button
+                        type="button"
+                        onClick={() => pauseUpload(item.id)}
+                        className={`${iconButton} hover:text-amber-500`}
+                        title={t('files.upload.pause')}
+                        aria-label={t('files.upload.pause')}
+                      >
+                        <Pause className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isPaused && (
+                      <button
+                        type="button"
+                        onClick={() => resumeUpload(item.id)}
+                        className={`${iconButton} text-accent`}
+                        title={t('files.upload.resume')}
+                        aria-label={t('files.upload.resume')}
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isErr && (
+                      <button
+                        type="button"
+                        onClick={() => retryUpload(item.id)}
+                        className={`${iconButton} text-accent`}
+                        title={t('files.upload.retry')}
+                        aria-label={t('files.upload.retry')}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {!isDone && (
+                      <button
+                        type="button"
+                        onClick={() => cancelUpload(item.id)}
+                        className={`${iconButton} hover:text-red-500`}
+                        title={t('files.upload.cancel')}
+                        aria-label={t('files.upload.cancel')}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                 </div>
-              </div>
 
-              {/* Action controls */}
-              <div className="flex items-center gap-1 shrink-0">
-                {isUploading && (
-                  <button
-                    type="button"
-                    onClick={() => pauseUpload(item.id)}
-                    className="p-1.5 rounded-lg text-neutral-text/60 hover:text-amber-500 hover:bg-amber-500/10 cursor-pointer transition"
-                    title={isAr ? 'إيقاف مؤقت' : 'Pause'}
-                  >
-                    <Pause className="w-4 h-4" />
-                  </button>
+                {isErr && item.error && (
+                  <p className="text-[10px] text-red-500 truncate ps-6" title={item.error}>
+                    {item.error}
+                  </p>
                 )}
 
-                {isProcessing && (
-                  <div
-                    className="p-1.5 rounded-lg text-accent flex items-center justify-center"
-                    title={isAr ? 'جاري المعالجة والدمج...' : 'Processing & saving...'}
-                  >
-                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                {/* 2 px progress line */}
+                {!isDone && !isErr && !isQueued && (
+                  <div className="absolute bottom-0 inset-x-0 h-0.5 bg-canvas">
+                    <div
+                      className={`h-full transition-all duration-200 ${
+                        isPaused
+                          ? 'bg-amber-500'
+                          : isProcessing
+                            ? 'bg-gradient-to-r from-accent via-sky-400 to-emerald-500 animate-pulse'
+                            : 'bg-accent'
+                      }`}
+                      style={{ width: `${isProcessing ? 100 : item.progress}%` }}
+                    />
                   </div>
                 )}
-
-                {isPaused && (
-                  <button
-                    type="button"
-                    onClick={() => resumeUpload(item.id)}
-                    className="p-1.5 rounded-lg text-accent hover:bg-accent/10 cursor-pointer transition"
-                    title={isAr ? 'استئناف الرفع' : 'Resume'}
-                  >
-                    <Play className="w-4 h-4" />
-                  </button>
-                )}
-
-                {isErr && (
-                  <button
-                    type="button"
-                    onClick={() => retryUpload(item.id)}
-                    className="p-1.5 rounded-lg text-accent hover:bg-accent/10 cursor-pointer transition"
-                    title={isAr ? 'إعادة المحاولة' : 'Retry'}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                )}
-
-                {/* Minimize to send to background */}
-                <button
-                  type="button"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-1.5 rounded-lg text-neutral-text/50 hover:text-heading hover:bg-canvas transition cursor-pointer"
-                  title={isAr ? 'تصغير وإرسال إلى الخلفية' : 'Minimize to background'}
-                  aria-label={isAr ? 'تصغير وإرسال إلى الخلفية' : 'Minimize to background'}
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => cancelUpload(item.id)}
-                  className="p-1.5 rounded-lg text-neutral-text/40 hover:text-red-500 hover:bg-red-500/10 cursor-pointer transition"
-                  title={isAr ? 'إلغاء' : 'Cancel'}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Progress bar & status */}
-            <div className="flex items-center gap-2.5">
-              <span className="text-[10px] font-mono font-bold text-neutral-text/70 min-w-[28px]">
-                {isDone ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 inline" />
-                ) : isErr ? (
-                  <AlertCircle className="w-4 h-4 text-red-500 inline" />
-                ) : isProcessing ? (
-                  <span className="inline-flex items-center gap-1 text-accent font-bold text-[10px]">
-                    <Loader2 className="w-3 h-3 animate-spin inline" />
-                    100%
-                  </span>
-                ) : (
-                  `${item.progress}%`
-                )}
-              </span>
-
-              <div className="flex-1 bg-canvas rounded-full h-1.5 overflow-hidden border border-muted-border/30">
-                <div
-                  className={`h-full transition-all duration-200 ${
-                    isDone
-                      ? 'bg-emerald-500'
-                      : isErr
-                      ? 'bg-red-500'
-                      : isPaused
-                      ? 'bg-amber-500'
-                      : isProcessing
-                      ? 'bg-gradient-to-r from-accent via-sky-400 to-emerald-500 animate-pulse'
-                      : 'bg-accent'
-                  }`}
-                  style={{ width: `${item.progress}%` }}
-                />
-              </div>
-            </div>
-
-            {isErr && item.error && (
-              <p className="text-[10px] text-red-500 truncate">{item.error}</p>
-            )}
-          </div>
-        );
-      })}
+              </li>
+            );
+          })}
+          {hiddenCount > 0 && (
+            <li className="px-3 py-1.5 text-[10px] text-center text-neutral-text/50">
+              {t('files.upload.more', { count: hiddenCount })}
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   );
 };

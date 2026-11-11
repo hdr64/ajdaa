@@ -19,6 +19,8 @@ export interface ChunkedUploadOptions {
   signal?: AbortSignal;
   /** Unpack a .zip into the library as this kind of content. */
   extract?: 'video' | 'model3d' | 'html';
+  /** Target library folder; sent in the init body only when set, so existing calls stay byte-identical. */
+  folderId?: string | null;
 }
 
 export async function uploadFileInChunks(
@@ -39,6 +41,7 @@ export async function uploadFileInChunks(
       chunkSize,
       mimeType: file.type || undefined,
       extract: options.extract,
+      ...(options.folderId ? { folderId: options.folderId } : {}),
     },
     { signal: options.signal }
   );

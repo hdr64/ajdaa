@@ -67,6 +67,9 @@ export interface Extracted {
   url: string;
   fileType: string;
   originalName: string;
+  /** Library folder the extraction created (named after the zip). */
+  folderId?: string | null;
+  folderName?: string | null;
 }
 
 /** Uploads `file` through the chunked API; returns the HTTP status and body. */

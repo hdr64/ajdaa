@@ -890,6 +890,9 @@ export const GoogleSearchProductPreview: React.FC<GoogleSearchProductPreviewProp
           role="dialog"
           aria-modal="true"
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setActivePhotoModal(null);
+          }}
         >
           <div className="relative max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black">
             <button

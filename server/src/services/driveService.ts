@@ -181,7 +181,7 @@ export function cleanName(raw: string): string {
 }
 
 /** `report.pdf` -> `report (2).pdf` */
-function withSuffix(name: string, n: number, isFile: boolean): string {
+export function withSuffix(name: string, n: number, isFile: boolean): string {
   const ext = isFile ? path.extname(name) : '';
   const base = ext ? name.slice(0, -ext.length) : name;
   return `${base} (${n})${ext}`;
@@ -260,13 +260,48 @@ export async function createFolder(name: string, parentId: string | null, adminI
   return prisma.driveFolder.create({ data: { name: clean, parentId, createdById: adminId } });
 }
 
+/**
+ * Folder creations running right now, keyed by parent and name. A folder upload sends
+ * one request per file, all needing the same parent folders at the same moment; without
+ * this every request would see "no folder yet" and all but the first would fail with 409.
+ * The API runs as one process, so an in-process map is enough.
+ */
+const folderCreations = new Map<string, Promise<string>>();
+
+async function findOrCreateFolder(parentId: string | null, name: string, adminId?: string): Promise<string> {
+  const key = `${parentId ?? 'root'}\u0000${name}`;
+  const running = folderCreations.get(key);
+  if (running) return running;
+
+  const task = (async () => {
+    const find = () => prisma.driveFolder.findFirst({ where: { parentId, name, trashedAt: null } });
+    const existing = await find();
+    if (existing) return existing.id;
+    try {
+      return (await createFolder(name, parentId, adminId)).id;
+    } catch (err) {
+      // Another request (or a second process) created it between our check and our insert.
+      if (err instanceof DriveError && err.statusCode === 409) {
+        const again = await find();
+        if (again) return again.id;
+      }
+      throw err;
+    }
+  })();
+
+  folderCreations.set(key, task);
+  try {
+    return await task;
+  } finally {
+    if (folderCreations.get(key) === task) folderCreations.delete(key);
+  }
+}
+
 /** Folder upload: finds or creates each path segment below `parentId`. Returns the deepest folder id. */
 export async function ensureFolderPath(parentId: string | null, segments: string[], adminId?: string): Promise<string | null> {
   let current = parentId;
   for (const raw of segments) {
-    const name = cleanName(raw);
-    const existing = await prisma.driveFolder.findFirst({ where: { parentId: current, name, trashedAt: null } });
-    current = existing ? existing.id : (await createFolder(name, current, adminId)).id;
+    current = await findOrCreateFolder(current, cleanName(raw), adminId);
   }
   return current;
 }

@@ -463,6 +463,7 @@ Uploads and indexes an image or PDF.
 
 ### POST `/api/media/upload/chunked/init` (zip extraction)
 Resumable upload (`init`, `chunk`, `status/:uploadId`, `complete`, `abort/:uploadId`; up to 2 GB). `init` accepts an optional `extract`: `video`, `model3d` or `html`.
+- **`folderId` (optional, uuid or null):** the library folder the file lands in; `404 Folder not found` before any session is created. With `extract`, `complete` creates ONE new folder named after the zip (`name (2)` on a clash) inside `folderId` (root when omitted), puts every created row in it, and returns `folderId` and `folderName` on each `extracted` item; a failed extraction leaves no folder behind. `POST /api/media/upload` takes the same target as `?folderId=<uuid>`.
 - **Validation (same rules as the Drive upload):** the extension must be on the library allow list (images `jpg jpeg png webp gif avif`, videos, `pdf`, `glb gltf`, `html htm`, `zip rar 7z tar gz doc docx xls xlsx ppt pptx sql csv`; `svg` is refused), else `400`. `chunkSize` 256 KB to 50 MB and `totalChunks = ceil(totalSize/chunkSize)`, else `400`; free disk must cover the file (`507`). Each chunk must have exactly `chunkSize` bytes (the last one the remainder) and a valid index, else `400`; an unknown or expired session is `404`; the assembled size is checked on `complete`. The stored type and mime come from the extension, never from the client's `mimeType`. Sessions idle for 24 h are deleted.
 - **With `extract` and a `.zip` file:** `complete` unpacks the zip into `uploads/<uuid>-<name>/` (the zip itself is deleted) and returns `201` with the first created item plus `extracted: MediaFile[]`. `video` lists every `.mp4/.webm/.mov/.m4v/.ogv`, `model3d` every `.glb`, `html` one row for the entry page (`index.html`, else the shallowest `.html`); other files stay on disk, unlisted. The folder carries a `.ajda-extracted` marker so the disk sync never indexes a site's css/js/images, and it is removed with its last library item.
 - **Limits and safety:** max 5000 entries and 1 GB uncompressed; absolute paths, `..`, symlinks, encrypted and zip64 archives are rejected with `400`; hidden files and `__MACOSX` are skipped; a zip without files of the chosen kind is `400`.
@@ -488,6 +489,8 @@ Returns paginated media assets with live usage tracking annotations.
   - `status` (string, default `all`): Filter by `all`, `linked` (in use), `orphaned` (unused).
   - `rescan` (`1`, optional): index files dropped on disk by hand right now. Without it the disk index runs at most once a minute (a full scan per request does not scale). Paging, type and search run in the database; only the rows of the requested page are loaded and annotated (a `status` filter reads ids and urls of the matches to apply usage).
   - `search` (string, optional): Substring search in `originalName` or `filename`.
+  - `folder` (`all` default | `root` | folder uuid): `all` ignores folders (what the media picker uses), `root` returns files not in any folder, a uuid returns the files directly in that folder (an unknown id gives an empty page). Items carry `folderId`.
+  - `sort` (`newest` default | `oldest` | `name` | `size`): `size` is largest first; `id` is the final tie-breaker so pages never repeat or skip a row.
 - **Response (200 OK):**
   ```json
   {
@@ -539,6 +542,14 @@ Inspects real-time references to a specific media URL across all platform entiti
   }
   ```
 
+### Library folders (`/api/media/folders`, `/api/media/move`)
+Virtual folders for the library: rows only, files stay flat on disk, so `/uploads/...`, `/f/<slug>` and `/html/<slug>/` never change. Same access as the other media routes. Names are unique per parent, case-insensitively (`409 A folder with this name already exists here`); no `/`, `\` or control characters, max 120 characters; nesting is limited to 5 levels (`400`).
+- `GET /api/media/folders` → `{ folders: [{ id, name, parentId, fileCount, createdAt }] }` (every folder; `fileCount` counts files directly inside).
+- `POST /api/media/folders` `{ name, parentId? }` → `201` folder.
+- `PATCH /api/media/folders/:id` `{ name?, parentId? }` (at least one; `parentId: null` = root). Moving a folder into itself or a descendant is `400`.
+- `DELETE /api/media/folders/:id` → `{ success, movedFiles, movedFolders }`. Never deletes files: its files and subfolders move up one level (clashing subfolder names get ` (2)`).
+- `POST /api/media/move` `{ ids: string[] (1-200), folderId: string | null }` → `{ moved }`; `404` for a missing target folder.
+
 ### DELETE `/api/media/:id`
 Safely deletes an unlinked / orphaned media file from disk and database.
 - **Strict SEO Guard:** If `usageCount > 0`, deletion is **strictly blocked** and returns `409 Conflict`. Media URLs connected to live projects and content must remain permanent and immutable to prevent broken Google Search & Google Images indexing.
@@ -573,6 +584,9 @@ Private admin file storage, separate from the media library. Guard: `manageMedia
 | `PATCH /api/drive/files/:id` `{name?,folderId?,isPublic?,slug?}` | Rename, move, share on/off, edit the slug (same rules as the media slug; `409` if used). |
 | `POST /api/drive/files/:id/copy` `{folderId?}` | Copy a file. |
 | `POST /api/drive/files/:id/to-library` | Copies a live Drive file into the public media library (the Drive file stays private and unchanged). Returns the new library item `{id,url,slug,filename,originalName,mimeType,fileType,size}` (`201`). `400` for an extension the library does not accept, `413` above 2 GB, `404` for a trashed, unknown or data-less file. |
+| `POST /api/drive/files/:id/extract` `{folderId?}` | Unpacks a stored zip into a new folder named after it (made unique with `(2)`...), next to the zip or inside `folderId` (`null` = the Drive root). `201 { folder, files, folders, skipped }`. `400` not a zip or corrupt, `404` missing or trashed source or target, `413` archive over 2 GB, over 10 000 entries, over 5 GB extracted or an entry larger than its header says, `429` another extraction is running, `507` not enough disk space. |
+| `POST /api/drive/zip/ticket` `{folderIds,fileIds,name?}` | Download of folders and selections as one zip, step 1. At least one id, `name` max 120; every id must exist and not be trashed (`404` otherwise). Returns `{ url: "/api/drive/zip/<ticket>" }`; the ticket is 48 hex characters, valid 60 s, single use. |
+| `GET /api/drive/zip/:ticket` | Step 2. Auth is the ticket itself (no `Authorization` header, on purpose: a browser download link cannot send one). Streams the archive. Unknown, used or expired ticket: `404`. At most 2 archives stream at once (`429`). At most 20 000 entries (`413`). Files missing on disk are skipped and logged. |
 | `POST /api/drive/move` `{folderIds,fileIds,targetId}` | Bulk move (`targetId: null` = root). |
 | `POST /api/drive/trash`, `/restore`, `/purge` `{folderIds,fileIds}` | Trash stamps a folder and everything inside with one `trashedAt`; restore brings back exactly that set (an item whose folder is still trashed returns to the root); purge deletes trashed items for good (live items are skipped) and removes the bytes. |
 | `POST /api/drive/trash/empty` | Purge everything in the trash (send no JSON content-type, or a body). |

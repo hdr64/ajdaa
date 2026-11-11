@@ -415,14 +415,35 @@ model MediaFile {
   size         Int       // in bytes (standard Int, JSON-safe up to 2.14 GB)
   storageKey   String    // Relative disk path under UPLOAD_DIR
   thumbnailUrl String?   // Generated thumbnail for raster images
-  metadata     String?   // JSON: { width, height, format }
+  metadata     String?      // JSON: { width, height, format }
+  folderId     String?
+  folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdById  String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@index([fileType])
   @@index([createdAt])
+  @@index([folderId])
   @@map("media_files")
+}
+
+// Library: virtual folders for the media library. Folders exist only in this
+// table; files sit flat on disk (UPLOAD_DIR/<storageKey>), so moving or renaming
+// never touches the disk and a file's public URL never changes.
+model MediaFolder {
+  id          String        @id @default(uuid())
+  name        String
+  parentId    String?
+  parent      MediaFolder?  @relation("MediaTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    MediaFolder[] @relation("MediaTree")
+  files       MediaFile[]
+  createdById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([parentId])
+  @@map("media_folders")
 }
 
 

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Download, Folder, X as CloseIcon } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Copy, Download, Folder, FolderPlus, X as CloseIcon } from 'lucide-react';
 import { useAdmin } from '../../../pages/admin/adminContextDef';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { getErrorMessage } from '../../../services/api';
@@ -110,6 +110,8 @@ export const DriveNameDialog: React.FC<{
 /* ------------------------------ folder picker ------------------------------ */
 
 /** Navigate-and-confirm picker for move / copy. `blockedIds` are folders that cannot be the target (the moved ones and their children). */
+/// The optional props keep Drive byte-for-byte unchanged; the Library tab passes its own
+/// folder source, root label and create action (see task-libfolders-c).
 export const DriveFolderPicker: React.FC<{
   title: string;
   confirmLabel: string;
@@ -117,23 +119,34 @@ export const DriveFolderPicker: React.FC<{
   blockedIds: string[];
   onConfirm: (targetId: string | null) => Promise<void>;
   onClose: () => void;
-}> = ({ title, confirmLabel, startId, blockedIds, onConfirm, onClose }) => {
+  /** Folder source; defaults to the Drive folders. */
+  loadFolders?: () => Promise<DriveFolderNode[]>;
+  /** Root button and "current target" text; defaults to Drive's root label. */
+  rootLabel?: string;
+  /** When given, the picker shows a small "New folder here" button. */
+  createFolder?: (name: string, parentId: string | null) => Promise<DriveFolderNode>;
+}> = ({ title, confirmLabel, startId, blockedIds, onConfirm, onClose, loadFolders, rootLabel, createFolder }) => {
   const { t, language } = useAdminT();
   const Forward = language === 'ar' ? ChevronLeft : ChevronRight;
+  const load = loadFolders ?? fetchDriveFolders;
   const [nodes, setNodes] = useState<DriveFolderNode[] | null>(null);
   const [current, setCurrent] = useState<string | null>(startId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetchDriveFolders()
+    load()
       .then((list) => !cancelled && setNodes(list))
       .catch((err) => !cancelled && setError(getErrorMessage(err)));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [load, reloadTick]);
+
+  const reload = useCallback(() => setReloadTick((n) => n + 1), []);
 
   const byId = useMemo(() => new Map((nodes ?? []).map((n) => [n.id, n])), [nodes]);
 
@@ -184,7 +197,7 @@ export const DriveFolderPicker: React.FC<{
         <DialogHeader title={title} onClose={onClose} />
         <div className="px-5 pb-2 flex flex-wrap items-center gap-1 text-[11px] text-neutral-text/70">
           <button type="button" onClick={() => setCurrent(null)} className="font-bold text-accent hover:underline cursor-pointer">
-            {t('drive.dialog.target.root')}
+            {rootLabel ?? t('drive.dialog.target.root')}
           </button>
           {trail.map((node) => (
             <React.Fragment key={node.id}>
@@ -217,8 +230,20 @@ export const DriveFolderPicker: React.FC<{
         </div>
         {error && <p className="px-5 pt-2 text-[11px] font-bold text-red-500">{error}</p>}
         <div className="flex items-center justify-between gap-2 px-5 py-4">
-          <span className="text-[11px] text-neutral-text/60 truncate">
-            {t('drive.dialog.target.current', { name: current ? (byId.get(current)?.name ?? '') : t('drive.dialog.target.root') })}
+          <span className="flex min-w-0 items-center gap-2 text-[11px] text-neutral-text/60">
+            <span className="truncate">
+              {t('drive.dialog.target.current', { name: current ? (byId.get(current)?.name ?? '') : (rootLabel ?? t('drive.dialog.target.root')) })}
+            </span>
+            {createFolder && (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-0.5 font-bold text-accent hover:bg-accent/10 cursor-pointer"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+                {t('drive.dialog.target.newFolder')}
+              </button>
+            )}
           </span>
           <div className="flex gap-2 shrink-0">
             <button type="button" onClick={onClose} className={ghostBtn}>
@@ -229,6 +254,19 @@ export const DriveFolderPicker: React.FC<{
             </button>
           </div>
         </div>
+        {creating && createFolder && (
+          <DriveNameDialog
+            title={t('drive.dialog.newFolder.title')}
+            confirmLabel={t('drive.action.create')}
+            onClose={() => setCreating(false)}
+            onSubmit={async (name) => {
+              const created = await createFolder(name, current);
+              setCreating(false);
+              reload();
+              setCurrent(created.id);
+            }}
+          />
+        )}
       </div>
     </div>
   );

@@ -407,7 +407,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 onOpenMenu={() => setMenuOpen(true)}
                 actionsSlotRef={setActionsSlot}
               />
-              <div className="p-4 sm:p-6 flex-1">{renderSection()}</div>
+              <div
+                className={`p-4 sm:p-6 flex-1 ${location.section === 'files' ? 'min-h-0 flex flex-col' : ''}`}
+              >
+                {renderSection()}
+              </div>
             </main>
 
             <AdminFeedbackPet currentSection={location.section} />

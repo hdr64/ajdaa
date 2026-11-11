@@ -9,8 +9,21 @@ export interface UploadedMedia {
   mimeType?: string;
   fileType?: string;
   size?: number;
+  /** Library folder of the item (uploads into a folder; extractions: the new folder). */
+  folderId?: string | null;
+  /** Set when a .zip was extracted: the folder the extraction created. */
+  folderName?: string | null;
   /** Set when a .zip was extracted: every library item it produced. */
   extracted?: UploadedMedia[];
+}
+
+export interface MediaFolderDto {
+  id: string;
+  name: string;
+  parentId: string | null;
+  /** Files directly inside the folder. */
+  fileCount: number;
+  createdAt: string;
 }
 
 export interface MediaUsageDetail {
@@ -31,6 +44,10 @@ export interface MediaFileDto {
   fileType: 'image' | 'video' | 'pdf' | 'model3d' | 'html' | 'document' | 'other';
   size: number;
   thumbnailUrl?: string | null;
+  /** Relative disk path under the uploads directory (websites: `bundle/entry.html`). */
+  storageKey?: string;
+  /** Virtual library folder the file sits in; null = library root. */
+  folderId?: string | null;
   usageCount: number;
   usages: MediaUsageDetail[];
   createdById?: string | null;
@@ -69,6 +86,8 @@ export interface DiskStorageStats {
 export interface UploadOptions {
   signal?: AbortSignal;
   onProgress?: (percent: number) => void;
+  /** Target library folder; sent as `?folderId=` only when set, so existing calls stay byte-identical. */
+  folderId?: string | null;
 }
 
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
@@ -154,9 +173,13 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
   const formData = new FormData();
   formData.append('file', fileToUpload);
 
-  const result = await api.upload<UploadedMedia>('/api/media/upload', formData, {
-    signal: options.signal,
-  });
+  const result = await api.upload<UploadedMedia>(
+    options.folderId ? `/api/media/upload?folderId=${encodeURIComponent(options.folderId)}` : '/api/media/upload',
+    formData,
+    {
+      signal: options.signal,
+    },
+  );
 
   return {
     id: result.id,
@@ -166,6 +189,7 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
     mimeType: result.mimeType,
     fileType: result.fileType,
     size: result.size,
+    folderId: result.folderId,
   };
 }
 
@@ -178,6 +202,10 @@ export async function fetchMediaList(params: {
   type?: 'all' | 'image' | 'video' | 'pdf' | 'model3d' | 'html' | 'other';
   status?: 'all' | 'linked' | 'orphaned';
   search?: string;
+  /** `root`, a folder id, or `all` (flat results). Omitted = today's behaviour (the picker). */
+  folder?: 'all' | 'root' | string;
+  /** `newest` is the server default and is not sent. */
+  sort?: 'newest' | 'oldest' | 'name' | 'size';
 } = {}): Promise<MediaListResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set('page', String(params.page));
@@ -185,6 +213,8 @@ export async function fetchMediaList(params: {
   if (params.type && params.type !== 'all') query.set('type', params.type);
   if (params.status && params.status !== 'all') query.set('status', params.status);
   if (params.search?.trim()) query.set('search', params.search.trim());
+  if (params.folder) query.set('folder', params.folder);
+  if (params.sort && params.sort !== 'newest') query.set('sort', params.sort);
 
   const qs = query.toString();
   const endpoint = `/api/media${qs ? `?${qs}` : ''}`;
@@ -219,6 +249,36 @@ export function mediaPublicUrl(file: { url: string; slug?: string | null; fileTy
 /** Changes a file's slug; the old public link stops working. */
 export async function updateMediaSlug(id: string, slug: string): Promise<{ id: string; slug: string }> {
   return api.patch<{ id: string; slug: string }>(`/api/media/${id}`, { slug });
+}
+
+/* ------------------------------ library folders ------------------------------ */
+
+/** Every library folder with its direct file count (not paginated). */
+export async function fetchMediaFolders(): Promise<MediaFolderDto[]> {
+  return (await api.get<{ folders: MediaFolderDto[] }>('/api/media/folders')).folders;
+}
+
+export async function createMediaFolder(name: string, parentId: string | null): Promise<MediaFolderDto> {
+  return api.post<MediaFolderDto>('/api/media/folders', { name, parentId });
+}
+
+export async function updateMediaFolder(
+  id: string,
+  patch: { name?: string; parentId?: string | null }
+): Promise<MediaFolderDto> {
+  return api.patch<MediaFolderDto>(`/api/media/folders/${id}`, patch);
+}
+
+/** Deleting a folder never deletes files: they and the child folders move up one level. */
+export async function deleteMediaFolder(
+  id: string
+): Promise<{ success: boolean; movedFiles: number; movedFolders: number }> {
+  return api.delete<{ success: boolean; movedFiles: number; movedFolders: number }>(`/api/media/folders/${id}`);
+}
+
+/** Moves files into a folder (`folderId: null` = library root). Disk paths never change. */
+export async function moveMediaFiles(ids: string[], folderId: string | null): Promise<{ moved: number }> {
+  return api.post<{ moved: number }>('/api/media/move', { ids, folderId });
 }
 
 /**

@@ -60,6 +60,8 @@ const CHUNK_BYTES = 8 * 1024 * 1024;
 const CHUNK_RETRIES = 4;
 /** Joining 5 GB of parts on the server takes a while. */
 const COMPLETE_TIMEOUT_MS = 15 * 60 * 1000;
+/** Unpacking a large archive on the server takes at least as long as joining chunks. */
+const EXTRACT_TIMEOUT_MS = COMPLETE_TIMEOUT_MS;
 
 export function fetchDriveList(params: { view?: 'files' | 'trash' | 'search'; folderId?: string | null; q?: string }): Promise<DriveListing> {
   return api.get<DriveListing>('/api/drive/list', {
@@ -172,6 +174,45 @@ export async function uploadDriveFile(file: File, opts: DriveUploadOptions): Pro
     throw err;
   }
 }
+
+/**
+ * Downloads folders and/or files as one zip. A POST creates a short-lived single-use
+ * ticket, then the browser navigates to the streaming URL, so the archive goes straight
+ * to disk and never sits in browser memory (a plain link cannot send the auth header).
+ */
+export async function downloadDriveZip(items: DriveItemIds, name?: string): Promise<void> {
+  const { url } = await api.post<{ url: string }>('/api/drive/zip/ticket', { ...items, name });
+  const link = document.createElement('a');
+  link.href = resolveMediaUrl(url);
+  link.download = '';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+export interface DriveExtractResult {
+  folder: DriveFolder;
+  files: number;
+  folders: number;
+  skipped: number;
+}
+
+/** True for a file the server will agree to extract (same test as the server). */
+export function isDriveZip(file: Pick<DriveFile, 'name' | 'mimeType'>): boolean {
+  return file.name.toLowerCase().endsWith('.zip') || file.mimeType === 'application/zip';
+}
+
+/**
+ * Unpacks a zip stored in the Drive into a new folder. Runs on the server; without
+ * `folderId` the new folder is created next to the zip.
+ */
+export const extractDriveZip = (fileId: string, folderId?: string | null) =>
+  api.post<DriveExtractResult>(
+    `/api/drive/files/${fileId}/extract`,
+    folderId === undefined ? {} : { folderId },
+    { timeoutMs: EXTRACT_TIMEOUT_MS }
+  );
 
 /** The permanent share link. It only opens while the file is shared. */
 export function driveShareUrl(file: Pick<DriveFile, 'slug'>): string {
