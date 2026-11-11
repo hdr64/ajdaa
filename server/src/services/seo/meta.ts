@@ -4,6 +4,7 @@ import {
   homeJsonLd,
   parseJsonArray,
   projectJsonLd,
+  projectsItemList,
   type ProjectSeoData,
   type SiteContact,
 } from './jsonld.js';
@@ -31,7 +32,7 @@ export interface MetaContext {
   indexing: boolean;
   site: SiteContact;
   /** Published projects for link lists (home, works). */
-  projects: { id: number; title: string; titleEn: string | null; city: string }[];
+  projects: { id: number; title: string; titleEn: string | null; city: string; image?: string | null }[];
   /** Set only when the route is a project that exists and is published. */
   project?: ProjectSeoData | null;
 }
@@ -200,6 +201,7 @@ export function buildMeta(route: SeoRoute, ctx: MetaContext): PageMeta {
     xDefault: `${origin}${arPath}`,
   };
 
+  const itemList = route.key === 'works' ? projectsItemList(origin, ctx.projects, route.lang) : null;
   const jsonLd = isHome
     ? homeJsonLd(origin, ctx.site, description, route.lang)
     : [
@@ -207,6 +209,7 @@ export function buildMeta(route: SeoRoute, ctx: MetaContext): PageMeta {
           { name: isEn ? 'Home' : 'الرئيسية', path: isEn ? '/en' : '/' },
           { name: isEn ? page.titleEn : page.titleAr, path: route.canonicalPath },
         ]),
+        ...(itemList ? [itemList] : []),
       ];
   const withProjects = route.key === 'home' || route.key === 'works';
   const heading = isHome ? brand : (isEn ? page.titleEn : page.titleAr);

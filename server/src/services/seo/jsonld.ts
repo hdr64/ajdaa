@@ -80,6 +80,29 @@ export function breadcrumbs(origin: string, trail: { name: string; path: string 
   };
 }
 
+export function projectsItemList(
+  origin: string,
+  projects: { id: number; title: string; titleEn: string | null; image?: string | null }[],
+  lang: 'ar' | 'en' = 'ar',
+): Json | null {
+  if (projects.length === 0) return null;
+  const isEn = lang === 'en';
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: isEn ? 'Our Projects' : 'مشاريعنا',
+    itemListElement: projects.map((p, index) =>
+      compact({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: `${origin}${projectPath(p.id, p.titleEn, lang)}`,
+        name: isEn ? (p.titleEn || p.title) : p.title,
+        image: p.image ? absoluteUrl(origin, p.image) : null,
+      }),
+    ),
+  };
+}
+
 export function homeJsonLd(origin: string, site: SiteContact, description: string, lang: 'ar' | 'en' = 'ar'): Json[] {
   const sameAs = Object.values(site.socials).filter((url) => /^https:\/\//.test(url));
   const isEn = lang === 'en';

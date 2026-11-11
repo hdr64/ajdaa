@@ -42,7 +42,7 @@ async function loadTemplate(): Promise<string> {
   return html;
 }
 
-const PUBLISHED_PROJECT_LINKS = { id: true, title: true, titleEn: true, city: true } as const;
+const PUBLISHED_PROJECT_LINKS = { id: true, title: true, titleEn: true, city: true, image: true } as const;
 
 async function loadContext(route: ReturnType<typeof matchRoute>): Promise<MetaContext> {
   const base = { origin: config.appUrl, indexing: config.seoIndexing };
