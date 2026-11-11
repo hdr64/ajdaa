@@ -55,7 +55,7 @@ export const CmsWorksPanel: React.FC = () => {
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManage = can('manageCms');
-  const { dirty, markSaved, savedValue } = useCmsDirty('works', data, loading);
+  const { dirty, markSaved, savedValue } = useCmsDirty('works', data, loading, (v) => v);
   const handleDiscard = () => {
     const saved = savedValue();
     if (saved) setData(saved);

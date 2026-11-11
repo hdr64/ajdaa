@@ -28,7 +28,7 @@ export const CmsHomePanel: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string>('hero');
 
   const canManage = can('manageCms');
-  const { dirty, markSaved, savedValue } = useCmsDirty('home', data, loading);
+  const { dirty, markSaved, savedValue } = useCmsDirty('home', data, loading, (v) => v);
   const handleDiscard = () => {
     const saved = savedValue();
     if (saved) setData(saved);

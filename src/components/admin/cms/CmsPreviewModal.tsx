@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { CmsLivePreviewPane } from './CmsLivePreviewPane';
+import type { PreviewDrafts } from '../../../utils/cmsPreviewProtocol';
 
 interface CmsPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialRoute?: string;
+  drafts?: PreviewDrafts;
 }
 
 export const CmsPreviewModal: React.FC<CmsPreviewModalProps> = ({
   isOpen,
   onClose,
   initialRoute = '/',
+  drafts,
 }) => {
   const [currentPath, setCurrentPath] = useState(initialRoute);
 
@@ -44,6 +47,7 @@ export const CmsPreviewModal: React.FC<CmsPreviewModalProps> = ({
         onPathChange={setCurrentPath}
         onClose={onClose}
         isSplitView={false}
+        drafts={drafts}
       />
     </div>
   );

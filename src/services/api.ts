@@ -1,3 +1,5 @@
+import { isPreviewFrame } from '../utils/cmsPreviewProtocol';
+
 const TOKEN_STORAGE_KEY = 'ajdaa_admin_token';
 
 // Same-origin by default: the Vite dev server proxies /api during development and
@@ -160,6 +162,8 @@ export interface RequestOptions {
 
 /** Reports a client-side or network error to server errors.log */
 export function reportClientError(message: string, context?: Record<string, unknown>): void {
+  // The preview shows unsaved drafts that may be broken on purpose; never log those.
+  if (isPreviewFrame()) return;
   try {
     fetch('/api/logs/client-error', {
       method: 'POST',
@@ -177,8 +181,18 @@ export function reportClientError(message: string, context?: Record<string, unkn
   }
 }
 
+/** The preview shows the public site, so the message follows the page language (set on <html>). */
+function previewReadOnlyMessage(): string {
+  return document.documentElement.lang === 'ar' ? 'المعاينة للقراءة فقط' : 'Preview is read-only';
+}
+
 /** JSON request helper. Serialises `body`, injects the JWT, and normalises errors. */
 async function request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
+  // The live-preview iframe is read-only: nothing it does may write to the server.
+  if (isPreviewFrame() && method !== 'GET') {
+    throw new ApiError(403, previewReadOnlyMessage());
+  }
+
   const headers: Record<string, string> = { Accept: 'application/json' };
   const token = options.authToken ?? getAuthToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -265,6 +279,8 @@ export const api = {
 
   /** Multipart upload. Kept separate so the JSON content-type is never forced on it. */
   upload: async <T>(path: string, formData: FormData, options: RequestOptions = {}): Promise<T> => {
+    if (isPreviewFrame()) throw new ApiError(403, previewReadOnlyMessage());
+
     const headers: Record<string, string> = { Accept: 'application/json' };
     const token = getAuthToken();
     if (token) headers.Authorization = `Bearer ${token}`;

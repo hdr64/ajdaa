@@ -24,7 +24,7 @@ export const CmsNavPanel: React.FC = () => {
   const [versionModalOpen, setVersionModalOpen] = useState(false);
 
   const canManage = can('manageCms');
-  const { dirty, markSaved, savedValue } = useCmsDirty('nav', items, loading);
+  const { dirty, markSaved, savedValue } = useCmsDirty('nav', items, loading, (v) => v);
   const handleDiscard = () => {
     const saved = savedValue();
     if (saved) setItems(saved);

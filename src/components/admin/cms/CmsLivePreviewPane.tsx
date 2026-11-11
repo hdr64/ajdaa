@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Monitor,
   Tablet,
@@ -15,8 +15,15 @@ import {
   Mail,
   Loader2,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
+import { useAdminT } from '../../../i18n/admin/useAdminT';
 import { acquireSocket, releaseSocket } from '../../../services/realtimeSocket';
+import {
+  isTrustedFrameMessage,
+  postToFrame,
+  type PreviewDrafts,
+} from '../../../utils/cmsPreviewProtocol';
 
 export type DeviceViewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -26,6 +33,8 @@ export interface CmsLivePreviewPaneProps {
   onExpandFullscreen?: () => void;
   onClose?: () => void;
   isSplitView?: boolean;
+  /** Unsaved CMS content to show in the preview instead of the saved content. */
+  drafts?: PreviewDrafts;
 }
 
 const PAGES = [
@@ -46,27 +55,35 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
   onExpandFullscreen,
   onClose,
   isSplitView = false,
+  drafts,
 }) => {
+  const { t } = useAdminT();
   const [device, setDevice] = useState<DeviceViewport>(isSplitView ? 'desktop' : 'desktop');
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [zoom, setZoom] = useState<number>(100);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [justUpdated, setJustUpdated] = useState(false);
+  /** The page crashed on the last draft and fell back to saved content. */
+  const [draftError, setDraftError] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftsRef = useRef<PreviewDrafts | undefined>(drafts);
+  const langRef = useRef<'ar' | 'en'>(lang);
+
+  const sendDrafts = useCallback(() => {
+    setDraftError(false);
+    postToFrame(iframeRef.current?.contentWindow, {
+      type: 'AJDA_CMS_DRAFT',
+      drafts: draftsRef.current ?? {},
+    });
+  }, []);
 
   // Handle postMessage language change to iframe
   const handleLangToggle = (nextLang: 'ar' | 'en') => {
     setLang(nextLang);
-    try {
-      iframeRef.current?.contentWindow?.postMessage({ type: 'AJDA_SET_LANG', lang: nextLang }, '*');
-    } catch {
-      // Cross-origin fallback (reload iframe with new lang param)
-      setReloadKey((k) => k + 1);
-    }
+    postToFrame(iframeRef.current?.contentWindow, { type: 'AJDA_SET_LANG', lang: nextLang });
   };
 
   const handleRefresh = () => {
@@ -79,25 +96,44 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Real-time flash notification & instant iframe reload when CMS is saved
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
+
+  // Send unsaved edits to the iframe shortly after the last keystroke.
+  useEffect(() => {
+    draftsRef.current = drafts;
+    const timer = setTimeout(sendDrafts, 200);
+    return () => clearTimeout(timer);
+  }, [drafts, sendDrafts]);
+
+  // The iframe announces when its page is ready (including after every reload)
+  // and when a draft crashed it.
+  useEffect(() => {
+    const handleFrameMessage = (event: MessageEvent) => {
+      if (!isTrustedFrameMessage(event, iframeRef.current?.contentWindow)) return;
+      const type = (event.data as { type?: unknown } | null)?.type;
+      if (type === 'AJDA_PREVIEW_READY') {
+        sendDrafts();
+        postToFrame(iframeRef.current?.contentWindow, { type: 'AJDA_SET_LANG', lang: langRef.current });
+        setIsLoading(false);
+      } else if (type === 'AJDA_PREVIEW_ERROR') {
+        setDraftError(true);
+      }
+    };
+    window.addEventListener('message', handleFrameMessage);
+    return () => window.removeEventListener('message', handleFrameMessage);
+  }, [sendDrafts]);
+
+  // Real-time flash notification when CMS is saved
   useEffect(() => {
     const socket = acquireSocket();
 
     const handleCmsUpdate = () => {
       setJustUpdated(true);
 
-      // 1. Immediately post message to the iframe to revalidate live without flicker
-      try {
-        iframeRef.current?.contentWindow?.postMessage({ type: 'AJDA_CMS_UPDATED' }, '*');
-      } catch {
-        // Cross-origin fallback
-      }
-
-      // 2. Also increment reloadKey slightly debounced to ensure fresh server data
-      if (reloadDebounceRef.current) clearTimeout(reloadDebounceRef.current);
-      reloadDebounceRef.current = setTimeout(() => {
-        setReloadKey((k) => k + 1);
-      }, 400);
+      // The iframe refetches in place (no reload, no flicker).
+      postToFrame(iframeRef.current?.contentWindow, { type: 'AJDA_CMS_UPDATED' });
 
       if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
       updateTimerRef.current = setTimeout(() => {
@@ -120,7 +156,6 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
       socket.off('cms:clients:updated', handleCmsUpdate);
       window.removeEventListener('ajda:cms-updated', handleLocalCmsSaved);
       if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
-      if (reloadDebounceRef.current) clearTimeout(reloadDebounceRef.current);
       releaseSocket();
     };
   }, []);
@@ -169,6 +204,12 @@ export const CmsLivePreviewPane: React.FC<CmsLivePreviewPaneProps> = ({
                 <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                   مزامنة لحظية
+                </span>
+              )}
+              {draftError && (
+                <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  <AlertTriangle className="w-3 h-3" />
+                  {t('cms.preview.paused')}
                 </span>
               )}
             </div>

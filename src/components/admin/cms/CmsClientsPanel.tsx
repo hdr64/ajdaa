@@ -58,7 +58,12 @@ export const CmsClientsPanel: React.FC = () => {
 
   const canManageClients = can('manageClients') || can('manageCms');
   const canManageCms = can('manageCms');
-  const { dirty, markSaved, savedValue } = useCmsDirty('clientsPage', pageCopy, pageCopyLoading);
+  const { dirty, markSaved, savedValue } = useCmsDirty(
+    'clientsPage',
+    pageCopy,
+    pageCopyLoading,
+    (v) => v,
+  );
   const handleDiscardPageCopy = () => {
     const saved = savedValue();
     if (saved) setPageCopy(saved);

@@ -182,6 +182,17 @@ The client-side CMS consumption pipeline is architected for zero flash of unstyl
   - **`PastProjectsPage.tsx`**: Header badge, title, subtitle, empty state text, and SEO metadata loaded from CMS (`pastWorks`).
   - **`CareersPage.tsx`**: Header title, intro copy, submission success message, and SEO metadata loaded from CMS (`careers`).
 
+#### CMS live draft preview
+
+The Site CMS preview is the public site inside an iframe (`?preview=1`). While a panel has unsaved edits, the admin tab sends them to the iframe with `postMessage` and the site renders them in place of the saved content. Drafts live only in React state: they are never written to the server or to the `localStorage` cache.
+
+- Protocol, message types and trust checks: [`src/utils/cmsPreviewProtocol.ts`](../src/utils/cmsPreviewProtocol.ts). Parent to frame: `AJDA_CMS_DRAFT`, `AJDA_CMS_UPDATED`, `AJDA_SET_LANG`. Frame to parent: `AJDA_PREVIEW_READY`, `AJDA_PREVIEW_ERROR`.
+- Both sides accept a message only from the same origin and from the expected window (the iframe's parent, or the preview iframe itself). The target origin is never `'*'`.
+- Receiver: `CmsProvider` merges drafts over the saved content (one level deep per section). Only the sections in `PREVIEW_DRAFT_KEYS` are accepted; the partner list (`clients`) is not previewed.
+- Sender: panels pass a `toDraft` function to `useCmsDirty`; `CmsSection` collects the drafts and `CmsLivePreviewPane` posts them 200 ms after the last change, and again whenever the iframe reports `AJDA_PREVIEW_READY`.
+- Read-only: in a preview frame `api.ts` rejects every non-GET request (`Preview is read-only`) and `reportClientError` does nothing.
+- Crash fallback: if a draft makes the page throw, `ErrorBoundary` drops the drafts, shows the saved content again and sends `AJDA_PREVIEW_ERROR`; the pane shows a "preview paused" badge until the next valid draft.
+
 ---
 
 ## 6. Granular Action-Level Permissions Model

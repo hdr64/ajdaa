@@ -17,6 +17,7 @@ import type { CmsContactPageContent, CmsTrustItem } from '../../../types/cms';
 import { CmsVersionModal } from './CmsVersionModal';
 import { useCmsDirty } from './cmsDirtyContext';
 import { CmsDirtyBar } from './CmsDirtyBar';
+import { buildContactPayload, trimSurvivingPairs } from './contactPayload';
 
 const DEFAULT_CONTACT: CmsContactPageContent = {
   badgeAr: 'تواصل مع أجدا',
@@ -90,6 +91,7 @@ export const CmsContactPanel: React.FC = () => {
     'contact',
     { data, subjectPairs, trustEnabled, trustPairs },
     loading,
+    buildContactPayload,
   );
   const handleDiscard = () => {
     const saved = savedValue();
@@ -235,14 +237,8 @@ export const CmsContactPanel: React.FC = () => {
       return;
     }
 
-    const trimmedPairs = subjectPairs.map((p) => ({
-      ...p,
-      ar: p.ar.trim(),
-      en: p.en.trim(),
-    }));
-
     // Drop a pair only when both sides are empty
-    const survivingPairs = trimmedPairs.filter((p) => p.ar.length > 0 || p.en.length > 0);
+    const survivingPairs = trimSurvivingPairs(subjectPairs);
 
     // If exactly one side of a pair is empty, block save with a field error
     const hasIncompletePair = survivingPairs.some((p) => !p.ar || !p.en);
@@ -257,8 +253,7 @@ export const CmsContactPanel: React.FC = () => {
 
     // Trust bullets follow the subjects' bilingual rule (drop only when both
     // sides are empty, block a one-sided pair) plus the server's item cap.
-    const trimmedTrust = trustPairs.map((p) => ({ ...p, ar: p.ar.trim(), en: p.en.trim() }));
-    const survivingTrust = trimmedTrust.filter((p) => p.ar.length > 0 || p.en.length > 0);
+    const survivingTrust = trimSurvivingPairs(trustPairs);
 
     if (survivingTrust.length > MAX_TRUST_ITEMS) {
       const msg = t('cms.contact.trustMaxReached');
@@ -275,13 +270,7 @@ export const CmsContactPanel: React.FC = () => {
 
     setTrustError(null);
 
-    const payload: CmsContactPageContent = {
-      ...data,
-      subjectsAr: survivingPairs.map((p) => p.ar),
-      subjectsEn: survivingPairs.map((p) => p.en),
-      trustEnabled,
-      trustItems: survivingTrust.map((p) => ({ id: p.id, textAr: p.ar, textEn: p.en })),
-    };
+    const payload = buildContactPayload({ data, subjectPairs, trustEnabled, trustPairs });
 
     setSaving(true);
     try {

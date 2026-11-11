@@ -1,6 +1,7 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ContextType, type ErrorInfo, type ReactNode } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { reportClientError } from '../../services/api';
+import { CmsContext } from '../../context/cmsContextDef';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -15,16 +16,41 @@ interface ErrorBoundaryState {
  * Catches render errors below it so one broken component does not blank the
  * whole site. Reports the message and component stack only, never user data.
  * The boundary does not reset itself; the Reload button does a full reload.
+ *
+ * Inside the admin's live-preview iframe it also guards against unsaved drafts:
+ * a draft that crashes the page is rejected (saved content is shown again, the
+ * admin is told) and the crash is not reported as a site error.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  static contextType = CmsContext;
+  declare context: ContextType<typeof CmsContext>;
+
   state: ErrorBoundaryState = { hasError: false };
+
+  /** Draft epoch at the time of the last preview crash; a newer epoch means retry. */
+  private caughtEpoch = 0;
 
   static getDerivedStateFromError(): ErrorBoundaryState {
     return { hasError: true };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    const { preview } = this.context;
+    if (preview.active) {
+      this.caughtEpoch = preview.epoch;
+      if (preview.hasDrafts) preview.rejectDrafts();
+      return;
+    }
     reportClientError(error.message, { componentStack: info.componentStack });
+  }
+
+  componentDidUpdate() {
+    const { preview } = this.context;
+    if (this.state.hasError && preview.active && preview.epoch !== this.caughtEpoch) {
+      // Reacts to external (context) state, not derivable in render without a side effect.
+      // eslint-disable-next-line react/no-did-update-set-state
+      this.setState({ hasError: false });
+    }
   }
 
   render() {

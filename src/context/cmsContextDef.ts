@@ -10,6 +10,15 @@ export interface CmsContextType {
   error: string | null;
   /** Forces an immediate refetch, e.g. after the admin saves in another tab. */
   reload: () => void;
+  /** Live-draft state; inert (`active: false`) outside the admin's preview iframe. */
+  preview: {
+    active: boolean;
+    hasDrafts: boolean;
+    /** Bumped each time drafts are rejected, so a boundary can tell it may retry. */
+    epoch: number;
+    /** Drops all drafts, tells the admin tab, and shows saved content again. */
+    rejectDrafts: () => void;
+  };
 }
 
 /** Without a provider (or before the fetch lands) the built-in values apply. */
@@ -18,4 +27,5 @@ export const CmsContext = createContext<CmsContextType>({
   loading: false,
   error: null,
   reload: () => {},
+  preview: { active: false, hasDrafts: false, epoch: 0, rejectDrafts: () => {} },
 });

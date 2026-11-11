@@ -46,7 +46,7 @@ export const CmsFooterPanel: React.FC = () => {
   const [profilePickerOpen, setProfilePickerOpen] = useState(false);
 
   const canManage = can('manageCms');
-  const { dirty, markSaved, savedValue } = useCmsDirty('footer', data, loading);
+  const { dirty, markSaved, savedValue } = useCmsDirty('footer', data, loading, (v) => v);
   const handleDiscard = () => {
     const saved = savedValue();
     if (saved) setData(saved);

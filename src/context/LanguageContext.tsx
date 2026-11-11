@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LanguageContext, LANG_STORAGE_KEY, type Language, type Direction } from './languageContextDef';
 import { twinPath } from '../seo/paths';
+import { isTrustedParentMessage } from '../utils/cmsPreviewProtocol';
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
@@ -50,6 +51,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      if (!isTrustedParentMessage(event)) return;
       if (event.data && typeof event.data === 'object' && event.data.type === 'AJDA_SET_LANG') {
         const nextLang = event.data.lang;
         if (nextLang === 'ar' || nextLang === 'en') {

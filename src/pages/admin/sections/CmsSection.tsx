@@ -49,7 +49,7 @@ interface BackupParsedData {
 export const CmsSection: React.FC = () => {
   const { can, isSuperAdmin, showToast, confirm } = useAdmin();
   const { t } = useAdminT();
-  const { registry: dirtyRegistry, anyDirty } = useCmsDirtyRegistryState();
+  const { registry: dirtyRegistry, anyDirty, drafts } = useCmsDirtyRegistryState();
   const [requestedTab, setActiveTab] = useState<CmsTab>('home');
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -390,6 +390,7 @@ export const CmsSection: React.FC = () => {
               onExpandFullscreen={() => setPreviewOpen(true)}
               onClose={() => handleToggleSplit(false)}
               isSplitView={true}
+              drafts={drafts}
             />
           </div>
         )}
@@ -400,6 +401,7 @@ export const CmsSection: React.FC = () => {
         isOpen={previewOpen}
         onClose={() => setPreviewOpen(false)}
         initialRoute={currentPreviewRoute}
+        drafts={drafts}
       />
 
       {/* Backup Import Confirmation Modal */}
