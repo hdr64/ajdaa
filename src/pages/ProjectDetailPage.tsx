@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Property, PropertyUnit, UnitStatus } from '../types/property';
 import { AdminStorage } from '../services/adminStorage';
-import { getErrorMessage } from '../services/api';
+import { getErrorMessage, resolveMediaUrl } from '../services/api';
 import { toYoutubeEmbedUrl } from '../services/youtube';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
@@ -9,7 +9,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
 import { SpaLink } from '../components/common/SpaLink';
 import { Project3dModal } from '../components/project/Project3dModal';
-import { isModel3dUrl, getModel3dKind, isDownloadableMediaUrl } from '../utils/urlValidation';
+import { isModel3dUrl, getModel3dKind, isDownloadableMediaUrl, opensModel3dInTab } from '../utils/urlValidation';
 import { detectProjectStatus } from '../data/properties';
 import {
   MapPin,
@@ -274,6 +274,21 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   // viewer, a video in a player, an HTML page in a sandboxed iframe; an external
   // https viewer link stays a plain iframe.
   const model3dKind = getModel3dKind(safeModel3dUrl);
+  // A page the admin chose to show as an external page opens in a new tab instead of the modal.
+  const model3dInTab = opensModel3dInTab(safeModel3dUrl, project.model3dDisplay);
+  const model3dTabHref = safeModel3dUrl
+    ? model3dKind === 'external'
+      ? safeModel3dUrl
+      : resolveMediaUrl(safeModel3dUrl)
+    : '';
+  const model3dButtonClass =
+    'brand-btn-secondary font-bold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:text-accent hover:border-accent transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+  const model3dButtonLabel =
+    model3dKind === 'video'
+      ? isAr ? 'مشاهدة الفيديو' : 'Watch video'
+      : model3dKind === 'html'
+        ? isAr ? 'عرض التجربة التفاعلية' : 'View interactive page'
+        : isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model';
   const brochureUrl = isDownloadableMediaUrl(project.brochureUrl) ? project.brochureUrl : undefined;
 
   const handleOpenInterest = (unit?: PropertyUnit) => {
@@ -618,20 +633,24 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 )}
 
                 {/* 3. 3D model viewer; the placeholder remains for projects without one. */}
-                {safeModel3dUrl ? (
+                {safeModel3dUrl && model3dInTab ? (
+                  <a
+                    href={model3dTabHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={model3dButtonClass}
+                  >
+                    <Box className="w-3.5 h-3.5 text-accent shrink-0" />
+                    <span className="truncate">{model3dButtonLabel}</span>
+                  </a>
+                ) : safeModel3dUrl ? (
                   <button
                     ref={model3dButtonRef}
                     onClick={() => setModel3dModalOpen(true)}
-                    className="brand-btn-secondary font-bold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:text-accent hover:border-accent transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className={model3dButtonClass}
                   >
                     <Box className="w-3.5 h-3.5 text-accent shrink-0" />
-                    <span className="truncate">
-                      {model3dKind === 'video'
-                        ? isAr ? 'مشاهدة الفيديو' : 'Watch video'
-                        : model3dKind === 'html'
-                          ? isAr ? 'عرض التجربة التفاعلية' : 'View interactive page'
-                          : isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model'}
-                    </span>
+                    <span className="truncate">{model3dButtonLabel}</span>
                   </button>
                 ) : (
                   <div

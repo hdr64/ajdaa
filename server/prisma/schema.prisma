@@ -175,6 +175,7 @@ model Project {
   featuresEn             String? // JSON string array
   videoUrl               String?
   model3dUrl             String? // external 3D viewer link (iframe or new tab)
+  model3dDisplay         String            @default("modal") // 'modal' | 'tab': how an html/external 3D link opens on the public site
   virtualTour3dAvailable Boolean           @default(false)
   locationHighlightsAr   String? // JSON string array
   locationHighlightsEn   String? // JSON string array

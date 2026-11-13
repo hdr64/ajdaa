@@ -70,6 +70,8 @@ const projectSchema = z.object({
   // External 3D viewer link or a library `.glb`. The API derives
   // `virtualTour3dAvailable` from this.
   model3dUrl: optionalModel3dUrl,
+  // How an html/external link opens on the public site; omitted keeps the stored value.
+  model3dDisplay: z.enum(['modal', 'tab']).optional(),
   // Accepted but ignored: the stored column is legacy data and the API reports
   // `virtualTour3dAvailable` as `Boolean(model3dUrl)` instead.
   virtualTour3dAvailable: z.boolean().optional(),
@@ -169,6 +171,9 @@ function toCreateData(input: ProjectInput) {
     // `virtualTour3dAvailable` is deliberately not written: it is derived from
     // `model3dUrl` on read, so the legacy column must stay untouched.
     model3dUrl: input.model3dUrl,
+    // Only when present, so a client that predates the option cannot reset it;
+    // create falls back to the column default ('modal').
+    ...(input.model3dDisplay ? { model3dDisplay: input.model3dDisplay } : {}),
     locationHighlightsAr: JSON.stringify(input.locationHighlightsAr),
     locationHighlightsEn: JSON.stringify(input.locationHighlightsEn),
     lat: input.lat,

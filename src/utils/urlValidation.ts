@@ -45,6 +45,13 @@ export function getModel3dKind(value: string | null | undefined): Model3dKind | 
   return isHttpsUrl(trimmed) ? 'external' : null;
 }
 
+/** True when a project's 3D link should open in a new browser tab: only pages (html, external), only when chosen. */
+export function opensModel3dInTab(url: string | null | undefined, display: string | null | undefined): boolean {
+  if (display !== 'tab' || !isModel3dUrl(url)) return false;
+  const kind = getModel3dKind(url);
+  return kind === 'html' || kind === 'external';
+}
+
 /** Strips the API origin from an upload URL so it is stored as `/uploads/...`. */
 export function toUploadPath(url: string): string {
   return url.replace(/^https?:\/\/[^/]+(?=\/uploads\/)/i, '');

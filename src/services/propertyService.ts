@@ -76,6 +76,7 @@ interface ProjectDto {
   featuresEn: string[] | null;
   videoUrl: string | null;
   model3dUrl: string | null;
+  model3dDisplay?: 'modal' | 'tab';
   virtualTour3dAvailable: boolean;
   locationHighlightsAr: string[] | null;
   locationHighlightsEn: string[] | null;
@@ -194,6 +195,7 @@ export function toProperty(dto: ProjectDto): Property {
     // external https viewer URL (feeds an iframe) or a library `/uploads/*.glb`
     // path, which the form saves back unchanged and the viewer resolves when used.
     model3dUrl: optional(dto.model3dUrl),
+    model3dDisplay: dto.model3dDisplay === 'tab' ? 'tab' : 'modal',
     virtualTour3dAvailable: dto.virtualTour3dAvailable,
     locationHighlightsAr: dto.locationHighlightsAr ?? undefined,
     locationHighlightsEn: dto.locationHighlightsEn ?? undefined,
@@ -238,6 +240,7 @@ export function toProjectPayload(project: Property): ProjectPayload {
     featuresEn: project.featuresEn ?? [],
     videoUrl: project.videoUrl ?? null,
     model3dUrl: project.model3dUrl ?? null,
+    model3dDisplay: project.model3dDisplay ?? 'modal',
     locationHighlightsAr: project.locationHighlightsAr ?? [],
     locationHighlightsEn: project.locationHighlightsEn ?? [],
     lat: project.lat ?? null,

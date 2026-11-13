@@ -199,3 +199,52 @@ describe('virtualTour3dAvailable is derived from model3dUrl', () => {
     expect(cleared.virtualTour3dAvailable).toBe(false);
   });
 });
+
+describe('model3dDisplay', () => {
+  const display = (body: unknown) => (body as { model3dDisplay: string }).model3dDisplay;
+
+  it('defaults to modal when the field is not sent', async () => {
+    const response = await create({ model3dUrl: 'https://viewer.example.com/model/11' });
+    expect(response.statusCode).toBe(201);
+    const body = response.json() as { id: number };
+    createdIds.push(body.id);
+    expect(display(body)).toBe('modal');
+  });
+
+  it('persists tab on update and keeps it when a later update omits the field', async () => {
+    const created = (await create({ model3dUrl: '/uploads/3f2a-site/index.html' })).json() as { id: number };
+    createdIds.push(created.id);
+
+    const toTab = await update(created.id, { model3dUrl: '/uploads/3f2a-site/index.html', model3dDisplay: 'tab' });
+    expect(toTab.statusCode).toBe(200);
+    expect(display(toTab.json())).toBe('tab');
+    const stored = await prisma.project.findUniqueOrThrow({ where: { id: created.id } });
+    expect(stored.model3dDisplay).toBe('tab');
+
+    // A client that predates the option sends no `model3dDisplay`: nothing is reset.
+    const legacyClient = await update(created.id, { model3dUrl: '/uploads/3f2a-site/index.html' });
+    expect(legacyClient.statusCode).toBe(200);
+    expect(display(legacyClient.json())).toBe('tab');
+
+    const back = await update(created.id, { model3dDisplay: 'modal' });
+    expect(display(back.json())).toBe('modal');
+  });
+
+  it('is copied by duplicate', async () => {
+    const created = (await create({ model3dUrl: 'https://viewer.example.com/model/12', model3dDisplay: 'tab' })).json() as {
+      id: number;
+    };
+    createdIds.push(created.id);
+
+    const copy = await authInject(managerToken, { method: 'POST', url: `/api/projects/${created.id}/duplicate` });
+    expect(copy.statusCode).toBeLessThan(300);
+    const copyBody = copy.json() as { id: number };
+    createdIds.push(copyBody.id);
+    expect(display(copyBody)).toBe('tab');
+  });
+
+  it('rejects a value other than modal or tab with 400', async () => {
+    const response = await create({ model3dDisplay: 'popup' });
+    expect(response.statusCode).toBe(400);
+  });
+});

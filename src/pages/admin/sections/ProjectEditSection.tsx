@@ -70,6 +70,7 @@ interface EditorForm {
   lng: string;
   videoUrl: string;
   model3dUrl: string;
+  model3dDisplay: 'modal' | 'tab';
   image: string;
   gallery: string[];
   brochureUrl: string;
@@ -116,6 +117,7 @@ function toFormState(project: Property): EditorForm {
     lng: project.lng == null ? '' : String(project.lng),
     videoUrl: project.videoUrl ?? '',
     model3dUrl: project.model3dUrl ?? '',
+    model3dDisplay: project.model3dDisplay === 'tab' ? 'tab' : 'modal',
     image: project.image ?? '',
     gallery: [...(project.gallery ?? [])],
     brochureUrl: project.brochureUrl ?? '',
@@ -364,6 +366,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
       lng: lng ?? undefined,
       videoUrl: embedUrl ?? undefined,
       model3dUrl: trimmedOrUndefined(form.model3dUrl),
+      model3dDisplay: form.model3dDisplay,
       image: form.image,
       gallery: [...form.gallery],
       brochureUrl: form.brochureUrl || undefined,
@@ -385,6 +388,32 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
   const lat = parseNumber(form.lat);
   const lng = parseNumber(form.lng);
+
+  // Opening in a new tab only applies to pages (an HTML file or an external viewer link).
+  const model3dKind = getModel3dKind(form.model3dUrl);
+  const model3dDisplayControl =
+    form.model3dUrl.trim() && (model3dKind === 'html' || model3dKind === 'external') ? (
+      <div className="mt-3">
+        <span className={LABEL_CLASS}>{t('projectEdit.model3d.display.label')}</span>
+        <div className="inline-flex rounded-xl border border-muted-border/50 p-0.5">
+          {(['modal', 'tab'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={form.model3dDisplay === mode}
+              onClick={() => patch({ model3dDisplay: mode })}
+              disabled={busy}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-60 ${
+                form.model3dDisplay === mode ? 'brand-fill text-canvas' : 'text-neutral-text/70 hover:text-accent'
+              }`}
+            >
+              {t(`projectEdit.model3d.display.${mode}`)}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-[10px] text-neutral-text/50">{t('projectEdit.model3d.display.hint')}</p>
+      </div>
+    ) : null;
 
   return (
     <>
@@ -876,6 +905,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                     );
                   })()}
                   {errors.model3dUrl && <p className="mt-1 text-[10px] font-bold text-red-500">{errors.model3dUrl}</p>}
+                  {model3dDisplayControl}
                 </div>
               ) : (
                 <>
@@ -891,6 +921,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                       className={INPUT_CLASS}
                     />
                   </Field>
+                  {model3dDisplayControl}
                   <div>
                     <span className={LABEL_CLASS}>{t('projectEdit.model3d.chooseLabel')}</span>
                     <div className="grid grid-cols-3 gap-2">

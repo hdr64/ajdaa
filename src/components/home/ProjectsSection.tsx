@@ -9,7 +9,8 @@ import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { useSiteSettings } from '../../hooks/useSiteSettings';
 import { Project3dModal } from '../project/Project3dModal';
-import { getModel3dKind, isModel3dUrl } from '../../utils/urlValidation';
+import { getModel3dKind, isModel3dUrl, opensModel3dInTab } from '../../utils/urlValidation';
+import { resolveMediaUrl } from '../../services/api';
 import { getPropertyDisplay } from '../../data/properties';
 import type { Property } from '../../types/property';
 
@@ -146,6 +147,9 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
           const galleryCount = prop.gallery?.length || 1;
           const has3d = settings.projectCards.show3d && isModel3dUrl(prop.model3dUrl);
           const kind3d = getModel3dKind(prop.model3dUrl);
+          // A page shown as an external page opens in a new tab instead of the modal.
+          const tab3d = opensModel3dInTab(prop.model3dUrl, prop.model3dDisplay);
+          const tabHref3d = kind3d === 'external' ? prop.model3dUrl : resolveMediaUrl(prop.model3dUrl);
           const label3d =
             kind3d === 'video'
               ? isAr ? 'مشاهدة فيديو المشروع' : 'Watch project video'
@@ -251,7 +255,21 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {has3d && (
+                      {has3d && tab3d && (
+                        <a
+                          href={tabHref3d}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={label3d}
+                          title={label3d}
+                          className="brand-btn-secondary text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1 hover:border-accent transition cursor-pointer"
+                        >
+                          <Box className="w-3 h-3 text-accent" />
+                          <span className="hidden sm:inline">3D</span>
+                        </a>
+                      )}
+                      {has3d && !tab3d && (
                         <button
                           type="button"
                           onClick={(e) => {
