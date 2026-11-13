@@ -33,6 +33,8 @@ export interface ProjectSeoData {
   description: string | null;
   descriptionEn: string | null;
   image: string;
+  videoUrl?: string | null;
+  model3dUrl?: string | null;
   gallery: string | null;
   features: string | null;
   featuresEn?: string | null;
@@ -43,6 +45,47 @@ export interface ProjectSeoData {
   createdAt: Date;
   publishedAt: Date | null;
   updatedAt: Date;
+}
+
+/** The 11-character YouTube id inside a stored embed, watch, shorts or youtu.be link, else null. */
+export function youtubeVideoId(raw: string | null | undefined): string | null {
+  const match = /(?:youtube(?:-nocookie)?\.com\/(?:embed|shorts|live|v)\/|youtube\.com\/watch\?(?:[^#]*&)?v=|youtu\.be\/)([\w-]{11})(?![\w-])/i.exec(
+    raw ?? '',
+  );
+  return match ? match[1]! : null;
+}
+
+/** VideoObject for the project's YouTube video: makes the page eligible for Google's video results. */
+export function videoJsonLd(
+  origin: string,
+  p: ProjectSeoData,
+  title: string,
+  description: string,
+  lang: 'ar' | 'en',
+  images: string[],
+): Json | null {
+  const id = youtubeVideoId(p.videoUrl);
+  if (!id) return null;
+  const isEn = lang === 'en';
+  return compact({
+    '@context': 'https://schema.org',
+    '@type': 'VideoObject',
+    name: isEn ? `${title} - video tour` : `${title} - جولة فيديو`,
+    description,
+    thumbnailUrl: [`https://i.ytimg.com/vi/${id}/maxresdefault.jpg`, `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, ...images.slice(0, 1)],
+    // The real YouTube upload date is not stored; the project's publish date is the closest honest value.
+    uploadDate: (p.publishedAt ?? p.createdAt).toISOString(),
+    embedUrl: `https://www.youtube.com/embed/${id}`,
+    contentUrl: `https://www.youtube.com/watch?v=${id}`,
+    inLanguage: lang,
+    publisher: { '@id': `${origin}/#org` },
+  });
+}
+
+/** True when the project has a 3D model, video or page the site can show (https link or library file). */
+export function hasProject3d(p: Pick<ProjectSeoData, 'model3dUrl'>): boolean {
+  const v = (p.model3dUrl ?? '').trim();
+  return /^https:\/\//i.test(v) || v.startsWith('/uploads/');
 }
 
 /** Drops empty strings, null and undefined so no field is emitted blank. */
@@ -195,6 +238,7 @@ export function projectJsonLd(origin: string, p: ProjectSeoData, description: st
     p.unitsCount ? { '@type': 'PropertyValue', name: isEn ? 'Units' : 'الوحدات', value: isEn ? (p.unitsCountEn || p.unitsCount) : p.unitsCount } : undefined,
     p.rooms && p.rooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Rooms' : 'الغرف', value: String(p.rooms) } : undefined,
     p.bathrooms && p.bathrooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Bathrooms' : 'دورات المياه', value: String(p.bathrooms) } : undefined,
+    hasProject3d(p) ? { '@type': 'PropertyValue', name: isEn ? '3D tour' : 'جولة ثلاثية الأبعاد', value: isEn ? 'Available' : 'متاحة' } : undefined,
     ...rawFeatures.slice(0, 6).map((f) => ({
       '@type': 'PropertyValue',
       name: isEn ? 'Feature' : 'ميزة',
@@ -279,5 +323,7 @@ export function projectJsonLd(origin: string, p: ProjectSeoData, description: st
     priceRange: '$$$$',
   });
 
-  return [listing, crumbs, product, localBusiness];
+  const video = videoJsonLd(origin, p, title, description, lang, images);
+
+  return [listing, crumbs, product, localBusiness, ...(video ? [video] : [])];
 }

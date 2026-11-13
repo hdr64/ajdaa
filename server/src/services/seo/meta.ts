@@ -3,6 +3,7 @@ import {
   breadcrumbs,
   homeJsonLd,
   parseJsonArray,
+  hasProject3d,
   projectJsonLd,
   projectsItemList,
   type ProjectSeoData,
@@ -99,6 +100,7 @@ function projectFacts(p: ProjectSeoData, lang: 'ar' | 'en' = 'ar'): string {
     if (p.rooms) facts.push(`Rooms: ${p.rooms}`);
     if (p.bathrooms) facts.push(`Bathrooms: ${p.bathrooms}`);
     if (p.priceLabel) facts.push(`Price: ${p.priceLabel}`);
+    if (hasProject3d(p)) facts.push('3D tour available');
     const features = parseJsonArray(p.featuresEn || p.features);
     const list = [...facts, ...features].map((f) => `<li>${escapeHtml(f)}</li>`).join('');
     return `<ul>${list}</ul>`;
@@ -107,6 +109,7 @@ function projectFacts(p: ProjectSeoData, lang: 'ar' | 'en' = 'ar'): string {
   if (p.rooms) facts.push(`الغرف: ${p.rooms}`);
   if (p.bathrooms) facts.push(`دورات المياه: ${p.bathrooms}`);
   if (p.priceLabel) facts.push(`السعر: ${p.priceLabel}`);
+  if (hasProject3d(p)) facts.push('جولة ثلاثية الأبعاد متاحة');
   const features = parseJsonArray(p.features);
   const list = [...facts, ...features].map((f) => `<li>${escapeHtml(f)}</li>`).join('');
   return `<ul>${list}</ul>`;

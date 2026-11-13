@@ -89,6 +89,34 @@ function breadcrumbJsonLd(origin: string, trail: { name: string; path: string }[
   };
 }
 
+function youtubeVideoId(raw: string | undefined): string | null {
+  const match = /(?:youtube(?:-nocookie)?\.com\/(?:embed|shorts|live|v)\/|youtube\.com\/watch\?(?:[^#]*&)?v=|youtu\.be\/)([\w-]{11})(?![\w-])/i.exec(raw ?? '');
+  return match ? match[1]! : null;
+}
+
+function hasProject3d(project: Property): boolean {
+  const v = (project.model3dUrl ?? '').trim();
+  return /^https:\/\//i.test(v) || v.startsWith('/uploads/');
+}
+
+function projectVideoJsonLd(origin: string, project: Property, lang: Lang, name: string, description: string, images: string[]) {
+  const id = youtubeVideoId(project.videoUrl);
+  // uploadDate is required by Google; a project without a publish date emits no video markup.
+  if (!id || !project.publishedAt) return null;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'VideoObject',
+    name: lang === 'en' ? `${name} - video tour` : `${name} - جولة فيديو`,
+    description,
+    thumbnailUrl: [`https://i.ytimg.com/vi/${id}/maxresdefault.jpg`, `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, ...images.slice(0, 1)],
+    uploadDate: new Date(project.publishedAt).toISOString(),
+    embedUrl: `https://www.youtube.com/embed/${id}`,
+    contentUrl: `https://www.youtube.com/watch?v=${id}`,
+    inLanguage: lang,
+    publisher: { '@id': `${origin}/#org` },
+  };
+}
+
 function projectJsonLd(project: Property, lang: Lang, name: string, city: string, description: string, images: string[], url: string) {
   const hasGeo = typeof project.lat === 'number' && typeof project.lng === 'number';
   const listing: Record<string, unknown> = {
@@ -128,6 +156,7 @@ function projectProductJsonLd(origin: string, project: Property, lang: Lang, nam
     project.units ? { '@type': 'PropertyValue', name: isEn ? 'Units' : 'الوحدات', value: isEn ? (project.unitsEn || project.units) : project.units } : undefined,
     project.rooms && project.rooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Rooms' : 'الغرف', value: String(project.rooms) } : undefined,
     project.bathrooms && project.bathrooms > 0 ? { '@type': 'PropertyValue', name: isEn ? 'Bathrooms' : 'دورات المياه', value: String(project.bathrooms) } : undefined,
+    hasProject3d(project) ? { '@type': 'PropertyValue', name: isEn ? '3D tour' : 'جولة ثلاثية الأبعاد', value: isEn ? 'Available' : 'متاحة' } : undefined,
     ...rawFeatures.slice(0, 6).map((f) => ({
       '@type': 'PropertyValue',
       name: isEn ? 'Feature' : 'ميزة',
@@ -274,6 +303,8 @@ export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, proje
       .map((src) => absolute(origin, src))
       .filter((v): v is string => v !== null);
 
+    const videoLd = projectVideoJsonLd(origin, project, lang, name, description, images);
+
     return {
       ...base,
       title: `${name} — ${city} | ${brand}`,
@@ -292,6 +323,7 @@ export function getSeoMeta(page: SeoRoutePage, lang: Lang, origin: string, proje
         ]),
         projectProductJsonLd(origin, project, lang, name, city, description, images, canonical),
         projectLocalBusinessJsonLd(project, lang, name, city, description, images, canonical),
+        ...(videoLd ? [videoLd] : []),
       ],
     };
   }
