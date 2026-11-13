@@ -49,7 +49,7 @@ export function getModel3dKind(value: string | null | undefined): Model3dKind | 
   return isHttpsUrl(trimmed) ? 'external' : null;
 }
 
-/** True when a project's 3D link should open in a new browser tab: only pages (html, external), only when chosen. */
+/** True when a project's 3D link should replace the current page (same tab): only pages (html, external), only when chosen. */
 export function opensModel3dInTab(url: string | null | undefined, display: string | null | undefined): boolean {
   if (display !== 'tab' || !isModel3dUrl(url)) return false;
   const kind = getModel3dKind(url);

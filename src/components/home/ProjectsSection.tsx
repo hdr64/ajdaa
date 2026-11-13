@@ -258,8 +258,6 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                       {has3d && tab3d && (
                         <a
                           href={tabHref3d}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           aria-label={label3d}
                           title={label3d}

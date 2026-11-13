@@ -37,8 +37,6 @@ export const Project3dPreviewButton: React.FC<Project3dPreviewButtonProps> = ({ 
     return (
       <a
         href={href}
-        target="_blank"
-        rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         className={className}
         title={t('projects.preview3dTitle')}

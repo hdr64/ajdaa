@@ -274,7 +274,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   // viewer, a video in a player, an HTML page in a sandboxed iframe; an external
   // https viewer link stays a plain iframe.
   const model3dKind = getModel3dKind(safeModel3dUrl);
-  // A page the admin chose to show as an external page opens in a new tab instead of the modal.
+  // A page the admin chose to show as an external page opens in the current tab (replaces this page) instead of the modal.
   const model3dInTab = opensModel3dInTab(safeModel3dUrl, project.model3dDisplay);
   const model3dTabHref = safeModel3dUrl
     ? model3dKind === 'external'
@@ -636,8 +636,6 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
                 {safeModel3dUrl && model3dInTab ? (
                   <a
                     href={model3dTabHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className={model3dButtonClass}
                   >
                     <Box className="w-3.5 h-3.5 text-accent shrink-0" />
