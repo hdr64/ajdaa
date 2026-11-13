@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Box, ExternalLink, X } from 'lucide-react';
 import { resolveMediaUrl } from '../../services/api';
 import { getModel3dKind, isModel3dUrl } from '../../utils/urlValidation';
@@ -42,9 +43,11 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
   const src = resolveMediaUrl(safeUrl);
   const viewerTitle = isAr ? `المجسم ثلاثي الأبعاد - ${title}` : `3D model - ${title}`;
 
-  return (
+  // Portalled to <body>: a card with a transform/filter/overflow ancestor would otherwise
+  // turn `fixed` into card-sized and clip the viewer.
+  return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex flex-col ${
+      className={`fixed inset-0 z-[100] flex flex-col ${
         fullscreen ? 'bg-black' : 'bg-neutral-950/90 backdrop-blur-sm p-3 sm:p-5 md:p-8'
       }`}
       role="dialog"
@@ -145,6 +148,7 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
