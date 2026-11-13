@@ -36,6 +36,8 @@ import { DriveFilePicker } from '../drive/DriveFilePicker';
 import { getErrorMessage, resolveMediaUrl } from '../../../services/api';
 import { formatAdminDate } from '../../../pages/admin/adminFormat';
 import { copyText } from '../../../utils/clipboard';
+import { toUploadPath } from '../../../utils/urlValidation';
+import { PagePickerStep } from './PagePickerStep';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -81,6 +83,11 @@ export interface MediaPickerModalProps {
   onSelect: (media: { url: string; filename: string; originalName: string }) => void;
   fileType?: 'image' | 'pdf' | 'model3d' | 'video' | 'html' | 'other' | 'all';
   title?: string;
+  /**
+   * HTML pickers only: after the file is chosen, a second step frames the site so the admin can
+   * click to the page they want (the answer may then be `/uploads/<folder>/inner/page.html?x=1`).
+   */
+  pageStep?: boolean;
 }
 
 export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
@@ -89,6 +96,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   onSelect,
   fileType = 'all',
   title,
+  pageStep = false,
 }) => {
   const { t } = useAdminT();
 
@@ -99,6 +107,9 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   const [selectedFile, setSelectedFile] = useState<MediaFileDto | null>(null);
   const [driveFile, setDriveFile] = useState<DriveFile | null>(null);
   const [publishing, setPublishing] = useState(false);
+  // Step 2 ("choose a page"): the file picked in step 1, waiting for the admin to choose its page.
+  const [pagePending, setPagePending] = useState<{ url: string; filename: string; originalName: string } | null>(null);
+  const hasPageStep = pageStep && fileType === 'html';
 
   // Layout mode (Grid vs Detailed List)
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(() => {
@@ -194,6 +205,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
       if (!wasOpen.current) {
         setSelectedFile(null);
         setDriveFile(null);
+        setPagePending(null);
         setUploadError('');
         setNotice('');
         stagedIdsRef.current = emptyStagedIds();
@@ -224,7 +236,12 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
    * confirm fails the rows stay staged and hidden, so the picker stays open
    * with the upload-failed message instead of using an invisible file.
    */
-  const finish = async (file: { url: string; filename: string; originalName: string }) => {
+  const finish = async (file: { url: string; filename: string; originalName: string }, pageChosen = false) => {
+    if (hasPageStep && !pageChosen) {
+      // Step 1 done: keep the staged rows (the preview reads the files from disk) and go to step 2.
+      setPagePending(file);
+      return;
+    }
     const session = sessionRef.current;
     finishedRef.current = true; // the unmount safety net must not discard what we are confirming
     const ids = stagedIdsRef.current;
@@ -381,6 +398,14 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     setUploadError('');
     try {
       const published = await publishDriveFileToLibrary(driveFile.id);
+      if (hasPageStep) {
+        setPagePending({
+          url: published.url,
+          filename: published.filename,
+          originalName: published.originalName || driveFile.name,
+        });
+        return;
+      }
       onSelect({
         url: published.url,
         filename: published.filename,
@@ -402,7 +427,9 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
       onClick={cancel}
     >
       <div
-        className="w-full max-w-3xl max-h-[90vh] rounded-2xl bg-surface border border-muted-border/40 shadow-2xl flex flex-col overflow-hidden"
+        className={`w-full rounded-2xl bg-surface border border-muted-border/40 shadow-2xl flex flex-col overflow-hidden ${
+          pagePending ? 'max-w-5xl h-[92vh]' : 'max-w-3xl max-h-[90vh]'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -422,12 +449,28 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 ? t('media.picker.hintHtml')
                 : t('media.picker.hintFile')}
             </p>
+            {hasPageStep && (
+              <p className="mt-1.5 flex items-center gap-2 text-[10px] font-black">
+                <span className={pagePending ? 'text-neutral-text/40' : 'text-accent'}>{t('media.picker.step1')}</span>
+                <span className="text-neutral-text/30">/</span>
+                <span className={pagePending ? 'text-accent' : 'text-neutral-text/40'}>{t('media.picker.step2')}</span>
+              </p>
+            )}
           </div>
           <button onClick={cancel} className="p-1 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer">
             <CloseIcon className="w-4 h-4" />
           </button>
         </div>
 
+        {pagePending ? (
+          <PagePickerStep
+            startUrl={toUploadPath(pagePending.url)}
+            onConfirm={(storedUrl) => void finish({ ...pagePending, url: storedUrl }, true)}
+            onBack={() => setPagePending(null)}
+            backLabel={t('media.picker.backToFiles')}
+          />
+        ) : (
+          <>
         {/* Tab Switcher */}
         <div className="flex border-b border-muted-border/20 px-4 bg-canvas/50">
           <button
@@ -472,7 +515,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               {notice && (
                 <p className="text-[11px] font-bold text-emerald-700 bg-emerald-500/10 px-3 py-2 rounded-lg">{notice}</p>
               )}
-              {selectedFile && <SelectedPreview file={selectedFile} />}
+              {selectedFile && !hasPageStep && <SelectedPreview file={selectedFile} />}
               {/* Search input & Layout Switcher */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -891,6 +934,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
             )}
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

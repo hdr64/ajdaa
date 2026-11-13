@@ -476,6 +476,10 @@ Every library file has one `slug` (`MediaFile.slug`, unique, generated once as `
 - HTML and SVG responses carry `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms`; both routes send `Access-Control-Allow-Origin: *` so a sandboxed page can load its own css/js/fonts.
 - Caddy must proxy `/f/*` and `/html/*` to the API (already in `deploy/Caddyfile.ajda` and `Caddyfile.test.ajda`; the owner reloads Caddy on each server). The Vite dev server proxies them too.
 
+### Page picker preview: `GET /api/media/site-preview/<path under /uploads/>` (no login)
+
+Serves the same files as `/uploads/`, but every `.html` page (up to 5 MB) gets a small script injected after `<head>` that posts `{ type: 'ajda-capture-nav', path, search, hash }` to the framing window (only when framed). The admin "choose a page" step frames this route so the admin can click through an extracted site and capture the page they stop on (stored as `/uploads/<folder>/<inner>.html?query#hash`). Pages are sent sandboxed (`Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms`, no `X-Frame-Options`), `Cache-Control: no-store`. A folder path redirects `301` to the trailing-slash form and serves its `index.html`; hidden files, `..` and anything outside the upload directory are `404`. Lives under `/api/` because the reverse proxy already forwards that prefix.
+
 ### PATCH `/api/media/:id`
 Changes the slug: `{ "slug": "villa-tour" }` (3-80 chars, lowercase letters, digits, single hyphens; reserved: `api`, `assets`, `uploads`, `admin`, `f`, `html`). `400` invalid, `409` already used, `404` unknown file. The old link stops working.
 

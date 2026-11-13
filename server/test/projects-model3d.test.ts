@@ -89,6 +89,8 @@ describe('POST/PUT /api/projects model3dUrl', () => {
       '/uploads/3f2a-site/site/index.html',
       '/uploads/3f2a-site/%D9%85%D9%84%D9%81/index.html',
       '/uploads/3f2a-clips/clips/a.webm',
+      '/uploads/3f2a-prime/prime/tour.html?mode=model',
+      '/uploads/3f2a-prime/prime/tour.html?mode=model&lang=ar#start',
     ]) {
       const response = await create({ model3dUrl });
       expect(response.statusCode, model3dUrl).toBe(201);
@@ -108,6 +110,10 @@ describe('POST/PUT /api/projects model3dUrl', () => {
       ['nested traversal', '/uploads/a/../b/index.html'],
       ['double slash', '/uploads/a//index.html'],
       ['script file', '/uploads/a/app.js'],
+      ['query on a glb', '/uploads/a/model.glb?x=1'],
+      ['query with a quote', '/uploads/a/index.html?x="1"'],
+      ['query traversal', '/uploads/a/index.html?x=../b'],
+      ['query before extension', '/uploads/a/page?x=1.html'],
       ['exe file', '/uploads/a/run.exe'],
     ];
 
@@ -243,7 +249,17 @@ describe('model3dDisplay', () => {
     expect(display(copyBody)).toBe('tab');
   });
 
-  it('rejects a value other than modal or tab with 400', async () => {
+  it('persists fullscreen', async () => {
+    const created = (await create({ model3dUrl: 'https://viewer.example.com/model/13', model3dDisplay: 'fullscreen' })).json() as {
+      id: number;
+    };
+    createdIds.push(created.id);
+    expect(display(created)).toBe('fullscreen');
+    const stored = await prisma.project.findUniqueOrThrow({ where: { id: created.id } });
+    expect(stored.model3dDisplay).toBe('fullscreen');
+  });
+
+  it('rejects a value other than modal, fullscreen or tab with 400', async () => {
     const response = await create({ model3dDisplay: 'popup' });
     expect(response.statusCode).toBe(400);
   });

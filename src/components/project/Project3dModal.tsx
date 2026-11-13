@@ -12,10 +12,12 @@ interface Project3dModalProps {
   title: string;
   isAr: boolean;
   onClose: () => void;
+  /** Edge-to-edge layout (no padding, frame or hint line); the default is a framed window. */
+  fullscreen?: boolean;
 }
 
-/** Full-screen viewer for a project's 3D model, video or interactive page. Owns Escape and the scroll lock. */
-export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr, onClose }) => {
+/** Viewer for a project's 3D model, video or interactive page. Owns Escape and the scroll lock. */
+export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr, onClose, fullscreen = false }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -42,7 +44,9 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-neutral-950/90 backdrop-blur-sm flex flex-col p-3 sm:p-5 md:p-8"
+      className={`fixed inset-0 z-50 flex flex-col ${
+        fullscreen ? 'bg-black' : 'bg-neutral-950/90 backdrop-blur-sm p-3 sm:p-5 md:p-8'
+      }`}
       role="dialog"
       aria-modal="true"
       aria-label={isAr ? 'المجسم ثلاثي الأبعاد' : '3D model viewer'}
@@ -50,8 +54,14 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
       {/* Backdrop click closes */}
       <div className="absolute inset-0 cursor-pointer" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col flex-1 min-h-0">
-        <div className="flex items-center justify-between gap-3 mb-3 text-white">
+      <div
+        className={`relative z-10 w-full flex flex-col flex-1 min-h-0 ${fullscreen ? '' : 'max-w-6xl mx-auto'}`}
+      >
+        <div
+          className={`flex items-center justify-between gap-3 text-white ${
+            fullscreen ? 'px-3 py-2 bg-neutral-950 border-b border-white/10' : 'mb-3'
+          }`}
+        >
           <div className="flex items-center gap-2 min-w-0">
             <Box className="w-4 h-4 text-accent shrink-0" />
             <span className="text-sm font-black truncate">{title}</span>
@@ -80,7 +90,11 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 rounded-2xl overflow-hidden bg-black border border-white/15 shadow-2xl">
+        <div
+          className={`flex-1 min-h-0 overflow-hidden bg-black ${
+            fullscreen ? '' : 'rounded-2xl border border-white/15 shadow-2xl'
+          }`}
+        >
           {kind === 'model' ? (
             <Suspense fallback={null}>
               <Model3dViewer src={src} isAr={isAr} title={viewerTitle} />
@@ -119,7 +133,7 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
           )}
         </div>
 
-        {kind === 'model' ? (
+        {fullscreen ? null : kind === 'model' ? (
           <p className="mt-2 text-[11px] text-white/50 text-center">
             {isAr ? 'اسحب للتدوير، وحرّك العجلة أو اقرص للتكبير.' : 'Drag to rotate, scroll or pinch to zoom.'}
           </p>

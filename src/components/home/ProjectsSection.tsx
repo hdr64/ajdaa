@@ -9,7 +9,7 @@ import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { useSiteSettings } from '../../hooks/useSiteSettings';
 import { Project3dModal } from '../project/Project3dModal';
-import { getModel3dKind, isModel3dUrl, opensModel3dInTab } from '../../utils/urlValidation';
+import { getModel3dKind, isModel3dUrl, opensModel3dInTab, opensModel3dFullscreen } from '../../utils/urlValidation';
 import { resolveMediaUrl } from '../../services/api';
 import { getPropertyDisplay } from '../../data/properties';
 import type { Property } from '../../types/property';
@@ -322,6 +322,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
           url={model3dProject.model3dUrl}
           title={getPropertyDisplay(model3dProject, language).title}
           isAr={isAr}
+          fullscreen={opensModel3dFullscreen(model3dProject.model3dUrl, model3dProject.model3dDisplay)}
           onClose={() => setModel3dProject(null)}
         />
       )}

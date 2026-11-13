@@ -4,6 +4,7 @@ import type { Property } from '../../../types/property';
 import { PROJECT_TYPE_KEYS, publishStatusOf } from '../../../pages/admin/projectLabels';
 import { unitStats } from './projectsModel';
 import { ProjectImage, ProjectStatusBadge } from './projectsUi';
+import { Project3dPreviewButton } from './Project3dPreviewButton';
 import { useAdminT } from '../../../i18n/admin';
 
 interface ProjectsListProps {
@@ -116,6 +117,10 @@ export const ProjectsList: React.FC<ProjectsListProps> = ({
                 <Layers className="w-3.5 h-3.5" />
                 <span>{t('projects.manageUnits')}</span>
               </button>
+              <Project3dPreviewButton
+                project={project}
+                className="p-2 rounded-xl bg-canvas border border-muted-border/40 hover:border-accent text-accent transition cursor-pointer"
+              />
               {canManage && (
                 <div className="flex items-center gap-1">
                   {status === 'published' ? (

@@ -17,6 +17,7 @@ import { isViewMode, type ViewMode } from '../../../components/admin/common/view
 import { usePersistentState } from '../../../hooks/usePersistentState';
 import { ProjectsTable } from '../../../components/admin/projects/ProjectsTable';
 import { ProjectsList } from '../../../components/admin/projects/ProjectsList';
+import { Project3dPreviewButton } from '../../../components/admin/projects/Project3dPreviewButton';
 
 const TYPE_FILTERS: { key: string; labelKey: string }[] = [
   { key: 'all', labelKey: 'projects.typeFilter.all' },
@@ -432,6 +433,10 @@ export const ProjectsSection: React.FC = () => {
                     <Layers className="w-3.5 h-3.5" />
                     <span>{t('projects.manageUnits')}</span>
                   </button>
+                  <Project3dPreviewButton
+                    project={project}
+                    className="p-2.5 rounded-xl bg-canvas border border-muted-border/40 hover:border-accent text-accent transition cursor-pointer"
+                  />
                   {canManage && (
                     <>
                       {publishStatusOf(project) === 'published' ? (

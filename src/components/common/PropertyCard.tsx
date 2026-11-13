@@ -15,9 +15,19 @@ import {
   Store,
   Building2,
   FileText,
+  Box,
 } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
-import { isDownloadableMediaUrl } from '../../utils/urlValidation';
+import { useSiteSettings } from '../../hooks/useSiteSettings';
+import { Project3dModal } from '../project/Project3dModal';
+import {
+  getModel3dKind,
+  isDownloadableMediaUrl,
+  isModel3dUrl,
+  opensModel3dInTab,
+  opensModel3dFullscreen,
+} from '../../utils/urlValidation';
+import { resolveMediaUrl } from '../../services/api';
 import { getPropertyDisplay } from '../../data/properties';
 
 interface PropertyCardProps {
@@ -36,10 +46,26 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   const { language, t } = useLanguage();
   const isAr = language === 'ar';
   const [fav, setFav] = useState(false);
+  const [show3dModal, setShow3dModal] = useState(false);
+  const { settings } = useSiteSettings();
 
   const display = getPropertyDisplay(property, language);
   const galleryCount = property.gallery?.length || 1;
   const brochureUrl = isDownloadableMediaUrl(property.brochureUrl) ? property.brochureUrl : undefined;
+
+  const has3d = settings.projectCards.show3d && isModel3dUrl(property.model3dUrl);
+  const kind3d = getModel3dKind(property.model3dUrl);
+  // A page shown as an external page opens in a new tab instead of the modal.
+  const tab3d = opensModel3dInTab(property.model3dUrl, property.model3dDisplay);
+  const tabHref3d = kind3d === 'external' ? property.model3dUrl : resolveMediaUrl(property.model3dUrl);
+  const label3d =
+    kind3d === 'video'
+      ? isAr ? 'مشاهدة فيديو المشروع' : 'Watch project video'
+      : kind3d === 'html'
+      ? isAr ? 'عرض التجربة التفاعلية' : 'View interactive page'
+      : isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model';
+  const btn3dClass =
+    'brand-btn-secondary text-xs font-bold px-3 py-2.5 rounded-xl inline-flex items-center gap-1 hover:border-accent transition cursor-pointer';
 
   const toggleFav = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -51,6 +77,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   };
 
   return (
+    <>
     <div
       onClick={() => onQuickView?.(property)}
       className="glass-card rounded-2xl overflow-hidden group flex flex-col justify-between hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border border-muted-border/30 hover:border-accent/40"
@@ -86,6 +113,13 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           </span>
 
           <div className="flex items-center gap-2">
+            {has3d && (
+              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-canvas/80 backdrop-blur-md text-neutral-text flex items-center gap-1 border border-muted-border/30">
+                <Box className="w-3 h-3 text-accent" />
+                3D
+              </span>
+            )}
+
             {/* Gallery photos badge */}
             <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-canvas/80 backdrop-blur-md text-neutral-text flex items-center gap-1 border border-muted-border/30">
               <Images className="w-3 h-3 text-accent" />
@@ -213,22 +247,63 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect(property);
-            }}
-            className="brand-btn-primary font-extrabold text-xs px-4 py-2.5 rounded-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
-          >
-            {display.isBooked ? t.propertyCard.inquireNow : t.propertyCard.registerInterest}
-            {isAr ? (
-              <ArrowLeft className="w-3.5 h-3.5" />
-            ) : (
-              <ArrowRight className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-2">
+            {has3d && tab3d && (
+              <a
+                href={tabHref3d}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={label3d}
+                title={label3d}
+                className={btn3dClass}
+              >
+                <Box className="w-3.5 h-3.5 text-accent" />
+                3D
+              </a>
             )}
-          </button>
+            {has3d && !tab3d && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShow3dModal(true);
+                }}
+                aria-label={label3d}
+                title={label3d}
+                className={btn3dClass}
+              >
+                <Box className="w-3.5 h-3.5 text-accent" />
+                3D
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(property);
+              }}
+              className="brand-btn-primary font-extrabold text-xs px-4 py-2.5 rounded-xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer inline-flex items-center gap-1.5"
+            >
+              {display.isBooked ? t.propertyCard.inquireNow : t.propertyCard.registerInterest}
+              {isAr ? (
+                <ArrowLeft className="w-3.5 h-3.5" />
+              ) : (
+                <ArrowRight className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
+    {show3dModal && property.model3dUrl && (
+      <Project3dModal
+        url={property.model3dUrl}
+        title={display.title}
+        isAr={isAr}
+        fullscreen={opensModel3dFullscreen(property.model3dUrl, property.model3dDisplay)}
+        onClose={() => setShow3dModal(false)}
+      />
+    )}
+    </>
   );
 };

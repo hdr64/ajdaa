@@ -9,7 +9,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
 import { SpaLink } from '../components/common/SpaLink';
 import { Project3dModal } from '../components/project/Project3dModal';
-import { isModel3dUrl, getModel3dKind, isDownloadableMediaUrl, opensModel3dInTab } from '../utils/urlValidation';
+import { isModel3dUrl, getModel3dKind, isDownloadableMediaUrl, opensModel3dInTab, opensModel3dFullscreen } from '../utils/urlValidation';
 import { detectProjectStatus } from '../data/properties';
 import {
   MapPin,
@@ -929,6 +929,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
           url={safeModel3dUrl}
           title={project.title}
           isAr={isAr}
+          fullscreen={opensModel3dFullscreen(safeModel3dUrl, project.model3dDisplay)}
           onClose={() => setModel3dModalOpen(false)}
         />
       )}

@@ -16,6 +16,9 @@ export function isHttpsUrl(value: string | null | undefined): boolean {
 
 // Mirrors `MODEL3D_FILE_PATTERN` in server/src/routes/projects.routes.ts.
 const MODEL3D_FILE_PATTERN = /^\/uploads\/[A-Za-z0-9._%/-]+\.(glb|mp4|webm|mov|m4v|ogv|html?)$/i;
+// An HTML entry page may carry a query string and a hash (`/uploads/prime/tour.html?mode=model`).
+const MODEL3D_HTML_ENTRY_PATTERN =
+  /^\/uploads\/[A-Za-z0-9._%/-]+\.html?(\?[A-Za-z0-9._~%&=+,;:@/-]*)?(#[A-Za-z0-9._~%&=+,;:@/-]*)?$/i;
 
 /** What the project's 3D card shows: a library `.glb`, video, HTML page, or an external viewer link. */
 export type Model3dKind = 'model' | 'video' | 'html' | 'external';
@@ -30,7 +33,7 @@ export function isModel3dFileUrl(value: string | null | undefined): boolean {
     trimmed.length <= MAX_PROJECT_URL_LENGTH &&
     !trimmed.includes('..') &&
     !trimmed.includes('//') &&
-    MODEL3D_FILE_PATTERN.test(trimmed)
+    (MODEL3D_FILE_PATTERN.test(trimmed) || MODEL3D_HTML_ENTRY_PATTERN.test(trimmed))
   );
 }
 
@@ -38,7 +41,8 @@ export function isModel3dFileUrl(value: string | null | undefined): boolean {
 export function getModel3dKind(value: string | null | undefined): Model3dKind | null {
   const trimmed = (value ?? '').trim();
   if (isModel3dFileUrl(trimmed)) {
-    const ext = trimmed.slice(trimmed.lastIndexOf('.') + 1).toLowerCase();
+    const path = trimmed.replace(/[?#].*$/, '');
+    const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
     if (ext === 'glb') return 'model';
     return ext === 'html' || ext === 'htm' ? 'html' : 'video';
   }
@@ -48,6 +52,13 @@ export function getModel3dKind(value: string | null | undefined): Model3dKind | 
 /** True when a project's 3D link should open in a new browser tab: only pages (html, external), only when chosen. */
 export function opensModel3dInTab(url: string | null | undefined, display: string | null | undefined): boolean {
   if (display !== 'tab' || !isModel3dUrl(url)) return false;
+  const kind = getModel3dKind(url);
+  return kind === 'html' || kind === 'external';
+}
+
+/** True when a project's 3D page should fill the whole screen: only pages (html, external), only when chosen. */
+export function opensModel3dFullscreen(url: string | null | undefined, display: string | null | undefined): boolean {
+  if (display !== 'fullscreen' || !isModel3dUrl(url)) return false;
   const kind = getModel3dKind(url);
   return kind === 'html' || kind === 'external';
 }

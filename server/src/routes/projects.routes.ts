@@ -18,6 +18,10 @@ const HTTPS_URL_PATTERN = /^https:\/\/[^\s"'<>\\]+$/;
 // zip folder, hence `/` and percent-encoding). A `.gltf` stays out: it can
 // reference other files, which a single library entry cannot carry.
 const MODEL3D_FILE_PATTERN = /^\/uploads\/[A-Za-z0-9._%/-]+\.(glb|mp4|webm|mov|m4v|ogv|html?)$/i;
+// An HTML entry page may carry a query string and a hash (`/uploads/prime/tour.html?mode=model`),
+// so the admin can point the experience at a sub-page of an extracted zip.
+const MODEL3D_HTML_ENTRY_PATTERN =
+  /^\/uploads\/[A-Za-z0-9._%/-]+\.html?(\?[A-Za-z0-9._~%&=+,;:@/-]*)?(#[A-Za-z0-9._~%&=+,;:@/-]*)?$/i;
 
 /**
  * `model3dUrl`: an https viewer link, a library `.glb` path, or nothing.
@@ -34,7 +38,9 @@ const optionalModel3dUrl = z
     (value) =>
       value === null ||
       HTTPS_URL_PATTERN.test(value) ||
-      (MODEL3D_FILE_PATTERN.test(value) && !value.includes('..') && !value.includes('//')),
+      ((MODEL3D_FILE_PATTERN.test(value) || MODEL3D_HTML_ENTRY_PATTERN.test(value)) &&
+        !value.includes('..') &&
+        !value.includes('//')),
     { message: 'Must be an https URL or a library .glb, video or HTML file (max 500 characters)' },
   );
 
@@ -71,7 +77,7 @@ const projectSchema = z.object({
   // `virtualTour3dAvailable` from this.
   model3dUrl: optionalModel3dUrl,
   // How an html/external link opens on the public site; omitted keeps the stored value.
-  model3dDisplay: z.enum(['modal', 'tab']).optional(),
+  model3dDisplay: z.enum(['modal', 'fullscreen', 'tab']).optional(),
   // Accepted but ignored: the stored column is legacy data and the API reports
   // `virtualTour3dAvailable` as `Boolean(model3dUrl)` instead.
   virtualTour3dAvailable: z.boolean().optional(),

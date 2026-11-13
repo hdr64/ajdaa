@@ -8,6 +8,7 @@ import { PROJECT_TYPE_KEYS, publishStatusOf } from '../../../pages/admin/project
 import { projectSearchText, unitStats } from './projectsModel';
 import { ProjectImage, ProjectStatusBadge } from './projectsUi';
 import { useAdminT } from '../../../i18n/admin';
+import { Project3dPreviewButton } from './Project3dPreviewButton';
 
 export const PROJECTS_TABLE_STORAGE_KEY = 'ajda.admin.projects';
 
@@ -160,6 +161,10 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({
           >
             <Layers className="w-3.5 h-3.5" />
           </button>
+          <Project3dPreviewButton
+            project={project}
+            className="p-1.5 rounded-lg text-accent hover:bg-accent/10 transition cursor-pointer"
+          />
           {canManage && (
             <>
               {publishStatusOf(project) === 'published' ? (

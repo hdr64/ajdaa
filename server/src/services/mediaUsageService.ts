@@ -39,6 +39,8 @@ export function usageKey(input: string): string {
     // keep the raw value
   }
   value = value.toLowerCase();
+  // An HTML entry link may end in `?query` or `#hash`; the file is what is used.
+  value = value.replace(/[?#].*$/, '');
   const nested = /\/uploads\/(.+)$/.exec(value);
   if (nested && nested[1].includes('/')) return nested[1];
   const parts = value.split('/');

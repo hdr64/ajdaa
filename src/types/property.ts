@@ -70,7 +70,7 @@ export interface Property {
   /** External https link to a 3D model viewer. Presence of it = 3D tour available. */
   model3dUrl?: string;
   /** How an html/external `model3dUrl` opens for visitors: a window (default) or a new tab. */
-  model3dDisplay?: 'modal' | 'tab';
+  model3dDisplay?: 'modal' | 'fullscreen' | 'tab';
   virtualTour3dAvailable?: boolean;
   locationHighlightsAr?: string[];
   locationHighlightsEn?: string[];

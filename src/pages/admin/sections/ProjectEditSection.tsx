@@ -3,6 +3,8 @@ import {
   AlertCircle,
   ArrowRight,
   Box,
+  ChevronDown,
+  Crosshair,
   FileText,
   Globe,
   Plus,
@@ -32,6 +34,7 @@ import { resolveMediaUrl } from '../../../services/api';
 import { detectProjectStatus } from '../../../data/properties';
 import { GoogleSearchProductPreview } from '../../../components/admin/projects/GoogleSearchProductPreview';
 import { MediaPickerModal } from '../../../components/admin/media/MediaPickerModal';
+import { PagePickerDialog } from '../../../components/admin/media/PagePickerStep';
 import { FilePreviewModal } from '../../../components/admin/common/FilePreviewModal';
 
 const INPUT_CLASS =
@@ -70,7 +73,7 @@ interface EditorForm {
   lng: string;
   videoUrl: string;
   model3dUrl: string;
-  model3dDisplay: 'modal' | 'tab';
+  model3dDisplay: 'modal' | 'fullscreen' | 'tab';
   image: string;
   gallery: string[];
   brochureUrl: string;
@@ -117,11 +120,30 @@ function toFormState(project: Property): EditorForm {
     lng: project.lng == null ? '' : String(project.lng),
     videoUrl: project.videoUrl ?? '',
     model3dUrl: project.model3dUrl ?? '',
-    model3dDisplay: project.model3dDisplay === 'tab' ? 'tab' : 'modal',
+    model3dDisplay:
+      project.model3dDisplay === 'tab' || project.model3dDisplay === 'fullscreen' ? project.model3dDisplay : 'modal',
     image: project.image ?? '',
     gallery: [...(project.gallery ?? [])],
     brochureUrl: project.brochureUrl ?? '',
   };
+}
+
+/**
+ * Splits a stored `/uploads/...` entry URL into the fixed prefix and the part the admin may edit.
+ * A website extracted from a zip (`/uploads/<folder>/<inner path>`) keeps `/uploads/<folder>/`
+ * fixed; a single uploaded page (`/uploads/<file>.html`) has no inner pages, so only its
+ * `?query#hash` is editable.
+ */
+function splitEntryUrl(value: string): { base: string; rest: string; flat: boolean } {
+  const v = value.trim();
+  const queryAt = v.search(/[?#]/);
+  const path = queryAt === -1 ? v : v.slice(0, queryAt);
+  const suffix = queryAt === -1 ? '' : v.slice(queryAt);
+  const inner = path.replace(/^\/uploads\//, '');
+  const slash = inner.indexOf('/');
+  if (slash === -1) return { base: path, rest: suffix, flat: true };
+  const base = `/uploads/${inner.slice(0, slash + 1)}`;
+  return { base, rest: v.slice(base.length), flat: false };
 }
 
 /** null = empty, NaN = not a number. */
@@ -188,6 +210,8 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
     fileType: 'image' | 'pdf' | 'model3d' | 'video' | 'html';
   } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [pageDialogOpen, setPageDialogOpen] = useState(false);
 
   const autoStatus = useMemo(() => {
     return detectProjectStatus({
@@ -390,13 +414,18 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
   const lng = parseNumber(form.lng);
 
   // Opening in a new tab only applies to pages (an HTML file or an external viewer link).
-  const model3dKind = getModel3dKind(form.model3dUrl);
+  // A library page is edited as plain text (path plus optional ?query), so it must keep showing the
+  // file row while the text is momentarily invalid.
+  const isLibraryPath = form.model3dUrl.startsWith('/uploads/');
+  const isHtmlEntry = isLibraryPath && /\.html?([?#].*)?$/i.test(form.model3dUrl.trim());
+  const model3dKind = getModel3dKind(form.model3dUrl) ?? (isHtmlEntry ? 'html' : null);
+  const entryParts = splitEntryUrl(form.model3dUrl);
   const model3dDisplayControl =
     form.model3dUrl.trim() && (model3dKind === 'html' || model3dKind === 'external') ? (
       <div className="mt-3">
         <span className={LABEL_CLASS}>{t('projectEdit.model3d.display.label')}</span>
         <div className="inline-flex rounded-xl border border-muted-border/50 p-0.5">
-          {(['modal', 'tab'] as const).map((mode) => (
+          {(['modal', 'fullscreen', 'tab'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -824,14 +853,14 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                   </button>
                 )}
               </div>
-              {isModel3dFileUrl(form.model3dUrl) ? (
+              {isLibraryPath ? (
                 <div>
                   <span className={LABEL_CLASS}>{t('projectEdit.field.model3dUrl')}</span>
                   {(() => {
-                    const kind = getModel3dKind(form.model3dUrl);
+                    const kind = model3dKind;
                     const pickerType = kind === 'video' ? 'video' : kind === 'html' ? 'html' : 'model3d';
                     const KindIcon = kind === 'video' ? VideoIcon : kind === 'html' ? Globe : Box;
-                    let fileName = form.model3dUrl.split('/').pop() ?? '';
+                    let fileName = (form.model3dUrl.split(/[?#]/)[0] ?? '').split('/').pop() ?? '';
                     try {
                       fileName = decodeURIComponent(fileName);
                     } catch {
@@ -904,7 +933,73 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
                       </div>
                     );
                   })()}
-                  {errors.model3dUrl && <p className="mt-1 text-[10px] font-bold text-red-500">{errors.model3dUrl}</p>}
+                  {model3dKind === 'html' && (
+                    <div className="mt-3 rounded-xl border border-muted-border/50 bg-canvas">
+                      <button
+                        type="button"
+                        onClick={() => setEntryOpen((v) => !v)}
+                        aria-expanded={entryOpen}
+                        aria-controls="project-model3d-entry-panel"
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer"
+                      >
+                        <span className="text-[11px] font-bold text-heading">{t('projectEdit.model3d.entry.label')}</span>
+                        <span className="flex items-center gap-2 min-w-0">
+                          {!entryOpen && entryParts.rest && (
+                            <span dir="ltr" className="text-[10px] font-mono text-neutral-text/60 truncate">
+                              {entryParts.rest}
+                            </span>
+                          )}
+                          <ChevronDown
+                            className={`w-4 h-4 text-accent shrink-0 transition-transform ${entryOpen ? 'rotate-180' : ''}`}
+                          />
+                        </span>
+                      </button>
+                      {entryOpen && (
+                        <div id="project-model3d-entry-panel" className="px-3 pb-3">
+                          <div dir="ltr" className="flex items-stretch gap-2">
+                            <div className="flex-1 min-w-0 flex items-center rounded-xl border border-muted-border/50 bg-surface overflow-hidden focus-within:border-accent">
+                              <span
+                                className="shrink-0 max-w-[55%] truncate px-2.5 py-2 text-[11px] font-mono text-neutral-text/50 bg-muted-surface/40 border-e border-muted-border/40 select-none"
+                                title={entryParts.base}
+                              >
+                                {entryParts.base}
+                              </span>
+                              <input
+                                id="project-model3d-entry"
+                                type="text"
+                                dir="ltr"
+                                aria-label={t('projectEdit.model3d.entry.label')}
+                                value={entryParts.rest}
+                                onChange={(e) =>
+                                  patch({ model3dUrl: `${entryParts.base}${e.target.value.trim().replace(/^\/+/, '')}` })
+                                }
+                                disabled={busy}
+                                maxLength={400}
+                                placeholder={entryParts.flat ? '?mode=model' : 'prime/tour.html?mode=model'}
+                                className="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-xs font-mono text-start outline-none"
+                              />
+                            </div>
+                            {!entryParts.flat && (
+                              <button
+                                type="button"
+                                onClick={() => setPageDialogOpen(true)}
+                                disabled={busy}
+                                title={t('projectEdit.model3d.entry.captureTitle')}
+                                className="shrink-0 px-3 rounded-xl border border-muted-border/50 bg-surface hover:border-accent text-[11px] font-bold text-accent inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                              >
+                                <Crosshair className="w-3.5 h-3.5" />
+                                {t('projectEdit.model3d.entry.capture')}
+                              </button>
+                            )}
+                          </div>
+                          <p className="mt-1.5 text-[10px] text-neutral-text/50">{t('projectEdit.model3d.entry.hint')}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(errors.model3dUrl || !isModel3dUrl(form.model3dUrl)) && (
+                    <p className="mt-1 text-[10px] font-bold text-red-500">{t('projectEdit.validation.model3dEntry')}</p>
+                  )}
                   {model3dDisplayControl}
                 </div>
               ) : (
@@ -955,10 +1050,22 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
 
       {preview && <FilePreviewModal {...preview} onClose={() => setPreview(null)} />}
 
+      {pageDialogOpen && (
+        <PagePickerDialog
+          startUrl={form.model3dUrl}
+          onConfirm={(stored) => {
+            patch({ model3dUrl: stored });
+            setErrors((cur) => ({ ...cur, model3dUrl: '' }));
+          }}
+          onClose={() => setPageDialogOpen(false)}
+        />
+      )}
+
       {pickerState?.open && (
         <MediaPickerModal
           open={pickerState.open}
           fileType={pickerState.fileType}
+          pageStep={pickerState.target === 'model3d'}
           onClose={() => setPickerState(null)}
           onSelect={(media) => {
             if (pickerState.target === 'image') {
