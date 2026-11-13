@@ -19,6 +19,15 @@ export const settings = defineStrings('settings', {
   'careers.loadFailed': 'تعذر تحميل إعدادات الوظائف',
   'careers.loading': 'جاري التحميل...',
 
+  'projectCards.title': 'بطاقات المشاريع',
+  'projectCards.show3dLabel': 'إظهار زر 3D في بطاقة المشروع عند توفر مجسم أو فيديو أو صفحة تفاعلية',
+  'projectCards.hint': 'يفتح الزر العرض في نافذة دون مغادرة الصفحة الرئيسية.',
+  'projectCards.loading': 'جاري تحميل الإعدادات...',
+  'projectCards.loadFailed': 'تعذر تحميل الإعدادات',
+  'projectCards.save': 'حفظ',
+  'projectCards.saved': 'تم حفظ إعداد بطاقات المشاريع',
+  'projectCards.saveFailed': 'تعذر حفظ الإعداد',
+
   // Security Panel
   'security.loadError': 'تعذر تحميل إعدادات الأمان',
   'security.loading': 'جاري تحميل إعدادات الأمان...',
@@ -159,6 +168,15 @@ export const settings = defineStrings('settings', {
   'careers.saveFailed': 'Could not save',
   'careers.loadFailed': 'Could not load the Jobs settings',
   'careers.loading': 'Loading...',
+
+  'projectCards.title': 'Project cards',
+  'projectCards.show3dLabel': 'Show a 3D button on the project card when the project has a 3D model, video or interactive page',
+  'projectCards.hint': 'The button opens the view in a window without leaving the home page.',
+  'projectCards.loading': 'Loading settings...',
+  'projectCards.loadFailed': 'Could not load settings',
+  'projectCards.save': 'Save',
+  'projectCards.saved': 'Project cards setting saved',
+  'projectCards.saveFailed': 'Could not save the setting',
 
   // Security Panel
   'security.loadError': 'Could not load security settings',

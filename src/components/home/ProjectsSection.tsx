@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Building2, MapPin, CheckCircle2, ArrowLeft, ArrowRight, TrendingUp, Layers, Eye, RefreshCw, AlertCircle } from 'lucide-react';
+import { Building2, MapPin, CheckCircle2, ArrowLeft, ArrowRight, TrendingUp, Layers, Eye, RefreshCw, AlertCircle, Box } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 import { SpaLink } from '../common/SpaLink';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -7,6 +7,9 @@ import { AdminStorage } from '../../services/adminStorage';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
+import { useSiteSettings } from '../../hooks/useSiteSettings';
+import { Project3dModal } from '../project/Project3dModal';
+import { getModel3dKind, isModel3dUrl } from '../../utils/urlValidation';
 import { getPropertyDisplay } from '../../data/properties';
 import type { Property } from '../../types/property';
 
@@ -23,6 +26,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
   const { content } = useCmsContent();
   const { text } = useCmsText();
+  const { settings } = useSiteSettings();
   const portfolio = {
     badge: text(content.home.portfolioSection.badgeAr, content.home.portfolioSection.badgeEn),
     title: text(content.home.portfolioSection.titleAr, content.home.portfolioSection.titleEn),
@@ -33,6 +37,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
     desc: text(content.home.portfolioSection.descAr, content.home.portfolioSection.descEn),
   };
   const [activeTab, setActiveTab] = useState<FilterCategory>('all');
+  const [model3dProject, setModel3dProject] = useState<Property | null>(null);
 
   const { data: properties, loading, error, reload } = useAsyncData<Property[]>(
     useCallback((signal) => AdminStorage.getAllProjects({}, signal), []),
@@ -139,6 +144,14 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
         {displayedProjects.map((prop, idx) => {
           const display = getPropertyDisplay(prop, language);
           const galleryCount = prop.gallery?.length || 1;
+          const has3d = settings.projectCards.show3d && isModel3dUrl(prop.model3dUrl);
+          const kind3d = getModel3dKind(prop.model3dUrl);
+          const label3d =
+            kind3d === 'video'
+              ? isAr ? 'مشاهدة فيديو المشروع' : 'Watch project video'
+              : kind3d === 'html'
+              ? isAr ? 'عرض التجربة التفاعلية' : 'View interactive page'
+              : isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model';
 
           return (
             <Reveal key={prop.id} delay={idx * 100} direction="up">
@@ -176,6 +189,14 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                   >
                     {display.badge}
                   </span>
+
+                  {/* 3D Badge */}
+                  {has3d && (
+                    <span className="absolute top-3.5 left-3.5 z-[3] text-[10px] font-bold px-2.5 py-1 rounded-full bg-canvas/90 text-neutral-text border border-muted-border/30 flex items-center gap-1">
+                      <Box className="w-3 h-3 text-accent" />
+                      3D
+                    </span>
+                  )}
 
                   {/* Gallery Count */}
                   <span className="absolute bottom-3 left-3.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-canvas/90 text-neutral-text border border-muted-border/30 flex items-center gap-1">
@@ -230,6 +251,22 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {has3d && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModel3dProject(prop);
+                          }}
+                          aria-label={label3d}
+                          title={label3d}
+                          className="brand-btn-secondary text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1 hover:border-accent transition cursor-pointer"
+                        >
+                          <Box className="w-3 h-3 text-accent" />
+                          <span className="hidden sm:inline">3D</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={(e) => {
@@ -261,6 +298,15 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
           );
         })}
       </div>
+
+      {model3dProject?.model3dUrl && (
+        <Project3dModal
+          url={model3dProject.model3dUrl}
+          title={getPropertyDisplay(model3dProject, language).title}
+          isAr={isAr}
+          onClose={() => setModel3dProject(null)}
+        />
+      )}
     </section>
   );
 };

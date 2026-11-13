@@ -40,6 +40,11 @@ export interface CareersVisibility {
   showFloatingButton: boolean;
 }
 
+/** Whether home-page project cards show a 3D button for projects that have a 3D model, video or interactive page. */
+export interface ProjectCardsSettings {
+  show3d: boolean;
+}
+
 export interface SiteSettings {
   /** Shown as written, e.g. "+966 58 048 4528". */
   phone: string;
@@ -54,6 +59,7 @@ export interface SiteSettings {
   announcement: Announcement;
   maintenance: Maintenance;
   careers: CareersVisibility;
+  projectCards: ProjectCardsSettings;
 }
 
 /** The values that were hard-coded in the site before this setting existed. */
@@ -80,6 +86,7 @@ export const SITE_DEFAULTS: SiteSettings = {
     messageEn: 'The site is under maintenance. We will be back shortly.',
   },
   careers: { showFooterLink: true, showFloatingButton: true },
+  projectCards: { show3d: true },
 };
 
 const SETTING_KEY = 'site';
@@ -96,6 +103,7 @@ export function withDefaults(stored: Partial<SiteSettings>): SiteSettings {
     announcement: { ...SITE_DEFAULTS.announcement, ...(stored.announcement ?? {}) },
     maintenance: { ...SITE_DEFAULTS.maintenance, ...(stored.maintenance ?? {}) },
     careers: { ...SITE_DEFAULTS.careers, ...(stored.careers ?? {}) },
+    projectCards: { ...SITE_DEFAULTS.projectCards, ...(stored.projectCards ?? {}) },
   };
 }
 

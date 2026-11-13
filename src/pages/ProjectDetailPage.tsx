@@ -1,13 +1,14 @@
-import React, { Suspense, lazy, useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Property, PropertyUnit, UnitStatus } from '../types/property';
 import { AdminStorage } from '../services/adminStorage';
-import { getErrorMessage, resolveMediaUrl } from '../services/api';
+import { getErrorMessage } from '../services/api';
 import { toYoutubeEmbedUrl } from '../services/youtube';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { applyUnitStatus, useRealtimeUnits } from '../hooks/useRealtimeUnits';
 import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
 import { SpaLink } from '../components/common/SpaLink';
+import { Project3dModal } from '../components/project/Project3dModal';
 import { isModel3dUrl, getModel3dKind, isDownloadableMediaUrl } from '../utils/urlValidation';
 import { detectProjectStatus } from '../data/properties';
 import {
@@ -33,9 +34,6 @@ interface ProjectDetailPageProps {
   onNavigate: (page: 'home' | 'works' | 'booking' | 'contact' | 'clients', options?: { projectId?: number; unitId?: string }) => void;
   onShowToast: (msg: string) => void;
 }
-
-// three.js only loads when a visitor opens a library 3D model.
-const Model3dViewer = lazy(() => import('../components/Model3dViewer'));
 
 const getYouTubeEmbedUrl = (url?: string, autoplay: boolean = true): string => {
   if (!url) return '';
@@ -107,17 +105,16 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   const [submittingInterest, setSubmittingInterest] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
-  // Keyboard shortcut and scroll lock for video, interest & 3D modals
+  // Keyboard shortcut and scroll lock for video & interest modals (the 3D modal handles its own)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setVideoModalOpen(false);
         setInterestModalOpen(false);
         setInterestModalUnit(null);
-        setModel3dModalOpen(false);
       }
     };
-    if (videoModalOpen || interestModalOpen || model3dModalOpen) {
+    if (videoModalOpen || interestModalOpen) {
       document.body.style.overflow = 'hidden';
       window.addEventListener('keydown', handleKeyDown);
     }
@@ -125,7 +122,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [videoModalOpen, interestModalOpen, model3dModalOpen]);
+  }, [videoModalOpen, interestModalOpen]);
 
   // Return focus to the trigger whenever the 3D modal closes, from any path.
   useEffect(() => {
@@ -277,8 +274,6 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
   // viewer, a video in a player, an HTML page in a sandboxed iframe; an external
   // https viewer link stays a plain iframe.
   const model3dKind = getModel3dKind(safeModel3dUrl);
-  const model3dSrc = safeModel3dUrl ? resolveMediaUrl(safeModel3dUrl) : '';
-  const model3dTitle = isAr ? `المجسم ثلاثي الأبعاد - ${project.title}` : `3D model - ${project.title}`;
   const brochureUrl = isDownloadableMediaUrl(project.brochureUrl) ? project.brochureUrl : undefined;
 
   const handleOpenInterest = (unit?: PropertyUnit) => {
@@ -911,101 +906,12 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
 
       {/* 3D Model Viewer Modal */}
       {model3dModalOpen && safeModel3dUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-neutral-950/90 backdrop-blur-sm flex flex-col p-3 sm:p-5 md:p-8"
-          role="dialog"
-          aria-modal="true"
-          aria-label={isAr ? 'المجسم ثلاثي الأبعاد' : '3D model viewer'}
-        >
-          {/* Backdrop click closes */}
-          <div
-            className="absolute inset-0 cursor-pointer"
-            onClick={() => setModel3dModalOpen(false)}
-            aria-hidden="true"
-          />
-
-          <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col flex-1 min-h-0">
-            <div className="flex items-center justify-between gap-3 mb-3 text-white">
-              <div className="flex items-center gap-2 min-w-0">
-                <Box className="w-4 h-4 text-accent shrink-0" />
-                <span className="text-sm font-black truncate">{project.title}</span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {(model3dKind === 'external' || model3dKind === 'html') && (
-                <a
-                  href={model3dSrc}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold border border-white/15 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}</span>
-                </a>
-                )}
-                <button
-                  onClick={() => setModel3dModalOpen(false)}
-                  aria-label={isAr ? 'إغلاق المجسم' : 'Close 3D model'}
-                  title={isAr ? 'إغلاق (Esc)' : 'Close (Esc)'}
-                  className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/90 hover:text-white border border-white/15 flex items-center justify-center transition-all cursor-pointer hover:scale-105"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 min-h-0 rounded-2xl overflow-hidden bg-black border border-white/15 shadow-2xl">
-              {model3dKind === 'model' ? (
-                <Suspense fallback={null}>
-                  <Model3dViewer src={model3dSrc} isAr={isAr} title={model3dTitle} />
-                </Suspense>
-              ) : model3dKind === 'video' ? (
-                <video
-                  src={model3dSrc}
-                  title={model3dTitle}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="w-full h-full bg-black"
-                />
-              ) : model3dKind === 'html' ? (
-                // An uploaded page runs without access to this site (no allow-same-origin).
-                <iframe
-                  src={model3dSrc}
-                  title={model3dTitle}
-                  sandbox="allow-scripts allow-popups allow-forms"
-                  referrerPolicy="no-referrer"
-                  allow="fullscreen"
-                  allowFullScreen
-                  loading="lazy"
-                  className="w-full h-full border-0 bg-white"
-                />
-              ) : (
-                <iframe
-                  src={safeModel3dUrl}
-                  title={model3dTitle}
-                  sandbox="allow-scripts allow-same-origin allow-popups"
-                  referrerPolicy="no-referrer"
-                  allow="fullscreen"
-                  loading="lazy"
-                  className="w-full h-full border-0"
-                />
-              )}
-            </div>
-
-            {model3dKind === 'model' ? (
-              <p className="mt-2 text-[11px] text-white/50 text-center">
-                {isAr ? 'اسحب للتدوير، وحرّك العجلة أو اقرص للتكبير.' : 'Drag to rotate, scroll or pinch to zoom.'}
-              </p>
-            ) : model3dKind === 'video' ? null : (
-              <p className="mt-2 text-[11px] text-white/50 text-center">
-                {isAr
-                  ? 'لا يظهر المجسم؟ بعض المواقع تمنع العرض داخل الصفحة، افتحه في تبويب جديد.'
-                  : 'Model not loading? Some sites block embedding — open it in a new tab.'}
-              </p>
-            )}
-          </div>
-        </div>
+        <Project3dModal
+          url={safeModel3dUrl}
+          title={project.title}
+          isAr={isAr}
+          onClose={() => setModel3dModalOpen(false)}
+        />
       )}
 
       {/* Video Preview Modal (Cinematic Theater Lightbox) */}

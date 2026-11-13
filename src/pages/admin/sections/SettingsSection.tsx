@@ -9,6 +9,7 @@ import { NotificationListenersPanel } from '../../../components/admin/settings/N
 import { MailSettingsSection } from './MailSettingsSection';
 import { AnnouncementPanel } from '../../../components/admin/settings/AnnouncementPanel';
 import { CareersVisibilityPanel } from '../../../components/admin/settings/CareersVisibilityPanel';
+import { ProjectCardsPanel } from '../../../components/admin/settings/ProjectCardsPanel';
 import { SecurityPanel } from '../../../components/admin/settings/SecurityPanel';
 
 type SettingsTab = 'site' | 'announcement' | 'notifications' | 'security' | 'mail';
@@ -72,6 +73,7 @@ export const SettingsSection: React.FC = () => {
           <div className="space-y-5">
             <SiteSettingsPanel />
             <CareersVisibilityPanel />
+            <ProjectCardsPanel />
           </div>
         )}
         {active.id === 'announcement' && <AnnouncementPanel />}

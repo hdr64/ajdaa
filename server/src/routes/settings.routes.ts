@@ -79,6 +79,8 @@ const siteSettingsSchema = z.object({
     })
     .partial()
     .optional(),
+  // Optional so a client that predates the switch cannot reset it.
+  projectCards: z.object({ show3d: z.boolean() }).partial().optional(),
 });
 
 // Both switches are optional so a client that predates `totpRequiredForAll`
@@ -109,7 +111,14 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const body = siteSettingsSchema.parse(request.body);
       const current = await getSiteSettings();
-      return saveSiteSettings({ ...body, careers: { ...current.careers, ...body.careers } }, request.admin!.id);
+      return saveSiteSettings(
+        {
+          ...body,
+          careers: { ...current.careers, ...body.careers },
+          projectCards: { ...current.projectCards, ...body.projectCards },
+        },
+        request.admin!.id
+      );
     }
   );
 

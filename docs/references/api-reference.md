@@ -72,7 +72,7 @@ Guards: **public** (no session; most are rate limited), **JWT** (any signed-in a
 |---|---|
 | `GET /permissions` | JWT |
 | `GET/POST /roles`, `PUT/DELETE /roles/:id`, `GET/POST /departments`, `PUT/DELETE /departments/:id` | `manageUsers` |
-| `GET /settings/site` | public (contact details, careers switches) |
+| `GET /settings/site` | public (contact details, careers switches, project-card 3D switch) |
 | `PUT /settings/site`, `GET/PUT /settings/security`, `GET/PUT/DELETE /settings/mail`, `POST /settings/mail/test` | super admin |
 | `GET/POST /notifications/listeners`, `PUT/DELETE /notifications/listeners/:id` | `manageNotifications` |
 

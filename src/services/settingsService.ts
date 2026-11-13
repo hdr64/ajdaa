@@ -75,6 +75,11 @@ export interface CareersVisibility {
   showFloatingButton: boolean;
 }
 
+/** Whether home-page project cards show a 3D button for projects that have a 3D model, video or page. */
+export interface ProjectCardsSettings {
+  show3d: boolean;
+}
+
 /** Public contact details and social links (`/api/settings/site`). An empty social link hides that icon. */
 export interface SiteSettings {
   /** Shown as written, e.g. "+966 58 048 4528". */
@@ -90,6 +95,7 @@ export interface SiteSettings {
   announcement: Announcement;
   maintenance: Maintenance;
   careers: CareersVisibility;
+  projectCards: ProjectCardsSettings;
 }
 
 /** Mirrors the server's defaults; shown until (or if never) the API answers. */
@@ -116,6 +122,7 @@ export const SITE_DEFAULTS: SiteSettings = {
     messageEn: 'The site is under maintenance. We will be back shortly.',
   },
   careers: { showFooterLink: true, showFloatingButton: true },
+  projectCards: { show3d: true },
 };
 
 export const siteSettingsApi = {

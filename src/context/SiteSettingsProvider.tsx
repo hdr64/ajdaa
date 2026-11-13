@@ -23,6 +23,7 @@ export const SiteSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ 
           announcement: { ...SITE_DEFAULTS.announcement, ...remote.announcement },
           maintenance: { ...SITE_DEFAULTS.maintenance, ...remote.maintenance },
           careers: { ...SITE_DEFAULTS.careers, ...remote.careers },
+          projectCards: { ...SITE_DEFAULTS.projectCards, ...remote.projectCards },
         })
       )
       .catch(() => {
