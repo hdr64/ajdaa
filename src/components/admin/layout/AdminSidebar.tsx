@@ -162,7 +162,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, onClose, onLog
         aria-label={t('layout.sidebar.aria')}
       >
         {/* Brand */}
-        <div className={`flex items-center gap-3 border-b border-muted-border/30 ${rail ? 'md:justify-center md:px-2 px-4' : 'px-4'} h-16 sm:h-20 shrink-0`}>
+        <div className={`flex items-center gap-3 border-b border-muted-border/30 ${rail ? 'md:justify-center md:px-2 px-4' : 'px-4'} h-14 sm:h-16 shrink-0`}>
           <div className="w-10 h-10 rounded-xl brand-fill text-canvas flex items-center justify-center font-black text-sm shadow-md shrink-0">
             {t('layout.brand.short')}
           </div>

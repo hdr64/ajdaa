@@ -130,16 +130,18 @@ function toDto(row: { id: string; name: string; parentId: string | null; created
 }
 
 async function fileCountOf(id: string): Promise<number> {
-  return prisma.mediaFile.count({ where: { folderId: id } });
+  // Pending (staged) files are hidden from the Library, so they never count.
+  return prisma.mediaFile.count({ where: { folderId: id, pending: false } });
 }
 
 /* --------------------------------- folders -------------------------------- */
 
-/** Every folder, each with the number of files directly inside it (one groupBy query). */
+/** Every visible folder, each with the number of files directly inside it (one groupBy query). */
 export async function listFolders(): Promise<MediaFolderDto[]> {
   const [folders, counts] = await Promise.all([
-    prisma.mediaFolder.findMany({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
-    prisma.mediaFile.groupBy({ by: ['folderId'], _count: { _all: true } }),
+    // Staged (picker) extraction folders stay hidden until they are confirmed.
+    prisma.mediaFolder.findMany({ where: { pending: false }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
+    prisma.mediaFile.groupBy({ by: ['folderId'], _count: { _all: true }, where: { pending: false } }),
   ]);
   const byFolder = new Map<string, number>();
   for (const entry of counts) {
@@ -148,7 +150,16 @@ export async function listFolders(): Promise<MediaFolderDto[]> {
   return folders.map((row) => toDto(row, byFolder.get(row.id) ?? 0));
 }
 
-export async function createFolder(name: string, parentId: string | null, adminId?: string): Promise<MediaFolderDto> {
+/**
+ * Creates a library folder. `options.pending` marks a staged (picker)
+ * extraction folder that stays hidden until the admin confirms it.
+ */
+export async function createFolder(
+  name: string,
+  parentId: string | null,
+  adminId?: string,
+  options?: { pending?: boolean }
+): Promise<MediaFolderDto> {
   const clean = cleanFolderName(name);
   if (parentId) {
     await requireFolder(parentId);
@@ -159,7 +170,9 @@ export async function createFolder(name: string, parentId: string | null, adminI
   if ((await siblingNames(parentId)).has(clean.toLowerCase())) {
     throw new MediaFolderError('A folder with this name already exists here', 409);
   }
-  const row = await prisma.mediaFolder.create({ data: { name: clean, parentId, createdById: adminId } });
+  const row = await prisma.mediaFolder.create({
+    data: { name: clean, parentId, createdById: adminId, pending: options?.pending ?? false },
+  });
   return toDto(row, 0);
 }
 
@@ -235,10 +248,16 @@ export async function deleteFolder(id: string): Promise<{ movedFiles: number; mo
       movedFolders += 1;
     }
 
-    const movedFiles = await tx.mediaFile.updateMany({ where: { folderId: id }, data: { folderId: targetParentId } });
+    // Pending (staged) files follow their folder like the visible ones, but only
+    // visible files count for the result the admin sees.
+    const movedVisible = await tx.mediaFile.updateMany({
+      where: { folderId: id, pending: false },
+      data: { folderId: targetParentId },
+    });
+    await tx.mediaFile.updateMany({ where: { folderId: id, pending: true }, data: { folderId: targetParentId } });
     await tx.mediaFolder.delete({ where: { id } });
 
-    return { movedFiles: movedFiles.count, movedFolders };
+    return { movedFiles: movedVisible.count, movedFolders };
   });
 }
 

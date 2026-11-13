@@ -15,6 +15,8 @@ export interface UploadedMedia {
   folderName?: string | null;
   /** Set when a .zip was extracted: every library item it produced. */
   extracted?: UploadedMedia[];
+  /** Staged (picker) upload: the row is hidden from the Library until confirmed. */
+  pending?: boolean;
 }
 
 export interface MediaFolderDto {
@@ -88,6 +90,8 @@ export interface UploadOptions {
   onProgress?: (percent: number) => void;
   /** Target library folder; sent as `?folderId=` only when set, so existing calls stay byte-identical. */
   folderId?: string | null;
+  /** Staged (picker) upload: sent as `?staged=1`; the row stays hidden until confirmed. */
+  staged?: boolean;
 }
 
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
@@ -173,8 +177,14 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
   const formData = new FormData();
   formData.append('file', fileToUpload);
 
+  // Combine folderId and staged so either flag alone keeps existing calls byte-identical.
+  const query = new URLSearchParams();
+  if (options.folderId) query.set('folderId', options.folderId);
+  if (options.staged) query.set('staged', '1');
+  const qs = query.toString();
+
   const result = await api.upload<UploadedMedia>(
-    options.folderId ? `/api/media/upload?folderId=${encodeURIComponent(options.folderId)}` : '/api/media/upload',
+    qs ? `/api/media/upload?${qs}` : '/api/media/upload',
     formData,
     {
       signal: options.signal,
@@ -190,6 +200,7 @@ export async function uploadMedia(file: File, options: UploadOptions = {}): Prom
     fileType: result.fileType,
     size: result.size,
     folderId: result.folderId,
+    pending: result.pending,
   };
 }
 
@@ -206,6 +217,8 @@ export async function fetchMediaList(params: {
   folder?: 'all' | 'root' | string;
   /** `newest` is the server default and is not sent. */
   sort?: 'newest' | 'oldest' | 'name' | 'size';
+  /** Also lists the current admin's own staged (pending) rows: `includePending=mine`. */
+  includePending?: boolean;
 } = {}): Promise<MediaListResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set('page', String(params.page));
@@ -215,6 +228,7 @@ export async function fetchMediaList(params: {
   if (params.search?.trim()) query.set('search', params.search.trim());
   if (params.folder) query.set('folder', params.folder);
   if (params.sort && params.sort !== 'newest') query.set('sort', params.sort);
+  if (params.includePending) query.set('includePending', 'mine');
 
   const qs = query.toString();
   const endpoint = `/api/media${qs ? `?${qs}` : ''}`;
@@ -233,6 +247,53 @@ export async function fetchMediaUsage(url: string): Promise<MediaUsageResponse> 
  */
 export async function deleteMediaItem(id: string): Promise<{ success: boolean }> {
   return api.delete<{ success: boolean }>(`/api/media/${id}`);
+}
+
+/* -------------------------------- staged uploads ------------------------------- */
+
+/** Everything one picker session uploaded as staged: file rows and the extraction folder. */
+export interface StagedIds {
+  fileIds: string[];
+  folderIds: string[];
+}
+
+export const emptyStagedIds = (): StagedIds => ({ fileIds: [], folderIds: [] });
+
+export function hasStagedIds(ids: StagedIds): boolean {
+  return ids.fileIds.length > 0 || ids.folderIds.length > 0;
+}
+
+/**
+ * Confirms staged rows (makes them visible). Ids that are not pending or not
+ * owned by the current admin are skipped by the server; resolves to 0 on a
+ * network failure so the caller can tell "nothing confirmed" from a count.
+ */
+export async function confirmStagedMedia(ids: StagedIds): Promise<number> {
+  try {
+    const res = await api.post<{ confirmed: number }>('/api/media/staged/confirm', {
+      fileIds: ids.fileIds,
+      folderIds: ids.folderIds,
+    });
+    return res.confirmed;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Discards staged rows (deletes row and disk file). Runs while the picker is
+ * closing, so network errors are swallowed and resolve to 0.
+ */
+export async function discardStagedMedia(ids: StagedIds): Promise<number> {
+  try {
+    const res = await api.post<{ discarded: number }>('/api/media/staged/discard', {
+      fileIds: ids.fileIds,
+      folderIds: ids.folderIds,
+    });
+    return res.discarded;
+  } catch {
+    return 0;
+  }
 }
 
 /**

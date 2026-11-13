@@ -408,7 +408,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 actionsSlotRef={setActionsSlot}
               />
               <div
-                className={`p-4 sm:p-6 flex-1 ${location.section === 'files' ? 'min-h-0 flex flex-col' : ''}`}
+                className={`px-4 pt-2 sm:px-6 flex-1 ${location.section === 'files' ? 'min-h-0 flex flex-col' : ''}`}
               >
                 {renderSection()}
               </div>

@@ -19,12 +19,18 @@ import {
 } from 'lucide-react';
 import { useAdminT } from '../../../i18n/admin/useAdminT';
 import {
+  confirmStagedMedia,
+  discardStagedMedia,
+  emptyStagedIds,
   fetchMediaList,
+  hasStagedIds,
   uploadMedia,
   mediaPublicUrl,
   type MediaFileDto,
+  type StagedIds,
+  type UploadedMedia,
 } from '../../../services/mediaService';
-import { uploadFileInChunks } from '../../../services/chunkedUploadService';
+import { uploadFileInChunks, type ChunkProgress } from '../../../services/chunkedUploadService';
 import { publishDriveFileToLibrary, type DriveFile } from '../../../services/driveService';
 import { DriveFilePicker } from '../drive/DriveFilePicker';
 import { getErrorMessage, resolveMediaUrl } from '../../../services/api';
@@ -113,7 +119,31 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   // Upload state
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const [uploadProcessing, setUploadProcessing] = useState(false);
   const [notice, setNotice] = useState('');
+
+  // Staged (picker) uploads: everything THIS picker session uploaded as staged.
+  // The ref is the source of truth for the async flows (cancel, unmount, finish);
+  // the state mirrors it so a future UI can show what is pending.
+  const [stagedIds, setStagedIds] = useState<StagedIds>(emptyStagedIds);
+  const stagedIdsRef = useRef<StagedIds>(emptyStagedIds());
+  const abortRef = useRef<AbortController | null>(null);
+  // True once this session ended through finish() or cancel(): the unmount
+  // safety net must then leave the staged rows alone.
+  const finishedRef = useRef(false);
+  // Bumped when the picker opens or closes; in-flight async flows compare their
+  // captured value and stop acting when the session they started is over.
+  const sessionRef = useRef(0);
+
+  const addStagedIds = (add: StagedIds) => {
+    const next: StagedIds = {
+      fileIds: [...stagedIdsRef.current.fileIds, ...add.fileIds],
+      folderIds: [...stagedIdsRef.current.folderIds, ...add.folderIds],
+    };
+    stagedIdsRef.current = next;
+    setStagedIds(next);
+  };
 
   const switchTab = (next: 'library' | 'drive' | 'upload') => {
     setTab(next);
@@ -140,11 +170,14 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     if (!open) return;
     setLoading(true);
     try {
+      // While this session has staged rows, the picker must also list them so
+      // the admin can pick an extracted item (they are hidden from the Library).
       const res = await fetchMediaList({
         page: 1,
         limit: 48,
         type: fileType,
         search,
+        includePending: hasStagedIds(stagedIdsRef.current),
       });
       setItems(res.items);
     } catch {
@@ -163,21 +196,119 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
         setDriveFile(null);
         setUploadError('');
         setNotice('');
+        stagedIdsRef.current = emptyStagedIds();
+        setStagedIds(emptyStagedIds());
+        abortRef.current = null;
+        finishedRef.current = false;
+        sessionRef.current += 1;
       }
       void loadMedia();
     }
     wasOpen.current = open;
   }, [open, loadMedia]);
 
+  // Safety net: when the picker goes away without cancel() or finish() running
+  // (a parent unmounted it mid-session), drop the staged rows and stop uploading.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (finishedRef.current) return;
+      const ids = stagedIdsRef.current;
+      if (hasStagedIds(ids)) void discardStagedMedia(ids);
+    };
+  }, []);
+
+  /**
+   * Ends the picker with a chosen file: confirm this session's staged rows
+   * first (select = confirm), then hand the file over and close. When the
+   * confirm fails the rows stay staged and hidden, so the picker stays open
+   * with the upload-failed message instead of using an invisible file.
+   */
+  const finish = async (file: { url: string; filename: string; originalName: string }) => {
+    const session = sessionRef.current;
+    finishedRef.current = true; // the unmount safety net must not discard what we are confirming
+    const ids = stagedIdsRef.current;
+    stagedIdsRef.current = emptyStagedIds();
+    setStagedIds(emptyStagedIds());
+    if (hasStagedIds(ids)) {
+      const confirmed = await confirmStagedMedia(ids);
+      if (confirmed === 0) {
+        // Confirm failed: the rows are still staged and hidden, so the file
+        // cannot be used. Restore so a later Cancel still discards them (when
+        // the picker is already gone, the unmount safety net does it).
+        stagedIdsRef.current = ids;
+        setStagedIds(ids);
+        finishedRef.current = false;
+        if (sessionRef.current === session) setUploadError(t('media.toast.uploadFailed'));
+        return;
+      }
+      if (sessionRef.current !== session) return; // confirmed, but the picker closed meanwhile
+    }
+    if (sessionRef.current !== session) return; // the picker was closed meanwhile
+    onSelect(file);
+    onClose();
+  };
+
+  /**
+   * X button, backdrop click and footer Cancel: abort a running upload, drop
+   * this session's staged rows (fire and forget) and close at once. Reads the
+   * state (fresh per render); the async flows below use the ref.
+   */
+  const cancel = () => {
+    finishedRef.current = true; // the session ends here on purpose
+    sessionRef.current += 1; // stop in-flight upload/finish flows from acting
+    if (uploading) abortRef.current?.abort();
+    if (hasStagedIds(stagedIds)) {
+      void discardStagedMedia(stagedIds);
+      stagedIdsRef.current = emptyStagedIds();
+      setStagedIds(emptyStagedIds());
+    }
+    onClose();
+  };
+
   const handleFileUpload = async (file: File) => {
+    if (uploading) return;
     setUploading(true);
+    setUploadPercent(null);
+    setUploadProcessing(false);
     setUploadError('');
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const session = sessionRef.current;
+    const onChunkProgress = (p: ChunkProgress) => {
+      setUploadPercent(p.percent);
+      setUploadProcessing(p.phase === 'processing');
+    };
+    // Late arrival: the upload resolves after the picker was cancelled, so the
+    // result must be discarded instead of selected, and no error is shown.
+    const discardLateResult = (result: UploadedMedia) => {
+      const late: StagedIds = { fileIds: [], folderIds: [] };
+      if (result.id && !result.extracted) late.fileIds.push(result.id);
+      for (const item of result.extracted ?? []) {
+        if (item.id && !late.fileIds.includes(item.id)) late.fileIds.push(item.id);
+      }
+      if (result.folderId && !late.folderIds.includes(result.folderId)) late.folderIds.push(result.folderId);
+      if (hasStagedIds(late)) void discardStagedMedia(late);
+    };
     try {
       if (extractKind && /\.zip$/i.test(file.name)) {
         // Unpack on the server, then go back to the list so the admin picks one item.
-        const result = await uploadFileInChunks(file, { extract: extractKind });
+        const result = await uploadFileInChunks(file, {
+          extract: extractKind,
+          staged: true,
+          signal: controller.signal,
+          onProgress: onChunkProgress,
+        });
+        if (controller.signal.aborted || sessionRef.current !== session) {
+          discardLateResult(result);
+          return;
+        }
         const extracted = result.extracted ?? [];
         const only = extracted.length === 1 ? extracted[0] : null;
+        addStagedIds({
+          fileIds: extracted.map((item) => item.id).filter((id): id is string => Boolean(id)),
+          folderIds: result.folderId ? [result.folderId] : [],
+        });
         setSearch('');
         setTab('library');
         if (only?.id) {
@@ -207,30 +338,40 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
       }
       const uploaded =
         file.size >= 5 * 1024 * 1024 || !file.type.startsWith('image/')
-          ? await uploadFileInChunks(file)
-          : await uploadMedia(file);
-      onSelect({
+          ? await uploadFileInChunks(file, {
+              staged: true,
+              signal: controller.signal,
+              onProgress: onChunkProgress,
+            })
+          : await uploadMedia(file, { staged: true, signal: controller.signal }); // plain fetch: no byte progress, the bar stays indeterminate
+      if (controller.signal.aborted || sessionRef.current !== session) {
+        discardLateResult(uploaded);
+        return;
+      }
+      if (uploaded.id) addStagedIds({ fileIds: [uploaded.id], folderIds: [] });
+      await finish({
         url: uploaded.url,
         filename: uploaded.filename,
         originalName: uploaded.originalName || file.name,
       });
-      onClose();
     } catch (err: unknown) {
+      // An abort is the admin's choice (Cancel), never an error to show.
+      if (controller.signal.aborted || sessionRef.current !== session) return;
       const msg = err instanceof Error ? err.message : t('media.toast.uploadFailed');
       setUploadError(msg);
     } finally {
       setUploading(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
   const handleConfirmSelect = () => {
     if (!selectedFile) return;
-    onSelect({
+    void finish({
       url: selectedFile.url,
       filename: selectedFile.filename,
       originalName: selectedFile.originalName,
     });
-    onClose();
   };
 
   // Publishes a copy of the chosen Drive file into the library, then returns that library item like a library pick.
@@ -256,8 +397,14 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] rounded-2xl bg-surface border border-muted-border/40 shadow-2xl flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={cancel}
+    >
+      <div
+        className="w-full max-w-3xl max-h-[90vh] rounded-2xl bg-surface border border-muted-border/40 shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 bg-surface border-b border-muted-border/20 flex items-center justify-between">
           <div>
@@ -276,10 +423,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 : t('media.picker.hintFile')}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer"
-          >
+          <button onClick={cancel} className="p-1 rounded-lg text-neutral-text/60 hover:text-heading cursor-pointer">
             <CloseIcon className="w-4 h-4" />
           </button>
         </div>
@@ -399,12 +543,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                         onClick={() => setSelectedFile(file)}
                         onDoubleClick={() => {
                           setSelectedFile(file);
-                          onSelect({
-                            url: file.url,
-                            filename: file.filename,
-                            originalName: file.originalName,
-                          });
-                          onClose();
+                          void finish({ url: file.url, filename: file.filename, originalName: file.originalName });
                         }}
                         className={`group relative rounded-xl border-2 overflow-hidden flex flex-col cursor-pointer transition ${
                           isSelected
@@ -491,12 +630,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                             onClick={() => setSelectedFile(file)}
                             onDoubleClick={() => {
                               setSelectedFile(file);
-                              onSelect({
-                                url: file.url,
-                                filename: file.filename,
-                                originalName: file.originalName,
-                              });
-                              onClose();
+                              void finish({ url: file.url, filename: file.filename, originalName: file.originalName });
                             }}
                             className={`transition cursor-pointer ${
                               isSelected
@@ -646,7 +780,9 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               />
 
               <div
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (!uploading) fileInputRef.current?.click();
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -665,12 +801,42 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
 
                 <div className="text-center">
                   <p className="text-xs font-bold text-heading">
-                    {uploading ? t('media.uploading') : t('media.picker.dropText')}
+                    {uploading
+                      ? uploadProcessing
+                        ? t('media.processing')
+                        : t('media.uploading')
+                      : t('media.picker.dropText')}
                   </p>
                   <p className="text-[10px] text-neutral-text/50 mt-1">
                     {extractKind ? t('media.picker.zipHint') : t('media.picker.maxSize')}
                   </p>
                 </div>
+
+                {uploading && (
+                  <div className="w-full max-w-xs" dir="ltr">
+                    <div
+                      className="h-2 w-full rounded-full bg-muted-border/30 overflow-hidden"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={uploadPercent === null ? undefined : uploadProcessing ? 100 : uploadPercent}
+                    >
+                      <div
+                        className={`h-full rounded-full bg-accent transition-[width] duration-200 ${
+                          uploadProcessing || uploadPercent === null ? 'animate-pulse' : ''
+                        }`}
+                        style={{
+                          width: `${uploadPercent === null || uploadProcessing ? 100 : uploadPercent}%`,
+                        }}
+                      />
+                    </div>
+                    {uploadPercent !== null && (
+                      <p className="mt-1.5 text-center text-[11px] font-bold text-heading tabular-nums">
+                        {uploadProcessing ? '100%' : `${uploadPercent}%`}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {uploadError && (
                   <p className="text-[11px] font-bold text-red-500 bg-red-500/10 px-3 py-1 rounded-lg">
@@ -699,7 +865,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={onClose}
+              onClick={cancel}
               className="px-4 py-2 rounded-xl bg-surface hover:bg-canvas border border-muted-border/40 text-xs font-bold text-heading cursor-pointer"
             >
               {t('media.action.cancel')}

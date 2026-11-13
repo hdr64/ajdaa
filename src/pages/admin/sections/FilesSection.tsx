@@ -30,8 +30,8 @@ export const FilesSection: React.FC = () => {
   const { t } = useAdminT();
   const { location, navigate } = useAdmin();
 
-  // The URL wins; without a tab in it the last used tab, then Drive.
-  const tab: FilesTab = location.filesTab ?? readStoredTab() ?? 'drive';
+  // The URL wins; without a tab in it the last used tab, then Library.
+  const tab: FilesTab = location.filesTab ?? readStoredTab() ?? 'library';
 
   useEffect(() => {
     storeTab(tab);
@@ -43,8 +43,8 @@ export const FilesSection: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-4">
-      <div className="shrink-0 flex flex-wrap items-center gap-3">
+    <div className="flex-1 min-h-0 flex flex-col gap-2">
+      <div className="shrink-0 flex flex-wrap items-center gap-3 hid">
         <div role="tablist" className="inline-flex items-center p-1 bg-surface rounded-xl border border-muted-border/40">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button

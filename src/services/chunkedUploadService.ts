@@ -21,6 +21,8 @@ export interface ChunkedUploadOptions {
   extract?: 'video' | 'model3d' | 'html';
   /** Target library folder; sent in the init body only when set, so existing calls stay byte-identical. */
   folderId?: string | null;
+  /** Staged (picker) upload: sent in the init body only when set; rows stay hidden until confirmed. */
+  staged?: boolean;
 }
 
 export async function uploadFileInChunks(
@@ -42,6 +44,7 @@ export async function uploadFileInChunks(
       mimeType: file.type || undefined,
       extract: options.extract,
       ...(options.folderId ? { folderId: options.folderId } : {}),
+      ...(options.staged ? { staged: true } : {}),
     },
     { signal: options.signal }
   );
@@ -85,6 +88,8 @@ export async function uploadFileInChunks(
   // 3. Upload missing chunks
   for (let i = 0; i < totalChunks; i++) {
     if (options.signal?.aborted) {
+      // Cancel mid-upload: drop the server-side session before giving up.
+      await abortChunkedUpload(uploadId);
       throw new Error('Upload aborted');
     }
 
@@ -100,11 +105,18 @@ export async function uploadFileInChunks(
     const formData = new FormData();
     formData.append('file', chunkFile);
 
-    await api.upload<{ receivedChunk: number }>(
-      `/api/media/upload/chunked/chunk?uploadId=${uploadId}&chunkIndex=${i}`,
-      formData,
-      { signal: options.signal }
-    );
+    try {
+      await api.upload<{ receivedChunk: number }>(
+        `/api/media/upload/chunked/chunk?uploadId=${uploadId}&chunkIndex=${i}`,
+        formData,
+        { signal: options.signal }
+      );
+    } catch (err) {
+      if (options.signal?.aborted) {
+        await abortChunkedUpload(uploadId);
+      }
+      throw err;
+    }
 
     totalUploadedBytes += chunkBlob.size;
 
@@ -154,11 +166,19 @@ export async function uploadFileInChunks(
   }
 
   // 5. Complete session (server concatenates chunks and registers in DB)
-  const completeRes = await api.post<UploadedMedia>(
-    '/api/media/upload/chunked/complete',
-    { uploadId },
-    { signal: options.signal }
-  );
+  let completeRes: UploadedMedia;
+  try {
+    completeRes = await api.post<UploadedMedia>(
+      '/api/media/upload/chunked/complete',
+      { uploadId },
+      { signal: options.signal }
+    );
+  } catch (err) {
+    if (options.signal?.aborted) {
+      await abortChunkedUpload(uploadId);
+    }
+    throw err;
+  }
 
   if (options.onProgress) {
     options.onProgress({

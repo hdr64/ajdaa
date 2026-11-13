@@ -418,6 +418,9 @@ model MediaFile {
   metadata     String?      // JSON: { width, height, format }
   folderId     String?
   folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  // Staged (picker) upload: the row and its disk file exist, but every Library
+  // listing hides it until the uploading admin confirms it. Discard deletes it.
+  pending      Boolean      @default(false)
   createdById  String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -425,6 +428,7 @@ model MediaFile {
   @@index([fileType])
   @@index([createdAt])
   @@index([folderId])
+  @@index([pending])
   @@map("media_files")
 }
 
@@ -438,6 +442,9 @@ model MediaFolder {
   parent      MediaFolder?  @relation("MediaTree", fields: [parentId], references: [id], onDelete: Restrict)
   children    MediaFolder[] @relation("MediaTree")
   files       MediaFile[]
+  // Staged (picker) extraction: the folder row is hidden from the Library
+  // together with its pending files until the uploading admin confirms it.
+  pending     Boolean       @default(false)
   createdById String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt

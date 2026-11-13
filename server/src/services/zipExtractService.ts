@@ -239,6 +239,8 @@ export interface ExtractedMedia {
   /** Library folder the extraction created (named after the zip). */
   folderId?: string | null;
   folderName?: string | null;
+  /** True while the extraction came from a staged (picker) upload. */
+  pending: boolean;
 }
 
 /**
@@ -256,9 +258,12 @@ export async function extractZipToLibrary(params: {
   adminId?: string;
   /** Parent library folder for the new zip folder; null/undefined = library root. */
   folderId?: string | null;
+  /** Staged (picker) upload: rows and the new folder stay hidden until confirmed. */
+  pending?: boolean;
 }): Promise<ExtractedMedia[]> {
   const { zipPath, originalName, kind, adminId } = params;
   const parentFolderId = params.folderId ?? null;
+  const pending = params.pending ?? false;
   const folder = `${crypto.randomUUID()}-${safeBaseName(originalName)}`;
   const destDir = path.join(UPLOAD_DIR, folder);
   let libraryFolderId: string | null = null;
@@ -304,7 +309,12 @@ export async function extractZipToLibrary(params: {
     } catch {
       wanted = 'Extracted';
     }
-    const libraryFolder = await createFolder(await uniqueFolderName(parentFolderId, wanted), parentFolderId, adminId);
+    const libraryFolder = await createFolder(
+      await uniqueFolderName(parentFolderId, wanted),
+      parentFolderId,
+      adminId,
+      { pending }
+    );
     libraryFolderId = libraryFolder.id;
     libraryFolderName = libraryFolder.name;
 
@@ -323,6 +333,7 @@ export async function extractZipToLibrary(params: {
           storageKey: `${folder}/${relPath}`,
           folderId: libraryFolderId,
           createdById: adminId,
+          pending,
         },
       });
       created.push({
@@ -336,6 +347,7 @@ export async function extractZipToLibrary(params: {
         size: row.size,
         folderId: libraryFolderId,
         folderName: libraryFolderName,
+        pending,
       });
     }
 

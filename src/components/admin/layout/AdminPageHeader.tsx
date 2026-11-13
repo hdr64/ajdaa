@@ -23,7 +23,7 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({ title, subtitl
   const refreshing = projects.loading || inquiries.loading;
 
   return (
-    <header className="shrink-0 h-16 sm:h-20 px-4 sm:px-6 bg-surface/85 border-b border-muted-border/30 backdrop-blur-xl flex items-center justify-between gap-3 sticky top-0 z-20">
+    <header className="shrink-0 h-14 sm:h-16 px-4 sm:px-6 bg-surface/85 border-b border-muted-border/30 backdrop-blur-xl flex items-center justify-between gap-3 sticky top-0 z-20">
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onOpenMenu}

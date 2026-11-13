@@ -414,11 +414,49 @@ let syncInFlight: Promise<number> | null = null;
 export function syncDiskMediaThrottled(force = false): Promise<number> {
   if (syncInFlight) return syncInFlight;
   if (!force && Date.now() - lastSyncAt < SYNC_MIN_INTERVAL_MS) return Promise.resolve(0);
+  // Strays from abandoned staged uploads (picker closed mid-upload) go away with
+  // the same throttled cadence: no extra timer or job for the sweep.
+  void sweepStalePendingMedia().catch(() => undefined);
   syncInFlight = syncDiskMediaToDatabase().finally(() => {
     lastSyncAt = Date.now();
     syncInFlight = null;
   });
   return syncInFlight;
+}
+
+/**
+ * Shared deletion tail: unlinks the file (when still present), removes the
+ * database row, and — when the storage key sits inside an extracted zip bundle
+ * — removes that bundle folder once its last library row is gone. The row goes
+ * before the bundle count, so the file being deleted never counts as remaining.
+ */
+async function removeMediaRowAndStorage(media: { id: string; storageKey: string }): Promise<void> {
+  // Path traversal containment check
+  const resolvedPath = path.resolve(UPLOAD_DIR, media.storageKey);
+  const resolvedUploadDir = path.resolve(UPLOAD_DIR);
+  if (!resolvedPath.startsWith(resolvedUploadDir + path.sep)) {
+    throw new Error('Invalid storage key path traversal');
+  }
+
+  try {
+    await fs.unlink(resolvedPath);
+  } catch {
+    // File may already be unlinked
+  }
+
+  await prisma.mediaFile.delete({ where: { id: media.id } });
+
+  // Files extracted from a zip live in their own folder; remove the folder with
+  // its last library item (a website's single row removes the whole site).
+  const [folderName] = media.storageKey.split('/');
+  if (media.storageKey.includes('/') && folderName) {
+    const folderPath = path.resolve(UPLOAD_DIR, folderName);
+    const isBundle = await fs.access(path.join(folderPath, EXTRACTED_MARKER)).then(() => true, () => false);
+    if (isBundle && folderPath.startsWith(resolvedUploadDir + path.sep)) {
+      const remaining = await prisma.mediaFile.count({ where: { storageKey: { startsWith: `${folderName}/` } } });
+      if (remaining === 0) await fs.rm(folderPath, { recursive: true, force: true }).catch(() => {});
+    }
+  }
 }
 
 /**
@@ -442,31 +480,50 @@ export async function deleteMediaFile(id: string): Promise<void> {
     );
   }
 
-  // Path traversal containment check
-  const resolvedPath = path.resolve(UPLOAD_DIR, media.storageKey);
-  const resolvedUploadDir = path.resolve(UPLOAD_DIR);
-  if (!resolvedPath.startsWith(resolvedUploadDir + path.sep)) {
-    throw new Error('Invalid storage key path traversal');
+  await removeMediaRowAndStorage(media);
+}
+
+/**
+ * Deletes a staged (pending) media file from DB and disk without the in-use
+ * check: a pending row belongs to a picker session nobody has referenced yet.
+ * Refuses non-pending rows, so a visible Library file can never take this path.
+ */
+export async function discardPendingMedia(id: string): Promise<void> {
+  const media = await prisma.mediaFile.findUnique({ where: { id } });
+  if (!media) {
+    throw new Error('Media file not found');
+  }
+  if (!media.pending) {
+    throw new Error('Media file is not pending');
   }
 
-  try {
-    await fs.unlink(resolvedPath);
-  } catch {
-    // File may already be unlinked
+  await removeMediaRowAndStorage(media);
+}
+
+/**
+ * Removes staged (pending) uploads abandoned by a picker that never reached the
+ * confirm step: files older than `maxAgeMs` are discarded (no in-use check —
+ * nobody can reference a hidden row), and pending folders of the same age that
+ * hold no files any more are deleted. Runs with the throttled disk sync.
+ */
+export async function sweepStalePendingMedia(maxAgeMs = 24 * 3600 * 1000): Promise<void> {
+  const cutoff = new Date(Date.now() - maxAgeMs);
+
+  const staleFiles = await prisma.mediaFile.findMany({
+    where: { pending: true, createdAt: { lt: cutoff } },
+    select: { id: true },
+  });
+  for (const row of staleFiles) {
+    await discardPendingMedia(row.id).catch(() => {});
   }
 
-  await prisma.mediaFile.delete({ where: { id } });
-
-  // Files extracted from a zip live in their own folder; remove the folder with
-  // its last library item (a website's single row removes the whole site).
-  const [folderName] = media.storageKey.split('/');
-  if (media.storageKey.includes('/') && folderName) {
-    const folderPath = path.resolve(UPLOAD_DIR, folderName);
-    const isBundle = await fs.access(path.join(folderPath, EXTRACTED_MARKER)).then(() => true, () => false);
-    if (isBundle && folderPath.startsWith(resolvedUploadDir + path.sep)) {
-      const remaining = await prisma.mediaFile.count({ where: { storageKey: { startsWith: `${folderName}/` } } });
-      if (remaining === 0) await fs.rm(folderPath, { recursive: true, force: true }).catch(() => {});
-    }
+  const staleFolders = await prisma.mediaFolder.findMany({
+    where: { pending: true, createdAt: { lt: cutoff } },
+    select: { id: true, _count: { select: { files: true } } },
+  });
+  const emptyIds = staleFolders.filter((folder) => folder._count.files === 0).map((folder) => folder.id);
+  if (emptyIds.length > 0) {
+    await prisma.mediaFolder.deleteMany({ where: { id: { in: emptyIds } } }).catch(() => {});
   }
 }
 

@@ -6,6 +6,7 @@ import { config } from '../config/env.js';
 import {
   processAndSaveFile,
   deleteMediaFile,
+  discardPendingMedia,
   syncDiskMediaThrottled,
   getDiskStorageStats,
   MAX_UPLOAD_BYTES,
@@ -54,14 +55,19 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Upload an image or PDF and register it in MediaFile.
+   * `?staged=1` marks the row pending (picker upload): it stays hidden from the
+   * Library until POST /staged/confirm confirms it or POST /staged/discard deletes it.
    */
   fastify.post('/upload', mediaGuard, async (request, reply) => {
     // Optional target library folder: ?folderId=<uuid> (404 when it does not exist).
-    const folderQuery = z.object({ folderId: z.string().uuid().optional() }).safeParse(request.query);
+    const folderQuery = z
+      .object({ folderId: z.string().uuid().optional(), staged: z.enum(['1']).optional() })
+      .safeParse(request.query);
     if (!folderQuery.success) {
-      return reply.status(400).send({ error: 'Invalid folderId query parameter' });
+      return reply.status(400).send({ error: 'Invalid query parameters' });
     }
     const uploadFolderId = folderQuery.data.folderId ?? null;
+    const staged = folderQuery.data.staged === '1';
     if (uploadFolderId) {
       const folder = await prisma.mediaFolder.findUnique({ where: { id: uploadFolderId }, select: { id: true } });
       if (!folder) {
@@ -102,6 +108,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
         storageKey: stored.storageKey,
         folderId: uploadFolderId,
         createdById: request.admin?.id,
+        pending: staged,
       },
     });
 
@@ -115,6 +122,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       fileType: record.fileType,
       size: record.size,
       folderId: record.folderId,
+      pending: record.pending,
     });
   });
 
@@ -132,6 +140,8 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       extract: z.enum(EXTRACT_KINDS).optional(),
       // Target library folder for the file (or for the folder a zip extraction creates).
       folderId: z.string().uuid().nullable().optional(),
+      // Staged (picker) upload: the created rows stay hidden until confirmed.
+      staged: z.boolean().optional(),
     });
 
     const parsed = initSchema.safeParse(request.body);
@@ -248,7 +258,76 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
-   * Browse media files with usage detection and filters.
+   * Shared body for the staged confirm/discard pair: ids uploaded by this
+   * picker session. Unknown, non-pending or foreign ids are ignored, so both
+   * routes are idempotent.
+   */
+  const stagedBodySchema = z.object({
+    fileIds: z.array(z.string().uuid()).max(200).default([]),
+    folderIds: z.array(z.string().uuid()).max(20).default([]),
+  });
+
+  /**
+   * Confirms staged (pending) uploads: only rows that are still pending AND
+   * belong to the current admin become visible Library rows.
+   */
+  fastify.post('/staged/confirm', mediaGuard, async (request, reply) => {
+    const parsed = stagedBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid staged payload' });
+    }
+
+    const adminId = request.admin?.id;
+    const files = await prisma.mediaFile.updateMany({
+      where: { id: { in: parsed.data.fileIds }, pending: true, createdById: adminId },
+      data: { pending: false },
+    });
+    await prisma.mediaFolder.updateMany({
+      where: { id: { in: parsed.data.folderIds }, pending: true, createdById: adminId },
+      data: { pending: false },
+    });
+
+    return reply.send({ confirmed: files.count });
+  });
+
+  /**
+   * Discards staged (pending) uploads: owned pending files are deleted from the
+   * database and disk, then the owned pending folders go (they hold only the
+   * discarded files).
+   */
+  fastify.post('/staged/discard', mediaGuard, async (request, reply) => {
+    const parsed = stagedBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid staged payload' });
+    }
+
+    const adminId = request.admin?.id;
+    const ownedFiles = await prisma.mediaFile.findMany({
+      where: { id: { in: parsed.data.fileIds }, pending: true, createdById: adminId },
+      select: { id: true },
+    });
+    let discarded = 0;
+    for (const row of ownedFiles) {
+      try {
+        await discardPendingMedia(row.id);
+        discarded += 1;
+      } catch {
+        // A half-discarded row is removed by the stale sweep within 24 h.
+      }
+    }
+
+    // Children first is unnecessary: staged folders hold only the files that
+    // were just discarded.
+    await prisma.mediaFolder.deleteMany({
+      where: { id: { in: parsed.data.folderIds }, pending: true, createdById: adminId },
+    });
+
+    return reply.send({ discarded });
+  });
+
+  /**
+   * Browse media files with usage detection and filters. Pending (staged) rows
+   * are hidden unless `includePending=mine` adds the current admin's own ones.
    */
   fastify.get('/', mediaGuard, async (request, reply) => {
     const querySchema = z.object({
@@ -263,6 +342,9 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       sort: z.enum(['newest', 'oldest', 'name', 'size']).default('newest'),
       // `rescan=1` forces the disk index to refresh now (otherwise at most once a minute).
       rescan: z.enum(['0', '1']).optional(),
+      // `mine` also lists the current admin's own pending (staged) rows — the picker
+      // shows them right after a staged upload so they can be picked or discarded.
+      includePending: z.enum(['mine']).optional(),
     });
 
     const parsed = querySchema.safeParse(request.query);
@@ -270,7 +352,7 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid query parameters' });
     }
 
-    const { page, limit, type, status, search, folder, sort, rescan } = parsed.data;
+    const { page, limit, type, status, search, folder, sort, rescan, includePending } = parsed.data;
 
     // Index files that were dropped on disk by hand (throttled: a full scan per request does not scale).
     await syncDiskMediaThrottled(rescan === '1').catch(() => 0);
@@ -288,15 +370,29 @@ export const mediaRoutes: FastifyPluginAsync = async (fastify) => {
       // A folder id that does not exist simply matches nothing.
       where.folderId = folder;
     }
+    // Search and the pending filter are separate `AND` entries so neither
+    // clobbers the other's `OR`.
+    const andFilters: Prisma.MediaFileWhereInput[] = [];
     if (search && search.trim()) {
       // SQLite's LIKE ignores case; PostgreSQL needs the explicit mode (as the Drive search does).
       const q = search.trim();
       const mode = (/^postgres/i.test(config.databaseUrl) ? { mode: 'insensitive' } : {}) as object;
-      where.OR = [
-        { originalName: { contains: q, ...mode } },
-        { filename: { contains: q, ...mode } },
-      ];
+      andFilters.push({
+        OR: [
+          { originalName: { contains: q, ...mode } },
+          { filename: { contains: q, ...mode } },
+        ],
+      });
     }
+    if (includePending === 'mine') {
+      andFilters.push({
+        OR: [{ pending: false }, { pending: true, createdById: request.admin?.id }],
+      });
+    } else {
+      // Pending (staged) rows never appear in the Library by default.
+      andFilters.push({ pending: false });
+    }
+    where.AND = andFilters;
 
     // Usage is computed from the other tables (small); only the page being shown is loaded in full.
     const usageMap = await getBatchMediaUsage();

@@ -157,6 +157,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         reply.header('Content-Disposition', 'attachment');
       }
       reply.header('X-Content-Type-Options', 'nosniff');
+      // A sandboxed uploaded page has an opaque ("null") origin, so its
+      // `<script type="module">`, fetch() and font loads are CORS requests and
+      // fail without this. Uploads are public and sent without credentials, so
+      // `*` exposes nothing a direct download would not (same as /html and /f).
+      reply.header('Access-Control-Allow-Origin', '*');
       // Uploaded pages and SVGs run in a sandbox with no access to this origin
       // (no cookies, storage or API calls as the site), and may be framed by the SPA.
       if (/\.(html?|svg)$/i.test(filePath)) {

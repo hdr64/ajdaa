@@ -40,6 +40,8 @@ export interface ChunkedMeta {
   extract?: ExtractKind;
   /** Library folder the file (or the folder a zip extraction creates) lands in. */
   folderId?: string | null;
+  /** Staged (picker) upload: created rows stay hidden until the admin confirms. */
+  staged?: boolean;
   createdById?: string;
   createdAt: string;
 }
@@ -87,6 +89,7 @@ export async function initChunkedUpload(params: {
   mimeType?: string;
   extract?: ExtractKind;
   folderId?: string | null;
+  staged?: boolean;
   adminId?: string;
 }): Promise<{ uploadId: string; chunkSize: number; totalChunks: number }> {
   const ext = path.extname(params.filename).toLowerCase();
@@ -126,6 +129,7 @@ export async function initChunkedUpload(params: {
     mimeType: params.mimeType,
     extract: params.extract,
     folderId: params.folderId,
+    staged: params.staged,
     createdById: params.adminId,
     createdAt: new Date().toISOString(),
   };
@@ -262,7 +266,8 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
 
   // A zip uploaded for a chosen kind is unpacked; its files become library rows
-  // inside one new folder named after the zip (under meta.folderId).
+  // inside one new folder named after the zip (under meta.folderId). Staged
+  // uploads keep the rows and the folder hidden until the admin confirms them.
   if (meta.extract) {
     if (ext !== '.zip') {
       await fs.unlink(finalPath).catch(() => {});
@@ -274,6 +279,7 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
       kind: meta.extract,
       adminId: adminId || meta.createdById,
       folderId: meta.folderId,
+      pending: meta.staged === true,
     });
     return { ...extracted[0], extracted };
   }
@@ -293,6 +299,7 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
         storageKey: finalFilename,
         folderId: meta.folderId ?? null,
         createdById: adminId || meta.createdById,
+        pending: meta.staged === true,
       },
     });
     return {
@@ -305,6 +312,7 @@ export async function completeChunkedUpload(uploadId: string, adminId?: string) 
       fileType: record.fileType,
       size: record.size,
       folderId: record.folderId,
+      pending: record.pending,
     };
   } catch (err) {
     await fs.unlink(finalPath).catch(() => {});

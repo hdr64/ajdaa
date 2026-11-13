@@ -555,7 +555,7 @@ export const LibraryView: React.FC = () => {
         chips counted the current page only (18 + 6 = 24 next to "31 files"), so they are
         gone; the status filter below is the way to see the real unused list.
       */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1 text-[11px] font-bold text-neutral-text/70">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1 text-[11px] font-bold text-neutral-text/70 hid">
         <span className="inline-flex items-center gap-1.5">
           <Layers className="w-3.5 h-3.5 text-accent" />
           <span>{t('media.stat.totalFiles')}:</span>
@@ -620,7 +620,7 @@ export const LibraryView: React.FC = () => {
       )}
 
       {/* Action & Filter Bar */}
-      <div className="p-3 rounded-2xl bg-surface border border-muted-border/30 space-y-2.5">
+      <div className="p-3 rounded-2xl bg-surface border border-muted-border/30 space-y-2.5 ">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Search + sort + page size */}
           <div className="flex flex-1 items-center gap-2 max-w-2xl">
@@ -756,8 +756,28 @@ export const LibraryView: React.FC = () => {
           </div>
         </div>
 
+
         {/* Filters */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-muted-border/20">
+          {/* Type filter */}
+          <div className="flex flex-wrap items-center gap-1 p-1 bg-canvas rounded-xl border border-muted-border/30 text-[11px] font-bold">
+            {(['all', 'image', 'video', 'pdf', 'model3d', 'html', 'other'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => {
+                  setTypeFilter(type);
+                  setPage(1);
+                }}
+                className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
+                  typeFilter === type ? 'bg-surface text-accent shadow-sm' : 'text-neutral-text/60 hover:text-heading'
+                }`}
+              >
+                {t(`media.type.${type}`)}
+              </button>
+            ))}
+          </div>
+          
+
           {/* Status filter: All, Linked, Orphaned */}
           <div className="flex items-center gap-1.5 p-1 bg-canvas rounded-xl border border-muted-border/30 text-[11px] font-bold">
             <button
@@ -797,23 +817,7 @@ export const LibraryView: React.FC = () => {
             </button>
           </div>
 
-          {/* Type filter */}
-          <div className="flex flex-wrap items-center gap-1 p-1 bg-canvas rounded-xl border border-muted-border/30 text-[11px] font-bold">
-            {(['all', 'image', 'video', 'pdf', 'model3d', 'html', 'other'] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => {
-                  setTypeFilter(type);
-                  setPage(1);
-                }}
-                className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
-                  typeFilter === type ? 'bg-surface text-accent shadow-sm' : 'text-neutral-text/60 hover:text-heading'
-                }`}
-              >
-                {t(`media.type.${type}`)}
-              </button>
-            ))}
-          </div>
+
         </div>
       </div>
 
