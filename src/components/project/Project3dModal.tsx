@@ -1,6 +1,6 @@
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Box, ExternalLink, X } from 'lucide-react';
+import { Box, ExternalLink, Maximize, X } from 'lucide-react';
 import { resolveMediaUrl } from '../../services/api';
 import { getModel3dKind, isModel3dUrl } from '../../utils/urlValidation';
 
@@ -15,13 +15,72 @@ interface Project3dModalProps {
   onClose: () => void;
   /** Edge-to-edge layout (no padding, frame or hint line); the default is a framed window. */
   fullscreen?: boolean;
+  /**
+   * URL fragment for this viewer (see `model3dHash`). While open the address bar shows it and
+   * the browser's Back button closes the viewer instead of leaving the page.
+   */
+  hash?: string;
 }
 
 /** Viewer for a project's 3D model, video or interactive page. Owns Escape and the scroll lock. */
-export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr, onClose, fullscreen = false }) => {
+export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr, onClose, fullscreen = false, hash }) => {
+  // True while the history entry carrying `#hash` was pushed by this viewer (not a shared link).
+  const pushedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  useEffect(() => {
+    if (!hash) return;
+    const target = `#${hash}`;
+    if (window.location.hash !== target) {
+      try {
+        // Remember the scroll position of the page behind, so Back lands exactly there.
+        window.history.replaceState({ ...window.history.state, scrollY: window.scrollY }, '');
+        window.history.pushState(
+          { ...window.history.state, model3d: hash },
+          '',
+          `${window.location.pathname}${window.location.search}${target}`,
+        );
+        pushedRef.current = true;
+      } catch {
+        // History unavailable: the viewer still works, only Back behaves as before.
+      }
+    } else if (window.history.state?.model3d === hash) {
+      pushedRef.current = true;
+    }
+    const handlePop = () => {
+      if (window.location.hash !== target) {
+        pushedRef.current = false;
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [hash]);
+
+  // Every close path (X, Escape, backdrop) goes through here. When this viewer pushed a history
+  // entry, going back pops it and the popstate handler closes; otherwise close directly.
+  const requestClose = useCallback(() => {
+    if (hash && pushedRef.current) {
+      pushedRef.current = false;
+      window.history.back();
+      return;
+    }
+    if (hash && window.location.hash === `#${hash}`) {
+      try {
+        window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
+      } catch {
+        // Ignore: the fragment just stays in the address bar.
+      }
+    }
+    onClose();
+  }, [hash, onClose]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') requestClose();
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
@@ -29,7 +88,7 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [requestClose]);
 
   // Re-checked here as a last line of defence: never embed or link a scheme the
   // server would not have accepted.
@@ -48,23 +107,29 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
   return createPortal(
     <div
       className={`fixed inset-0 z-[100] flex flex-col ${
-        fullscreen ? 'bg-black' : 'bg-neutral-950/90 backdrop-blur-sm p-3 sm:p-5 md:p-8'
+        fullscreen ? 'bg-black modal3d-open' : 'bg-neutral-950/90 backdrop-blur-sm p-3 sm:p-5 md:p-8 modal3d-fade'
       }`}
       role="dialog"
       aria-modal="true"
       aria-label={isAr ? 'المجسم ثلاثي الأبعاد' : '3D model viewer'}
     >
       {/* Backdrop click closes */}
-      <div className="absolute inset-0 cursor-pointer" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 cursor-pointer" onClick={requestClose} aria-hidden="true" />
 
       <div
         className={`relative z-10 w-full flex flex-col flex-1 min-h-0 ${fullscreen ? '' : 'max-w-6xl mx-auto'}`}
       >
         <div
           className={`flex items-center justify-between gap-3 text-white ${
-            fullscreen ? 'px-3 py-2 bg-neutral-950 border-b border-white/10' : 'mb-3'
+            fullscreen ? 'relative px-3 py-2 bg-neutral-950 border-b border-white/10 modal3d-header' : 'mb-3'
           }`}
         >
+          {fullscreen && (
+            <span
+              className="modal3d-line pointer-events-none absolute inset-x-0 -bottom-px h-0.5"
+              aria-hidden="true"
+            />
+          )}
           <div className="flex items-center gap-2 min-w-0">
             <Box className="w-4 h-4 text-accent shrink-0" />
             <span className="text-sm font-black truncate">{title}</span>
@@ -76,14 +141,14 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
                 target="_blank"
                 rel="noopener noreferrer"
                 title={isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold border border-white/15 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                aria-label={isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}
+                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border border-white/15 flex items-center justify-center transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{isAr ? 'فتح في تبويب جديد' : 'Open in new tab'}</span>
+                <ExternalLink className="w-4 h-4" />
               </a>
             )}
             <button
-              onClick={onClose}
+              onClick={requestClose}
               aria-label={isAr ? 'إغلاق المجسم' : 'Close 3D model'}
               title={isAr ? 'إغلاق (Esc)' : 'Close (Esc)'}
               className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/90 hover:text-white border border-white/15 flex items-center justify-center transition-all cursor-pointer hover:scale-105"
@@ -135,6 +200,39 @@ export const Project3dModal: React.FC<Project3dModalProps> = ({ url, title, isAr
             />
           )}
         </div>
+
+        {fullscreen && (
+          <>
+            {/* Welcome card: fades out by itself; it never intercepts clicks. */}
+            <div
+              className="modal3d-intro pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-6"
+              aria-hidden="true"
+            >
+              <div className="modal3d-intro-card flex flex-col items-center gap-3 text-center text-white">
+                <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/30">
+                  <span className="absolute inset-0 rounded-full bg-accent/40 motion-safe:animate-ping" />
+                  <Maximize className="relative h-7 w-7 text-accent-light" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-widest text-white/70">
+                  {isAr ? 'وضع ملء الشاشة' : 'Full-screen mode'}
+                </span>
+                <span className="max-w-[80vw] text-xl sm:text-3xl font-black leading-snug">{title}</span>
+              </div>
+            </div>
+            {/* Exit hint: shown for a few seconds, then gone. */}
+            <div
+              className="modal3d-hint pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4"
+              aria-hidden="true"
+            >
+              <span className="rounded-full bg-black/70 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/20 backdrop-blur-md">
+                <span className="hidden sm:inline">
+                  {isAr ? 'اضغط Esc أو زر الرجوع للخروج' : 'Press Esc or Back to exit'}
+                </span>
+                <span className="sm:hidden">{isAr ? 'اضغط ✕ أو زر الرجوع للخروج' : 'Tap ✕ or Back to exit'}</span>
+              </span>
+            </div>
+          </>
+        )}
 
         {fullscreen ? null : kind === 'model' ? (
           <p className="mt-2 text-[11px] text-white/50 text-center">

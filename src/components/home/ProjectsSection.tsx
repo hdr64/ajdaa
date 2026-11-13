@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Building2, MapPin, CheckCircle2, ArrowLeft, ArrowRight, TrendingUp, Layers, Eye, RefreshCw, AlertCircle, Box } from 'lucide-react';
+import { Building2, MapPin, CheckCircle2, ArrowLeft, ArrowRight, TrendingUp, Layers, Eye, RefreshCw, AlertCircle } from 'lucide-react';
 import { Reveal } from '../common/Reveal';
 import { SpaLink } from '../common/SpaLink';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -9,6 +9,8 @@ import { useCmsContent } from '../../hooks/useCmsContent';
 import { useCmsText } from '../../hooks/useCmsText';
 import { useSiteSettings } from '../../hooks/useSiteSettings';
 import { Project3dModal } from '../project/Project3dModal';
+import { Project3dCta } from '../project/Project3dCta';
+import { isModel3dHashActive, model3dHash, useOpenModal3dFromHash } from '../../hooks/useModal3dHash';
 import { getModel3dKind, isModel3dUrl, opensModel3dInTab, opensModel3dFullscreen } from '../../utils/urlValidation';
 import { resolveMediaUrl } from '../../services/api';
 import { getPropertyDisplay } from '../../data/properties';
@@ -49,6 +51,25 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
   // The first three projects are already showcased in the hero, so this section
   // highlights everything after them instead of hardcoding seed-array offsets.
   const allProjects = useMemo(() => properties.slice(3, 9), [properties]);
+
+  // A shared `#<slug>-3d[-full]` link opens that project's viewer once the list has loaded.
+  const hashProject = useMemo(
+    () =>
+      settings.projectCards.show3d
+        ? allProjects.find(
+            (p) =>
+              isModel3dUrl(p.model3dUrl) &&
+              !opensModel3dInTab(p.model3dUrl, p.model3dDisplay) &&
+              isModel3dHashActive(model3dHash(p.titleEn, opensModel3dFullscreen(p.model3dUrl, p.model3dDisplay))),
+          )
+        : undefined,
+    [allProjects, settings.projectCards.show3d],
+  );
+  useOpenModal3dFromHash(
+    hashProject && model3dHash(hashProject.titleEn, opensModel3dFullscreen(hashProject.model3dUrl, hashProject.model3dDisplay)),
+    !!hashProject,
+    () => hashProject && setModel3dProject(hashProject),
+  );
 
   const displayedProjects = allProjects.filter((p) => {
     if (activeTab === 'all') return true;
@@ -194,12 +215,15 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                     {display.badge}
                   </span>
 
-                  {/* 3D Badge */}
+                  {/* 3D call to action */}
                   {has3d && (
-                    <span className="absolute top-3.5 left-3.5 z-[3] text-[10px] font-bold px-2.5 py-1 rounded-full bg-canvas/90 text-neutral-text border border-muted-border/30 flex items-center gap-1">
-                      <Box className="w-3 h-3 text-accent" />
-                      3D
-                    </span>
+                    <Project3dCta
+                      kind={kind3d}
+                      isAr={isAr}
+                      label={label3d}
+                      href={tab3d ? tabHref3d : undefined}
+                      onOpen={() => setModel3dProject(prop)}
+                    />
                   )}
 
                   {/* Gallery Count */}
@@ -255,34 +279,6 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {has3d && tab3d && (
-                        <a
-                          href={tabHref3d}
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label={label3d}
-                          title={label3d}
-                          className="brand-btn-secondary text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1 hover:border-accent transition cursor-pointer"
-                        >
-                          <Box className="w-3 h-3 text-accent" />
-                          <span className="hidden sm:inline">3D</span>
-                        </a>
-                      )}
-                      {has3d && !tab3d && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setModel3dProject(prop);
-                          }}
-                          aria-label={label3d}
-                          title={label3d}
-                          className="brand-btn-secondary text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1 hover:border-accent transition cursor-pointer"
-                        >
-                          <Box className="w-3 h-3 text-accent" />
-                          <span className="hidden sm:inline">3D</span>
-                        </button>
-                      )}
-
                       <button
                         type="button"
                         onClick={(e) => {
@@ -321,6 +317,7 @@ export const ProjectsSection: React.FC<ProjectsSectionProps> = ({ onExplore, onQ
           title={getPropertyDisplay(model3dProject, language).title}
           isAr={isAr}
           fullscreen={opensModel3dFullscreen(model3dProject.model3dUrl, model3dProject.model3dDisplay)}
+          hash={model3dHash(model3dProject.titleEn, opensModel3dFullscreen(model3dProject.model3dUrl, model3dProject.model3dDisplay))}
           onClose={() => setModel3dProject(null)}
         />
       )}

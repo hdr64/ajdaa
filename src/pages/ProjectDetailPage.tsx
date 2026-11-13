@@ -9,6 +9,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import { Reveal } from '../components/common/Reveal';
 import { SpaLink } from '../components/common/SpaLink';
 import { Project3dModal } from '../components/project/Project3dModal';
+import { model3dHash, useOpenModal3dFromHash } from '../hooks/useModal3dHash';
 import { isModel3dUrl, getModel3dKind, isDownloadableMediaUrl, opensModel3dInTab, opensModel3dFullscreen } from '../utils/urlValidation';
 import { detectProjectStatus } from '../data/properties';
 import {
@@ -152,6 +153,16 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
       setVideoModalOpen(true);
     }
   };
+
+  // `#<slug>-3d[-full]` in the address bar opens the viewer; Back closes it.
+  const hash3d = project
+    ? model3dHash(project.titleEn, opensModel3dFullscreen(project.model3dUrl, project.model3dDisplay))
+    : undefined;
+  useOpenModal3dFromHash(
+    hash3d,
+    !!project && isModel3dUrl(project.model3dUrl) && !opensModel3dInTab(project.model3dUrl, project.model3dDisplay),
+    () => setModel3dModalOpen(true),
+  );
 
   if (loading) {
     return (
@@ -928,6 +939,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({
           title={project.title}
           isAr={isAr}
           fullscreen={opensModel3dFullscreen(safeModel3dUrl, project.model3dDisplay)}
+          hash={hash3d}
           onClose={() => setModel3dModalOpen(false)}
         />
       )}

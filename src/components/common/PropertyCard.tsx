@@ -15,11 +15,12 @@ import {
   Store,
   Building2,
   FileText,
-  Box,
 } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 import { useSiteSettings } from '../../hooks/useSiteSettings';
 import { Project3dModal } from '../project/Project3dModal';
+import { Project3dCta } from '../project/Project3dCta';
+import { model3dHash, useOpenModal3dFromHash } from '../../hooks/useModal3dHash';
 import {
   getModel3dKind,
   isDownloadableMediaUrl,
@@ -64,9 +65,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
       : kind3d === 'html'
       ? isAr ? 'عرض التجربة التفاعلية' : 'View interactive page'
       : isAr ? 'عرض المجسم ثلاثي الأبعاد' : 'View 3D model';
-  const btn3dClass =
-    'brand-btn-secondary text-xs font-bold px-3 py-2.5 rounded-xl inline-flex items-center gap-1 hover:border-accent transition cursor-pointer';
-
+  const hash3d = model3dHash(property.titleEn, opensModel3dFullscreen(property.model3dUrl, property.model3dDisplay));
+  useOpenModal3dFromHash(hash3d, has3d && !tab3d, () => setShow3dModal(true));
   const toggleFav = (e: React.MouseEvent) => {
     e.stopPropagation();
     const nextState = !fav;
@@ -113,13 +113,6 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           </span>
 
           <div className="flex items-center gap-2">
-            {has3d && (
-              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-canvas/80 backdrop-blur-md text-neutral-text flex items-center gap-1 border border-muted-border/30">
-                <Box className="w-3 h-3 text-accent" />
-                3D
-              </span>
-            )}
-
             {/* Gallery photos badge */}
             <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-canvas/80 backdrop-blur-md text-neutral-text flex items-center gap-1 border border-muted-border/30">
               <Images className="w-3 h-3 text-accent" />
@@ -149,6 +142,17 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             {t.propertyCard.viewDetails}
           </span>
         </div>
+
+        {/* 3D call to action */}
+        {has3d && (
+          <Project3dCta
+            kind={kind3d}
+            isAr={isAr}
+            label={label3d}
+            href={tab3d ? tabHref3d : undefined}
+            onOpen={() => setShow3dModal(true)}
+          />
+        )}
       </div>
 
       <div className="p-5 flex-1 flex flex-col justify-between">
@@ -248,33 +252,6 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {has3d && tab3d && (
-              <a
-                href={tabHref3d}
-                onClick={(e) => e.stopPropagation()}
-                aria-label={label3d}
-                title={label3d}
-                className={btn3dClass}
-              >
-                <Box className="w-3.5 h-3.5 text-accent" />
-                3D
-              </a>
-            )}
-            {has3d && !tab3d && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShow3dModal(true);
-                }}
-                aria-label={label3d}
-                title={label3d}
-                className={btn3dClass}
-              >
-                <Box className="w-3.5 h-3.5 text-accent" />
-                3D
-              </button>
-            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -299,6 +276,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         title={display.title}
         isAr={isAr}
         fullscreen={opensModel3dFullscreen(property.model3dUrl, property.model3dDisplay)}
+        hash={hash3d}
         onClose={() => setShow3dModal(false)}
       />
     )}
