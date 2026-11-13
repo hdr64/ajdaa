@@ -6,7 +6,7 @@ Server files only. **Start only after the auth lane (`lane/auth`: tasks A, A2, B
 User-facing messages returned by the API (validation errors, auth errors, "not found", etc.) follow the language the admin UI is using, so English mode does not show Arabic errors in toasts. About 300 lines of Arabic live in `server/src`.
 
 ## Read first
-`server/src/routes/*.routes.ts` (auth, careers, inquiries, newsletter, projects, developerNotes), `server/src/config/constants.ts`, `server/src/config/permissions.ts`, the error-handling middleware and `ApiError`-style helpers (find them with grep), `src/services/api.ts` (client request wrapper and `toApiError`), `docs/api-reference.md`.
+`server/src/routes/*.routes.ts` (auth, careers, inquiries, newsletter, projects, developerNotes), `server/src/config/constants.ts`, `server/src/config/permissions.ts`, the error-handling middleware and `ApiError`-style helpers (find them with grep), `src/services/api.ts` (client request wrapper and `toApiError`), `docs/references/api-reference.md`.
 
 ## Decided design
 - Client sends `Accept-Language: ar` or `en` (derived from `useLanguage()` through the language stored in localStorage key `LANG_STORAGE_KEY` from `src/context/languageContextDef.ts`; read it inside `api.ts` per request, default `ar`). One change in `src/services/api.ts` only (the single fetch wrapper); no other frontend file.

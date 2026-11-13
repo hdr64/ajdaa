@@ -2,7 +2,7 @@
 # Sets the SEO description (AR + EN) of 14 projects. Only "description", "descriptionEn" and "updatedAt" change.
 # Usage on the server:  bash set-project-descriptions.sh [database]     (default database: ajda = production)
 # Test first:           bash set-project-descriptions.sh ajda_test
-# Read the "Check these first" list in docs/seo-project-descriptions.md before running on production.
+# Read the "Check these first" list in docs/references/seo-project-descriptions.md before running on production.
 set -euo pipefail
 
 DB="${1:-ajda}"

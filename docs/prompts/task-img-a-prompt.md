@@ -16,7 +16,7 @@ Uploaded images are re-encoded to a single WebP at up to 2400 px (`server/src/se
 No schema change and no migration: variants follow a **naming convention**, nothing is stored in the database.
 
 ## 2. Read first
-`CLAUDE.md`, `docs/architecture.md` (media and "SEO shell" sections), `server/src/services/mediaService.ts` (and its tests: grep `server/test` for `mediaService`, `upload`), `server/src/routes/` upload and media routes, `server/src/app.ts` (the `fastifyStatic` registration for `/uploads`), `deploy/Caddyfile.ajda` (`/uploads/*` handle), `server/src/services/seo/meta.ts`, `jsonld.ts`, `sitemap.ts`, `src/types/property.ts`, and every public component that renders a project, gallery or client image (grep `\.image`, `gallery`, `<img` under `src/pages` and `src/components/{common,home,works,booking,contact}`; **not** `components/admin`).
+`CLAUDE.md`, `docs/references/architecture.md` (media and "SEO shell" sections), `server/src/services/mediaService.ts` (and its tests: grep `server/test` for `mediaService`, `upload`), `server/src/routes/` upload and media routes, `server/src/app.ts` (the `fastifyStatic` registration for `/uploads`), `deploy/Caddyfile.ajda` (`/uploads/*` handle), `server/src/services/seo/meta.ts`, `jsonld.ts`, `sitemap.ts`, `src/types/property.ts`, and every public component that renders a project, gallery or client image (grep `\.image`, `gallery`, `<img` under `src/pages` and `src/components/{common,home,works,booking,contact}`; **not** `components/admin`).
 
 ## 3. Decided design
 
@@ -65,7 +65,7 @@ Target: total size of the listed files at least 40% smaller, no file over ~250 K
 - project shell uses the `-og.jpg` in `og:image` plus the three dimension tags; a project with a non-convention image keeps the original and emits no dimension tags.
 
 ## 5. Docs (same change)
-`docs/architecture.md` (media section: variants, naming convention, caching, og image), `docs/api-reference.md` only if a route response changed (it should not), `docs/CHANGELOG.md`, `deploy/README-deploy.md` (a "run `npm --prefix server run media:variants` once after deploy, safe to repeat" step; mention disk usage grows by roughly 60–80%). No secrets.
+`docs/references/architecture.md` (media section: variants, naming convention, caching, og image), `docs/references/api-reference.md` only if a route response changed (it should not), `docs/references/CHANGELOG.md`, `deploy/README-deploy.md` (a "run `npm --prefix server run media:variants` once after deploy, safe to repeat" step; mention disk usage grows by roughly 60–80%). No secrets.
 
 ## 6. Out of scope
 AVIF, a CDN or image proxy, on-the-fly resizing endpoints, schema or migrations, admin UI, converting any bundled front-end image not listed in 3.7, CMS non-upload images, changing the 2400 px cap or WebP quality of the main file.

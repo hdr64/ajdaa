@@ -21,7 +21,7 @@ Master section 3.5, plus the client mirror in 3.6. **Client only** (no `server/`
 Admin UI, three.js, `src/assets` images, CMS image fields that are not uploads, server code, bundled-image conversion (task-img-a3).
 
 ## 5. Tests and docs
-Add vitest tests only if the repo already has a client test setup (check; do not add a framework). Otherwise show in the report how you verified the helper vectors. Docs: a `docs/CHANGELOG.md` entry.
+Add vitest tests only if the repo already has a client test setup (check; do not add a framework). Otherwise show in the report how you verified the helper vectors. Docs: a `docs/references/CHANGELOG.md` entry.
 
 ## Constraints
 No commits, installs or `.env` edits; do not touch `deploy/`. Wanted `CLAUDE.md` changes go in the report under `## CLAUDE.md proposals for Claude`.

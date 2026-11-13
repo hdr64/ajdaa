@@ -5,7 +5,7 @@ import { renderPage, renderSitemap, robotsTxt } from '../services/seo/seoService
 /**
  * Search-engine facing routes. `/robots.txt` and `/sitemap.xml` live at the site
  * root (Caddy proxies them here); the page shell lives under `/api/seo` and is
- * what Caddy returns for every SPA page URL (see docs/architecture.md, "SEO shell").
+ * what Caddy returns for every SPA page URL (see docs/references/architecture.md, "SEO shell").
  */
 export const seoRootRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/robots.txt', async (_request, reply) => {

@@ -8,7 +8,7 @@
 Master sections 3.1, 3.2, 3.3, 3.4, 3.6 and the server tests in section 4. **Server only.** Do not touch anything under `src/`.
 
 ## 2. Read first
-`CLAUDE.md`, `docs/prompts/task-img-a-prompt.md` (sections 1, 3.1-3.4, 3.6, 4, 5), `docs/architecture.md` (media and "SEO shell"), `server/src/services/mediaService.ts` and its tests, the upload and media routes in `server/src/routes/`, `server/src/app.ts` (`fastifyStatic` for `/uploads`), `server/src/services/seo/meta.ts`, `jsonld.ts`, `shell.ts`, `server/test/seo.test.ts`, `server/scripts/` (style of existing scripts), `deploy/Caddyfile.ajda`.
+`CLAUDE.md`, `docs/prompts/task-img-a-prompt.md` (sections 1, 3.1-3.4, 3.6, 4, 5), `docs/references/architecture.md` (media and "SEO shell"), `server/src/services/mediaService.ts` and its tests, the upload and media routes in `server/src/routes/`, `server/src/app.ts` (`fastifyStatic` for `/uploads`), `server/src/services/seo/meta.ts`, `jsonld.ts`, `shell.ts`, `server/test/seo.test.ts`, `server/scripts/` (style of existing scripts), `deploy/Caddyfile.ajda`.
 
 ## 3. Decided design
 Exactly as master 3.1-3.4 and 3.6:
@@ -25,7 +25,7 @@ The upload response `{ url, filename }` stays unchanged. Lower-case UUID v4 only
 Everything in `src/`, the client `imageVariants.ts` copy and `ResponsiveImage` (task-img-a2), bundled images (task-img-a3), AVIF, CDN, schema or migrations, admin UI. Edit a Caddyfile only if Caddy would override the cache header (say so in the report if you do).
 
 ## 5. Tests and docs
-Tests exactly as master section 4 (all bullets). Docs as master section 5: `docs/architecture.md` (media), `docs/CHANGELOG.md`, `deploy/README-deploy.md` (run `npm --prefix server run media:variants` once after deploy, safe to repeat; disk grows roughly 60-80%). Never run the backfill outside your local `UPLOAD_DIR`.
+Tests exactly as master section 4 (all bullets). Docs as master section 5: `docs/references/architecture.md` (media), `docs/references/CHANGELOG.md`, `deploy/README-deploy.md` (run `npm --prefix server run media:variants` once after deploy, safe to repeat; disk grows roughly 60-80%). Never run the backfill outside your local `UPLOAD_DIR`.
 
 ## Constraints
 No commits, installs or `.env` edits; no production commands. Do not edit existing tests to fit new code. If Prisma's AI-safety guard blocks `npm --prefix server test`, stop and say so in the report; never pass a consent variable. Wanted `CLAUDE.md` changes go in the report under `## CLAUDE.md proposals for Claude`.

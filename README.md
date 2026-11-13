@@ -9,14 +9,14 @@ This README covers setup and day-to-day commands only. Everything else has one h
 | Topic | Where |
 |---|---|
 | Open tasks and order of work | [docs/TODO.md](docs/TODO.md) |
-| System design, data models, auth, queue | [docs/architecture.md](docs/architecture.md) |
-| CMS design | [docs/cms-architecture.md](docs/cms-architecture.md) |
-| Every API route and its guard | [docs/api-reference.md](docs/api-reference.md) |
-| Deploying (test instance, production, backups, Caddy, systemd) | [deploy/README-deploy.md](deploy/README-deploy.md), [docs/github-actions-deploy.md](docs/github-actions-deploy.md) |
-| Tests | [docs/testing-strategy.md](docs/testing-strategy.md) |
-| Admin translation rules | [docs/ADMIN-I18N.md](docs/ADMIN-I18N.md) |
-| Release notes | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
-| Full documentation index | [docs/README.md](docs/README.md) |
+| System design, data models, auth, queue | [docs/references/architecture.md](docs/references/architecture.md) |
+| CMS design | [docs/references/cms-architecture.md](docs/references/cms-architecture.md) |
+| Every API route and its guard | [docs/references/api-reference.md](docs/references/api-reference.md) |
+| Deploying (test instance, production, backups, Caddy, systemd) | [deploy/README-deploy.md](deploy/README-deploy.md), [docs/references/github-actions-deploy.md](docs/references/github-actions-deploy.md) |
+| Tests | [docs/references/testing-strategy.md](docs/references/testing-strategy.md) |
+| Admin translation rules | [docs/references/ADMIN-I18N.md](docs/references/ADMIN-I18N.md) |
+| Release notes | [docs/references/CHANGELOG.md](docs/references/CHANGELOG.md) |
+| Full documentation index | [docs/references/README.md](docs/references/README.md) |
 
 ---
 
@@ -52,7 +52,7 @@ Requires Node 20+ (production and CI run Node 24).
 npm install
 npm --prefix server install
 cp server/.env.example server/.env     # set JWT_SECRET (min 16 chars); the rest has dev defaults
-npm --prefix server run db:push        # create the SQLite dev database
+npm --prefix server run db:push        # dev DB: SQLite = db push, PostgreSQL = migrate deploy (picked from DATABASE_URL)
 npm --prefix server run db:seed        # super admin, categories, demo projects
 npm run dev:all                        # API on :4000 and Vite on :5173 (proxies /api, /uploads, /socket.io)
 ```
@@ -61,7 +61,7 @@ npm run dev:all                        # API on :4000 and Vite on :5173 (proxies
 - Health check: `curl http://localhost:4000/api/health`.
 - Redis is optional in dev. The queue probes it on boot and falls back to inline (`sync`) execution; set `QUEUE_DRIVER=sync` to force that.
 - Mail is a logged no-op while `MAIL_HOST` is empty.
-- After pulling schema changes: `cd server && npx prisma generate && npm run db:push`. If `prisma generate` fails with `EPERM` on Windows, stop the running dev API first (it locks the query engine DLL).
+- After pulling schema changes: `npm --prefix server run db:push` (it reads `DATABASE_URL` in `server/.env`: SQLite gets `prisma db push`, PostgreSQL gets the committed migrations via `migrate deploy` and a regenerated client). If `prisma generate` fails with `EPERM` on Windows, stop the running dev API first (it locks the query engine DLL).
 
 ### Database
 

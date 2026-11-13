@@ -134,7 +134,7 @@ jobs:
           set -euo pipefail
           for name in SSH_HOST SSH_KEY SSH_KNOWN_HOSTS; do
             if [ -z "${!name}" ]; then
-              echo "::error::Secret $name is empty. Add it to the 'test' environment (docs/github-actions-deploy.md)."
+              echo "::error::Secret $name is empty. Add it to the 'test' environment (docs/references/github-actions-deploy.md)."
               exit 1
             fi
           done

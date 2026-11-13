@@ -550,6 +550,14 @@ Virtual folders for the library: rows only, files stay flat on disk, so `/upload
 - `DELETE /api/media/folders/:id` → `{ success, movedFiles, movedFolders }`. Never deletes files: its files and subfolders move up one level (clashing subfolder names get ` (2)`).
 - `POST /api/media/move` `{ ids: string[] (1-200), folderId: string | null }` → `{ moved }`; `404` for a missing target folder.
 
+### Staged (picker) uploads
+Uploads from the media picker are staged: the row and disk file exist with `pending = true` but are hidden from every Library listing and folder count until the uploading admin confirms them. Same access as the other media routes.
+- `POST /api/media/upload?staged=1` and `staged: true` in the `chunked/init` body create pending rows (a staged zip extraction also creates a pending folder). Responses gain `pending`.
+- `GET /api/media` never lists pending rows unless `includePending=mine`, which adds the current admin's own. `GET /api/media/folders` hides pending folders and counts only visible files.
+- `POST /api/media/staged/confirm` `{ fileIds: uuid[] (max 200), folderIds: uuid[] (max 20) }` → `{ confirmed }` (file count). Only rows that are pending and created by the current admin change; other ids are skipped (idempotent).
+- `POST /api/media/staged/discard` same body → `{ discarded }`. Deletes the owned pending files (row and disk, no in-use check, non-pending rows are refused), then the owned pending folders.
+- Pending rows older than 24 h are removed by the throttled disk sync (`sweepStalePendingMedia`).
+
 ### DELETE `/api/media/:id`
 Safely deletes an unlinked / orphaned media file from disk and database.
 - **Strict SEO Guard:** If `usageCount > 0`, deletion is **strictly blocked** and returns `409 Conflict`. Media URLs connected to live projects and content must remain permanent and immutable to prevent broken Google Search & Google Images indexing.
