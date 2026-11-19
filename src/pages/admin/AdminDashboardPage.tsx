@@ -393,14 +393,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     <AdminContext.Provider value={contextValue}>
       <UploadManagerProvider>
         <HeaderActionsSlotContext.Provider value={actionsSlot}>
-          <div className="min-h-screen bg-canvas flex text-xs selection:bg-accent selection:text-white">
+          <div className="h-screen overflow-hidden bg-canvas flex text-xs selection:bg-accent selection:text-white">
             <AdminSidebar
               open={menuOpen}
               onClose={() => setMenuOpen(false)}
               onLogout={onLogout}
             />
 
-            <main ref={mainRef} className="flex-1 min-w-0 h-screen overflow-y-auto flex flex-col">
+            <main ref={mainRef} className="relative flex-1 min-w-0 h-screen overflow-y-auto flex flex-col">
               <AdminPageHeader
                 title={pageTitle}
                 subtitle={t(`dashboard.section.${location.section}.subtitle` as any)}

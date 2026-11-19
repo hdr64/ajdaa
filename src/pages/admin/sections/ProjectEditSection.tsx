@@ -344,6 +344,19 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
     navigate({ section: 'project', projectId: project.id });
   };
 
+  const discard = async () => {
+    if (busy || !isDirty) return;
+    const ok = await confirm({
+      title: t('projectEdit.dirty.confirmTitle'),
+      message: t('projectEdit.dirty.confirmMessage'),
+      confirmLabel: t('projectEdit.dirty.confirmLabel'),
+      danger: true,
+    });
+    if (!ok) return;
+    setForm(baseline);
+    setErrors({});
+  };
+
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy) return;
@@ -432,7 +445,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
               aria-pressed={form.model3dDisplay === mode}
               onClick={() => patch({ model3dDisplay: mode })}
               disabled={busy}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer disabled:opacity-60 ${
+              className={`w-full px-3 py-2 rounded-lg text-start text-[11px] font-bold cursor-pointer disabled:opacity-60 ${
                 form.model3dDisplay === mode ? 'brand-fill text-canvas' : 'text-neutral-text/70 hover:text-accent'
               }`}
             >
@@ -477,12 +490,6 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
           {t('projectEdit.backToProject')}
         </button>
 
-        {isDirty && (
-          <div className="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-600 text-[11px] font-bold">
-            {t('projectEdit.dirtyNotice')}
-          </div>
-        )}
-
         {/* Live Google Search Product & Knowledge Panel Preview (Collapsible, collapsed by default, at top) */}
         <GoogleSearchProductPreview
           title={form.title}
@@ -516,9 +523,9 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
           defaultExpanded={false}
         />
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-5 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
           {/* Content column */}
-          <div className="xl:col-span-3 space-y-5">
+          <div className="min-w-0 space-y-5">
             <Card title={t('projectEdit.card.basic')}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label={t('projectEdit.field.title')} htmlFor="pe-title" error={errors.title}>
@@ -697,7 +704,7 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
           </div>
 
           {/* Media column */}
-          <div className="xl:col-span-2 space-y-5">
+          <div className="min-w-0 space-y-5">
             <Card title={t('projectEdit.card.images')}>
               <div>
                 <span className={LABEL_CLASS}>{t('projectEdit.field.mainImage')}</span>
@@ -1046,6 +1053,30 @@ const ProjectEditForm: React.FC<{ project: Property }> = ({ project }) => {
             </Card>
           </div>
         </div>
+
+        {isDirty && (
+          <div className="sticky absolut max-w-fit bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-amber-500/30 bg-surface/95 backdrop-blur-xl shadow-lg">
+            <span className="text-[11px] font-bold text-amber-600">{t('projectEdit.dirtyNotice')}</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void discard()}
+                disabled={busy}
+                className="brand-btn-secondary px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {t('projectEdit.dirty.confirmLabel')}
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className="brand-btn-primary px-5 py-2.5 rounded-xl text-xs font-black cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                {busy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? t('projectEdit.save.saving') : t('projectEdit.save.label')}
+              </button>
+            </div>
+          </div>
+        )}
       </form>
 
       {preview && <FilePreviewModal {...preview} onClose={() => setPreview(null)} />}
