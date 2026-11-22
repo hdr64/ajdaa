@@ -14,6 +14,8 @@ import { useAdminT } from '../../../i18n/admin';
 interface Project3dPreviewButtonProps {
   project: Property;
   className: string;
+  /** Optional visible label after the icon; the default is an icon-only button. */
+  children?: React.ReactNode;
 }
 
 /**
@@ -22,7 +24,7 @@ interface Project3dPreviewButtonProps {
  * the project has no valid 3D link. Independent of the public `projectCards.show3d`
  * switch: admins can always preview.
  */
-export const Project3dPreviewButton: React.FC<Project3dPreviewButtonProps> = ({ project, className }) => {
+export const Project3dPreviewButton: React.FC<Project3dPreviewButtonProps> = ({ project, className, children }) => {
   const { t, isAr } = useAdminT();
   const [open, setOpen] = useState(false);
 
@@ -43,6 +45,7 @@ export const Project3dPreviewButton: React.FC<Project3dPreviewButtonProps> = ({ 
         aria-label={label}
       >
         {icon}
+        {children}
       </a>
     );
   }
@@ -60,6 +63,7 @@ export const Project3dPreviewButton: React.FC<Project3dPreviewButtonProps> = ({ 
         aria-label={label}
       >
         {icon}
+        {children}
       </button>
       {open && (
         <Project3dModal

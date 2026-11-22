@@ -78,5 +78,3 @@ No commits, no installs (sharp is already a server dependency), no `.env` edits,
 
 ## 9. Report
 `D:\projects\html\ajda\docs\prompts\task-img-a-report.md`, top lines `Model:` (never guessed, `unknown` if unsure), `Started:`, `Finished:`. Then: files changed; gate results with test counts; sizes before/after for one real image (main vs each variant, in KB); a before/after KB table for every bundled image in 3.7 and the list of any that turned out unused; decisions you made; what you could not verify (browser, production). Claim nothing the commands did not show. Browser verification (Network tab shows the right candidate at 390 px and 1440 px, no layout change, cache headers on a real request) is done by the reviewer.
-
-Run with a free OpenCode model: **Beam Free**. If it fails twice, split into server (3.2–3.4, 3.6), client (3.5) and bundled images (3.7).
