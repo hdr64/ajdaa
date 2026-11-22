@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070A10">
+<link rel="icon" href="media/brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="media/brand/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="media/brand/apple-touch-icon.png">
+<title>AJDA PRIME · 360° Tour</title>
+<meta name="description" content="Walk through AJDA PRIME on King Fahd Road, Riyadh: rendered 360° views joined by 3D walking transitions, a model view and a floor-plan view.">
+<link rel="preload" href="fonts/readex-pro-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/brand.css">
+<link rel="stylesheet" href="assets/css/tour.css">
+<link rel="stylesheet" href="assets/css/tour2.css">
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
+</head>
+<body class="tour tour2" data-mode="pano">
+<div id="viewer" class="viewer" aria-label="360 degree view"></div>
+<div class="vignette" aria-hidden="true"></div>
+
+<header class="t-top">
+  <a class="t-brand glass pill" href="./" data-i18n-title="ui.backToSite">
+    <span class="logo logo-auto" aria-hidden="true"></span>
+    <span class="t-brand-name" data-i18n="brand.name">AJDA PRIME</span><span class="t-brand-sub" data-i18n="ui.tour360">360° tour</span>
+  </a>
+  <div class="t-title glass" aria-live="polite">
+    <span class="t-floor" id="t-floor"></span>
+    <strong class="t-scene" id="t-scene"></strong>
+  </div>
+  <div class="t-actions">
+    <div class="seg glass" role="group" aria-label="Language"><button data-lang="en">EN</button><button data-lang="ar">ع</button></div>
+    <button class="icon-btn glass btn" id="t-full" data-i18n-title="ui.fullscreen"></button>
+  </div>
+</header>
+
+<!-- floors (left) -->
+<nav class="t2-floors glass" id="t2-floors" aria-label="Floors"></nav>
+
+<!-- mini-map (top left): this floor from above; the map glides under the view cone while walking -->
+<div class="t2-mini" id="t2-mini" hidden aria-label="Mini-map">
+  <div class="t2-mini-map" id="t2-mini-map"><div class="t2-mini-dots" id="t2-mini-dots"></div></div>
+  <svg class="t2-mini-cone" id="t2-mini-cone" viewBox="-50 -50 100 100" aria-hidden="true">
+    <defs><radialGradient id="t2cg" cx="0" cy="0" r="48" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F0B979" stop-opacity=".95"/><stop offset=".7" stop-color="#F0B979" stop-opacity=".45"/><stop offset="1" stop-color="#F0B979" stop-opacity=".08"/></radialGradient></defs>
+    <path id="t2-mini-fan" d="M0 0 L-24 -42 A48 48 0 0 1 24 -42 Z" fill="url(#t2cg)" stroke="rgba(255,236,210,.85)" stroke-width="1.2" stroke-linejoin="round"/>
+    <circle r="6.5" fill="#1b1712" stroke="#fff" stroke-width="3"/>
+  </svg>
+  <button class="t2-mini-n" id="t2-mini-n" aria-hidden="true" tabindex="-1">N</button>
+</div>
+
+<!-- mode switch (bottom centre) -->
+<div class="t2-modes glass" role="tablist" aria-label="View">
+  <button role="tab" data-mode="pano" aria-selected="true"><span class="ico" id="ico-pano"></span><span data-i18n="ui.modePano">360°</span></button>
+  <button role="tab" data-mode="model" aria-selected="false"><span class="ico" id="ico-model"></span><span data-i18n="ui.modeModel">Model</span></button>
+  <button role="tab" data-mode="plan" aria-selected="false"><span class="ico" id="ico-plan"></span><span data-i18n="ui.modePlan">Plan</span></button>
+</div>
+
+<!-- scene strip -->
+<nav class="t-strip t2-strip" id="t-strip" aria-label="Views on this floor"></nav>
+
+<!-- right controls -->
+<div class="t-controls t2-controls">
+  <button class="icon-btn glass btn" id="t-play" aria-pressed="false" data-i18n-title="ui.guidedTour"></button>
+  <button class="icon-btn glass btn" id="t-zoom-in" data-i18n-title="ui.zoomIn"></button>
+  <button class="icon-btn glass btn" id="t-zoom-out" data-i18n-title="ui.zoomOut"></button>
+  <button class="icon-btn glass btn" id="t-rotate" aria-pressed="false" data-i18n-title="ui.autoRotate"></button>
+  <button class="icon-btn glass btn" id="t-fx" aria-expanded="false" data-i18n-title="ui.transitionStyle"></button>
+  <button class="icon-btn glass btn" id="t-gyro" aria-pressed="false" title="Look around by moving your phone" hidden></button>
+  <button class="icon-btn glass btn" id="t-info" data-i18n-title="ui.about"></button>
+</div>
+<div class="t2-fx glass" id="t2-fx" hidden role="menu"></div>
+
+<div class="t-hover" id="t-hover" hidden><img alt=""><div><small id="t-hover-kind"></small><span id="t-hover-title"></span></div></div>
+<div class="t-toast glass pill" id="t-toast" hidden></div>
+<div class="t2-caption glass" id="t2-caption" hidden></div>
+
+<div class="t-info glass" id="t-info-panel" hidden>
+  <button class="icon-btn btn t-info-close" id="t-info-close" aria-label="Close"></button>
+  <h2 data-i18n="ui.aboutTitle">About this tour</h2>
+  <p id="t-honesty"></p>
+  <p class="t-help" data-i18n="ui.help2">Drag to look around. Tap a glowing circle, or any spot on the floor, to walk there. The mini-map shows where you are and which way you face; tap it for the floor plan. Model shows the whole building; Plan shows each floor from above. Tap a point to step inside. On a keyboard: arrows to turn and step forward, 1 · 2 · 3 to switch views.</p>
+</div>
+
+<div class="t-lift" id="t-lift" hidden><div class="t-lift-doors"><i></i><i></i></div><p id="t-lift-text"></p></div>
+
+<div class="loader-veil" id="veil"><div class="loader-mark"><div class="loader-logos" aria-hidden="true"><span class="logo logo-en"></span><i></i><span class="logo logo-ar"></span></div><div class="loader-word">AJDA PRIME</div><div class="loader-bar"><i id="veil-bar"></i></div></div></div>
+<noscript><p style="padding:2rem">The 360° tour needs JavaScript and WebGL.</p></noscript>
+<script type="module" src="assets/js/tour2/app.js?v=20261122a"></script>
+</body>
+</html>
